@@ -1,5 +1,5 @@
-// MachOBuildPlatformTests.swift — the platform rewrite an Apple TV guest's
-// GPU driver gets before it is installed.
+// MachOBuildPlatformTests.swift — the platform rewrite a tvOS or visionOS
+// guest's GPU driver gets before it is installed.
 
 import FirmwarePatcher
 import Foundation
@@ -24,8 +24,9 @@ struct MachOBuildPlatformTests {
         return header + body
     }
 
-    @Test
-    func `the platform of every build version becomes tvOS and nothing else changes`() throws {
+    @Test(arguments: [MachOBuildPlatform.tvOS, MachOBuildPlatform.visionOS])
+    func `the platform of every build version changes and nothing else does`(_ platform: UInt32) throws {
+        #expect(MachOBuildPlatform.visionOS == 11)
         // LC_UUID-shaped filler, then two LC_BUILD_VERSIONs (platform, minos, sdk, ntools).
         let original = Self.machO([
             (0x1B, [1, 2, 3, 4]),
@@ -34,10 +35,10 @@ struct MachOBuildPlatformTests {
         ])
         #expect(try MachOBuildPlatform.read(original) == MachOBuildPlatform.iOS)
         var data = original
-        try MachOBuildPlatform.set(MachOBuildPlatform.tvOS, in: &data)
-        #expect(try MachOBuildPlatform.read(data) == MachOBuildPlatform.tvOS)
+        try MachOBuildPlatform.set(platform, in: &data)
+        #expect(try MachOBuildPlatform.read(data) == platform)
         let changed = zip(original, data).enumerated().filter { $0.element.0 != $0.element.1 }.map(\.offset)
-        // The low byte of each platform word: 2 -> 3.
+        // Only the low byte of each platform word changes: 2 -> 3 or 11.
         #expect(changed == [32 + 24 + 8, 32 + 24 + 24 + 8])
     }
 

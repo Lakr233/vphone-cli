@@ -123,6 +123,15 @@
 			<string>system-cryptexd-exp-homepod_staging</string>
 			<string>preboot-homepod-exp-cryptex_class</string>
 			<string>preboot-homepod-exp-audio_product</string>
+			<string>preboot-exp-visionos_virtual_product</string>
+			<string>system-featureflags-exp-visionos_legacy_uxm</string>
+			<string>system-launchd-exp-visionos_hmd_presentable_ipc</string>
+			<string>system-launchd-exp-visionos_hmd_properties_ipc</string>
+			<string>system-launchd-exp-visionos_hmd_system_setter_ipc</string>
+			<string>system-launchd-exp-visionos_uxm_ipc</string>
+			<string>system-launchd-exp-visionos_wakeboard_system_ipc</string>
+			<string>system-launchdaemons-exp-visionos_nonfatal_services</string>
+			<string>system-preferences-exp-visionos_skip_buddy</string>
 		</array>
 	</dict>
 </dict>

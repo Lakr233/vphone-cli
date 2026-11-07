@@ -124,6 +124,7 @@ public struct VPhoneResources: Sendable {
         switch family {
         case .appleTV, .homePod, .homeView: "vphoned-tvos"
         case .watch: "vphoned-watchos"
+        case .vision: "vphoned-visionos"
         case .iPhone, .iPad: "vphoned"
         }
     }

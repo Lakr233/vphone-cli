@@ -219,13 +219,14 @@ enum GuestAPI {
             "name": "vphoned",
             "api_version": 1,
             "status": "ok",
+            "os": GuestRuntimePlatform.isVisionOS ? "visionOS" : GuestRuntimePlatform.productName,
             "binary_hash": binaryHash,
             "instance": instance,
             "ios": "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)",
             "ip": ip ?? "",
-            "setup_pending": setupAssistantPending(),
+            "setup_pending": GuestRuntimePlatform.isVisionOS ? false : setupAssistantPending(),
             "mobilegestalt_restart_pending": GuestMobileGestaltCache.restartPending(),
-            "capabilities": [
+            "capabilities": GuestRuntimePlatform.isVisionOS ? (GuestRuntimePlatform.visionOSCapabilities + scriptCapabilities()) : [
                 "touch",
                 "touch2",
                 "touch_edge",
@@ -437,6 +438,9 @@ enum GuestAPI {
             return result
         case .bootstrapInstall:
             let layout = try string(params, "layout")
+            if GuestRuntimePlatform.isVisionOS, layout != "rootless" {
+                throw GuestAPIError.invalidRequest("visionOS currently supports the rootless Irisin layout only")
+            }
             return try GuestIrisinInstaller.install(
                 jailbreak: jailbreakInfo(),
                 layout: layout,

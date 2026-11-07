@@ -145,6 +145,8 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
             VPhonePatchPreset.homePodMiniIdentifier
         case let guest? where guest.family == .watch:
             VPhonePatchPreset.watchOSIdentifier
+        case let guest? where guest.family == .vision:
+            VPhonePatchPreset.visionOSIdentifier
         case let guest? where guest.notchedArtworkSubtype != nil:
             VPhonePatchPreset.minimalIdentifier
         default:

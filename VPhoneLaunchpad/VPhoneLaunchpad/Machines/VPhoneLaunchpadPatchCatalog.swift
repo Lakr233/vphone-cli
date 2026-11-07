@@ -329,6 +329,10 @@ nonisolated struct VPhoneLaunchpadPatchSelection: Hashable, Sendable {
     /// The HomePod mini's arm64e userland has a preset of its own.
     static let homePodMiniPreset = "homepod-mini"
 
+    /// What `vm create` picks for an Apple Vision Pro: the visionOS 26.4 research
+    /// preset, with its native-UI experiments off.
+    static let visionOSPreset = "visionos"
+
     /// The preset a new machine of `productType` starts from.
     static func defaultPreset(forDevice productType: String?) -> String {
         switch productType {
@@ -337,6 +341,7 @@ nonisolated struct VPhoneLaunchpadPatchSelection: Hashable, Sendable {
         case "AppleTV14,1", "AppleTV18,1": tvOS4KPreset
         case let type? where type.hasPrefix("AppleTV"): tvOSPreset
         case let type? where type.hasPrefix("Watch"): watchOSPreset
+        case let type? where type.hasPrefix("RealityDevice"): visionOSPreset
         // The iOS 18 research board guests: `minimal` is checked on every
         // release, `standard` on 18.6.
         case "iPhone11,6", "iPhone11,4": minimalPreset

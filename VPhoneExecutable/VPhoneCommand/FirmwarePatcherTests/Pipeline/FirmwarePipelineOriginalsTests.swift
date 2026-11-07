@@ -53,6 +53,54 @@ private final class OnceOnlyBytePatcher: Patcher {
     }
 }
 
+@Suite("Firmware compatibility boot arguments")
+struct FirmwareCompatibilityBootArgumentsTests {
+    static let visionVersions: [(String?, String?, Bool)] = [
+        ("26.4", "26.4", true),
+        ("26.4.0", "26.4.0", true),
+        ("26.3", "26.4", false),
+        ("26.4.1", "26.4", false),
+        ("26.5", "26.4", false),
+        ("27.0", "26.4", false),
+        ("26.4", "26.3", false),
+        ("26.4", "26.4.1", false),
+        ("26.4", "26.5", false),
+        ("26.4", "27.0", false),
+        (nil, "26.4", false),
+        ("26.4", nil, false),
+        (nil, nil, false),
+    ]
+
+    @Test(arguments: visionVersions)
+    func `only the tested visionOS and PCC versions change OOL policy`(
+        _ base: String?, _ cloud: String?, _ enabled: Bool
+    ) {
+        let arguments = FirmwarePipeline.extraBootArguments(
+            for: .realityDevice14_1, iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud)
+        )
+        #expect(arguments == (enabled ? "ool_port_array_enforced=0" : ""))
+    }
+
+    @Test(arguments: [
+        VPhoneGuestDevice.iPhone17_3, .iPad16_1, .appleTV14_1,
+        .audioAccessory5_1, .watch7_18,
+    ])
+    func `other guest families keep the stock 26 point 4 policy`(_ guest: VPhoneGuestDevice) {
+        #expect(FirmwarePipeline.extraBootArguments(
+            for: guest, iOSBase: VPhoneVersion("26.4"), cloudOS: VPhoneVersion("26.4")
+        ).isEmpty)
+    }
+
+    @Test(arguments: ["16.6.1", "17.7", "18.0", "18.1", "18.6.2", "18.7.2"])
+    func `iOS 18 keeps its existing Skywalk argument`(_ base: String) {
+        for cloud in [nil, "18.1", "26.1", "26.4"] as [String?] {
+            #expect(FirmwarePipeline.extraBootArguments(
+                for: .iPhone11_6, iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud)
+            ) == "if_attach_nx=0x3")
+        }
+    }
+}
+
 /// Bytes in, bytes out. The shipped loader repackages IM4P containers, which these
 /// synthetic files are not.
 private struct RawFirmwareLoader: FirmwarePipeline.FirmwareLoader {

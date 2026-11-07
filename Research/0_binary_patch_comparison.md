@@ -6997,3 +6997,49 @@ bundle and invoked +[AXSpringBoardHomePopGlue initialize] successfully without
 crashing. The bank app loaded its homepage and answered accessibility UI queries.
 Open/closed pose requests and a second app launch were exercised; these checks
 are local VM evidence, not broad accessibility or real-device acceptance.
+
+## Experimental visionOS 26.4 native UI
+
+The RealityDevice14,1 / N301AP userland (23O247) can render native Home and
+Settings with the PCC 26.4 research kernel. This is an experimental pairing,
+with a manually configured cold-boot checkpoint rather than a fresh-install
+certification. See [the recipe, evidence and limitations](Firmware/visionos_bringup.md).
+
+- `preboot-exp-visionos_virtual_product` changes only the known generic VM product
+  token to native V201. The board identity remains RealityDevice14,1. The
+  existing Preboot composition backup provides reversal.
+- `system-launchdaemons-exp-visionos_nonfatal_services` journals only panic-on-crash
+  policy fields for polarisd, realitycamerad, realitycoprocessorloaderd and arkitd.
+  It retains the native jobs; it does not emulate their hardware.
+- `system-launchd-exp-visionos_uxm_ipc` injects a PID-1-only adapter for two exact
+  UXM/Polaris lookups absent from the PCC sandbox. Each optional display rule
+  has a separate selection and root-owned marker:
+  `system-launchd-exp-visionos_hmd_properties_ipc`,
+  `system-launchd-exp-visionos_hmd_presentable_ipc`,
+  `system-launchd-exp-visionos_hmd_system_setter_ipc`, and
+  `system-launchd-exp-visionos_wakeboard_system_ipc`.
+  Rules validate audit token/PID version, executable/signing identity, operation
+  and filter type; other checks retain the native function's ABI and errno.
+- `system-preferences-exp-visionos_skip_buddy` supplies a System policy and a
+  one-shot UID 501 helper. It durably journals only mobile's original native
+  ForceNoBuddy Boolean/absence before applying it; opt-out restores that key.
+- `system-featureflags-exp-visionos_legacy_uxm` journals two UXM feature fields
+  for a diagnostic legacy trial. Keep it off for native ClientSession users.
+
+All nine choices are off in shipped presets. UI adapters are pinned to the
+26.4/26.4 pairing; the nonfatal policy is pinned to the 26.4 userland. GPU
+LC_BUILD_VERSION retargeting and the exact-pair OOL-port-array boot argument
+reuse the existing GPU install and boot-argument patch paths. No new kernel
+instruction patch is introduced.
+
+### visionOS application management continuation
+
+The default visionOS guest agent now runs the existing full iOS application
+and Irisin interfaces through iPad compatibility. The Foundation-only bring-up agent is
+not shipped. Runtime detection includes RealityDevice
+hardware because compatibility mode reports iOS; iPhone startup policy and
+state polling are excluded. Bootstrap selection and guest validation allow
+rootless only. The existing vphoned installation step also installs its Span
+runtime dependency. No new firmware patch identifier or kernel
+instruction change is introduced. Runtime app installation/launch/removal,
+Irisin installation and registration rebuild are recorded in the bring-up doc.

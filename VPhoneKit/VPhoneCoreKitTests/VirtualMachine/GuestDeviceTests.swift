@@ -6,6 +6,17 @@ import Testing
 /// VM's `config.plist` keeps it.
 @Suite("Guest device")
 struct GuestDeviceTests {
+    @Test func `Vision Pro keeps its board identity and uses native visionOS resources`() {
+        let device = VPhoneGuestDevice.realityDevice14_1
+        #expect(VPhoneGuestDevice.detect(buildManifest: ["SupportedProductTypes": ["RealityDevice14,1"]]) == device)
+        #expect(device.deviceClass == "n301ap")
+        #expect(device.presentsBoard)
+        #expect(device.family.osName == "visionOS")
+        #expect(device.dyldSharedCacheDirectory == "System/Library/Caches/com.apple.dyld")
+        #expect(VPhoneResources.vphonedName(for: device.family) == "vphoned-visionos")
+        #expect(device.restoreTreeName(version: "26.4", build: "23O247") == "iPhoneOS_RealityDevice14,1_26.4_23O247_Restore")
+    }
+
     @Test func `local iOS 16 device preserves iPhone 14 Pro board and screen`() throws {
         let device = try #require(VPhoneGuestDevice.named("iPhone15,2"))
         #expect(device.deviceClass == "d73ap")

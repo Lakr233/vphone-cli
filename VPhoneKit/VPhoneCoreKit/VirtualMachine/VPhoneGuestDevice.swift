@@ -22,6 +22,7 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
         case homePod
         case homeView
         case watch
+        case vision
 
         public var osName: String {
             switch self {
@@ -31,6 +32,7 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
             case .homePod: "HomePod Software"
             case .homeView: "HomeView Software"
             case .watch: "watchOS"
+            case .vision: "visionOS"
             }
         }
 
@@ -71,6 +73,14 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
 
     public var usesTVOS: Bool {
         family.usesTVOS
+    }
+
+    /// Accessory restore assets keep their cache directly on System. They do
+    /// not carry the iPhone's OS cryptex, regardless of executable platform.
+    public var dyldSharedCacheDirectory: String {
+        usesTVOS || family == .vision
+            ? "System/Library/Caches/com.apple.dyld"
+            : "System/Cryptexes/OS/System/Library/Caches/com.apple.dyld"
     }
 
     /// Whether the guest boots a device tree of its own that presents this
@@ -289,6 +299,13 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
         self == .appleTV14_1 || self == .appleTV18_1 || family == .homeView ? .appleTV5_3 : nil
     }
 
+    /// Initial headless bring-up canvas, not the physical stereo display.
+    public static let realityDevice14_1 = VPhoneGuestDevice(
+        family: .vision, productType: "RealityDevice14,1", deviceClass: "n301ap",
+        productName: "Apple Vision Pro (research)",
+        screen: .init(width: 1280, height: 720, pixelsPerInch: 72, scale: 1.0)
+    )
+
     public static let known: [VPhoneGuestDevice] = [
         iPhone17_3,
         iPhone17_4, iPhone17_1, iPhone17_2, iPhone17_5,
@@ -303,6 +320,7 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
         appleTV5_3, appleTV14_1, appleTV18_1,
         audioAccessory5_1, homeAccessory17_1, homeAccessory17_2,
         watch7_18,
+        realityDevice14_1,
     ]
 
     /// Cellular models that ship in the same IPSW as a known Wi-Fi model and map
@@ -338,7 +356,7 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
     public func restoreTreeName(version: String, build: String) -> String {
         switch family {
         case .iPhone: "\(productType)_\(version)_\(build)_Restore"
-        case .iPad, .appleTV, .homePod, .homeView, .watch: "iPhoneOS_\(productType)_\(version)_\(build)_Restore"
+        case .iPad, .appleTV, .homePod, .homeView, .watch, .vision: "iPhoneOS_\(productType)_\(version)_\(build)_Restore"
         }
     }
 

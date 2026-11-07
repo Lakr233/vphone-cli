@@ -77,11 +77,11 @@ tvos_daemon_products="$root/.build/XcodeDaemon/Build/Products/$configuration-app
 amfi_products="$root/.build/XcodeAMFIAllow/Build/Products/$configuration"
 guest_products="$root/.build/guest-components/stage"
 
-# The iOS 26 Swift runtime lacks this symbol, and Swift 6.4 can import it
+# The 26.x guest Swift runtimes lack this symbol, and Swift 6.4 can import it
 # strongly even when vphoned targets iOS 15, causing a dyld crash loop.
 for daemon in "$daemon_products/vphoned" "$tvos_daemon_products/vphoned"; do
     if /usr/bin/nm -u "$daemon" | /usr/bin/grep -q '_swift_initBorrow'; then
-        print -u2 -- "${daemon#$root/} requires _swift_initBorrow, which is unavailable on iOS 26 and tvOS 26"
+        print -u2 -- "${daemon#$root/} requires _swift_initBorrow, which is unavailable on 26.x guests"
         exit 1
     fi
 done
@@ -115,6 +115,7 @@ guest_compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
     /usr/bin/grep '/libswiftCompatibilitySpan.dylib$')"
 /bin/cp "$guest_compatibility_library" "$guest/libswiftCompatibilitySpan.dylib"
 /usr/bin/install_name_tool -add_rpath /usr/lib/vphone "$guest/vphoned"
+/bin/cp "$guest/vphoned" "$guest/vphoned-visionos"
 /usr/bin/codesign --force --sign - "$guest/libswiftCompatibilitySpan.dylib"
 /bin/cp "$root/VPhoneDaemon/Configuration/vphoned.plist" "$guest/vphoned.plist"
 /bin/cp "$guest_products/launchhook/launchdhook-vphone.dylib" "$guest/launchdhook-vphone.dylib"
@@ -142,11 +143,14 @@ guest_compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /bin/cp "$guest_products/attitude/libvphoneattitude.dylib" "$guest/libvphoneattitude.dylib"
 /bin/cp "$guest_products/cryptexstaging/libvphonecryptexstaging.dylib" "$guest/libvphonecryptexstaging.dylib"
 /bin/cp "$guest_products/homepodpersona/libvphoneinstallpersona.dylib" "$guest/libvphoneinstallpersona.dylib"
+/bin/cp "$guest_products/visionosipc/libvphonevisionosipc.dylib" "$guest/libvphonevisionosipc.dylib"
 /bin/cp "$guest_products/homepodmisfix/libvphonehomepodmisfix.dylib" "$guest/libvphonehomepodmisfix.dylib"
 /bin/cp "$guest_products/homepoddisplay/libvphonehomepoddisplay.dylib" "$guest/libvphonehomepoddisplay.dylib"
 /bin/cp "$guest_products/tvsetupfocus/libvphonetvsetupfocus.dylib" "$guest/libvphonetvsetupfocus.dylib"
 /bin/cp "$guest_products/homepodsetup/vphone-homepod-setup" "$guest/vphone-homepod-setup"
 /bin/cp "$guest_products/homepodsetup/com.vphone.homepod-setup.plist" "$guest/com.vphone.homepod-setup.plist"
+/bin/cp "$guest_products/visionospreferences/vphone-visionos-preferences" "$guest/vphone-visionos-preferences"
+/bin/cp "$guest_products/visionospreferences/com.vphone.visionos-preferences.plist" "$guest/com.vphone.visionos-preferences.plist"
 /bin/cp "$guest_products/gpu/libAppleParavirtCompilerPluginIOGPUFamily.dylib" \
     "$guest/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
 # The HAL plugin is a bundle, signed whole by the Makefile; copied as a tree so
@@ -231,6 +235,7 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /usr/bin/codesign --force --sign - "$macos/vphone-cli"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-tvos"
+/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-visionos"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-watchos"
 /usr/bin/codesign --force --sign - "$macos/vphone-escalator"
 /usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"

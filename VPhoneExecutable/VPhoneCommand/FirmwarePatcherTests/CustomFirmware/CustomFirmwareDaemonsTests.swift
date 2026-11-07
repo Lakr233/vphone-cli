@@ -4,6 +4,144 @@ import Foundation
 import Testing
 import VPhonePatchKit
 
+@Suite("visionOS legacy UXM feature flags")
+struct VisionOSLegacyUXMFeatureFlagsTests {
+    private let shared = "UXMSharedMemoryBlackboard"
+    private let shim = "UXMShim"
+
+    @Test func selectsLegacyFormatAndJournalsOnlyOwnedFields() throws {
+        var domain: PlistDict = [
+            shared: ["DevelopmentPhase": "FeatureComplete", "Note": "keep"],
+            shim: ["Enabled": true, "OtherPolicy": ["value": 7]],
+            "UnrelatedFeature": ["Enabled": true],
+        ]
+        var journal: PlistDict = [:]
+        #expect(try CustomFirmwareDaemons.visionOSLegacyUXMFeatures(
+            domain: &domain, journal: &journal, enabled: true
+        ) == [shared, shim])
+        for feature in [shared, shim] {
+            let entry = try #require(domain[feature] as? PlistDict)
+            #expect(PlistSemantics.differences(entry["Enabled"]!, false).isEmpty)
+            #expect(entry["DevelopmentPhase"] == nil)
+        }
+        #expect(PlistSemantics.differences(domain, [
+            shared: ["Enabled": false, "Note": "keep"],
+            shim: ["Enabled": false, "OtherPolicy": ["value": 7]],
+            "UnrelatedFeature": ["Enabled": true],
+        ]).isEmpty)
+        let expectedJournal: PlistDict = [
+            shared: ["DevelopmentPhase": "FeatureComplete"], shim: ["Enabled": true],
+        ]
+        #expect(PlistSemantics.differences(journal, expectedJournal).isEmpty)
+        #expect(try CustomFirmwareDaemons.visionOSLegacyUXMFeatures(
+            domain: &domain, journal: &journal, enabled: true
+        ).isEmpty)
+        #expect(PlistSemantics.differences(journal, expectedJournal).isEmpty)
+    }
+
+    @Test func restoringOwnedFieldsPreservesLaterChangesAndOriginalAbsence() throws {
+        var domain: PlistDict = [shared: ["Note": "original"], shim: ["DevelopmentPhase": "FeatureComplete"]]
+        var journal: PlistDict = [:]
+        _ = try CustomFirmwareDaemons.visionOSLegacyUXMFeatures(domain: &domain, journal: &journal, enabled: true)
+        #expect((journal[shared] as? PlistDict)?.isEmpty == true)
+        domain[shared] = ["Enabled": true, "Note": "later", "Added": 42]
+        domain[shim] = ["Enabled": false, "Added": "preserve"]
+        domain["LaterFeature"] = ["Enabled": true]
+        #expect(try CustomFirmwareDaemons.visionOSLegacyUXMFeatures(
+            domain: &domain, journal: &journal, enabled: false
+        ) == [shared, shim])
+        #expect(PlistSemantics.differences(domain, [
+            shared: ["Note": "later", "Added": 42],
+            shim: ["DevelopmentPhase": "FeatureComplete", "Added": "preserve"],
+            "LaterFeature": ["Enabled": true],
+        ]).isEmpty)
+        #expect(try CustomFirmwareDaemons.visionOSLegacyUXMFeatures(
+            domain: &domain, journal: &journal, enabled: false
+        ).isEmpty)
+    }
+
+    @Test func malformedDomainFailsWithoutChangingEitherDictionary() throws {
+        let invalidEntries: [Any] = ["not a dictionary", ["Enabled": NSNumber(value: 1)], ["DevelopmentPhase": true]]
+        for invalid in invalidEntries {
+            let original: PlistDict = [shared: ["DevelopmentPhase": "FeatureComplete"], shim: invalid]
+            var domain = original, journal: PlistDict = [:]
+            #expect(throws: CustomFirmwareDaemons.DaemonError.self) {
+                try CustomFirmwareDaemons.visionOSLegacyUXMFeatures(domain: &domain, journal: &journal, enabled: true)
+            }
+            #expect(PlistSemantics.differences(domain, original).isEmpty)
+            #expect(journal.isEmpty)
+        }
+        var missing: PlistDict = [shared: ["Enabled": true]], journal: PlistDict = [:]
+        let original = missing
+        #expect(throws: CustomFirmwareDaemons.DaemonError.self) {
+            try CustomFirmwareDaemons.visionOSLegacyUXMFeatures(domain: &missing, journal: &journal, enabled: true)
+        }
+        #expect(PlistSemantics.differences(missing, original).isEmpty)
+        #expect(journal.isEmpty)
+    }
+
+    @Test func malformedJournalFailsAtomicallyWhenApplyingOrRestoring() throws {
+        let invalidEntries: [Any] = ["not a dictionary", ["Enabled": 1], ["DevelopmentPhase": false], ["Unowned": true]]
+        for enabled in [true, false] {
+            for invalid in invalidEntries {
+                let originalDomain: PlistDict = [shared: ["Enabled": true], shim: ["Enabled": true]]
+                let originalJournal: PlistDict = [shared: ["DevelopmentPhase": "FeatureComplete"], shim: invalid]
+                var domain = originalDomain, journal = originalJournal
+                #expect(throws: CustomFirmwareDaemons.DaemonError.self) {
+                    try CustomFirmwareDaemons.visionOSLegacyUXMFeatures(domain: &domain, journal: &journal, enabled: enabled)
+                }
+                #expect(PlistSemantics.differences(domain, originalDomain).isEmpty)
+                #expect(PlistSemantics.differences(journal, originalJournal).isEmpty)
+            }
+        }
+    }
+
+    @Test func disablingWithoutJournalPreservesCurrentFlags() throws {
+        var domain: PlistDict = [shared: ["DevelopmentPhase": "FeatureComplete"], shim: ["Enabled": true]]
+        let original = domain
+        var journal: PlistDict = [:]
+        #expect(try CustomFirmwareDaemons.visionOSLegacyUXMFeatures(
+            domain: &domain, journal: &journal, enabled: false
+        ).isEmpty)
+        #expect(PlistSemantics.differences(domain, original).isEmpty)
+        #expect(journal.isEmpty)
+    }
+}
+
+@Suite("visionOS headless panic policy")
+struct VisionOSHeadlessPanicPolicyTests {
+    @Test func preservesJobsAndReversesOnlyOwnedFlags() throws {
+        let polaris = "/System/Library/LaunchDaemons/com.apple.polarisd.plist"
+        let arkit = "/System/Library/LaunchDaemons/com.apple.arkitd.plist"
+        let watchdog = "/System/Library/LaunchDaemons/com.apple.watchdogd.plist"
+        let original: PlistDict = ["LaunchDaemons": [
+            polaris: ["Label": "com.apple.polarisd", "_PanicOnCrash": true,
+                      "com.apple.private.spawn-panic-crash-behavior": true, "KeepAlive": true],
+            arkit: ["Label": "com.apple.arkitd", "_PanicOnCrash": ["#Else": false, "#Then": true]],
+            watchdog: ["Label": "com.apple.watchdogd", "_PanicOnCrash": ["PanicOnConsecutiveCrash": true]],
+        ]]
+        var cache = original, journal: PlistDict = [:]
+        let changed = try CustomFirmwareDaemons.visionOSNonfatalServices(cache: &cache, journal: &journal, enabled: true)
+        #expect(Set(changed) == ["com.apple.polarisd", "com.apple.arkitd"])
+        var jobs = try #require(cache["LaunchDaemons"] as? PlistDict)
+        #expect((jobs[polaris] as? PlistDict)?["_PanicOnCrash"] == nil)
+        #expect(PlistSemantics.differences(jobs[watchdog]!, (original["LaunchDaemons"] as! PlistDict)[watchdog]!).isEmpty)
+        #expect(try CustomFirmwareDaemons.visionOSNonfatalServices(cache: &cache, journal: &journal, enabled: true).isEmpty)
+        jobs["vphoned"] = ["Label": "vphoned"]
+        var modifiedPolaris = jobs[polaris] as! PlistDict
+        modifiedPolaris["UserAddedSetting"] = "retain"
+        jobs[polaris] = modifiedPolaris
+        cache["LaunchDaemons"] = jobs
+        _ = try CustomFirmwareDaemons.visionOSNonfatalServices(cache: &cache, journal: &journal, enabled: false)
+        var expected = original["LaunchDaemons"] as! PlistDict
+        var expectedPolaris = expected[polaris] as! PlistDict
+        expectedPolaris["UserAddedSetting"] = "retain"
+        expected[polaris] = expectedPolaris
+        expected["vphoned"] = ["Label": "vphoned"]
+        #expect(PlistSemantics.differences(cache["LaunchDaemons"]!, expected).isEmpty)
+    }
+}
+
 // MARK: - Plist semantics
 
 /// Recursive semantic comparison of two property lists.

@@ -739,7 +739,7 @@ public enum VPhoneFirmwareCatalog {
         case .appleTV, .homeView: VPhoneCloudOSOption(name: "cloudOS 26.4", url: cloud264)
         case .homePod: researchBoardCloudOS(forVersion: version) ?? VPhoneCloudOSOption(name: "cloudOS 26.4", url: cloud264)
         case .watch: researchBoardCloudOS(forVersion: version) ?? recommendedCloudOS(forVersion: version)
-        case .iPhone, .iPad: recommendedCloudOS(forVersion: version)
+        case .iPhone, .iPad, .vision: recommendedCloudOS(forVersion: version)
         }
     }
 

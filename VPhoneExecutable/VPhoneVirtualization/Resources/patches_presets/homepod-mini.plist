@@ -176,6 +176,15 @@
 			<string>preboot-exp-ios16_ephemeral_storage</string>
 			<string>system-vphoned-exp-ios16_touchscreen</string>
 			<string>system-springboard-exp-ios16_keybagless_ui</string>
+			<string>preboot-exp-visionos_virtual_product</string>
+			<string>system-featureflags-exp-visionos_legacy_uxm</string>
+			<string>system-launchd-exp-visionos_hmd_presentable_ipc</string>
+			<string>system-launchd-exp-visionos_hmd_properties_ipc</string>
+			<string>system-launchd-exp-visionos_hmd_system_setter_ipc</string>
+			<string>system-launchd-exp-visionos_uxm_ipc</string>
+			<string>system-launchd-exp-visionos_wakeboard_system_ipc</string>
+			<string>system-launchdaemons-exp-visionos_nonfatal_services</string>
+			<string>system-preferences-exp-visionos_skip_buddy</string>
 		</array>
 	</dict>
 	<key>Summary</key>

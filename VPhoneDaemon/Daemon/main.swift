@@ -19,36 +19,43 @@ if mode != 1 {
 }
 
 guard vp_native_watch_proxy() == 0 else { exit(1) }
-// First, so the Lock Screen timeout is in place before SpringBoard reads it.
-GuestLockScreenIdle.startOnStartup()
-// Before the server, so `/v1/health` reports a drop from its first answer.
-GuestMobileGestaltCache.dropIfStaleOnStartup()
-GuestMobileGestaltCache.presentAlwaysOnDisplayOnStartup()
-// Settings' row icons rendered before the iOS 18 GPU transport are blank.
-GuestIconServicesCache.dropIfOlderThanGPUOnStartup()
-// An iOS 18 screen stays black until backboardd runs without surface compression.
-GuestCoreAnimationCompression.applyOnStartup()
-// Before audiomxd is asked for sound again; see the type for what it cannot cover.
-GuestVirtualAudioProduct.storeOnStartup()
-// After SpringBoard has had time to come up, so the inner panel's layout
-// matches the posture it was booted with.
-GuestFoldPose.startOnStartup()
-GuestDeviceHubControl.startOnStartup()
-vp_vcam_start()
-GuestHomePodDisplay.startOnStartup()
-// Multi-finger injection is resolved here so the first pinch is not the call
-// that pays for `dlopen`; a base without the symbols logs and stays a no-op.
-_ = vp_hid_load()
-vp_ios16_touchscreen_start()
-vp_ios16_keybagless_ui_start()
-// The VM's touchscreen has no wake gesture; a tap on a dark screen lights it.
-GuestScreenUnlock.startTapToWake()
+// visionOS runs this agent through iPad compatibility: none of the iPhone
+// display, input, sensor or lock-screen startup applies there.
+let iPhoneStartup = !GuestRuntimePlatform.isVisionOS
+if iPhoneStartup {
+    // First, so the Lock Screen timeout is in place before SpringBoard reads it.
+    GuestLockScreenIdle.startOnStartup()
+    // Before the server, so `/v1/health` reports a drop from its first answer.
+    GuestMobileGestaltCache.dropIfStaleOnStartup()
+    GuestMobileGestaltCache.presentAlwaysOnDisplayOnStartup()
+    // Settings' row icons rendered before the iOS 18 GPU transport are blank.
+    GuestIconServicesCache.dropIfOlderThanGPUOnStartup()
+    // An iOS 18 screen stays black until backboardd runs without surface compression.
+    GuestCoreAnimationCompression.applyOnStartup()
+    // Before audiomxd is asked for sound again; see the type for what it cannot cover.
+    GuestVirtualAudioProduct.storeOnStartup()
+    // After SpringBoard has had time to come up, so the inner panel's layout
+    // matches the posture it was booted with.
+    GuestFoldPose.startOnStartup()
+    GuestDeviceHubControl.startOnStartup()
+    vp_vcam_start()
+    GuestHomePodDisplay.startOnStartup()
+    // Multi-finger injection is resolved here so the first pinch is not the call
+    // that pays for `dlopen`; a base without the symbols logs and stays a no-op.
+    _ = vp_hid_load()
+    vp_ios16_touchscreen_start()
+    vp_ios16_keybagless_ui_start()
+    // The VM's touchscreen has no wake gesture; a tap on a dark screen lights it.
+    GuestScreenUnlock.startTapToWake()
+}
 GuestIrisinInstaller.refreshBootstrapOnStartup()
-GuestAPI.restoreUSBSerialOnStartup()
-GuestStaticNames.shared.restoreOnStartup()
-// locationd can deadlock as it starts; this restarts it.
-GuestLocationdWatchdog.shared.startOnStartup()
-GuestDeveloperModeSnapshot.shared.startOnStartup()
+if iPhoneStartup {
+    GuestAPI.restoreUSBSerialOnStartup()
+    GuestStaticNames.shared.restoreOnStartup()
+    // locationd can deadlock as it starts; this restarts it.
+    GuestLocationdWatchdog.shared.startOnStartup()
+    GuestDeveloperModeSnapshot.shared.startOnStartup()
+}
 
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)
 let filePool = NIOThreadPool(numberOfThreads: 2)

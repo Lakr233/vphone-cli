@@ -535,6 +535,19 @@ struct VPhoneCustomFirmwarePatchBoardAudioCommand: ParsableCommand {
 
 // MARK: - patch-dt-homepod-audio-product
 
+struct VPhoneCustomFirmwarePatchVisionOSVirtualProductCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-dt-visionos-virtual-product",
+        abstract: "Select visionOS's native V201 virtual display product",
+    )
+    @Argument(transform: URL.init(fileURLWithPath:)) var deviceTree: URL
+    @Flag(name: .customLong("dry-run")) var dryRun = false
+
+    func run() throws {
+        try CustomFirmwarePostRestoreDeviceTree.presentVisionOSVirtualProduct(at: deviceTree, dryRun: dryRun)
+    }
+}
+
 struct VPhoneCustomFirmwarePatchHomePodCryptexClassCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "patch-dt-homepod-cryptex-class",
