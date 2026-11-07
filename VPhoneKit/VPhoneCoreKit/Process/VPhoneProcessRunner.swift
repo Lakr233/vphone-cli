@@ -21,32 +21,33 @@ public struct VPhoneProcessResult: Sendable {
 // MARK: - VPhoneProcessRunner
 
 public enum VPhoneProcessRunner {
-    /// Thread-safe accumulator for a pipe's bytes. `@unchecked Sendable`
-    /// because access is serialized by its lock, satisfying the readability
-    /// handler's `@Sendable` requirement under Swift 6 strict concurrency.
+    /// A reader records its result before leaving the drain group. The lock
+    /// protects the result across the reader and caller threads.
     private final class DataBox: @unchecked Sendable {
         private let lock = NSLock()
-        private var data = Data()
-        func append(_ chunk: Data) {
+        private var result: Result<Data, Error> = .success(Data())
+
+        func read(from handle: FileHandle) {
+            defer { try? handle.close() }
+            let result = Result { try handle.readToEnd() ?? Data() }
             lock.lock()
-            data.append(chunk)
+            self.result = result
             lock.unlock()
         }
 
-        func take() -> Data {
+        func take() throws -> Data {
             lock.lock()
             defer { lock.unlock() }
-            return data
+            return try result.get()
         }
     }
 
     /// Run `executable args` to completion, capturing stdout/stderr.
-    /// Throws only if the process cannot be launched; a nonzero exit is
-    /// returned in the result, not thrown.
+    /// Throws if the process cannot be launched or an output pipe cannot be
+    /// read; a nonzero exit is returned in the result, not thrown.
     ///
-    /// stdout and stderr are drained CONCURRENTLY via readability handlers —
-    /// a sequential "read stdout fully, then stderr" drain deadlocks when a
-    /// child fills one pipe's ~64 KB buffer while still writing the other.
+    /// Both pipes are drained concurrently. Blocking readers observe EOF
+    /// independently of FileHandle readability-handler notifications.
     public static func runCapturing(
         _ executable: URL,
         _ args: [String],
@@ -71,35 +72,24 @@ public enum VPhoneProcessRunner {
         let outBox = DataBox()
         let errBox = DataBox()
         let group = DispatchGroup()
-        group.enter()
-        group.enter()
-        outPipe.fileHandleForReading.readabilityHandler = { handle in
-            let chunk = handle.availableData
-            if chunk.isEmpty {
-                handle.readabilityHandler = nil
-                group.leave()
-            } else {
-                outBox.append(chunk)
-            }
-        }
-        errPipe.fileHandleForReading.readabilityHandler = { handle in
-            let chunk = handle.availableData
-            if chunk.isEmpty {
-                handle.readabilityHandler = nil
-                group.leave()
-            } else {
-                errBox.append(chunk)
-            }
-        }
-
         try process.run()
+        for (handle, box) in [
+            (outPipe.fileHandleForReading, outBox),
+            (errPipe.fileHandleForReading, errBox),
+        ] {
+            group.enter()
+            Thread.detachNewThread {
+                box.read(from: handle)
+                group.leave()
+            }
+        }
         process.waitUntilExit()
         group.wait()
 
         return VPhoneProcessResult(
             exitCode: process.terminationStatus,
-            stdout: String(decoding: outBox.take(), as: UTF8.self),
-            stderr: String(decoding: errBox.take(), as: UTF8.self),
+            stdout: String(decoding: try outBox.take(), as: UTF8.self),
+            stderr: String(decoding: try errBox.take(), as: UTF8.self),
         )
     }
 

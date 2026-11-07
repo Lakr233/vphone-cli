@@ -17,6 +17,36 @@ struct ProcessRunnerTests {
         #expect(!r.succeeded)
     }
 
+    @Test @MainActor func `captures short lived stderr only commands`() throws {
+        for _ in 0..<20 {
+            let result = try VPhoneProcessRunner.runCapturing(
+                URL(fileURLWithPath: "/bin/sh"), ["-c", "printf err >&2"],
+            )
+            #expect(result.exitCode == 0)
+            #expect(result.stdout.isEmpty)
+            #expect(result.stderr == "err")
+        }
+    }
+
+    @Test @MainActor func `captures both short lived output streams completely`() throws {
+        for _ in 0..<20 {
+            let result = try VPhoneProcessRunner.runCapturing(
+                URL(fileURLWithPath: "/bin/sh"), ["-c", "printf output; printf error >&2"],
+            )
+            #expect(result.exitCode == 0)
+            #expect(result.stdout == "output")
+            #expect(result.stderr == "error")
+        }
+    }
+
+    @Test func `throws when the executable cannot be launched`() {
+        #expect(throws: (any Error).self) {
+            try VPhoneProcessRunner.runCapturing(
+                URL(fileURLWithPath: "/tmp/vphone-no-executable-\(UUID().uuidString)"), [],
+            )
+        }
+    }
+
     @Test func `passes cwd`() throws {
         let r = try VPhoneProcessRunner.runCapturing(
             URL(fileURLWithPath: "/bin/pwd"),
