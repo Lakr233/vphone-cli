@@ -113,8 +113,8 @@ the latest upstream-based bundle remains a separate validation step.
 The default `vphoned-visionos` now uses the full iOS agent through the visionOS
 iPad compatibility environment. This supplies the existing app browser,
 URL opening, IPA installation, bootstrap installation/removal and app-registration
-RPCs. The native Foundation-only agent remains available as
-`vphoned-visionos-minimal` for research fallback.
+RPCs. The Foundation-only agent used during bring-up is not shipped: nothing
+installed it once the iOS agent ran under compatibility.
 
 Compatibility mode can report an iOS ProductName, so the runtime detector also
 checks the `RealityDevice` hardware identifier. The agent skips iPhone startup
@@ -124,9 +124,8 @@ unverified iPhone camera, touch, location, unlock or environment-update features
 The bootstrap selector offers rootless only; the guest independently rejects
 RootHide before making changes.
 
-Fresh installs stage the Span compatibility library on System. Auto-updating
-an older minimal-agent VM seeds the root-owned agent cache before switching
-executables, so the new agent runtime dependency is present at its first launch.
+Fresh installs stage the Span compatibility library on System, where the
+agent's `/usr/lib/vphone` rpath finds it.
 
 Runtime verification in the existing VM covered:
 
@@ -152,11 +151,7 @@ product-token replacement, strict plist inverses, preset parity and independent
 display dependencies. C tests cover IPC scope, ABI/errno forwarding, marker and
 audit-token failures. Objective-C tests cover preference journal publication,
 idempotence, malformed input, persistence failures and parent-directory durability.
-Mock HID tests cover event allocation, timing, metadata and unavailable symbols.
 
-The minimal fallback agent advertises HID only when visionOS APIs resolve.
-`input.hid` validates numeric/Boolean types, serializes bounded submissions,
-and reports submission rather than claiming a consumer handled the event.
 The visible interaction checkpoint used the VM window's mouse path.
 
 The upstream-based PR branch passed the complete VPhone bundle build and

@@ -7030,18 +7030,16 @@ All nine choices are off in shipped presets. UI adapters are pinned to the
 26.4/26.4 pairing; the nonfatal policy is pinned to the 26.4 userland. GPU
 LC_BUILD_VERSION retargeting and the exact-pair OOL-port-array boot argument
 reuse the existing GPU install and boot-argument patch paths. No new kernel
-instruction patch is introduced. The Foundation-only agent and its HID path
-carry the existing guest daemon entitlements.
+instruction patch is introduced.
 
 ### visionOS application management continuation
 
 The default visionOS guest agent now runs the existing full iOS application
-and Irisin interfaces through iPad compatibility. The native minimal agent is
-retained as a separate fallback. Runtime detection includes RealityDevice
+and Irisin interfaces through iPad compatibility. The Foundation-only bring-up agent is
+not shipped. Runtime detection includes RealityDevice
 hardware because compatibility mode reports iOS; iPhone startup policy and
 state polling are excluded. Bootstrap selection and guest validation allow
 rootless only. The existing vphoned installation step also installs its Span
-runtime dependency, and auto-update seeds that dependency into the root-owned
-cache before changing executables. No new firmware patch identifier or kernel
+runtime dependency. No new firmware patch identifier or kernel
 instruction change is introduced. Runtime app installation/launch/removal,
 Irisin installation and registration rebuild are recorded in the bring-up doc.

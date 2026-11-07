@@ -2364,7 +2364,10 @@ struct VPhoneCustomFirmwareInstaller {
                     try system.removeItem(marker)
                     try system.removeItem(path)
                 }
-                if on(visionIPC) || hadMarker { return }
+                // The adapter needs an otherwise stock launchd. Once it is off
+                // again, launchd is the pristine backup, so the other launchd
+                // patches selected in this run still apply below.
+                if on(visionIPC) { return }
             }
             if isHomePod {
                 let library = FirmwareGuestSystemPatchSet.homePodInstallPersonaLibrary

@@ -4,8 +4,12 @@ import Darwin
 /// visionOS runs the iOS agent through its iPad compatibility environment.
 /// Compile-time os(iOS) alone must not select iPhone startup policy there.
 enum GuestRuntimePlatform {
+    /// SystemVersion.plist's `ProductName`: "iPhone OS", "Apple TVOS", "xrOS", …
+    /// Read without UIKit, so any thread may ask.
+    static let productName: String =
+        NSDictionary(contentsOfFile: "/System/Library/CoreServices/SystemVersion.plist")?["ProductName"] as? String ?? ""
+
     static let isVisionOS: Bool = {
-        let version = NSDictionary(contentsOfFile: "/System/Library/CoreServices/SystemVersion.plist")
         var size = 0
         var machine = ""
         if sysctlbyname("hw.machine", nil, &size, nil, 0) == 0, size > 0 {
@@ -14,7 +18,7 @@ enum GuestRuntimePlatform {
                 machine = String(cString: bytes)
             }
         }
-        return isVisionOS(productName: version?["ProductName"] as? String, machine: machine)
+        return isVisionOS(productName: productName, machine: machine)
     }()
 
     static func isVisionOS(productName: String?, machine: String = "") -> Bool {

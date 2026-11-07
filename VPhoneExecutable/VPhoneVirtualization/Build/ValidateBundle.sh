@@ -165,7 +165,6 @@ for name in vphoned vphoned-tvos vphoned-watchos libvphonetvsetupfocus.dylib lib
     require_signed_macho "$guest/$name"
 done
 require_signed_macho "$guest/vphoned-visionos"
-require_signed_macho "$guest/vphoned-visionos-minimal"
 require_signed_macho "$guest/libvphonevisionosipc.dylib"
 require_signed_macho "$guest/vphone-visionos-preferences"
 # iOS 18 must be able to resolve the compatibility library without Xcode.
@@ -184,13 +183,10 @@ daemon_rpaths="$(/usr/bin/otool -l "$guest/vphoned" | /usr/bin/awk '
         print -u2 "vphoned does not use the bundled Span compatibility library"
         exit 1
     }
-if /usr/bin/otool -L "$guest/vphoned-visionos-minimal" | /usr/bin/grep -Eq '/(UIKit|AVFoundation|CoreLocation|JavaScriptCore)\.framework/'; then
-    print -u2 "visionOS research agent links an unavailable UI framework"; exit 1
-fi
 # The scripting session runs on JavaScriptCore, which watchOS does not ship.
 # IcliKit's probe opens it at run time, so the daemon names no JavaScriptCore
 # symbol; a reference would leave the watch guest without a daemon at all.
-for daemon in vphoned vphoned-tvos vphoned-watchos vphoned-visionos vphoned-visionos-minimal; do
+for daemon in vphoned vphoned-tvos vphoned-watchos vphoned-visionos; do
     javascriptcore_loads="$(/usr/bin/otool -l "$guest/$daemon" | /usr/bin/awk '
         $1 == "cmd" { command = $2 }
         $1 == "name" && $2 ~ /JavaScriptCore/ { print command }
@@ -258,8 +254,8 @@ while IFS= read -r file; do
         "$guest/vphoned-watchos")
             [[ "$platform" == WATCHOS ]] || { print -u2 "Non-watchOS binary: ${file#$bundle/}"; exit 1; }
             ;;
-        "$guest/vphoned-visionos-minimal"|"$guest/libvphonevisionosipc.dylib"|"$guest/vphone-visionos-preferences")
-            [[ "$platform" == VISIONOS ]] || { print -u2 "Non-visionOS research agent"; exit 1; }
+        "$guest/libvphonevisionosipc.dylib"|"$guest/vphone-visionos-preferences")
+            [[ "$platform" == VISIONOS ]] || { print -u2 "Non-visionOS binary: ${file#$bundle/}"; exit 1; }
             ;;
         "$guest/"*)
             [[ "$platform" == IOS ]] || { print -u2 "Non-iOS binary in guest-resources: ${file#$bundle/}"; exit 1; }
@@ -284,7 +280,7 @@ vm_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$macos/vphone-vm
     print -u2 "Guest daemon entitlements leaked into vphone-vm"
     exit 1
 }
-for daemon in vphoned vphoned-tvos vphoned-watchos vphoned-visionos vphoned-visionos-minimal; do
+for daemon in vphoned vphoned-tvos vphoned-watchos vphoned-visionos; do
     daemon_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$guest/$daemon" 2>/dev/null)"
     [[ "$daemon_entitlements" == *'com.apple.CommCenter.fine-grained'* &&
         "$daemon_entitlements" != *'com.apple.private.virtualization'* ]] || {

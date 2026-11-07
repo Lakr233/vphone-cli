@@ -219,7 +219,7 @@ enum GuestAPI {
             "name": "vphoned",
             "api_version": 1,
             "status": "ok",
-            "os": GuestRuntimePlatform.isVisionOS ? "visionOS" : UIDevice.current.systemName,
+            "os": GuestRuntimePlatform.isVisionOS ? "visionOS" : GuestRuntimePlatform.productName,
             "binary_hash": binaryHash,
             "instance": instance,
             "ios": "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)",

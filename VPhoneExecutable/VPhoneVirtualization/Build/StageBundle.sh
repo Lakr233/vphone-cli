@@ -40,12 +40,6 @@ build_project -project "$root/VPhoneDaemon/VPhoneDaemon.xcodeproj" \
     -derivedDataPath "$root/.build/XcodeDaemon" CODE_SIGNING_ALLOWED=NO \
     SUPPORTS_MACCATALYST=NO EFFECTIVE_PLATFORM_NAME=-iphoneos build
 
-# Foundation-only research transport; visionOS omits the regular daemon's UI frameworks.
-build_project -project "$root/VPhoneDaemon/VPhoneDaemon.xcodeproj" \
-    -scheme vphoned-darwinos -configuration "$configuration" \
-    -sdk iphoneos -derivedDataPath "$root/.build/XcodeDaemon" CODE_SIGNING_ALLOWED=NO \
-    SUPPORTS_MACCATALYST=NO EFFECTIVE_PLATFORM_NAME=-iphoneos build
-
 # Apple TV and HomePod guests run vphoned built against the AppleTVOS SDK, so
 # its `#if os(tvOS)` branches and IcliKit's are the tvOS ones. That SDK has no
 # IOKit.framework though tvOS ships one with the same exports, so the build
@@ -85,7 +79,7 @@ guest_products="$root/.build/guest-components/stage"
 
 # The 26.x guest Swift runtimes lack this symbol, and Swift 6.4 can import it
 # strongly even when vphoned targets iOS 15, causing a dyld crash loop.
-for daemon in "$daemon_products/vphoned" "$daemon_products/vphoned-darwinos" "$tvos_daemon_products/vphoned"; do
+for daemon in "$daemon_products/vphoned" "$tvos_daemon_products/vphoned"; do
     if /usr/bin/nm -u "$daemon" | /usr/bin/grep -q '_swift_initBorrow'; then
         print -u2 -- "${daemon#$root/} requires _swift_initBorrow, which is unavailable on 26.x guests"
         exit 1
@@ -108,9 +102,6 @@ done
 /bin/cp "$command_products/vphone-cli" "$macos/vphone-cli"
 /bin/cp "$amfi_products/vphone-escalator" "$macos/vphone-escalator"
 /bin/cp "$daemon_products/vphoned" "$guest/vphoned"
-# Preserve the minimal native transport as a research fallback. App management
-# uses the iOS daemon below through visionOS's iPad compatibility environment.
-/usr/bin/xcrun vtool -set-build-version 11 26.4 26.4 -replace -output "$guest/vphoned-visionos-minimal" "$daemon_products/vphoned-darwinos"
 /bin/cp "$tvos_daemon_products/vphoned" "$guest/vphoned-tvos"
 # Watch guests still run the iOS daemon marked watchOS: watchOS 8 is iOS 15's
 # release.
@@ -245,7 +236,6 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-tvos"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-visionos"
-/usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-visionos-minimal"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-watchos"
 /usr/bin/codesign --force --sign - "$macos/vphone-escalator"
 /usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"

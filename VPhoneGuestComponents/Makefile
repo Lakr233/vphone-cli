@@ -587,8 +587,11 @@ visionos-preferences: $(VISIONOSPREFERENCES)
 
 $(VISIONOSPREFERENCES): $(VISIONOSPREFERENCES_SOURCES) $(VISIONOSPREFERENCES_INPUTS)
 	@mkdir -p $(STAGE)/visionospreferences
-	xcrun --sdk xros clang -target arm64e-apple-xros26.4 -Os -fobjc-arc -fblocks \
+	$(CLANG) $(GUEST_C_FLAGS) -fobjc-arc -fblocks \
 		-Wall -Wextra -Werror -o $@ $(VISIONOSPREFERENCES_SOURCES) -framework Foundation
+	# Built against the iOS SDK, like the IPC adapter, so a bundle build needs no
+	# visionOS platform; the guest still loads it only as a visionOS executable.
+	xcrun vtool -set-build-version 11 26.4 26.4 -replace -output $@ $@
 	@cp VisionOSPreferences/com.vphone.visionos-preferences.plist $(STAGE)/visionospreferences/
 	@codesign --force --sign - $@
 
