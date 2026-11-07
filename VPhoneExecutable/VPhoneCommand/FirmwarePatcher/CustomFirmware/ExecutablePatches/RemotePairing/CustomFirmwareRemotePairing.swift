@@ -57,7 +57,10 @@ public enum CustomFirmwareRemotePairing {
             data.subdata(in: Int(text.fileOffset) ..< Int(text.fileOffset) + Int(text.size)),
             at: text.address,
         )
-        let starts = instructions.indices.filter { instructions[$0].mnemonic == "pacibsp" }
+        // An arm64e.x1 build (iPhone19,x on 27.1 and later) signs its frames
+        // with the PC-salted forms, so they open functions too.
+        let prologues: Set = ["pacibsp", "pacibsppc", "pacnbibsppc"]
+        let starts = instructions.indices.filter { prologues.contains(instructions[$0].mnemonic) }
         func function(containing index: Int) throws -> Range<Int> {
             guard let start = starts.last(where: { $0 <= index }),
                   let end = starts.first(where: { $0 > index })

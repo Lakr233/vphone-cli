@@ -144,6 +144,7 @@
 			<string>system-debugserver-cfw-install</string>
 			<string>system-dyld-boot-arm64e_x1_bootstrap</string>
 			<string>system-diskimagesiod-cfw-is_mount_complete</string>
+			<string>system-remotepairingdeviced-cfw-local_connections</string>
 			<string>system-fsck-boot-arm64e_x1_bootstrap</string>
 			<string>system-installcoordination_proxy-cfw-persona_lookup</string>
 			<string>system-jetsamproperties-cfw-disable_allowed</string>
