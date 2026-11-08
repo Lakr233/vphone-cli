@@ -4,6 +4,112 @@ import Foundation
 import Testing
 import VPhonePatchKit
 
+@Suite("visionOS native environment feature flag")
+struct VisionOSEnvironmentFeatureFlagsTests {
+    private let feature = "ShowEnvironmentsOnSimulator"
+
+    @Test func insertsOnlyTheNativeFlagAndKeepsTheFirstInverse() throws {
+        let original: PlistDict = ["BackgroundWhenIdle": ["Enabled": true, "Note": "keep"]]
+        var domain = original, journal: PlistDict = [:]
+        #expect(try CustomFirmwareDaemons.visionOSEnvironmentFeatures(
+            domain: &domain, journal: &journal, enabled: true
+        ) == [feature])
+        var expected = original
+        expected[feature] = ["Enabled": true]
+        #expect(PlistSemantics.differences(domain, expected).isEmpty)
+        let inverse: PlistDict = [feature: ["EntryWasPresent": false]]
+        #expect(PlistSemantics.differences(journal, inverse).isEmpty)
+        #expect(try CustomFirmwareDaemons.visionOSEnvironmentFeatures(
+            domain: &domain, journal: &journal, enabled: true
+        ).isEmpty)
+        #expect(PlistSemantics.differences(journal, inverse).isEmpty)
+        _ = try CustomFirmwareDaemons.visionOSEnvironmentFeatures(domain: &domain, journal: &journal, enabled: false)
+        #expect(PlistSemantics.differences(domain, original).isEmpty)
+        #expect(try CustomFirmwareDaemons.visionOSEnvironmentFeatures(
+            domain: &domain, journal: &journal, enabled: false
+        ).isEmpty)
+    }
+
+    @Test func restoresOriginalFalseTrueOrAbsenceWithoutLosingMetadata() throws {
+        for saved: PlistDict in [[:], ["Enabled": false], ["Enabled": true]] {
+            var entry = saved
+            entry["Description"] = "keep"
+            var domain: PlistDict = [feature: entry, "Unrelated": ["Enabled": false]]
+            var journal: PlistDict = [:]
+            _ = try CustomFirmwareDaemons.visionOSEnvironmentFeatures(domain: &domain, journal: &journal, enabled: true)
+            var modified = try #require(domain[feature] as? PlistDict)
+            modified["LaterMetadata"] = 42
+            domain[feature] = modified
+            domain["Unrelated"] = ["Enabled": true]
+            _ = try CustomFirmwareDaemons.visionOSEnvironmentFeatures(domain: &domain, journal: &journal, enabled: false)
+            entry["LaterMetadata"] = 42
+            #expect(PlistSemantics.differences(domain, [feature: entry, "Unrelated": ["Enabled": true]]).isEmpty)
+        }
+    }
+
+    @Test func restoresAnEmptyExistingEntryAndPreservesLaterFieldsInANewEntry() throws {
+        for existed in [false, true] {
+            var domain: PlistDict = existed ? [feature: PlistDict()] : [:]
+            var journal: PlistDict = [:]
+            _ = try CustomFirmwareDaemons.visionOSEnvironmentFeatures(domain: &domain, journal: &journal, enabled: true)
+            _ = try CustomFirmwareDaemons.visionOSEnvironmentFeatures(domain: &domain, journal: &journal, enabled: false)
+            #expect((domain[feature] != nil) == existed)
+        }
+        var domain: PlistDict = [:], journal: PlistDict = [:]
+        _ = try CustomFirmwareDaemons.visionOSEnvironmentFeatures(domain: &domain, journal: &journal, enabled: true)
+        domain[feature] = ["Enabled": true, "LaterMetadata": "retain"]
+        _ = try CustomFirmwareDaemons.visionOSEnvironmentFeatures(domain: &domain, journal: &journal, enabled: false)
+        #expect(PlistSemantics.differences(domain, [feature: ["LaterMetadata": "retain"]]).isEmpty)
+    }
+
+    @Test func malformedDomainFailsWithoutChangingTheDomainOrJournal() throws {
+        let invalidEntries: [Any] = ["invalid", ["Enabled": NSNumber(value: 1)],
+                                     ["DevelopmentPhase": "FeatureComplete"], ["Enabled": "true"]]
+        for invalid in invalidEntries {
+            for enabled in [true, false] {
+                let original: PlistDict = [feature: invalid, "BackgroundWhenIdle": ["Enabled": true]]
+                var domain = original, journal: PlistDict = [:]
+                #expect(throws: CustomFirmwareDaemons.DaemonError.self) {
+                    try CustomFirmwareDaemons.visionOSEnvironmentFeatures(domain: &domain, journal: &journal, enabled: enabled)
+                }
+                #expect(PlistSemantics.differences(domain, original).isEmpty)
+                #expect(journal.isEmpty)
+            }
+        }
+    }
+
+    @Test func malformedInverseFailsAtomicallyOnApplicationAndRollback() throws {
+        let invalidJournals: [PlistDict] = [
+            [feature: "invalid"], [feature: PlistDict()],
+            [feature: ["EntryWasPresent": 1]], [feature: ["EntryWasPresent": false, "Enabled": false]],
+            [feature: ["EntryWasPresent": true, "Enabled": NSNumber(value: 0)]],
+            [feature: ["EntryWasPresent": true, "Unowned": true]], ["Unowned": [:]],
+        ]
+        for originalJournal in invalidJournals {
+            for enabled in [true, false] {
+                let originalDomain: PlistDict = [feature: ["Enabled": false]]
+                var domain = originalDomain, journal = originalJournal
+                #expect(throws: CustomFirmwareDaemons.DaemonError.self) {
+                    try CustomFirmwareDaemons.visionOSEnvironmentFeatures(domain: &domain, journal: &journal, enabled: enabled)
+                }
+                #expect(PlistSemantics.differences(domain, originalDomain).isEmpty)
+                #expect(PlistSemantics.differences(journal, originalJournal).isEmpty)
+            }
+        }
+    }
+
+    @Test func disablingWithoutAnInversePreservesTheCurrentFlags() throws {
+        for original: PlistDict in [[:], [feature: ["Enabled": true]], [feature: PlistDict()]] {
+            var domain = original, journal: PlistDict = [:]
+            #expect(try CustomFirmwareDaemons.visionOSEnvironmentFeatures(
+                domain: &domain, journal: &journal, enabled: false
+            ).isEmpty)
+            #expect(PlistSemantics.differences(domain, original).isEmpty)
+            #expect(journal.isEmpty)
+        }
+    }
+}
+
 @Suite("visionOS legacy UXM feature flags")
 struct VisionOSLegacyUXMFeatureFlagsTests {
     private let shared = "UXMSharedMemoryBlackboard"
