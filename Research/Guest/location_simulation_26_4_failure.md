@@ -25,15 +25,20 @@ turned up on new `standard` iPhone17,3 iOS 27.0 (24A435) VMs.
 **The guest's Location Services switch is off.** Setup Assistant's Location
 Services pane turns it on, so a guest whose Setup Assistant was skipped, or not
 yet finished, has it off and locationd gives no client a location, a simulated
-one included. vphoned leaves the switch alone: `location.set` and
-`location.current` now fail with the code `location_services_off`, the VM
+one included. `location.set` and `location.current` fail with the code `location_services_off`, the VM
 window says so once, and vphone-vm offers the last Mac fix again every 10 s.
 Turning the switch on in the guest's Settings brought the Mac's coordinate in
 6 s later with the Mac standing still (`fresh` and `simulated` true), and Maps
-drew its blue dot there. Turning the switch on from vphoned works too
+drew its blue dot there. vphoned turns the switch on too, through `location.services {enabled:true}`
 (`+[CLLocationManager setLocationServicesEnabled:]` with
-`com.apple.locationd.authorizeapplications`, verified on 2026-10-07) but was
-left out: the switch is the guest user's.
+`com.apple.locationd.authorizeapplications`, verified on 2026-10-07; the call
+does nothing without the entitlement). On a cloned iOS 27.0 guest (2026-11-07)
+`location.services` read `{"enabled":true}`; `{enabled:false}` returned
+`{"enabled":false}` and `location.set` and `location.current` then failed with
+`location_services_off`; `{enabled:true}` (twice) returned `{"enabled":true}`
+and `location.set` answered `simulating: true`, `simulated: true`. A
+non-Boolean `enabled` is ignored and the call reads, as for
+`power.low_power_mode`.
 
 **The Mac's locationd turned the helper away.** It keys VPhoneLocation.app by
 bundle identifier and stores the code requirement the first client registered

@@ -42,6 +42,7 @@ enum LogicTests {
         bootstrapPlatform()
         setupAssistantState()
         homeViewDistancePolicy()
+        locationServicesOffError()
         mobileGestaltAnswers()
         settingsValue()
         methodDispatch()
@@ -108,6 +109,12 @@ enum LogicTests {
         expectEqual(GuestMobileGestaltAnswers.answeringYes(answers, in: Data("half a fi".utf8)), .unreadable)
         let noExtra = try! PropertyListSerialization.data(fromPropertyList: ["CacheVersion": "24A446"], format: .binary, options: 0)
         expectEqual(GuestMobileGestaltAnswers.answeringYes(answers, in: noExtra), .unreadable, "a cache needs CacheExtra")
+    }
+
+    static func locationServicesOffError() {
+        let error = GuestAPIError.locationServicesOff
+        expectEqual(error.code, "location_services_off")
+        expect(error.description.contains("location.services {enabled:true}"), "the message names the RPC that turns Location Services on")
     }
 
     static func homeViewDistancePolicy() {

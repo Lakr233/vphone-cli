@@ -513,7 +513,7 @@ request carries `"force": true`.
 | System | `system.uicache`, `system.system_apps {visible?}`, `system.respring` **force**, `system.reboot {userspace?}` **force**, `system.shutdown` **force**, `developer_mode.status`, `developer_mode.enable`, `power.low_power_mode`, `time.timezone {identifier?, automatic?}`, `time.clock {time?, automatic?}` (see below), `diagnostics.self_test` |
 | Files | `files.list`, `mkdir`, `remove`, `rename`, `read {binary?, limit?}`, `write`, `find`, `copy`, `symlink`, `chmod`, `chown`, `plist`, `plist_set {value \| remove}` |
 | APFS snapshots | `apfs.snapshots {mount?}`, `apfs.snapshot.delete {mount?, name? \| prefix?}` **force** (only `orig-fs.disabled.rn-*`, see below) |
-| Preferences, clipboard, location | `settings.get/set/delete`, `clipboard.get/set/clear`, `location.set/clear/current` |
+| Preferences, clipboard, location | `settings.get/set/delete`, `clipboard.get/set/clear`, `location.set/clear/current/services {enabled?}` |
 | Motion | `motion.gyroscope.get`, `motion.gyroscope.set {x,y,z,enabled?}`, `motion.gyroscope.clear` (capability `motion_gyroscope`; finite JSON numbers in [-1000,1000] rad/s, all axes required; `enabled` defaults to true and must be a JSON Boolean; capability `motion_gyroscope_toggle` supports disabling while retaining configured axes; returns configuration, `units`, `provider`, and `provider_running`; HID provider status is not proof of CoreMotion app delivery) |
 | Keychain | `keychain.list {class?}`, `add`, `delete`, `get`, `update`, `database` |
 | Device attitude | `motion.attitude.get`, `motion.attitude.set {roll,pitch,yaw,enabled?}`, `motion.attitude.clear` (capability `motion_attitude`; degrees: roll/yaw [-180,180], pitch [-90,90], all finite JSON numbers required; `enabled` defaults to true, false retains angles; clear disables and zeros; returns configuration, `units`, `reference_frame`, `provider_installed`; stationary XArbitraryZVertical Core Motion pose; library presence does not prove app delivery; see `Guest/virtual_attitude.md`) |
@@ -1146,8 +1146,11 @@ digits (sent lower-case).
 Services switch off they fail with the code `location_services_off`, since
 locationd then gives no client a location, the simulated one included. The
 switch is turned on by Setup Assistant's Location Services pane, so a guest
-whose Setup Assistant was skipped has it off. vphoned never changes the switch;
-it belongs to the guest's Settings > Privacy & Security > Location Services.
+whose Setup Assistant was skipped has it off. `location.services` reads the
+switch (`{enabled}`) and, with `enabled`, sets it through
+`+[CLLocationManager setLocationServicesEnabled:]` (entitlement
+`com.apple.locationd.authorizeapplications`), polls up to 2 s for the state to
+reach the request, and returns it; otherwise it fails with `operation_failed`.
 
 Past that check, `location.set` is IcliKit's `simulateLocation`: it sends locationd's
 `CLSimulationManager` the sequence Xcode uses (`stopLocationSimulation`,
