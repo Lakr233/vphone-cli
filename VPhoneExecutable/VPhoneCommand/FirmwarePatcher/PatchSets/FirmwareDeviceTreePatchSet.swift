@@ -240,6 +240,11 @@ public enum FirmwareDeviceTreePatchSet {
                 "Sets /product/watch-companion to 1 on an iPhone guest. vphone600 takes it from syscfg, which has no waco on a VM, so the phone would pair with no watch and the Watch app would stay hidden.",
             ),
             property(
+                "devicetree-cfw-virtual_usb_driverkit",
+                "Virtual USB HID DriverKit",
+                "Enables DriverKit for the virtual USB touchscreen on iPhone and iPad runtime trees, including Duo. The restore tree and existing watch and HomeView policies are unchanged.",
+            ),
+            property(
                 "devicetree-cfw-watch_presentation",
                 "Watch display and gestalt variant",
                 "Copies a watch board's display gamut, display mode and framebuffer identifier, and rewrites the gestalt variant tags MobileGestalt reads in place of syscfg from the board's values, so the watch UI finds its screen class.",

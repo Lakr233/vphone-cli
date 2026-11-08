@@ -390,9 +390,11 @@ public enum FirmwarePatchSetCatalog {
     )
 
     /// The device tree patches ``minimalPreset`` keeps: the board presentation the
-    /// guest UI lays out against, and the haptics and microphone array no VM
-    /// has. They change no code, so they are no system modification.
+    /// guest UI lays out against, DriverKit for virtual USB input, and the
+    /// haptics and microphone array no VM has. They change no code, so they
+    /// are no system modification.
     public static let minimalDeviceTreePatches: Set<String> = [
+        "devicetree-cfw-virtual_usb_driverkit",
         "devicetree-cfw-serial_number",
         "devicetree-cfw-home_button_type",
         "devicetree-cfw-artwork_device_subtype",
