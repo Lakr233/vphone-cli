@@ -123,6 +123,13 @@ public final class DyldSharedCacheChunkSet {
     /// Nil keeps the default: every read opens, seeks and closes the file.
     private var mappedChunks: [URL: Data]?
 
+    /// Keep a planner's mapped chunks only for one image, including a failed
+    /// plan. FUSE mappings can retain remote file handles after their fd closes.
+    func withScopedMappedReads<T>(_ body: () throws -> T) rethrows -> T {
+        defer { stateLock.withLock { mappedChunks?.removeAll(keepingCapacity: false) } }
+        return try body()
+    }
+
     // MARK: - Construction
 
     /// Open the cache under `directory`.
