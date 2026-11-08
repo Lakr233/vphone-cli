@@ -25,6 +25,9 @@ jobs:
           xcodebuild -version
           xcbeautify --version
 
+      - name: Package notice regressions
+        run: zsh scripts/tests/stage-package-notices-tests.zsh
+
       - name: Active display capture regressions
         run: zsh VPhoneDaemon/Tests/run-display-capture-tests.sh
 
