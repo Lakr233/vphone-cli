@@ -34,7 +34,7 @@ vphone-cli fw catalog --device iPhone18,1
 
 | 제품 | 모델 | 보드 | 패널 | 포인트 @3x |
 | --- | --- | --- | --- | --- |
-| `iPhone17,3` | iPhone 16 | D47AP | 1290x2796 @ 460 ppi | 430x932 |
+| `iPhone17,3` | iPhone 16 | D47AP | 1179x2556 @ 460 ppi | 393x852 |
 | `iPhone17,4` | iPhone 16 Plus | D48AP | 1290x2796 @ 460 ppi | 430x932 |
 | `iPhone17,1` | iPhone 16 Pro | D93AP | 1206x2622 @ 460 ppi | 402x874 |
 | `iPhone17,2` | iPhone 16 Pro Max | D94AP | 1320x2868 @ 460 ppi | 440x956 |
@@ -46,7 +46,7 @@ vphone-cli fw catalog --device iPhone18,1
 | `iPhone18,5` | iPhone 17e | V159AP | 1170x2532 @ 460 ppi | 390x844 |
 | `iPhone19,2` | iPhone 18 Pro | V63AP | 1206x2622 @ 460 ppi | 402x874 |
 
-iPhone17,3을 포함한 모든 모델은 자체 디바이스 트리에서 패널과 식별 정보를 가져옵니다. iPhone17,3의 패널은 원래부터 사용하던 디스플레이 그대로입니다.
+iPhone17,3을 포함한 모든 모델은 자체 디바이스 트리에서 패널과 식별 정보를 가져옵니다. 새로 만든 iPhone17,3 머신은 iPhone 16 고유의 1179x2556 패널을 사용합니다. 이전 VPhone.bundle로 만든 머신은 구성에 기록된 1290x2796 패널을 그대로 유지합니다.
 
 iPhone 17 Pro, 17 Pro Max, 18 Pro는 부팅 검증 기록이 있습니다. [호환성](compatibility.md)의 '다른 iPhone 모델' 절을 참고하세요. iPhone 17 Pro와 17 Pro Max는 iOS 27에서 패치가 필요하며, 그 내용도 같은 곳에 있습니다.
 

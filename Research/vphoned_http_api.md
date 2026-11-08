@@ -99,7 +99,8 @@ Since icli 0.8.4 a refresh lists apps from LaunchServices' application
 records and reads a registration only for the apps it plans to change: one
 with nothing to do took 0.03 s on an iOS 26.6.2 guest, 0.53 s before.
 `screen.screenshot` uses IcliKit's native screen capture and returns a base64
-JPEG with `mime_type`, `width`, and `height`; the current VM produces 1290×2796.
+JPEG with `mime_type`, `width`, and `height`, at the panel's pixel size:
+1179×2556 on a new iPhone17,3 machine, 1290×2796 on one created earlier.
 The host's Save/Copy Screenshot menu decodes this guest image. It omits the
 notch and cutout drawn by the host VM window.
 Since icli 0.8.4 a native-resolution screenshot taken while SpringBoard is

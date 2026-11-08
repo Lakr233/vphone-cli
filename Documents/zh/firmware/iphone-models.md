@@ -34,7 +34,7 @@ vphone-cli fw catalog --device iPhone18,1
 
 | 产品 | 机型 | 主板 | 面板 | 点数 @3x |
 | --- | --- | --- | --- | --- |
-| `iPhone17,3` | iPhone 16 | D47AP | 1290x2796 @ 460 ppi | 430x932 |
+| `iPhone17,3` | iPhone 16 | D47AP | 1179x2556 @ 460 ppi | 393x852 |
 | `iPhone17,4` | iPhone 16 Plus | D48AP | 1290x2796 @ 460 ppi | 430x932 |
 | `iPhone17,1` | iPhone 16 Pro | D93AP | 1206x2622 @ 460 ppi | 402x874 |
 | `iPhone17,2` | iPhone 16 Pro Max | D94AP | 1320x2868 @ 460 ppi | 440x956 |
@@ -46,7 +46,7 @@ vphone-cli fw catalog --device iPhone18,1
 | `iPhone18,5` | iPhone 17e | V159AP | 1170x2532 @ 460 ppi | 390x844 |
 | `iPhone19,2` | iPhone 18 Pro | V63AP | 1206x2622 @ 460 ppi | 402x874 |
 
-每款机型（包括 iPhone17,3）的面板和身份都来自它自己的设备树；iPhone17,3 的面板就是它一直以来使用的显示参数。
+每款机型（包括 iPhone17,3）的面板和身份都来自它自己的设备树。新建的 iPhone17,3 机器使用 iPhone 16 自己的 1179x2556 面板；用更早的 VPhone.bundle 创建的机器保留其配置中记录的 1290x2796 面板。
 
 iPhone 17 Pro、17 Pro Max 和 18 Pro 有启动验证记录；见[兼容性](compatibility.md)。iPhone 17 Pro 和 17 Pro Max 在 iOS 27 上需要一个补丁，详见该页。
 

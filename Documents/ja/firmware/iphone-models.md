@@ -34,7 +34,7 @@ vphone-cli fw catalog --device iPhone18,1
 
 | 製品 | モデル | ボード | パネル | ポイント @3x |
 | --- | --- | --- | --- | --- |
-| `iPhone17,3` | iPhone 16 | D47AP | 1290x2796 @ 460 ppi | 430x932 |
+| `iPhone17,3` | iPhone 16 | D47AP | 1179x2556 @ 460 ppi | 393x852 |
 | `iPhone17,4` | iPhone 16 Plus | D48AP | 1290x2796 @ 460 ppi | 430x932 |
 | `iPhone17,1` | iPhone 16 Pro | D93AP | 1206x2622 @ 460 ppi | 402x874 |
 | `iPhone17,2` | iPhone 16 Pro Max | D94AP | 1320x2868 @ 460 ppi | 440x956 |
@@ -46,7 +46,7 @@ vphone-cli fw catalog --device iPhone18,1
 | `iPhone18,5` | iPhone 17e | V159AP | 1170x2532 @ 460 ppi | 390x844 |
 | `iPhone19,2` | iPhone 18 Pro | V63AP | 1206x2622 @ 460 ppi | 402x874 |
 
-iPhone17,3 を含むすべてのモデルが、パネルとアイデンティティを自身のデバイスツリーから取得します。iPhone17,3 のパネルは、これまでと同じディスプレイです。
+iPhone17,3 を含むすべてのモデルが、パネルとアイデンティティを自身のデバイスツリーから取得します。新しく作成した iPhone17,3 マシンは iPhone 16 本来の 1179x2556 パネルを使います。以前の VPhone.bundle で作成したマシンは、構成に記録された 1290x2796 パネルのままです。
 
 iPhone 17 Pro、17 Pro Max、18 Pro には起動検証の記録があります。[互換性](compatibility.md)の「その他の iPhone モデル」をご覧ください。iPhone 17 Pro と 17 Pro Max は iOS 27 でパッチが必要で、その内容も同じ箇所に記載されています。
 

@@ -61,7 +61,7 @@ notes.
   attached `image` or take a screenshot. A locked or asleep screen swallows
   taps: run `guest unlock <name>`, or on an older vphoned press `power`, then
   `home`.
-- **Taps land in the wrong place:** the socket takes pixels (1290×2796); the
+- **Taps land in the wrong place:** the socket takes pixels (the screenshot size); the
   `input.*` RPCs take points. Use `ui.tree` / `ui.tap_element` instead.
 - **Port 22 refused over iproxy:** no sshd yet. Use RPC; see
   [guest-layout](guest-layout.md).

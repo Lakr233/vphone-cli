@@ -57,7 +57,7 @@ invalid-request error, read the source named there instead of guessing keys.
 | --- | --- | --- |
 | `device.info` | none | Snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode. Start here |
 | `device.snapshot`, `device.screen`, `device.network` | none | Smaller views of the same |
-| `screen.screenshot` | none | Base64 JPEG, 1290×2796 |
+| `screen.screenshot` | none | Base64 JPEG at the panel's pixel size (1179×2556 on a new iPhone17,3) |
 | `display.brightness`, `audio.volume` | `value?` | Omit `value` to read |
 | `audio.host_latency` | `seconds?` (0-1) | The Mac output latency the guest speaker adds; omit to read. The VM sends it on every connect and output change |
 | `display.rotation`, `display.orientation` | `orientation?` | |
