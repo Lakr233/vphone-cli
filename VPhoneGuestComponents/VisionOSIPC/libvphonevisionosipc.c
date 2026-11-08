@@ -1,4 +1,4 @@
-// Two UXM lookups and independently gated native HMD graphics lookups.
+// UXM lookups and independently gated native display/environment lookups.
 // This library is loaded only into launchd; every other check is forwarded.
 #include <errno.h>
 #include <limits.h>
@@ -21,6 +21,9 @@ typedef struct { unsigned int val[8]; } vp_audit_token_t;
 #define VP_HMD_SYSTEM_SETTER_SERVICE "com.apple.wakeboard.hmdsystemsetter"
 #define VP_VISIONOS_WAKEBOARD_SYSTEM_MARKER "/usr/lib/vphone-visionos-wakeboard-system-ipc"
 #define VP_WAKEBOARD_SYSTEM_SERVICE "com.apple.wakeboardd.system"
+#define VP_VISIONOS_ENVIRONMENT_MARKER "/usr/lib/vphone-visionos-environment-ipc"
+#define VP_ENVIRONMENT_PATH "/Applications/RealityEnvironment.app/RealityEnvironment"
+#define VP_ENVIRONMENT_SERVICE "com.apple.surfboard.environmentservice"
 #define VP_UXM_PATH "/usr/libexec/userexperiencemanagerd"
 #define VP_POLARIS_PATH "/System/Library/PrivateFrameworks/Polaris.framework/polarisd"
 #define VP_PBS_SERVICE "com.apple.polaris.daemon_default"
@@ -47,6 +50,10 @@ static int vpVisionOSIPCLookupAllowed(const vp_audit_token_t *token,
     } else if (!strcmp(name, VP_UXM_SESSION_SERVICE)) {
         path = VP_POLARIS_PATH;
         identifier = "com.apple.polarisd";
+    } else if (!strcmp(name, VP_ENVIRONMENT_SERVICE)) {
+        path = VP_ENVIRONMENT_PATH;
+        identifier = "com.apple.RealityEnvironment";
+        extraMarker = VP_VISIONOS_ENVIRONMENT_MARKER;
     } else if (!strcmp(name, VP_HMD_PROPERTIES_SERVICE) ||
                !strcmp(name, VP_HMD_PRESENTABLE_SERVICE) ||
                !strcmp(name, VP_HMD_SYSTEM_SETTER_SERVICE) ||
