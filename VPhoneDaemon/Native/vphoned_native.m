@@ -1,4 +1,5 @@
 #import "Include/VphonedNative.h"
+#import "Include/VphonedCacheIdentity.h"
 #include <CommonCrypto/CommonDigest.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -67,7 +68,18 @@ static bool cached_binary_matches_marker(int directory, int image) {
 void vp_native_bootstrap_cached_binary(void) {
     char current[4096];
     uint32_t size = sizeof(current);
-    if (_NSGetExecutablePath(current, &size) != 0 || strcmp(current, cache) == 0) return;
+    if (_NSGetExecutablePath(current, &size) != 0) return;
+
+    // Do not bootstrap the same image again just because dyld reports a
+    // symlinked spelling of its path. The opened cache descriptor remains
+    // subject to the no-follow and hash checks below whenever it is not the
+    // executable that is already running.
+    int current_image = open(cache, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (current_image >= 0) {
+        bool already_cached = vphone_cached_file_matches_path(current_image, current) == VPhoneCachedFileIdentityMatch;
+        close(current_image);
+        if (already_cached) return;
+    }
 
     // Keep the launchd process small: hash the cache in bounded chunks. The
     // file is opened once without following a link, and the hash covers that
@@ -104,9 +116,66 @@ void vp_native_bootstrap_cached_binary(void) {
 }
 
 void vp_native_confirm_cached_binary(void) {
+    int directory = open(cache_directory, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (directory < 0) return;
+    if (!root_only(directory, S_IFDIR)) {
+        close(directory);
+        return;
+    }
+
+    int record = openat(directory, leaf(pending), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (record < 0) {
+        int error = errno;
+        close(directory);
+        if (error != ENOENT) fprintf(stderr, "vphoned: cached confirmation could not open pending marker: %s\n", strerror(error));
+        return;
+    }
+    if (!root_only(record, S_IFREG)) {
+        fprintf(stderr, "vphoned: cached confirmation refused an untrusted pending marker\n");
+        close(record);
+        close(directory);
+        return;
+    }
+
     char current[4096];
     uint32_t size = sizeof(current);
-    if (_NSGetExecutablePath(current, &size) != 0 || strcmp(current, cache) != 0) return;
-    if (rename(pending, marker) != 0)
-        fprintf(stderr, "vphoned: could not confirm cached binary: %s\n", strerror(errno));
+    if (_NSGetExecutablePath(current, &size) != 0) {
+        fprintf(stderr, "vphoned: cached confirmation could not resolve the executable path\n");
+        close(record);
+        close(directory);
+        return;
+    }
+
+    int image = openat(directory, leaf(cache), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    if (image < 0) {
+        int error = errno;
+        fprintf(stderr, "vphoned: cached confirmation could not open cached image for path=%s: %s\n", current,
+                strerror(error));
+        close(record);
+        close(directory);
+        return;
+    }
+    if (!root_only(image, S_IFREG)) {
+        fprintf(stderr, "vphoned: cached confirmation refused an untrusted image for path=%s\n", current);
+        close(image);
+        close(record);
+        close(directory);
+        return;
+    }
+
+    VPhoneCachedConfirmation result = vphone_confirm_cached_image(
+        directory, image, current, leaf(pending), leaf(marker));
+    if (result == VPhoneCachedConfirmationSucceeded) {
+        fprintf(stderr, "vphoned: confirmed cached binary path=%s\n", current);
+    } else if (result == VPhoneCachedConfirmationNotCurrent) {
+        fprintf(stderr, "vphoned: cached confirmation skipped; executable path=%s does not identify the cached image\n",
+                current);
+    } else {
+        int error = errno;
+        fprintf(stderr, "vphoned: cached confirmation failed for executable path=%s: %s\n", current,
+                strerror(error));
+    }
+    close(image);
+    close(record);
+    close(directory);
 }
