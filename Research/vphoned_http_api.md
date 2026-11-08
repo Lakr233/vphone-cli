@@ -122,6 +122,20 @@ non-numeric field, width or height of 0 or less, negative x or y, outside the
 screen, under one pixel), `quality` or `max_dimension` fails with
 `invalid_operation` naming the param, the value and the valid range; nothing
 is clamped.
+
+`display.capture_active {}` returns a raw PNG in `base64`, with `source` and
+`source_after` describing the active default-main display. Its binding normally
+requires matching nonzero hardware UUIDs and a unique display ID and render name.
+Some cover displays expose no UUID on either side. Both getters must have a
+verified object ABI and return nil; unreadable or malformed UUIDs are reported
+as null and refused. These UUID-less displays also require matching
+FrontBoard and CoreAnimation render names, equal point scales, and native pixel
+bounds equal to the FrontBoard reference bounds times that scale. A UUID present
+on only one side, an invalid UUID, an ambiguous or capped inventory, or changed
+metadata is refused. `identity_binding` identifies the evidence used; absent UUIDs
+are omitted rather than synthesized. The PNG is neither rotated nor resized, and
+orientation, color-profile and rendered-content verification remain false.
+
 `apps.install` accepts IPA and TIPA archives. IcliKit 0.6.8 validates and
 extracts the archive, then calls vphone's signer on the temporary app bundle
 before IcliKit copies it into a container, registers it, and owns rollback.

@@ -70,8 +70,9 @@ static NSDictionary *vpCaptureSource(NSDictionary *layout, NSString **reason) {
     if (!displayID || displayID.doubleValue < 1 || displayID.doubleValue > UINT32_MAX
         || floor(displayID.doubleValue) != displayID.doubleValue || !scale || scale.doubleValue <= 0
         || !orientation || orientation.doubleValue < 1 || orientation.doubleValue > 4
-        || floor(orientation.doubleValue) != orientation.doubleValue || !uuid || !points || !reference) {
-        *reason = @"The active display lacks a nonzero hardware UUID, numeric identity or geometry";
+        || floor(orientation.doubleValue) != orientation.doubleValue
+        || (monitor[@"hardware_identifier"] && !uuid) || !points || !reference) {
+        *reason = @"The active display has an invalid hardware UUID, numeric identity or geometry";
         return nil;
     }
     NSDictionary *selected = nil;
@@ -85,9 +86,10 @@ static NSDictionary *vpCaptureSource(NSDictionary *layout, NSString **reason) {
         BOOL sameUUID = [candidateUUID isEqualToString:uuid];
         matchingIDs += sameID;
         matchingUUIDs += sameUUID;
-        if (sameID && sameUUID) selected = display;
+        if (sameID) selected = display;
     }
     NSString *name = selected[@"name"];
+    NSString *frontboardName = monitor[@"display_name"];
     NSNumber *nativeScale = vpCaptureNumber(selected[@"pointScale"]);
     NSDictionary *pixels = vpCaptureRect(selected[@"bounds"]);
     NSUInteger matchingNames = 0;
@@ -96,7 +98,9 @@ static NSDictionary *vpCaptureSource(NSDictionary *layout, NSString **reason) {
             if ([display isKindOfClass:NSDictionary.class] && [display[@"name"] isEqual:name]) matchingNames++;
         }
     }
-    if (!selected || matchingIDs != 1 || matchingUUIDs != 1 || matchingNames != 1
+    BOOL uuidMatches = uuid ? matchingUUIDs == 1 && [vpCaptureUUID(selected[@"uniqueId"]) isEqualToString:uuid]
+                            : selected[@"uniqueId"] == nil;
+    if (!selected || matchingIDs != 1 || !uuidMatches || matchingNames != 1
         || !nativeScale || nativeScale.doubleValue != scale.doubleValue || !pixels) {
         *reason = @"FrontBoard identity does not uniquely match a named CoreAnimation display at the same scale";
         return nil;
@@ -107,12 +111,22 @@ static NSDictionary *vpCaptureSource(NSDictionary *layout, NSString **reason) {
         *reason = @"Native display bounds exceed the capture allocation limit";
         return nil;
     }
+    // Some default-main cover displays expose no UUID on either side. Bind
+    // those only when the render name and scaled reference raster also agree.
+    if (!uuid && (![frontboardName isKindOfClass:NSString.class] || ![frontboardName isEqualToString:name]
+                  || width != [reference[@"width"] doubleValue] * scale.doubleValue
+                  || height != [reference[@"height"] doubleValue] * scale.doubleValue)) {
+        *reason = @"UUID-less display identity requires matching render names and scaled reference bounds";
+        return nil;
+    }
     NSMutableDictionary *source = [NSMutableDictionary dictionaryWithDictionary:@{
-        @"display_id": displayID, @"name": name, @"hardware_identifier": uuid, @"point_scale": scale,
+        @"display_id": displayID, @"name": name, @"point_scale": scale,
         @"bounds_pixels": pixels, @"frontboard_bounds_points": points,
         @"frontboard_reference_bounds_points": reference, @"frontboard_interface_orientation": orientation,
+        @"identity_binding": uuid ? @"matching_nonzero_hardware_uuid_display_id_and_scale_with_unique_render_name"
+                                  : @"matching_display_id_render_name_scale_and_reference_bounds_without_hardware_uuid",
     }];
-    NSString *frontboardName = monitor[@"display_name"];
+    if (uuid) source[@"hardware_identifier"] = uuid;
     if ([frontboardName isKindOfClass:NSString.class] && frontboardName.length <= 128) {
         source[@"frontboard_display_name"] = frontboardName;
     }
@@ -247,7 +261,7 @@ static NSDictionary *vpCapturePerform(BOOL (^cancelled)(void)) {
     NSMutableDictionary *result = [raster mutableCopy];
     result[@"source"] = before;
     result[@"source_after"] = after;
-    result[@"identity_binding"] = @"matching_nonzero_hardware_uuid_display_id_and_scale_with_unique_render_name";
+    result[@"identity_binding"] = before[@"identity_binding"];
     result[@"attribution_limit"] = @"Matching metadata before and after is not an atomic display epoch or proof of rendered content";
     return result;
 }

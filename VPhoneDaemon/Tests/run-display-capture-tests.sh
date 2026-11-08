@@ -7,6 +7,6 @@ trap '/bin/rm -rf "$temporary"' EXIT
 
 /usr/bin/xcrun --sdk macosx clang -fobjc-arc -fblocks -Wall -Wextra -Werror \
     "$daemon/Tests/DisplayCaptureTests.m" \
-    -framework Foundation -framework CoreGraphics -framework IOSurface -framework ImageIO \
+    -framework Foundation -framework IOKit -framework CoreGraphics -framework IOSurface -framework ImageIO \
     -o "$temporary/display-capture-tests"
 "$temporary/display-capture-tests"
