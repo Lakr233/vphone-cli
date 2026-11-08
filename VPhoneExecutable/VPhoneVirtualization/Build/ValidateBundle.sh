@@ -131,6 +131,11 @@ done
     print -u2 "Missing native KDK extraction licence"
     exit 1
 }
+/usr/bin/cmp "$root/VPhoneExecutable/VPhoneVirtualization/Resources/Licenses/Swift-Apache-2.0-with-Runtime-Library-Exception.txt" \
+    "$resources/Licenses/Swift-Apache-2.0-with-Runtime-Library-Exception.txt" || {
+    print -u2 "Missing or changed Swift runtime notice"
+    exit 1
+}
 "$root/scripts/stage-package-notices.zsh" --check "$resources/Licenses/packages"
 for component in MobileRecoveryCore MobileRestoreCore; do
     [[ -s "$resources/Licenses/vendor/$component/COPYING" ]] || {

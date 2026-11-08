@@ -146,7 +146,7 @@
 			outputPaths = ();
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/zsh;
-			shellScript = "set -euo pipefail\nroot=\"$(cd \"$SRCROOT/..\" && pwd)\"\nresources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\n/bin/mkdir -p \"$resources/Licenses\"\n/bin/cp \"$root/LICENSE\" \"$resources/Licenses/vphone-cli.txt\"\n\"$root/scripts/stage-package-notices.zsh\" \"$resources/Licenses/packages\" \"$SRCROOT/VPhoneLaunchpad.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved\" \"${BUILD_DIR:h:h}/SourcePackages\"\n";
+			shellScript = "set -euo pipefail\nroot=\"$(cd \"$SRCROOT/..\" && pwd)\"\nresources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\n/bin/mkdir -p \"$resources/Licenses\"\n/bin/cp \"$root/LICENSE\" \"$resources/Licenses/vphone-cli.txt\"\n/bin/cp \"$root/VPhoneExecutable/VPhoneVirtualization/Resources/Licenses/Swift-Apache-2.0-with-Runtime-Library-Exception.txt\" \"$resources/Licenses/\"\n\"$root/scripts/stage-package-notices.zsh\" \"$resources/Licenses/packages\" \"$SRCROOT/VPhoneLaunchpad.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved\" \"${BUILD_DIR:h:h}/SourcePackages\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 /* Begin PBXSourcesBuildPhase section */

@@ -198,6 +198,7 @@ fi
 # Native KDK extraction ports MIT-licensed reference algorithms.
 /bin/mkdir -p "$resources/Licenses"
 /bin/cp "$root/LICENSE" "$resources/Licenses/vphone-cli.txt"
+/bin/cp "$root/VPhoneExecutable/VPhoneVirtualization/Resources/Licenses/Swift-Apache-2.0-with-Runtime-Library-Exception.txt" "$resources/Licenses/"
 /bin/cp "$root/VPhoneExecutable/VPhoneCommand/FirmwarePatcher/KernelCache/KDK/LICENSE" \
     "$resources/Licenses/native-kdk-MIT.txt"
 "$root/scripts/stage-package-notices.zsh" "$resources/Licenses/packages" \
