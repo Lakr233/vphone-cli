@@ -282,6 +282,13 @@ vm_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$macos/vphone-vm
 }
 for daemon in vphoned vphoned-tvos vphoned-watchos vphoned-visionos; do
     daemon_entitlements="$(/usr/bin/codesign -d --entitlements - --xml "$guest/$daemon" 2>/dev/null)"
+    if [[ "$daemon" == vphoned-visionos ]]; then
+        [[ "$daemon_entitlements" == *'com.apple.surfboard.immersion-client'* ]] || {
+            print -u2 "visionOS immersion entitlement is missing"; exit 1
+        }
+    elif [[ "$daemon_entitlements" == *'com.apple.surfboard.immersion-client'* ]]; then
+        print -u2 "visionOS immersion entitlement leaked into $daemon"; exit 1
+    fi
     [[ "$daemon_entitlements" == *'com.apple.CommCenter.fine-grained'* &&
         "$daemon_entitlements" != *'com.apple.private.virtualization'* ]] || {
         print -u2 "$daemon has the wrong entitlements"

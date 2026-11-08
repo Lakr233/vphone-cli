@@ -191,3 +191,5 @@ ui.tap_element	icli:IcliKit/Input/Screen.swift#tapElement
 ui.tree	VPhoneDaemon/Daemon/GuestAPI+Input.swift#executeInterface;VPhoneDaemon/Daemon/GuestAPI+Hierarchy.swift#nestedHierarchy
 ui.wait	icli:IcliKit/Input/Screen.swift#waitForElement
 ui.wait_gone	icli:IcliKit/Input/Screen.swift#waitForElement
+visionos.immersion.get	VPhoneDaemon/Daemon/GuestAPI+VisionOSImmersion.swift#visionOSImmersionReadResult
+visionos.immersion.set	VPhoneDaemon/Daemon/GuestAPI+VisionOSImmersion.swift#visionOSImmersionSetResult
