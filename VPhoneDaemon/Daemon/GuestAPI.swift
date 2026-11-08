@@ -738,7 +738,7 @@ enum GuestAPI {
             if let enabled = params["enabled"] as? Bool {
                 return try setLocationServices(enabled)
             }
-            return ["enabled": CLLocationManager.locationServicesEnabled()]
+            return locationServices()
         case .clipboardGet:
             return try clipboardInfo()
         case .clipboardSet:

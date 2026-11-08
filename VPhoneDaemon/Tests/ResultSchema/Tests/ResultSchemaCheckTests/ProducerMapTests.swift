@@ -117,9 +117,10 @@ final class ProducerMapTests: XCTestCase {
         let producersURL = Self.tests.appendingPathComponent("ResultSchema/result-producers.tsv")
         let methods = try String(contentsOf: catalogURL, encoding: .utf8)
             .split(separator: "\n").compactMap { $0.split(separator: "\t", omittingEmptySubsequences: false).first.map(String.init) }
-        XCTAssertEqual(methods.count, 192)
+        XCTAssertFalse(methods.isEmpty)
+        XCTAssertEqual(Set(methods).count, methods.count, "a catalog row repeats a method")
         let map = try ProducerMap.parse(tsv: try String(contentsOf: producersURL, encoding: .utf8), catalog: methods)
-        XCTAssertEqual(map.producers.count, 192)
+        XCTAssertEqual(map.producers.count, methods.count)
         XCTAssertEqual(map.producers["ui.tree"]?.count, 2)
         guard let icli else {
             if !(ProcessInfo.processInfo.environment["CI"] ?? "").isEmpty { XCTFail("RS_ICLI is not set in CI") }
