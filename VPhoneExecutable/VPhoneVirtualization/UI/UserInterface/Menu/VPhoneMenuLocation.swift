@@ -75,6 +75,11 @@ extension VPhoneMenuController {
         locationPresetMenuItem = presets
         menu.addItem(presets)
 
+        let custom = makeItem("Custom Location…", action: #selector(showCustomLocation), symbol: "mappin")
+        custom.isEnabled = false
+        locationCustomMenuItem = custom
+        menu.addItem(custom)
+
         menu.addItem(NSMenuItem.separator())
 
         let replayStart = makeItem("Start Route Replay", action: #selector(startLocationReplay(_:)), symbol: "play")
@@ -96,6 +101,8 @@ extension VPhoneMenuController {
     func updateLocationCapability(available: Bool) {
         locationMenuItem?.isEnabled = available
         locationPresetMenuItem?.isEnabled = available
+        locationCustomMenuItem?.isEnabled = available
+        if !available { locationWindowController?.close() }
         refreshLocationReplayState(available: available)
     }
 
@@ -141,6 +148,21 @@ extension VPhoneMenuController {
             altitude: preset.altitude,
         )
         refreshLocationReplayState(available: true)
+    }
+
+    @objc func showCustomLocation() {
+        guard locationCustomMenuItem?.isEnabled == true else { return }
+        if locationWindowController == nil {
+            locationWindowController = VPhoneLocationWindowController { [weak self] latitude, longitude in
+                guard let self, locationCustomMenuItem?.isEnabled == true else { return }
+                disableHostSyncForManualLocation()
+                locationProvider?.sendPreset(name: "Custom Location", latitude: latitude, longitude: longitude)
+                refreshLocationReplayState(available: true)
+            }
+        }
+        locationWindowController?.showWindow(nil)
+        locationWindowController?.window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc func startLocationReplay(_: NSMenuItem) {
