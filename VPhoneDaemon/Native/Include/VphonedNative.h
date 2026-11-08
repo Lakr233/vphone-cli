@@ -252,6 +252,18 @@ bool vp_device_tree_has_property(const char * _Nonnull path, const char * _Nonnu
 NSArray * _Nonnull vp_display_probe(void);
 /// Read-only CoreAnimation display modes and capability surface.
 NSDictionary<NSString *, id> * _Nonnull vp_display_modes(void);
+/// Read-only active FrontBoard bounds/reference bounds in points, point scale
+/// and raw interface orientation (1…4), plus an independent CoreAnimation
+/// inventory with native bounds and rotations. No display-type enum mapping
+/// is inferred. Requires a background caller and the worker's main run loop.
+/// The 1.5 s admission/completion deadline cannot interrupt a private call
+/// already running; its monitor remains owned until main-thread cleanup.
+/// No foreground app, scene or atomic epoch is inferred.
+NSDictionary<NSString *, id> * _Nonnull vp_display_layout(void);
+/// Raw pixels for a uniquely bound active display, without resizing or rotation.
+/// The response deadline does not release admission while a private call runs.
+/// Matching metadata is not an atomic epoch or proof of content/color fidelity.
+NSDictionary<NSString *, id> * _Nonnull vp_display_capture_active(void);
 NSDictionary<NSString *, id> * _Nonnull vp_external_display_status(void);
 NSDictionary<NSString *, id> * _Nonnull vp_external_display_diagnostics(void);
 NSDictionary<NSString *, id> * _Nonnull vp_external_display_configure(BOOL enabled, NSInteger width, NSInteger height);
