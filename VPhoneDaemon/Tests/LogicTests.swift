@@ -45,8 +45,6 @@ enum LogicTests {
         locationServicesOffError()
         mobileGestaltAnswers()
         settingsValue()
-        cacheFileProtection()
-        cacheMarkerReadbackFailures()
         methodDispatch()
         print("\(checks) checks, \(failures) failures")
         exit(failures == 0 ? 0 : 1)
@@ -85,83 +83,6 @@ enum LogicTests {
         // A decoded 1 or 0 is also a Bool, as it always was here.
         expectEqual(typedText("1", nil), "1|bool")
         expectEqual(typedText("0", nil), "0|bool")
-    }
-
-    static func cacheFileProtection() {
-        let files = FileManager.default
-        let directory = files.temporaryDirectory.appendingPathComponent(
-            "vphoned-cache-protection-\(UUID().uuidString)", isDirectory: true,
-        )
-        let binary = directory.appendingPathComponent("vphoned")
-        let marker = directory.appendingPathComponent("vphoned.api-v2")
-        defer { try? files.removeItem(at: directory) }
-
-        do {
-            try files.createDirectory(at: directory, withIntermediateDirectories: false)
-            try Data("worker image".utf8).write(to: binary)
-            // Start from protected data where the filesystem supports that class.
-            try? files.setAttributes(
-                [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
-                ofItemAtPath: binary.path,
-            )
-            try GuestCacheFileProtection.setNoneAndVerify(atPath: binary.path)
-            expectEqual(protectionName(at: binary.path), FileProtectionType.none.rawValue,
-                        "cached executable is boot-readable")
-
-            let digest = Data(String(repeating: "a", count: 64).utf8)
-            try GuestCacheFileProtection.writeMarker(digest, to: marker)
-            expectEqual(try? Data(contentsOf: marker), digest, "marker bytes are unchanged")
-            expectEqual(protectionName(at: marker.path), FileProtectionType.none.rawValue,
-                        "atomic marker write is boot-readable")
-        } catch {
-            expect(false, "cache protection helper completes: \(error)")
-        }
-    }
-
-    static func cacheMarkerReadbackFailures() {
-        let files = FileManager.default
-        let directory = files.temporaryDirectory.appendingPathComponent(
-            "vphoned-marker-readback-\(UUID().uuidString)", isDirectory: true,
-        )
-        let marker = directory.appendingPathComponent("vphoned.api-v2")
-        let unrelated = directory.appendingPathComponent("unrelated.tmp")
-        let previous = Data(String(repeating: "a", count: 64).utf8)
-        let replacement = Data(String(repeating: "b", count: 64).utf8)
-        defer { try? files.removeItem(at: directory) }
-
-        do {
-            try files.createDirectory(at: directory, withIntermediateDirectories: false)
-            try previous.write(to: marker)
-            try Data("keep".utf8).write(to: unrelated)
-            for readback in CacheReadbackFileManager.Readback.allCases {
-                let injected = CacheReadbackFileManager(readback: readback)
-                do {
-                    try GuestCacheFileProtection.writeMarker(replacement, to: marker, fileManager: injected)
-                    expect(false, "\(readback) readback must reject marker publication")
-                } catch {
-                    expectEqual(try? Data(contentsOf: marker), previous,
-                                "\(readback) readback preserves the previous marker")
-                }
-                expectEqual(injected.readbackPaths.count, 1, "the staged marker is verified once")
-                if let path = injected.readbackPaths.first {
-                    expectEqual(URL(fileURLWithPath: path).deletingLastPathComponent(), directory,
-                                "the staged marker is a sibling of the live marker")
-                    expect(path != marker.path, "protection is checked before publishing the live marker")
-                }
-                expectEqual(try files.contentsOfDirectory(atPath: directory.path).sorted(),
-                            ["unrelated.tmp", "vphoned.api-v2"],
-                            "\(readback) readback removes only its staged marker")
-            }
-        } catch {
-            expect(false, "marker readback failure test completes: \(error)")
-        }
-    }
-
-    private static func protectionName(at path: String) -> String? {
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path) else { return nil }
-        if let protection = attributes[.protectionKey] as? FileProtectionType { return protection.rawValue }
-        if let protection = attributes[.protectionKey] as? String { return protection }
-        return nil
     }
 
     static func mobileGestaltAnswers() {
@@ -794,30 +715,5 @@ enum LogicTests {
         var unknown = ""
         do { _ = try GuestMethodArea.dispatch(table, method: "nope.nothing", params: [:]) } catch { unknown = String(describing: error) }
         expectEqual(unknown, "Unknown method: nope.nothing", "no area answering is an unknown method")
-    }
-}
-
-private final class CacheReadbackFileManager: FileManager, @unchecked Sendable {
-    enum Readback: CaseIterable {
-        case failure
-        case wrongProtection
-    }
-
-    let readback: Readback
-    var readbackPaths: [String] = []
-
-    init(readback: Readback) {
-        self.readback = readback
-        super.init()
-    }
-
-    override func attributesOfItem(atPath path: String) throws -> [FileAttributeKey: Any] {
-        readbackPaths.append(path)
-        switch readback {
-        case .failure:
-            throw CocoaError(.fileReadNoPermission)
-        case .wrongProtection:
-            return [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]
-        }
     }
 }

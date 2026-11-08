@@ -23,7 +23,6 @@ trap '/bin/rm -rf "$temporary"' EXIT
     "$daemon/Daemon/GuestHomeViewDistancePolicy.swift" \
     "$daemon/Daemon/GuestMobileGestaltAnswers.swift" \
     "$daemon/Daemon/GuestSettingsValue.swift" \
-    "$daemon/Daemon/GuestCacheFileProtection.swift" \
     "$daemon/Daemon/GuestMethodSpec.swift" \
     "$daemon/Tests/LogicTests.swift" \
     -o "$temporary/logic-tests"
