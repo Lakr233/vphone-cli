@@ -7021,13 +7021,22 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
   `system-launchd-exp-visionos_wakeboard_system_ipc`.
   Rules validate audit token/PID version, executable/signing identity, operation
   and filter type; other checks retain the native function's ABI and errno.
+- `system-wakeboard-exp-visionos_frame_pacing` changes the V201 dequeue's
+  positive-lateness conversion from ceiling to truncation so a sub-period
+  return from synchronous presentation does not skip another full display
+  tick. The existing 60 Hz native clock, rendering and submission waits remain
+  intact. The patcher resolves in-image symbols and verifies typed instruction
+  data flow plus the imported wait call, then re-attests only its code-page
+  hash while preserving signature identity, entitlements and profile blobs.
+  Opt-out restores the pristine executable backup. See
+  [V201 pacing](Firmware/visionos_frame_pacing.md) for evidence and limits.
 - `system-preferences-exp-visionos_skip_buddy` supplies a System policy and a
   one-shot UID 501 helper. It durably journals only mobile's original native
   ForceNoBuddy Boolean/absence before applying it; opt-out restores that key.
 - `system-featureflags-exp-visionos_legacy_uxm` journals two UXM feature fields
   for a diagnostic legacy trial. Keep it off for native ClientSession users.
 
-All nine choices are off in shipped presets. UI adapters are pinned to the
+All ten choices are off in shipped presets. UI adapters are pinned to the
 26.4/26.4 pairing; the nonfatal policy is pinned to the 26.4 userland. GPU
 LC_BUILD_VERSION retargeting and the exact-pair OOL-port-array boot argument
 reuse the existing GPU install and boot-argument patch paths. No new kernel
