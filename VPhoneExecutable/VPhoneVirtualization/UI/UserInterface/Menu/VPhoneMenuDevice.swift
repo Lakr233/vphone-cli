@@ -55,6 +55,7 @@ extension VPhoneMenuController {
         sideButton.isHidden = true
         watchSideButtonItem = sideButton
         menu.addItem(sideButton)
+        menu.addItem(buildVisionOSImmersionMenu())
         menu.addItem(makeItem("Power", action: #selector(sendPower), symbol: "power"))
         menu.addItem(makeItem("Volume Up", action: #selector(sendVolumeUp), symbol: "speaker.plus"))
         menu.addItem(makeItem("Volume Down", action: #selector(sendVolumeDown), symbol: "speaker.minus"))
@@ -502,6 +503,61 @@ extension VPhoneMenuController {
         monitor.isEnabled.toggle()
         item.state = monitor.isEnabled ? .on : .off
         UserDefaults.standard.set(!monitor.isEnabled, forKey: "touchIDForwardingDisabled")
+    }
+
+    // MARK: - visionOS Environment
+
+    func buildVisionOSImmersionMenu() -> NSMenuItem {
+        let item = NSMenuItem(title: "Environment Immersion", action: nil, keyEquivalent: "")
+        item.image = menuSymbol("mountain.2")
+        let menu = NSMenu(title: "Environment Immersion")
+        menu.autoenablesItems = false
+        visionOSImmersionChoices = VPhoneVisionOSImmersionModel.Level.allCases.map { level in
+            let choice = makeItem(level.title, action: #selector(setVisionOSImmersion(_:)))
+            choice.representedObject = level.rawValue
+            choice.isEnabled = false
+            menu.addItem(choice)
+            return choice
+        }
+        item.submenu = menu
+        item.isHidden = true
+        item.isEnabled = false
+        item.toolTip = VPhoneLocalization.text("Choose an environment in Home View, then adjust its immersion.")
+        visionOSImmersionItem = item
+        return item
+    }
+
+    func updateVisionOSImmersionAvailability(connected: Bool, capabilities: [String]) {
+        visionOSImmersionModel.updateConnection(connected: connected, capabilities: capabilities)
+        updateVisionOSImmersionMenuState()
+    }
+
+    private func updateVisionOSImmersionMenuState() {
+        visionOSImmersionItem?.isHidden = !visionOSImmersionModel.isVisible
+        visionOSImmersionItem?.isEnabled = visionOSImmersionModel.isEnabled
+        for choice in visionOSImmersionChoices { choice.isEnabled = visionOSImmersionModel.isEnabled }
+    }
+
+    @objc func setVisionOSImmersion(_ sender: NSMenuItem) {
+        guard control.isConnected, control.guestCapabilities.contains("visionos_immersion"),
+              let value = sender.representedObject as? Double,
+              let level = VPhoneVisionOSImmersionModel.Level(rawValue: value),
+              visionOSImmersionModel.isEnabled else { return }
+        // Disable the actions before scheduling the asynchronous request.
+        visionOSImmersionItem?.isEnabled = false
+        for choice in visionOSImmersionChoices { choice.isEnabled = false }
+        Task {
+            do {
+                try await visionOSImmersionModel.setLevel(level)
+            } catch {
+                VPhoneAlert.present(
+                    title: "Unable to Change Environment Immersion",
+                    message: error.localizedDescription,
+                    style: .warning,
+                )
+            }
+            updateVisionOSImmersionMenuState()
+        }
     }
 }
 

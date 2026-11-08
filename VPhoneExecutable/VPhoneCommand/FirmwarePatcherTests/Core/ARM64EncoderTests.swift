@@ -30,6 +30,21 @@ import Foundation
 import Testing
 import VPhonePatchKit
 
+@Suite("V201 floating-point pacing encoder")
+struct ARM64FramePacingEncoderTests {
+    // Independently assembled with Keystone 0.9.2's native C API and clang/as.
+    @Test func `signed double conversion preserves rounding and register fields`() {
+        #expect(ARM64Encoder.encodeFcvtzsXFromD(rd: 10, rn: 0) == ARM64.encodeU32(0x9E78_000A))
+        #expect(ARM64Encoder.encodeFcvtzsXFromD(rd: 0, rn: 0) == ARM64.encodeU32(0x9E78_0000))
+        #expect(ARM64Encoder.encodeFcvtzsXFromD(rd: 30, rn: 31) == ARM64.encodeU32(0x9E78_03FE))
+        #expect(ARM64Encoder.encodeFcvtzsXFromD(rd: 31, rn: 31) == ARM64.encodeU32(0x9E78_03FF))
+        #expect(ARM64Encoder.encodeFcvtzsXFromD(rd: -1, rn: 0) == nil)
+        #expect(ARM64Encoder.encodeFcvtzsXFromD(rd: 32, rn: 0) == nil)
+        #expect(ARM64Encoder.encodeFcvtzsXFromD(rd: 0, rn: -1) == nil)
+        #expect(ARM64Encoder.encodeFcvtzsXFromD(rd: 0, rn: 32) == nil)
+    }
+}
+
 // LDR literal and BR cases below were checked using the same native Keystone
 // 0.9.2 C driver, outside the repository, for the iOS 16 IOSurface transport stub.
 

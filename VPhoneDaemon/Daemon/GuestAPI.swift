@@ -396,7 +396,7 @@ enum GuestAPI {
             "ip": ip ?? "",
             "setup_pending": GuestRuntimePlatform.isVisionOS ? false : setupAssistantPending(),
             "mobilegestalt_restart_pending": GuestMobileGestaltCache.restartPending(),
-            "capabilities": GuestRuntimePlatform.isVisionOS ? (GuestRuntimePlatform.visionOSCapabilities + scriptCapabilities()) : [
+            "capabilities": GuestRuntimePlatform.isVisionOS ? (GuestRuntimePlatform.visionOSCapabilities + scriptCapabilities() + visionOSImmersionCapabilities) : [
                 "touch",
                 "touch2",
                 "touch_edge",

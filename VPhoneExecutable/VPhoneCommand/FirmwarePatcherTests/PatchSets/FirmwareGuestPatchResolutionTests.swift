@@ -133,14 +133,48 @@ struct FirmwareGuestPatchResolutionTests {
         #expect(FirmwareGuestPatchResolution.guestPatchesOff(selectionEnabled: []).contains(identifier))
     }
 
+    @Test(arguments: [FirmwareGuestSystemPatchSet.visionOSEnvironments, FirmwareGuestSystemPatchSet.visionOSFramePacing])
+    func `visionOS environment and pacing patches are independent opt in for the tested OS pair`(identifier: String) throws {
+        let declaration = try #require(FirmwarePatchSetCatalog.allDeclarations.first { $0.identifier == identifier })
+        let target: VPhonePatchTarget = identifier == FirmwareGuestSystemPatchSet.visionOSEnvironments
+            ? .guestFile(path: FirmwareGuestSystemPatchSet.visionOSEnvironmentsPath)
+            : .guestExecutable(path: FirmwareGuestSystemPatchSet.visionOSFramePacingPath)
+        #expect(declaration.target == target)
+        #expect(!declaration.bootEssential)
+        for preset in FirmwarePatchSetCatalog.builtInPresets {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("26.4"), cloudOS: VPhoneVersion("26.4"),
+            )
+            #expect(!plan.isEnabled(identifier))
+        }
+        for (base, cloud, applicable) in [
+            ("26.4", "26.4", true), ("26.4.1", "26.4.2", true),
+            ("26.3", "26.4", false), ("26.5", "26.4", false),
+            ("26.4", "26.3", false), ("26.4", "26.5", false), ("27.0", "26.4", false),
+        ] {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: FirmwarePatchSetCatalog.standardPreset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud), allowed: [identifier],
+            )
+            #expect(plan.isEnabled(identifier) == applicable)
+            #expect(!plan.isEnabled(FirmwareGuestSystemPatchSet.visionOSUXMIPC))
+        }
+        #expect(!declaration.applicability.matches(iOSBase: nil, cloudOS: VPhoneVersion("26.4")))
+        #expect(!declaration.applicability.matches(iOSBase: VPhoneVersion("26.4"), cloudOS: nil))
+        #expect(FirmwareGuestPatchResolution.missingVisionOSDisplayIPCDependencies(enabled: [identifier]).isEmpty)
+        #expect(FirmwareGuestPatchResolution.guestPatchesOff(selectionEnabled: []).contains(identifier))
+    }
+
     @Test(arguments: FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches)
-    func `visionOS display lookups are opt in and limited to the tested OS pair`(identifier: String) throws {
+    func `visionOS display and environment lookups are opt in and limited to the tested OS pair`(identifier: String) throws {
         let adapter = FirmwareGuestSystemPatchSet.visionOSUXMIPC
         let declaration = try #require(FirmwarePatchSetCatalog.allDeclarations.first { $0.identifier == identifier })
         let marker: String = switch identifier {
         case FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPC: FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPCMarker
         case FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPC: FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPCMarker
         case FirmwareGuestSystemPatchSet.visionOSHMDSystemSetterIPC: FirmwareGuestSystemPatchSet.visionOSHMDSystemSetterIPCMarker
+        case FirmwareGuestSystemPatchSet.visionOSEnvironmentIPC: FirmwareGuestSystemPatchSet.visionOSEnvironmentIPCMarker
         default: FirmwareGuestSystemPatchSet.visionOSWakeboardSystemIPCMarker
         }
         #expect(declaration.target == .guestFile(path: marker))
@@ -150,7 +184,7 @@ struct FirmwareGuestPatchResolutionTests {
                 preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
                 iOSBase: VPhoneVersion("26.4"), cloudOS: VPhoneVersion("26.4"),
             )
-            #expect(!plan.isEnabled(identifier), "\(preset.identifier) implicitly enables the HMD lookup")
+            #expect(!plan.isEnabled(identifier), "\(preset.identifier) implicitly enables the native UI service lookup")
         }
         for (base, cloud, applicable) in [
             ("26.4", "26.4", true), ("26.4.1", "26.4.2", true),
@@ -168,7 +202,7 @@ struct FirmwareGuestPatchResolutionTests {
     }
 
     @Test(arguments: FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches)
-    func `visionOS display markers depend on the shared adapter and follow current selection independently`(identifier: String) {
+    func `visionOS display and environment markers depend on the shared adapter and follow current selection independently`(identifier: String) {
         let adapter = FirmwareGuestSystemPatchSet.visionOSUXMIPC
         #expect(FirmwareGuestPatchResolution.missingVisionOSDisplayIPCDependencies(enabled: [identifier]) == [adapter])
         #expect(FirmwareGuestPatchResolution.missingVisionOSDisplayIPCDependencies(enabled: [identifier, adapter]).isEmpty)

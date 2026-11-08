@@ -30,6 +30,9 @@ static const char *hmdServices[] = {VP_HMD_PROPERTIES_SERVICE,
     VP_HMD_PRESENTABLE_SERVICE, VP_HMD_SYSTEM_SETTER_SERVICE, VP_WAKEBOARD_SYSTEM_SERVICE};
 static mode_t hmdMarkerMode = S_IFREG | 0644;
 static uid_t hmdMarkerOwner;
+static int environmentMarkerMissing = 1;
+static mode_t environmentMarkerMode = S_IFREG | 0644;
+static uid_t environmentMarkerOwner;
 static unsigned int expectedVersion = 42;
 static unsigned int forwardCount;
 static const char *expectedOperation;
@@ -43,15 +46,16 @@ static int test_lstat(const char *path, struct stat *info) {
     for (size_t i = 0; i < sizeof(hmdMarkers)/sizeof(*hmdMarkers); i++)
         if (!strcmp(path, hmdMarkers[i])) hmdIndex = (int)i;
     int isHMD = hmdIndex >= 0;
-    assert(isHMD || !strcmp(path, VP_VISIONOS_IPC_MARKER));
+    int isEnvironment = !strcmp(path, VP_VISIONOS_ENVIRONMENT_MARKER);
+    assert(isHMD || isEnvironment || !strcmp(path, VP_VISIONOS_IPC_MARKER));
     memset(info, 0, sizeof(*info));
-    info->st_mode = isHMD ? hmdMarkerMode : markerMode;
-    info->st_uid = isHMD ? hmdMarkerOwner : markerOwner;
+    info->st_mode = isHMD ? hmdMarkerMode : isEnvironment ? environmentMarkerMode : markerMode;
+    info->st_uid = isHMD ? hmdMarkerOwner : isEnvironment ? environmentMarkerOwner : markerOwner;
     errno = ENOENT;
-    return (isHMD ? hmdMarkerMissing[hmdIndex] : markerMissing) ? -1 : 0;
+    return (isHMD ? hmdMarkerMissing[hmdIndex] : isEnvironment ? environmentMarkerMissing : markerMissing) ? -1 : 0;
 }
 int test_pidpath(int pid, void *buffer, uint32_t size) {
-    const char *path = pid == 401 ? VP_UXM_PATH : pid == 402 ? VP_POLARIS_PATH : pid == 404 ? VP_BACKBOARD_PATH : "/tmp/other";
+    const char *path = pid == 401 ? VP_UXM_PATH : pid == 402 ? VP_POLARIS_PATH : pid == 404 ? VP_BACKBOARD_PATH : pid == 405 ? VP_ENVIRONMENT_PATH : "/tmp/other";
     errno = ESRCH;
     return snprintf(buffer, size, "%s", wrongPath ? "/tmp/spoof" : path);
 }
@@ -65,7 +69,7 @@ int test_csops(pid_t pid, unsigned int operation, void *buffer, size_t size,
         memset(buffer, 'x', size);
         return 0;
     }
-    const char *identity = pid == 401 ? "com.apple.userexperiencemanagerd" : pid == 404 ? "com.apple.backboardd" : "com.apple.polarisd";
+    const char *identity = pid == 401 ? "com.apple.userexperiencemanagerd" : pid == 404 ? "com.apple.backboardd" : pid == 405 ? "com.apple.RealityEnvironment" : "com.apple.polarisd";
     snprintf((char *)buffer + 8, size - 8, "%s", wrongIdentity ? "com.apple.other" : identity);
     return 0;
 }
@@ -227,5 +231,41 @@ int main(void) {
         expectAllowed(polaris, "mach-lookup", 2, hmdServices[selected], 0);
         hmdMarkerMissing[selected] = 1;
     }
-    puts("VisionOS IPC: existing scope/ABI and independent native graphics gates passed");
+    vp_audit_token_t environment = {{0}};
+    environment.val[5] = 405; environment.val[7] = 42;
+    expectAllowed(environment, "mach-lookup", 2, VP_ENVIRONMENT_SERVICE, 0);
+    environmentMarkerMissing = 0;
+    for (unsigned int filter = 0; filter < 32; filter++)
+        expectAllowed(environment, "mach-lookup", filter, VP_ENVIRONMENT_SERVICE,
+                      filter == 2 || filter == 3 || filter == 12);
+    expectAllowed(environment, "mach-register", 2, VP_ENVIRONMENT_SERVICE, 0);
+    expectAllowed(environment, "mach-lookup", 2, "com.apple.surfboard.environmentservice.extra", 0);
+    expectAllowed(environment, "mach-lookup", 2, "com.apple.surfboard.immersionservice", 0);
+    expectAllowed(environment, "mach-lookup", 2, VP_PBS_SERVICE, 0);
+    expectAllowed(environment, "mach-lookup", 2, VP_HMD_PROPERTIES_SERVICE, 0);
+    expectAllowed(uxm, "mach-lookup", 2, VP_ENVIRONMENT_SERVICE, 0);
+    expectAllowed(polaris, "mach-lookup", 2, VP_ENVIRONMENT_SERVICE, 0);
+    expectAllowed(backboard, "mach-lookup", 2, VP_ENVIRONMENT_SERVICE, 0);
+    for (size_t i = 0; i < sizeof(failures)/sizeof(*failures); i++) {
+        *failures[i] = 1;
+        expectAllowed(environment, "mach-lookup", 2, VP_ENVIRONMENT_SERVICE, 0);
+        *failures[i] = 0;
+    }
+    for (size_t i = 0; i < sizeof(rejectedModes)/sizeof(*rejectedModes); i++) {
+        environmentMarkerMode = rejectedModes[i];
+        expectAllowed(environment, "mach-lookup", 2, VP_ENVIRONMENT_SERVICE, 0);
+    }
+    environmentMarkerMode = S_IFREG | 0644;
+    environmentMarkerOwner = 501;
+    expectAllowed(environment, "mach-lookup", 2, VP_ENVIRONMENT_SERVICE, 0);
+    environmentMarkerOwner = 0;
+    currentPID = 2;
+    expectAllowed(environment, "mach-lookup", 2, VP_ENVIRONMENT_SERVICE, 0);
+    currentPID = 1;
+    bad = environment; bad.val[7]++;
+    expectAllowed(bad, "mach-lookup", 2, VP_ENVIRONMENT_SERVICE, 0);
+    environmentMarkerMissing = 1;
+    expectAllowed(environment, "mach-lookup", 2, VP_ENVIRONMENT_SERVICE, 0);
+    expectAllowed(uxm, "mach-lookup", 2, VP_PBS_SERVICE, 1);
+    puts("VisionOS IPC: scope/ABI and independent native graphics/environment gates passed");
 }

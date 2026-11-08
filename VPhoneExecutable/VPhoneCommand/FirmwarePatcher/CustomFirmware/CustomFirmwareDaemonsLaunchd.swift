@@ -11,6 +11,66 @@
 import Foundation
 
 public extension CustomFirmwareDaemons {
+    /// Expose native environment assets on a virtual headset. Own only Enabled
+    /// and remember whether this optional entry existed before the first write.
+    static func visionOSEnvironmentFeatures(
+        domain: inout PlistDict, journal: inout PlistDict, enabled: Bool
+    ) throws -> [String] {
+        let feature = "ShowEnvironmentsOnSimulator"
+        let wasPresent = domain[feature] != nil
+        guard !wasPresent || domain[feature] is PlistDict else {
+            throw DaemonError.invalidPlist(feature)
+        }
+        var entry = domain[feature] as? PlistDict ?? [:]
+        if let value = entry["Enabled"], CFGetTypeID(value as CFTypeRef) != CFBooleanGetTypeID() {
+            throw DaemonError.invalidPlist("\(feature).Enabled")
+        }
+        // The native 26.4 parser does not allow both fields. This experiment
+        // does not own DevelopmentPhase, so refuse instead of changing it.
+        guard entry["DevelopmentPhase"] == nil else {
+            throw DaemonError.invalidPlist("\(feature).DevelopmentPhase")
+        }
+        guard Set(journal.keys).isSubset(of: [feature]) else {
+            throw DaemonError.invalidPlist("environment feature journal")
+        }
+        var original: PlistDict?
+        if let saved = journal[feature] {
+            guard let fields = saved as? PlistDict,
+                  Set(fields.keys).isSubset(of: ["EntryWasPresent", "Enabled"]),
+                  let present = fields["EntryWasPresent"],
+                  CFGetTypeID(present as CFTypeRef) == CFBooleanGetTypeID(),
+                  (present as? Bool == true || fields["Enabled"] == nil)
+            else { throw DaemonError.invalidPlist("journal.\(feature)") }
+            if let value = fields["Enabled"], CFGetTypeID(value as CFTypeRef) != CFBooleanGetTypeID() {
+                throw DaemonError.invalidPlist("journal.\(feature).Enabled")
+            }
+            original = fields
+        }
+
+        var updatedDomain = domain, updatedJournal = journal
+        if enabled {
+            if original == nil {
+                var fields: PlistDict = ["EntryWasPresent": wasPresent]
+                if let value = entry["Enabled"] { fields["Enabled"] = value }
+                updatedJournal[feature] = fields
+            }
+            entry["Enabled"] = true
+            updatedDomain[feature] = entry
+        } else if let original {
+            entry.removeValue(forKey: "Enabled")
+            if let value = original["Enabled"] { entry["Enabled"] = value }
+            if original["EntryWasPresent"] as? Bool == false && entry.isEmpty {
+                updatedDomain.removeValue(forKey: feature)
+            } else {
+                updatedDomain[feature] = entry
+            }
+        }
+        let changed = !NSDictionary(dictionary: domain).isEqual(to: updatedDomain)
+        domain = updatedDomain
+        journal = updatedJournal
+        return changed ? [feature] : []
+    }
+
     /// Select UXM's legacy blackboard without changing unrelated feature flags.
     /// The 26.4 native parser rejects an entry containing both Enabled and
     /// DevelopmentPhase, so the two owned fields are journaled and restored together.

@@ -236,6 +236,8 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-tvos"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-visionos"
+"$macos/vphone-cli" sign "$guest/vphoned-visionos" --apple-adhoc --merge \
+    --entitlements "$root/VPhoneDaemon/Configuration/VPhoneVisionOS.entitlements"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-watchos"
 /usr/bin/codesign --force --sign - "$macos/vphone-escalator"
 /usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"

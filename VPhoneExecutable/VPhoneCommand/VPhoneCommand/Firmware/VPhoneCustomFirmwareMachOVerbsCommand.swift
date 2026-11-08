@@ -270,6 +270,27 @@ struct VPhoneCustomFirmwarePatchLaunchdJetsamCommand: ParsableCommand {
     }
 }
 
+// MARK: - patch-visionos-frame-pacing
+
+struct VPhoneCustomFirmwarePatchVisionOSFramePacingCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-visionos-frame-pacing",
+        abstract: "Correct V201 late-vsync rounding while preserving its native display clock",
+        shouldDisplay: false,
+    )
+
+    @Argument(help: "Path to the reviewed visionOS wakeboardd Mach-O", transform: URL.init(fileURLWithPath:))
+    var binary: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Validate without writing")
+    var dryRun = false
+
+    func run() throws {
+        try requireUntruncatedMachO(at: binary)
+        try CustomFirmwareVisionOSFramePacing.patch(at: binary, dryRun: dryRun, log: machOVerbLog)
+    }
+}
+
 // MARK: - patch-watchdogd
 
 struct VPhoneCustomFirmwarePatchWatchdogdCommand: ParsableCommand {
@@ -722,6 +743,7 @@ enum VPhoneCustomFirmwareMachOVerbs {
             VPhoneCustomFirmwarePatchLaunchdJetsamCommand.self,
             VPhoneCustomFirmwarePatchArm64eX1Command.self,
             VPhoneCustomFirmwarePatchWatchdogdCommand.self,
+            VPhoneCustomFirmwarePatchVisionOSFramePacingCommand.self,
             VPhoneCustomFirmwarePatchDiskimagesiodCommand.self,
             VPhoneCustomFirmwarePatchRemotePairingCommand.self,
             VPhoneCustomFirmwarePatchVirtualAudioCommand.self,
