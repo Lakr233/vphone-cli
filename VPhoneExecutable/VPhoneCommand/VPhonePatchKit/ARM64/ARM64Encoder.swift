@@ -47,6 +47,13 @@ public enum ARM64Condition: UInt32, Sendable, CaseIterable {
 }
 
 public enum ARM64Encoder {
+    /// FCVTZS Xd, Dn: signed double-to-64-bit conversion toward zero.
+    /// sf=1, floating type=01, rmode=11; Rn occupies [9:5], Rd [4:0].
+    public static func encodeFcvtzsXFromD(rd: Int, rn: Int) -> Data? {
+        guard (0 ... 31).contains(rd), (0 ... 31).contains(rn) else { return nil }
+        return ARM64.encodeU32(0x9E78_0000 | UInt32(rn) << 5 | UInt32(rd))
+    }
+
     // MARK: - Register arithmetic
 
     /// MADD/MSUB X-register form; register 31 is XZR.
