@@ -491,38 +491,40 @@ Every method is reachable through `POST /v1/rpc` and the WebSocket. The
 original methods also have REST routes in `GuestHyperTextHandler.swift`; the
 methods added with the host panels are RPC-only. Each area is one file,
 `VPhoneDaemon/Daemon/GuestAPI+<Area>.swift`, and each method is a thin call
-into the IcliKit function named in parentheses, so IcliKit's source is the
-reference for result keys. Methods marked **force** refuse to run unless the
+into the IcliKit function named in parentheses. `methods.list` is the authority
+for result shapes: each method's `result` array lists its keys as `name`,
+`type`, `required` and `open` (see "Method discovery"). This document does not
+restate them; it keeps params and behaviour. Methods marked **force** refuse to run unless the
 request carries `"force": true`.
 
 | Area | Methods |
 | --- | --- |
 | Discovery | `methods.list` (capability `methods`, see "Method discovery") |
-| Device | `device.snapshot`, `device.info` (snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode (the last answer amfid gave, refreshed in the background every 30 s; `{}` until it answers, and always on the tvOS 26.6 and HomePod 27.0 guests checked, whose amfid does not; `developer_mode.status` asks amfid directly and waits up to 10 s), agent, `device_name` `{name, own_name}`: the pinned name and the guest's own ComputerName), `device.screen`, `device.network`, `device.displays` (a flat IOService probe of every display-ish object with its small properties — what the display stack bound; built for the foldable display work: `AppleParavirtGPU` `DisplayPortCount`, and each `AppleParavirtDisplay` width/height/`primary`), `device.ioreg {plane}`, `device.environment`, `device.basebin {archive?}` |
-| Display, audio | `display.pose` (read-only SpringBoard pose snapshot: orientation, device_orientation, hinge, tabletop; reports unavailable for an unsupported ABI), `display.modes` (read-only CoreAnimation display bounds, native size, current/available modes, and virtual-mode selector availability; availability does not prove a mode change is supported), `display.brightness {value?}`, `display.rotation {orientation?}`, `display.posture {hinge, orientation?, tabletop?}` (a foldable guest's pose through SpringBoard's test-automation override, see below; capability `device_pose`), `display.orientation` (`{degrees, source, fold_angle?, screen_off?}`: SpringBoard's interface orientation without a screen capture, for polling; `degrees` is null while SpringBoard has no answer; on a foldable `fold_angle` is the virtual hinge's angle, so a host can follow folds it did not ask for, and `screen_off` whether the panel is dark, so a host can keep the panel's frame from before off its window as it comes on (SpringBoard has the screen off and FoldDisplay saw the panel go off since it was last lit; the always-on Lock Screen keeps the panel on and is not dark); capability `display_orientation`), `display.rotation_lock {locked}`, `display.auto_lock` (`{auto_lock_seconds, never, lock_screen_minimum_seconds}`), `display.auto_lock.set {seconds}` (writes the mobile UserSettings input through cfprefsd, posts profiled's effective-settings notification, and returns an immediate readback; the caller must verify the effective value), `screen.unlock {passcode?, timeout?}` (`{locked, screen_off, was_locked, was_screen_off}`: the display on and the Lock Screen passed, see below; capability `screen_unlock`), `audio.volume {value?, category?}`, `audio.state` |
+| Device | `device.snapshot`, `device.info` (snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode (the last answer amfid gave, refreshed in the background every 30 s; `{}` until it answers, and always on the tvOS 26.6 and HomePod 27.0 guests checked, whose amfid does not; `developer_mode.status` asks amfid directly and waits up to 10 s), agent, `device_name`), `device.screen`, `device.network`, `device.displays` (a flat IOService probe of every display-ish object with its small properties — what the display stack bound; built for the foldable display work: `AppleParavirtGPU` `DisplayPortCount`, and each `AppleParavirtDisplay` width/height/`primary`), `device.ioreg {plane}`, `device.environment`, `device.basebin {archive?}` |
+| Display, audio | `display.pose` (read-only SpringBoard pose snapshot: orientation, device_orientation, hinge, tabletop; reports unavailable for an unsupported ABI), `display.modes` (read-only CoreAnimation display bounds, native size, current/available modes, and virtual-mode selector availability; availability does not prove a mode change is supported), `display.brightness {value?}`, `display.rotation {orientation?}`, `display.posture {hinge, orientation?, tabletop?}` (a foldable guest's pose through SpringBoard's test-automation override, see below; capability `device_pose`), `display.orientation` (SpringBoard's interface orientation without a screen capture, for polling; `degrees` is null while SpringBoard has no answer; on a foldable `fold_angle` is the virtual hinge's angle, so a host can follow folds it did not ask for, and `screen_off` whether the panel is dark, so a host can keep the panel's frame from before off its window as it comes on (SpringBoard has the screen off and FoldDisplay saw the panel go off since it was last lit; the always-on Lock Screen keeps the panel on and is not dark); capability `display_orientation`), `display.rotation_lock {locked}`, `display.auto_lock`, `display.auto_lock.set {seconds}` (writes the mobile UserSettings input through cfprefsd and posts profiled's effective-settings notification, and returns an immediate readback; the caller must verify the effective value), `screen.unlock {passcode?, timeout?}` (the display on and the Lock Screen passed, see below; capability `screen_unlock`), `audio.volume {value?, category?}`, `audio.state` |
 | Input | `input.touch`, `input.hid {page, usage, down?, long_press?}`, `input.button {name}`, `input.key {name}`, `input.type {text, delay_ms?}`, `input.paste {text}`, `input.tap`, `input.double_tap`, `input.long_press`, `input.swipe`, `input.drag {points}`, `input.touch_sequence {events}` — gesture coordinates are screen points; `input.pointer {x, y, seq?, buttons?}`, `input.scroll {phase, dx?, dy?, x?, y?}` (capabilities `pointer_scroll` and `pointer_buttons`, see below) |
 | UI | `ui.tree` (alias `accessibility.tree`), `ui.element_at`, `ui.tap_element`, `ui.wait`, `ui.wait_gone`, `ui.ocr {languages?, min_confidence?}`, `ui.describe`, `screen.screenshot` |
 | Processes | `processes.list {filter?}`, `processes.kill {pid, signal?}` **force**, `process.spawn {executable, arguments?, timeout_seconds?}`, `memory.jetsam`, `memory.pressure` (only the three kernel memory sysctls, for polling) |
 | launchd | `services.list`, `status`, `print`, `dump`, `disabled`, `start`, `enable`, `load`, `profile` (see below), `kickstart {label, kill?}` (`launchctl kickstart`, capability `service_kickstart`, see below); `services.stop`, `disable`, `remove`, `signal`, `unload`, `profile.apply {profile, groups?, allow?}` **force**, and `kickstart` with `kill` **force**; `launchd.getenv`, `setenv`, `unsetenv`. On tvOS, which never enables user sessions, they read the system domain alone; before icli 0.8.6 the foreground-user lookup trapped there and killed vphoned |
 | Logs | `logs.syslog {seconds, process?, level?, max_lines?, subsystem?, category?, message_contains?}` (a bounded capture of at most 60 s; filters apply before the line cap), `logs.crashes {bundle_id?}`, `logs.crash {path}` |
-| HomeView distance | `homeview.distance.get`, `homeview.distance.set {mode, reset_environment?}` (capability `homeview_distance`; near/standard/far map to native detail2/1/0; automatic requires `reset_environment:true` and clears persona, display-style, detail and backlight overrides together). Returns `available`, `mode`, `level_of_detail`, `override_active`, `applied`, `reset_scope:"environment"`, plus native `display_style` and `backlight_state` (null if their integer ABI is unavailable). Unknown ownership is `mode:"unknown"`, `override_active:null`; readback does not prove a rendered UI change. |
+| HomeView distance | `homeview.distance.get`, `homeview.distance.set {mode, reset_environment?}` (capability `homeview_distance`; near/standard/far map to native detail2/1/0; automatic requires `reset_environment:true` and clears persona, display-style, detail and backlight overrides together). Unknown ownership is `mode:"unknown"`, `override_active:null`; readback does not prove a rendered UI change. |
 | Darwin notifications | `notify.post {name, state?}` (`postDarwinNotification`; `state` is a UInt64, as a number or a decimal string, stored before the post), `notify.state {name}` (`darwinNotificationState`) |
-| Network, security | `network.capture {seconds, interface?, filter?}` (writes a pcap in the guest scratch directory and returns its path), `network.ipv4.get {interface?}`, `network.ipv4.set {interface?, method, address?, subnet_mask?, router?, dns?}`, `network.hostname.get`, `network.hostname.set {local_host_name?}`, `device.name.get`, `device.name.set {name}` (see below), `network.static_names.get`, `network.static_names.set {entries}`, `network.resolve {host, family?, port?, first_only?, timeout_ms?}` (see below), `security.ssl_killswitch` |
+| Network, security | `network.capture {seconds, interface?, filter?}` (writes a pcap in the guest scratch directory), `network.ipv4.get {interface?}`, `network.ipv4.set {interface?, method, address?, subnet_mask?, router?, dns?}`, `network.hostname.get`, `network.hostname.set {local_host_name?}`, `device.name.get`, `device.name.set {name}` (see below), `network.static_names.get`, `network.static_names.set {entries}`, `network.resolve {host, family?, port?, first_only?, timeout_ms?}` (see below), `security.ssl_killswitch` |
 | Apps | `apps.list`, `search`, `refresh`, `launch`, `terminate`, `foreground`, `open_url`, `install`, `info`, `binary`, `data_dir`, `url_schemes`, `handlers`, `registration`, `register`, `network_policy {repair?}`; `apps.uninstall`, `unregister`, `unregister_dir` **force**; `apps.removed_system`, `apps.remove_system {bundle_ids, backup?, respring?}` **force**, `apps.restore_system {bundle_ids?, respring?}` **force** (removable system apps, see below) |
-| OTA Apple app programs | `ota.apps.status`, `ota.apps.apply {force:true, removed_bundle_ids?:[]}` (capability `ota_system_apps`; reconciles removed Apple app registrations including placeholders against valid removal backups, then updates retained programs from the installed 24A446 payload; no caller-selected paths or third-party IDs; result `{build, apps, pending, removed_bundle_ids, removed_pending}`; an omitted baseline infers only absent/placeholder apps, never installed apps; preserves user-data/group containers and original removal backups; see [the OTA runbook](Restore/data_preserving_full_ota.md#preserve-removed-system-apps-2026-10-25)) |
+| OTA Apple app programs | `ota.apps.status`, `ota.apps.apply {force:true, removed_bundle_ids?:[]}` (capability `ota_system_apps`; reconciles removed Apple app registrations including placeholders against valid removal backups, then updates retained programs from the installed 24A446 payload; no caller-selected paths or third-party IDs; an omitted baseline infers only absent/placeholder apps, never installed apps; preserves user-data/group containers and original removal backups; see [the OTA runbook](Restore/data_preserving_full_ota.md#preserve-removed-system-apps-2026-10-25)) |
 | System | `system.uicache`, `system.system_apps {visible?}`, `system.respring` **force**, `system.reboot {userspace?}` **force**, `system.shutdown` **force**, `developer_mode.status`, `developer_mode.enable`, `power.low_power_mode`, `time.timezone {identifier?, automatic?}`, `time.clock {time?, automatic?}` (see below), `diagnostics.self_test` |
 | Files | `files.list`, `mkdir`, `remove`, `rename`, `read {binary?, limit?}`, `write`, `find`, `copy`, `symlink`, `chmod`, `chown`, `plist`, `plist_set {value \| remove}` |
 | APFS snapshots | `apfs.snapshots {mount?}`, `apfs.snapshot.delete {mount?, name? \| prefix?}` **force** (only `orig-fs.disabled.rn-*`, see below) |
 | Preferences, clipboard, location | `settings.get/set/delete`, `clipboard.get/set/clear`, `location.set/clear/current/services {enabled?}` |
-| Motion | `motion.gyroscope.get`, `motion.gyroscope.set {x,y,z,enabled?}`, `motion.gyroscope.clear` (capability `motion_gyroscope`; finite JSON numbers in [-1000,1000] rad/s, all axes required; `enabled` defaults to true and must be a JSON Boolean; capability `motion_gyroscope_toggle` supports disabling while retaining configured axes; returns configuration, `units`, `provider`, and `provider_running`; HID provider status is not proof of CoreMotion app delivery) |
+| Motion | `motion.gyroscope.get`, `motion.gyroscope.set {x,y,z,enabled?}`, `motion.gyroscope.clear` (capability `motion_gyroscope`; finite JSON numbers in [-1000,1000] rad/s, all axes required; `enabled` defaults to true and must be a JSON Boolean; capability `motion_gyroscope_toggle` supports disabling while retaining configured axes; HID provider status is not proof of CoreMotion app delivery) |
 | Keychain | `keychain.list {class?}`, `add`, `delete`, `get`, `update`, `database` |
-| Device attitude | `motion.attitude.get`, `motion.attitude.set {roll,pitch,yaw,enabled?}`, `motion.attitude.clear` (capability `motion_attitude`; degrees: roll/yaw [-180,180], pitch [-90,90], all finite JSON numbers required; `enabled` defaults to true, false retains angles; clear disables and zeros; returns configuration, `units`, `reference_frame`, `provider_installed`; stationary XArbitraryZVertical Core Motion pose; library presence does not prove app delivery; see `Guest/virtual_attitude.md`) |
+| Device attitude | `motion.attitude.get`, `motion.attitude.set {roll,pitch,yaw,enabled?}`, `motion.attitude.clear` (capability `motion_attitude`; degrees: roll/yaw [-180,180], pitch [-90,90], all finite JSON numbers required; `enabled` defaults to true, false retains angles; clear disables and zeros; stationary XArbitraryZVertical Core Motion pose; library presence does not prove app delivery; see `Guest/virtual_attitude.md`) |
 | Packages (read-only) | `packages.list`, `status`, `info {path}`, `compare`, `tweaks`, `repos` |
 | Bootstrap | `bootstrap.install {layout}`, `bootstrap.status`, `bootstrap.inspect`, `bootstrap.uninstall {jbroot, force}`, `bootstrap.firmware` (see above) |
-| Environment | `environment.status` (SHA-256 of each vphone library in `/usr/lib`, or null when absent, plus the staging directory), `environment.install {libraries: [{name, sha256}]}` (see below) |
-| Profile UDID | `udid.get`, `udid.set {udid}`, `udid.clear` — each returns `{udid, path}`, the UDID the guest gives its profile checks and the host (null: the guest's own) and the settings file it came from; `set` and `clear` also return `restarted_pids`, `usb_serial` and `usb_reenumerated` (see below) |
-| Scripting | `script.eval {source, timeout?}` (`{ok, result, output, crashed}`; evaluated in a session process, capability `script_js`), `script.info` (`{available, engine, globals, programs}`) — the interactive form is the `/v1/shell` WebSocket, see "Scripting sessions" |
-| Setup Assistant | `setup.status` (`{pending, running, pid, setup_done, setup_version, current_version, data_migration_done}`), `setup.skip` **force** (sets `SetupDone`, `SetupFinishedAllSteps` and `SetupVersion` in `com.apple.purplebuddy`, restarts SpringBoard, returns the status plus `respring`; while the first boot's data migration is still running it does not restart SpringBoard, which reads the keys when migration ends, and `respring` is `{restarted: false, reason: "data_migration_pending"}`; a restart FrontBoard ignored is refused with `reason: busy`, `retryable: true`, the keys already written); `setup.settle {timeout_s?, poll_s?, stable_polls?}` (read-only wait for first-boot work, see below); `/v1/health` carries `setup_pending` — see `Research/Guest/setup_assistant_skip.md` |
+| Environment | `environment.status`, `environment.install {libraries: [{name, sha256}]}` (see below) |
+| Profile UDID | `udid.get`, `udid.set {udid}`, `udid.clear` (see below) |
+| Scripting | `script.eval {source, timeout?}` (evaluated in a session process, capability `script_js`), `script.info` — the interactive form is the `/v1/shell` WebSocket, see "Scripting sessions" |
+| Setup Assistant | `setup.status`, `setup.skip` **force** (sets `SetupDone`, `SetupFinishedAllSteps` and `SetupVersion` in `com.apple.purplebuddy`, restarts SpringBoard; while the first boot's data migration is still running it does not restart SpringBoard, which reads the keys when migration ends, and `respring` is `{restarted: false, reason: "data_migration_pending"}`; a restart FrontBoard ignored is refused with `reason: busy`, `retryable: true`, the keys already written); `setup.settle {timeout_s?, poll_s?, stable_polls?}` (read-only wait for first-boot work, see below); `/v1/health` carries `setup_pending` — see `Research/Guest/setup_assistant_skip.md` |
 
 `input.hid` sends a keyboard/consumer usage with 16-bit `page` and `usage`.
 Omitting `down` sends a 100 ms press; a Boolean `down` sends one transition.
@@ -693,9 +695,9 @@ back to timed. Both add `changed`. `vphone-vm` sends the Mac's zone after
 every connect and whenever the Mac's zone changes (`VPhoneTimeZoneSync`), so
 the guest's clock reads the same local time as the host.
 
-`time.clock` (capability `clock`; REST `GET/PUT /v1/clock`) returns
-`{time, automatic}`: the guest's clock in seconds since 1970 and whether timed
-sets it (CoreTime's `TMIsAutomaticTimeEnabled`). `{time}` is the Mac's time. A
+`time.clock` (capability `clock`; REST `GET/PUT /v1/clock`) reads and sets the
+guest's clock (seconds since 1970) and whether timed sets it (CoreTime's
+`TMIsAutomaticTimeEnabled`). `{time}` is the Mac's time. A
 guest within a second of it is left alone, and so is one with automatic time
 off, whose clock was set by hand in Settings. Otherwise vphoned offers the
 time to timed as an NTP result (`TMSetSourceTime`, which timed takes only with
@@ -713,11 +715,11 @@ analysis is in `Research/Guest/host_clock_sync.md`.
 Mac's output device adds after its mixer, in seconds, which the guest's
 sound plugin adds to its speaker's output latency so a player in the guest
 holds its picture back by as much (`VPhoneDaemon/Daemon/GuestAPI+AudioLatency.swift`).
-Without `seconds` it returns `{seconds}`, the stored value or 0. `{seconds}`
+Without `seconds` it returns the stored value or 0. `seconds`
 (0 to 1) stores it as `VPhoneVirtIOSoundHostLatency` in `com.apple.coreaudio`
 for user mobile, posts the Darwin notification
 `com.vphone.audio.host-latency` so a running audiomxd reads it again, and
-returns `{seconds, changed}`; a value within 10 µs of the stored one is
+reports whether it changed; a value within 10 µs of the stored one is
 neither written nor posted (`changed: false`). `vphone-vm` sends the default
 output device's device latency + output stream latency after every connect and whenever the default output device or one of
 those changes (`VPhoneHostAudioLatencySync`). See
@@ -809,17 +811,12 @@ boot, so the guest has to restart. `apply {profile, groups?, allow?}`:
 - The labels the profile owns go to `/var/db/vphoned/service-profile.plist`
   (`Profile`, `ListVersion`, `iOSMajor`, `Groups`, `Allow`, `Labels`,
   `Updated`). A second apply with the same arguments changes nothing.
-- It returns `{profile, ios_major, list_version, groups, disabled, enabled,
-  kept, skipped: [{label, reason}], allowed, failed: [{label, action, error}],
-  owned, reboot_required}`: `disabled` and `enabled` are what this call
-  changed, `kept` what was already the profile's, `owned` how many labels the
+- In the result `disabled` and `enabled` are what this call changed, `kept` what was already the profile's, `owned` how many labels the
   record holds. `reboot_required` is true when this call changed something or
   a label the profile owns is still running. A failure on one label is listed
   in `failed` and the others still apply.
 
-`services.profile` returns `{profile, ios_major, supported, supported_ios,
-list_version, groups: [{name, default, summary, labels}], never_disable,
-record, disabled, enabled_since, running, reboot_required}`: `disabled` are
+`services.profile` reports the recorded profile: `disabled` are
 the recorded labels still disabled, `enabled_since` recorded labels somebody
 turned back on, `running` recorded labels still running until the next boot.
 See `Research/Guest/service_trimming.md`.
@@ -839,8 +836,7 @@ not running: `com.apple.migration` for user mobile records
 (`com.apple.datamigrator`) is not running. The domain is empty until a fresh
 restore's first migration ends. `timeout_s` defaults to 90 and is capped at
 110, because the host waits at most 120 s for one answer; a caller that needs
-longer calls again. A timeout is not an error: it returns `{settled, elapsed_s,
-polls, timeout_s, poll_s, stable_polls, reasons, signals}` with `settled:
+longer calls again. A timeout is not an error: it returns with `settled:
 false` and `reasons` naming the conditions still unmet; `signals` holds
 `staged_system_apps` (entries, null when unreadable), `app_count`,
 `app_counts` (the window), `installd_pid`, `installd_cpu_seconds`,
@@ -863,7 +859,7 @@ saves them and registers them again when it starts; `get` lists them.
 `vphone-vm` sets this Mac's `<LocalHostName>.local` after every connect.
 
 `network.resolve` runs `getaddrinfo` in the guest (`family` `ipv4`, `ipv6` or
-any) and returns `{host, status, elapsed_ms, addresses}`, the addresses in the
+any) and returns the addresses in the
 resolver's order. With `port`, each address is also connected to for up to two
 seconds and reports `connect`, `connect_ms` and the `local` address used, which
 names the interface the connection left from; `first_only` connects to the
@@ -895,7 +891,7 @@ message.
 
 `methods.list` takes no params and answers `{"methods": [...]}`: one object per
 method, areas in dispatch order and methods within an area in the order the
-catalog above lists them. Each object is `{name, params, force}`, where
+catalog above lists them. Each object is `{name, params, result, force}`, where
 `params` is a list of `{name, type, required}` in declaration order (`[]` for
 none).
 
@@ -906,6 +902,11 @@ the key's absence alone makes the method fail; a key needed only in some
 combinations is `false`. The dispatcher checks neither: `type` and `required`
 are advisory (its admission step only filters keys by name), and each handler
 keeps its own validation and error messages.
+
+Each object also carries `result`, a list of `{name, type, required, open}`
+for the keys the method's reply holds, sorted by name; hidden keys are
+omitted, and `open: true` marks an open key. `methods.list` is the authority for result shapes, and the
+rest of this document does not restate them.
 
 `force` is `"never"`, `"always"`, or `"when:<key>"` (`"when:kill"`), meaning
 the method needs `"force": true` only when that param is true. `force` itself
@@ -941,16 +942,14 @@ path shape (`GuestSystemAppPolicy.swift`). Then, in this order:
    shares every block), with `<bundle_id>.manifest.json` beside it
    (`bundle_id`, `container_uuid`, `app`, `container_path`, `removed_at`). If
    the clone fails, a copy that keeps owners, modes, extended attributes and
-   flags is made instead; `backup_method` in the result says `clone` or
-   `copy`. A backup of the same app in the legacy directory (below) is removed
+   flags is made instead; the result's `backup_method` says which. A backup of the same app in the legacy directory (below) is removed
    once the new removal is done. `backup: false` skips this;
 2. the app is unregistered from LaunchServices (icli's `unregisterApp`, as
    `apps.unregister`). LaunchServices can list it for a moment longer, and
    icli checks at once, so vphoned looks at the record again every 0.1 s for
    up to 2.5 s before it believes "still lists the app", unregisters once
    more if it is still listed, waits as long again, and only then fails the
-   app (`GuestAppUnregistration`); `unregister_attempts` in the app's result
-   says when a second unregistration was needed;
+   app (`GuestAppUnregistration`);
 3. the container is removed recursively, with `SerializedPlaceholder.ipa`,
    `BundleMetadata.plist` and the container metadata.
 
@@ -958,9 +957,7 @@ Unregistering first matters: a registered app whose bundle is missing is
 repaired by installd from the placeholder on the next boot
 (`Research/Guest/post_setup_signin_and_appstore.md`). SpringBoard restarts once
 at the end when anything was removed and `respring` is not false. The result
-is `{results: [{bundle_id, status, removed, container, app, backup,
-backup_method, unregistered, unregister_attempts?, error?}], removed, failed, backup_directory, respring}`.
-`status` is `removed`, `absent` (not installed: a no-op that succeeds; a
+is per app, under `results`. `status` is `removed`, `absent` (not installed: a no-op that succeeds; a
 removal an earlier call left half done, with its backup in place, is finished
 instead), `unregistered_stale` (LaunchServices listed a container that is
 gone) or `failed`. One app's failure does not stop the others; if any failed,
@@ -995,16 +992,13 @@ the new directory is searched first) is copied back with owners, modes,
 extended attributes and flags to a staging name beside the destination, renamed
 into place and then removed (`restore_method: "copy"`; `warning` if the legacy
 copy could not be removed). Results mirror the removal (`status` `restored`,
-`present` or `failed`, plus `backup`, `legacy`, `restore_method` and
-`registration`, the call that worked; `error: "restore_incomplete"` when any
-failed). **`apps.removed_system`** lists the backups in both directories:
-`{directory, legacy_directory, backups: [{bundle_id, backup, legacy,
-container, container_uuid, app, removed_at, restorable}], other,
-legacy_other}`, where `other` and `legacy_other` name entries without a bundle
+`present` or `failed`; `error: "restore_incomplete"` when any
+failed). **`apps.removed_system`** lists the backups in both directories;
+`other` and `legacy_other` name entries without a bundle
 identifier, such as `News.container` backups made by hand before this verb
 existed.
 
-**`apfs.snapshots {mount?: "/"}`** returns `{mount, snapshots: [name]}` from
+**`apfs.snapshots {mount?: "/"}`** lists snapshots with
 `fs_snapshot_list` (`VPhoneDaemon/Native/vphoned_apfs.m`).
 **`apfs.snapshot.delete {mount?: "/", name? | prefix?, force}`** deletes with
 `fs_snapshot_delete` only snapshots named `orig-fs.disabled.rn-*`, the sealed
@@ -1012,8 +1006,7 @@ update snapshot CFW install renamed (`GuestSnapshotPolicy.swift`). A `name` or
 `prefix` that does not start with that is refused, `com.apple.os.update-*`
 included; with neither, every `orig-fs.disabled.rn-*` snapshot is selected.
 A selection that matches nothing succeeds with nothing deleted, and a snapshot
-already gone (ENOENT) is listed under `already_deleted`. The result is `{mount,
-before, deleted, already_deleted, after, remaining}`. A refusal from the
+already gone (ENOENT) is listed under `already_deleted`. A refusal from the
 kernel stops the call: EINVAL and ENOTSUP are invalid requests; EPERM or
 EACCES (`reason: "not_permitted"`: vphoned is not root or lacks
 `com.apple.private.vfs.snapshot`; `com.apple.developer.vfs.snapshot` alone is
@@ -1116,8 +1109,7 @@ that live read-only remount; in that case the install still reports success
 with `reboot_required: true` and `root_read_only: false`. The reboot restores
 the intended root state for jailbreak detection. It stops a running
 `cameracaptured` when a camera hook or SystemHook changed, so the next
-camera client loads the new hook. The result lists `installed`,
-`restarted_pids` and `reboot_required`, which is true when the launchd hook
+camera client loads the new hook. `reboot_required` is true when the launchd hook
 changed: launchd keeps the copy it mapped at boot.
 
 The profile UDID methods drive `libmisfix.dylib`'s MobileGestalt interpose in
@@ -1427,11 +1419,11 @@ The existing Duo display component supports one connected external monitor,
 disabled at boot. Only these pixel dimensions are accepted: 1920x1080 and
 3840x2160. Other dimensions fail before changing the active configuration.
 
-| Method | Parameters and result |
+| Method | Parameters and behaviour |
 | --- | --- |
-| `display.external.status` | No parameters; returns `enabled` and, when available, the selected display's name and geometry. |
+| `display.external.status` | No parameters. |
 | `display.external.configure` | `enabled: Bool`; enabling also requires supported integer `width` and `height`. Waits up to five seconds for a matching acknowledgement. |
-| `display.external.frame` | No parameters; returns a JPEG as base64 `data` with `mime_type: image/jpeg`, captured from the selected external display. Requires a connected monitor. |
+| `display.external.frame` | No parameters; a JPEG captured from the selected external display. Requires a connected monitor. |
 | `display.external.diagnostics` | No parameters; read-only SpringBoard display-source, root-scene and policy snapshot, with up to five seconds for generation. |
 
 Example: `display.external.configure {"enabled":true,"width":3840,"height":2160}`.

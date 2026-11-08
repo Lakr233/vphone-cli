@@ -16,32 +16,43 @@ enum InputMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .inputButton: MethodSpec(.required("name", .string))
-        case .inputKey: MethodSpec(.required("name", .string))
-        case .inputType: MethodSpec(.required("text", .string), .optional("delay_ms", .number))
-        case .inputPaste: MethodSpec(.required("text", .string))
-        case .inputTap: MethodSpec(.required("x", .number), .required("y", .number))
+        case .inputButton: MethodSpec(.required("name", .string), result: [.optional("active_category", .string),
+                                               .optional("active_muted", .boolean),
+                                               .optional("active_volume", .number),
+                                               .optional("before", .object),
+                                               .optional("button", .string),
+                                               .optional("error", .string),
+                                               .optional("locked", .boolean),
+                                               .optional("method", .string),
+                                               .optional("screen_off", .boolean)])
+        case .inputKey: MethodSpec(.required("name", .string), result: [.required("dispatched", .boolean), .required("key", .string)])
+        case .inputType: MethodSpec(.required("text", .string), .optional("delay_ms", .number), result: [.required("method", .string), .required("sent", .integer)])
+        case .inputPaste: MethodSpec(.required("text", .string), result: [.required("method", .string), .required("sent", .integer)])
+        case .inputTap: MethodSpec(.required("x", .number), .required("y", .number), result: [.required("x", .number), .required("y", .number)])
         case .inputDoubleTap:
             MethodSpec(.required("x", .number),
                        .required("y", .number),
-                       .optional("interval", .number))
+                       .optional("interval", .number), result: [.required("x", .number), .required("y", .number)])
         case .inputLongPress:
             MethodSpec(.required("x", .number),
                        .required("y", .number),
-                       .optional("seconds", .number))
+                       .optional("seconds", .number), result: [.required("seconds", .number), .required("x", .number), .required("y", .number)])
         case .inputSwipe:
             MethodSpec(.required("x1", .number),
                        .required("y1", .number),
                        .required("x2", .number),
                        .required("y2", .number),
                        .optional("seconds", .number),
-                       .optional("steps", .integer))
+                       .optional("steps", .integer), result: [.required("from", .array), .required("to", .array)])
         case .inputDrag:
             MethodSpec(.required("points", .array),
                        .optional("seconds", .number),
                        .optional("hold", .number),
-                       .optional("steps", .integer))
-        case .inputTouchSequence: MethodSpec(.required("events", .array), .optional("normalized", .boolean))
+                       .optional("steps", .integer), result: [.required("points", .integer)])
+        case .inputTouchSequence: MethodSpec(.required("events", .array), .optional("normalized", .boolean), result: [.required("duration_ms", .integer),
+                                                      .required("events", .integer),
+                                                      .required("finger_down", .boolean),
+                                                      .required("normalized", .boolean)])
         }
     }
 }
@@ -65,23 +76,59 @@ enum InterfaceMethod: String, GuestMethod {
                        .optional("clickable_only", .boolean),
                        .optional("limit", .integer),
                        .optional("max_depth", .integer),
-                       .optional("timeout_ms", .integer))
-        case .uiElementAt: MethodSpec(.required("x", .number), .required("y", .number))
+                       .optional("timeout_ms", .integer), result: [.optional("action_eligible", .boolean),
+                                .required("count", .any),
+                                .optional("elapsed_ms", .any),
+                                .optional("elements", .array),
+                                .optional("error", .string),
+                                .optional("filtering_applied", .boolean),
+                                .optional("foreground_after", .object),
+                                .optional("foreground_before", .object),
+                                .optional("format", .string),
+                                .optional("limits", .object),
+                                .optional("native_exception", .any),
+                                .optional("parent_checks", .object),
+                                .optional("pid", .integer),
+                                .optional("queries", .any),
+                                .optional("readiness", .object),
+                                .optional("relationship_source", .string),
+                                .optional("roots", .array),
+                                .optional("runtime", .object),
+                                .optional("source", .string),
+                                .optional("status", .string),
+                                .optional("switches_after_restore", .object),
+                                .optional("switches_before", .object),
+                                .optional("symbols", .object),
+                                .optional("truncated", .boolean),
+                                .optional("truncation_reasons", .any)])
+        case .uiElementAt: MethodSpec(.required("x", .number), .required("y", .number), result: [.optional("element", .object),
+                                               .optional("error", .string),
+                                               .optional("source", .string),
+                                               .optional("x", .number),
+                                               .optional("y", .number)])
         case .uiTapElement:
             MethodSpec(.optional("text", .string),
                        .optional("identifier", .string),
                        .optional("role", .string),
                        .optional("match", .string),
-                       .optional("index", .integer))
+                       .optional("index", .integer), result: [.required("element", .object), .required("tapped", .boolean)])
         case .uiWait, .uiWaitGone:
             MethodSpec(.optional("text", .string),
                        .optional("identifier", .string),
                        .optional("role", .string),
                        .optional("match", .string),
                        .optional("index", .integer),
-                       .optional("timeout", .number))
-        case .uiOcr: MethodSpec(.optional("languages", .array), .optional("min_confidence", .number))
-        case .uiDescribe: MethodSpec()
+                       .optional("timeout", .number), result: [.required("disappeared", .boolean),
+                                .required("element", .object),
+                                .required("found", .boolean),
+                                .required("waited_ms", .integer)])
+        case .uiOcr: MethodSpec(.optional("languages", .array), .optional("min_confidence", .number), result: [.required("blocks", .array), .required("count", .integer), .required("engine", .string)])
+        case .uiDescribe: MethodSpec(result: [.required("context_changed", .boolean),
+                                              .optional("elements", .any),
+                                              .required("frontmost", .object),
+                                              .optional("ocr", .any),
+                                              .required("screen", .object),
+                                              .required("screenshot", .object)])
         }
     }
 }

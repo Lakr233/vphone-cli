@@ -1,193 +1,193 @@
-accessibility.tree	never	nested:boolean,max_elements:integer,visible_only:boolean,clickable_only:boolean,limit:integer,max_depth:integer,timeout_ms:integer	-
-agent.apply_update	never	sha256:string!	-
-apfs.snapshot.delete	always	mount:string,name:string,prefix:string	-
-apfs.snapshots	never	mount:string	-
-apps.binary	never	bundle_id:string!	-
-apps.data_dir	never	bundle_id:string!	-
-apps.foreground	never	-	-
-apps.handlers	never	url:string!	-
-apps.info	never	bundle_id:string!	-
-apps.install	never	path:string!,cert_path:string,registration:string	-
-apps.launch	never	bundle_id:string!,url:string	-
-apps.list	never	filter:string	-
-apps.network_policy	never	bundle_id:string!,repair:boolean	-
-apps.open_url	never	url:string!,bundle_id:string	-
-apps.refresh	never	directory:string	-
-apps.register	never	path:string!	-
-apps.registration	never	path:string!	-
-apps.remove_system	always	bundle_ids:array!,backup:boolean,respring:boolean	-
-apps.removed_system	never	-	-
-apps.restore_system	always	bundle_ids:array,respring:boolean	restore removed system apps
-apps.search	never	query:string!	-
-apps.terminate	never	bundle_id:string!	-
-apps.uninstall	always	bundle_id:string!	-
-apps.unregister	always	path:string!	unregister `<path>`
-apps.unregister_dir	always	directory:string!	unregister every app in `<directory>`
-apps.url_schemes	never	-	-
-audio.host_latency	never	seconds:number	-
-audio.state	never	-	-
-audio.volume	never	value:number,category:string	-
-bootstrap.firmware	never	-	-
-bootstrap.inspect	never	-	-
-bootstrap.install	never	layout:string!,package_path:string	-
-bootstrap.packages	never	-	-
-bootstrap.status	never	-	-
-bootstrap.uninstall	always	roots:array,jbroot:string,reboot:boolean	uninstall the bootstrap
-clipboard.clear	never	-	-
-clipboard.get	never	-	-
-clipboard.set	never	text:string!	-
-developer_mode.enable	never	-	-
-developer_mode.status	never	-	-
-device.basebin	never	archive:string	-
-device.displays	never	-	-
-device.environment	never	-	-
-device.info	never	-	-
-device.input_devices	never	-	-
-device.ioreg	never	plane:string	-
-device.name.get	never	-	-
-device.name.set	never	name:any	-
-device.network	never	-	-
-device.screen	never	-	-
-device.snapshot	never	-	-
-diagnostics.self_test	never	-	-
-display.auto_lock	never	-	-
-display.auto_lock.set	never	seconds:integer!	-
-display.brightness	never	value:number	-
-display.external.configure	never	enabled:boolean!,width:integer,height:integer	-
-display.external.diagnostics	never	-	-
-display.external.frame	never	-	-
-display.external.status	never	-	-
-display.modes	never	-	-
-display.orientation	never	-	-
-display.pose	never	-	-
-display.posture	never	position:any,duration:number,profile:string,hinge:any,orientation:any,tabletop:integer,angle:number	-
-display.rotation	never	orientation:string	-
-display.rotation_lock	never	locked:boolean!	-
-environment.install	never	libraries:array!	-
-environment.status	never	-	-
-files.chmod	never	path:string!,mode:string!	-
-files.chown	never	path:string!,owner:string!	-
-files.copy	never	from:string!,to:string!	-
-files.find	never	root:string!,pattern:string!	-
-files.list	never	path:string!	-
-files.mkdir	never	path:string!	-
-files.plist	never	path:string!	-
-files.plist_set	never	path:string!,key:string!,value:any,remove:boolean	-
-files.read	never	path:string!,binary:boolean,limit:integer	-
-files.remove	never	path:string!,recursive:boolean	-
-files.rename	never	from:string!,to:string!	-
-files.save_to_files_app	never	path:string!,name:string!	-
-files.symlink	never	target:string!,link:string!,replace:boolean	-
-files.write	never	path:string!,content:string!,encoding:string	-
-homepod.debug.call	never	operation:string!,arguments:object!	-
-homepod.debug.catalog	never	-	-
-homepod.display.state	never	-	-
-homeview.distance.get	never	-	-
-homeview.distance.set	never	mode:string!,reset_environment:boolean	-
-input.button	never	name:string!	-
-input.double_tap	never	x:number!,y:number!,interval:number	-
-input.drag	never	points:array!,seconds:number,hold:number,steps:integer	-
-input.hid	never	page:integer!,usage:integer!,long_press:boolean,down:boolean	-
-input.key	never	name:string!	-
-input.long_press	never	x:number!,y:number!,seconds:number	-
-input.paste	never	text:string!	-
-input.pointer	never	x:number!,y:number!,seq:integer,buttons:integer	-
-input.scroll	never	phase:string!,dx:number,dy:number,x:number,y:number	-
-input.swipe	never	x1:number!,y1:number!,x2:number!,y2:number!,seconds:number,steps:integer	-
-input.tap	never	x:number!,y:number!	-
-input.touch	never	phase:string!,x:number,y:number,edge:integer,normalized:boolean	-
-input.touch2	never	phase:string!,x1:number,y1:number,x2:number,y2:number,normalized:boolean	-
-input.touch_sequence	never	events:array!,normalized:boolean	-
-input.type	never	text:string!,delay_ms:number	-
-keychain.add	never	account:string!,service:string!,password:string!	-
-keychain.database	never	class:string	-
-keychain.delete	never	class:string,account:string,service:string,server:string,group:string,accessGroup:string	-
-keychain.get	never	class:string,account:string,service:string,server:string,group:string,accessGroup:string	-
-keychain.list	never	class:string	-
-keychain.update	never	class:string,account:string!,service:string,server:string,group:string,accessGroup:string,value:string!	-
-launchd.getenv	never	key:string!	-
-launchd.setenv	never	key:string!,value:string!	-
-launchd.unsetenv	never	key:string!	-
-location.clear	never	-	-
-location.current	never	timeout:number	-
-location.services	never	enabled:boolean	-
-location.set	never	latitude:number!,longitude:number!,altitude:number,horizontal_accuracy:number,vertical_accuracy:number,speed:number,course:number	-
-logs.crash	never	path:string!	-
-logs.crashes	never	bundle_id:string	-
-logs.syslog	never	seconds:number,process:string,level:string,max_lines:integer,subsystem:string,category:string,message_contains:string	-
-memory.jetsam	never	-	-
-memory.pressure	never	-	-
-methods.list	never	-	-
-motion.attitude.clear	never	-	-
-motion.attitude.get	never	-	-
-motion.attitude.set	never	roll:number!,pitch:number!,yaw:number!,enabled:boolean	-
-motion.gyroscope.clear	never	-	-
-motion.gyroscope.get	never	-	-
-motion.gyroscope.set	never	x:number!,y:number!,z:number!,enabled:boolean	-
-network.capture	never	seconds:number,interface:string,filter:string	-
-network.hostname.get	never	-	-
-network.hostname.set	never	local_host_name:string	-
-network.ipv4.get	never	interface:string	-
-network.ipv4.set	never	interface:string,method:string!,address:string,subnet_mask:string,router:string,dns:array	-
-network.resolve	never	host:string!,port:integer,family:string,first_only:boolean,timeout_ms:number	-
-network.static_names.get	never	-	-
-network.static_names.set	never	entries:array	-
-notify.post	never	name:string!,state:any	-
-notify.state	never	name:string!	-
-ota.apps.apply	always	removed_bundle_ids:array	update retained Apple app programs from the installed OTA
-ota.apps.status	never	removed_bundle_ids:array	-
-packages.compare	never	left:string!,right:string!	-
-packages.info	never	path:string!	-
-packages.list	never	filter:string	-
-packages.repos	never	-	-
-packages.status	never	name:string!	-
-packages.tweaks	never	-	-
-poster.inspect	never	pid:integer!	-
-power.low_power_mode	never	enabled:boolean	-
-process.spawn	never	executable:string!,arguments:array,timeout_seconds:number	-
-processes.kill	always	pid:integer!,signal:string	-
-processes.list	never	filter:string	-
-screen.screenshot	never	-	-
-screen.unlock	never	passcode:string,timeout:number	-
-script.eval	never	source:string!,timeout:number	-
-script.info	never	-	-
-security.ssl_killswitch	never	-	-
-services.disable	always	label:string!	disable `<label>`
-services.disabled	never	-	-
-services.dump	never	-	-
-services.enable	never	label:string!	-
-services.kickstart	when:kill	label:string!,kill:boolean	kill and restart `<label>`
-services.list	never	-	-
-services.load	never	paths:array!,override:boolean	-
-services.print	never	label:string!	-
-services.profile	never	-	-
-services.profile.apply	always	profile:string!,groups:array,allow:array	apply a service profile
-services.remove	always	label:string!	remove `<label>`
-services.signal	always	label:string!,signal:string!	-
-services.start	never	label:string!	-
-services.status	never	label:string!	-
-services.stop	always	label:string!	stop `<label>`
-services.unload	always	paths:array!,override:boolean	unload services
-settings.delete	never	domain:string!,key:string!	-
-settings.get	never	domain:string!,key:string	-
-settings.set	never	domain:string!,key:string!,value:any!,type:string	-
-setup.settle	never	timeout_s:number,poll_s:number,stable_polls:number	-
-setup.skip	always	-	skip Setup Assistant
-setup.status	never	-	-
-system.reboot	always	userspace:boolean	-
-system.respring	always	-	restart SpringBoard
-system.shutdown	always	-	shut down the guest
-system.system_apps	never	visible:boolean	-
-system.uicache	never	directory:string	-
-time.clock	never	time:number,automatic:boolean	-
-time.timezone	never	identifier:string,automatic:boolean	-
-udid.clear	never	-	-
-udid.get	never	-	-
-udid.set	never	udid:string!	-
-ui.describe	never	-	-
-ui.element_at	never	x:number!,y:number!	-
-ui.ocr	never	languages:array,min_confidence:number	-
-ui.tap_element	never	text:string,identifier:string,role:string,match:string,index:integer	-
-ui.tree	never	nested:boolean,max_elements:integer,visible_only:boolean,clickable_only:boolean,limit:integer,max_depth:integer,timeout_ms:integer	-
-ui.wait	never	text:string,identifier:string,role:string,match:string,index:integer,timeout:number	-
-ui.wait_gone	never	text:string,identifier:string,role:string,match:string,index:integer,timeout:number	-
+accessibility.tree	never	nested:boolean,max_elements:integer,visible_only:boolean,clickable_only:boolean,limit:integer,max_depth:integer,timeout_ms:integer	-	action_eligible:boolean?,count:any,elapsed_ms:any?,elements:array?,error:string?,filtering_applied:boolean?,foreground_after:object?,foreground_before:object?,format:string?,limits:object?,native_exception:any?,parent_checks:object?,pid:integer?,queries:any?,readiness:object?,relationship_source:string?,roots:array?,runtime:object?,source:string?,status:string?,switches_after_restore:object?,switches_before:object?,symbols:object?,truncated:boolean?,truncation_reasons:any?	excluded:needs an unlocked guest with a frontmost app
+agent.apply_update	never	sha256:string!	-	restarting:boolean	mutating
+apfs.snapshot.delete	always	mount:string,name:string,prefix:string	-	after:array,already_deleted:array,before:array,deleted:array,mount:string,remaining:any	mutating
+apfs.snapshots	never	mount:string	-	mount:string,snapshots:array	read
+apps.binary	never	bundle_id:string!	-	bundle_id:string,encrypted:boolean,entitlements:any*,executable:string	excluded:needs params
+apps.data_dir	never	bundle_id:string!	-	bundle_id:string,data_path:any	excluded:needs params
+apps.foreground	never	-	-	bundle_id:string,name:string,pid:any,source:any,verified:any	read
+apps.handlers	never	url:string!	-	apps:array?,count:any?,error:string?,scheme:string?,url:string?	excluded:needs params
+apps.info	never	bundle_id:string!	-	build:any?,bundle_id:any,bundle_path:any,data_path:any?,encrypted:any?,entitlements:any?*,executable:any?,group_containers:object?*,minimum_os:string?,name:any,running:any?,schemes:array?,sdk:string?,signer:any?,signing_error:string?,type:any?,version:any?	excluded:needs params
+apps.install	never	path:string!,cert_path:string,registration:string	-	bundle_container:string,bundle_id:string,bundle_path:string,containerized:any,data_container:any,method:string,msg:string,plugins:any,registration:string,unregistered_plugins:any,upgraded:boolean	mutating
+apps.launch	never	bundle_id:string!,url:string	-	frontmost_verified:boolean,pid:any,warning:string?	mutating
+apps.list	never	filter:string	-	apps:array	read
+apps.network_policy	never	bundle_id:string!,repair:boolean	-	allowed:any?,bundle_id:string?,changed:boolean?,error:string?,policy:object?*	excluded:needs params
+apps.open_url	never	url:string!,bundle_id:string	-	bundle_id:string?,url:string	mutating
+apps.refresh	never	directory:string	-	directory:string,failed:array,registered:array,skipped:array,unchanged:array,unregistered:array,unverified:array	mutating
+apps.register	never	path:string!	-	build:any?,bundle_id:any?,bundle_path:any?,data_path:any?,error:string?,group_containers:object?*,name:any?,path:any,plugins:any?,registered:boolean?,running:any?,schemes:array?,signer:any?,type:any?,version:any?	mutating
+apps.registration	never	path:string!	-	build:any?,bundle_id:any?,bundle_path:any?,data_path:any?,error:string?,group_containers:object?*,name:any?,path:any?,plugins:any?,registered:boolean?,running:any?,schemes:array?,signer:any?,type:any?,version:any?	excluded:needs params
+apps.remove_system	always	bundle_ids:array!,backup:boolean,respring:boolean	-	backup_directory:any,error:string?,failed:integer,message:string?,removed:integer,respring:any,results:any	mutating
+apps.removed_system	never	-	-	backups:array,directory:string,legacy_directory:string,legacy_other:array,other:array	read
+apps.restore_system	always	bundle_ids:array,respring:boolean	restore removed system apps	error:string?,failed:integer,message:string?,respring:any,restored:integer,results:any	mutating
+apps.search	never	query:string!	-	apps:any,query:string	excluded:needs params
+apps.terminate	never	bundle_id:string!	-	already_stopped:boolean,killed:string,pids:array	mutating
+apps.uninstall	always	bundle_id:string!	-	method:string?,removed_containers:array?,uninstalled:string	mutating
+apps.unregister	always	path:string!	unregister `<path>`	bundle_id:any?,message:string?,path:string,unregistered:boolean	mutating
+apps.unregister_dir	always	directory:string!	unregister every app in `<directory>`	directory:string?,error:string?,failed:any?,unregistered:array?,unverified:array?	mutating
+apps.url_schemes	never	-	-	schemes:object*	read
+audio.host_latency	never	seconds:number	-	changed:boolean?,seconds:number	read
+audio.state	never	-	-	active_category:string?,active_muted:boolean?,active_volume:number?,error:string?	read
+audio.volume	never	value:number,category:string	-	category:string,volume:number	read
+bootstrap.firmware	never	-	-	dpkg_database_updated:boolean,firmware_version:string,jbroot:string,layout:string	excluded:needs an installed bootstrap
+bootstrap.inspect	never	-	-	installed:boolean,jbroot:string?,layout:string?,roots:any	read
+bootstrap.install	never	layout:string!,package_path:string	-	app_path:any,architecture:string,dpkg_database_updated:boolean,firmware_version:string,jbroot:string,layout:string,maintainer_scripts_executed:boolean,registration:any,roothide_base:object?,service_load:object,service_start:object?,service_start_warning:string?,service_status:object,tag:string,version:any	mutating
+bootstrap.packages	never	-	-	jbroot:string?,packages:array,repositories:array?,skipped:string?	excluded:needs an installed bootstrap
+bootstrap.status	never	-	-	downloaded_bytes:integer?,error:string?,jbroot:any?,layout:any?,packages:array?,phase:string,tag:any?,total_bytes:integer?,version:any?	read
+bootstrap.uninstall	always	roots:array,jbroot:string,reboot:boolean	uninstall the bootstrap	deleted:boolean,reboot_scheduled:boolean,roots:array	mutating
+clipboard.clear	never	-	-	change_count:integer,has_image:boolean,has_text:boolean,image:object?,items:integer,method:string,text:any,types:any	mutating
+clipboard.get	never	-	-	change_count:integer,has_image:boolean,has_text:boolean,image:object?,items:integer,method:string,text:any,types:any	read
+clipboard.set	never	text:string!	-	change_count:integer,has_image:boolean,has_text:boolean,image:object?,items:integer,method:string,text:any,types:any	mutating
+developer_mode.enable	never	-	-	already_enabled:any?,armed:boolean,enabled:boolean,restart_required:boolean?,writable:boolean	mutating
+developer_mode.status	never	-	-	armed:boolean,enabled:boolean,writable:boolean	read
+device.basebin	never	archive:string	-	bundled:string?,bundled_present:boolean?,installed:string,installed_path:string,installed_present:boolean,matches:boolean?,update_available:boolean?	read
+device.displays	never	-	-	displays:any	read
+device.environment	never	-	-	basebin_version:string,bootstrap_tools_present:any,euid:integer,executable:any,external_tools_used:object,ios_version:string,jbroot:any,jbroot_source:string,layout:any,maintainer_scripts:string,markers:array,native:array,platform_binary:boolean,rootfs_prefix:string,roothide_runtime_active:boolean,spawns_processes:boolean	read
+device.info	never	-	-	agent:object,battery:object,boot_session_uuid:any,boot_time:any,brightness:object,developer_mode:object,device_name:object,host:string,ios_version:string,jailbreak:object,kernel:string,lock:object,low_power_mode:object,memory_bytes:integer,model:string,network:object,processor_count:integer,rotation:object,screen:object,storage:object,sysname:string,uptime_seconds:any,volume:number	read
+device.input_devices	never	-	-	available:boolean,reason:string?,serviceCount:integer?,services:array?	read
+device.ioreg	never	plane:string	-	count:any?,entries:array,error:string?,plane:any?	read
+device.name.get	never	-	-	name:any	read
+device.name.set	never	name:any	-	changed:boolean,name:any,reboot_required:boolean	mutating
+device.network	never	-	-	addresses:array	read
+device.screen	never	-	-	height:number,locked:boolean,orientation:integer,scale:number,screen_off:boolean,width:number	read
+device.snapshot	never	-	-	battery:object,boot_session_uuid:any,boot_time:any,host:string,ios_version:string,jailbreak:object,kernel:string,lock:object,memory_bytes:integer,model:string,processor_count:integer,storage:object,sysname:string,uptime_seconds:any	read
+diagnostics.self_test	never	-	-	complete:boolean,environment:object,failed:integer,not_tested:array,passed:integer,skipped:integer,status:integer,tests:array	excluded:runs the guest self-test, not a plain read
+display.auto_lock	never	-	-	auto_lock_seconds:any,lock_screen_minimum_seconds:any,never:any	read
+display.auto_lock.set	never	seconds:integer!	-	auto_lock_seconds:any,lock_screen_minimum_seconds:any,never:any,requested_auto_lock_seconds:integer	mutating
+display.brightness	never	value:number	-	auto:any,value:number	read
+display.external.configure	never	enabled:boolean!,width:integer,height:integer	-	enabled:any?,error:any?,height:integer?,name:string?,nonce:string?,ok:boolean?,width:integer?	mutating
+display.external.diagnostics	never	-	-	available:boolean?,error:any?,externalPolicyClasses:object?,monitor:any?,owners:object?,sceneManager:any?,scenes:array?,transformer:any?,updated:any?	read
+display.external.frame	never	-	-	data:string,mime_type:string	excluded:needs an external display on the guest
+display.external.status	never	-	-	enabled:any,error:any?,height:integer?,name:string?,nonce:string?,ok:boolean?,width:integer?	read
+display.modes	never	-	-	available:boolean,displays:array?,reason:any?	read
+display.orientation	never	-	-	degrees:any,fold_angle:number?,screen_off:boolean?,source:string	read
+display.pose	never	-	-	available:boolean,device_orientation:any?,hinge:any?,orientation:any?,reason:string?,tabletop:any?	read
+display.posture	never	position:any,duration:number,profile:string,hinge:any,orientation:any,tabletop:integer,angle:number	-	angle:number,hinge:integer,hinge_hid:any,orientation:integer,source:string,sweep:object?,tabletop:any	mutating
+display.rotation	never	orientation:string	-	accelerometer:any?,degrees:integer,device_orientation:integer,locked:boolean,name:string,requested:any?	read
+display.rotation_lock	never	locked:boolean!	-	degrees:integer,device_orientation:integer,locked:boolean,name:string	mutating
+environment.install	never	libraries:array!	-	installed:array,reboot_required:boolean,restarted_pids:array,root_read_only:boolean	mutating
+environment.status	never	-	-	libraries:any,root_read_only:boolean,staging:string	read
+files.chmod	never	path:string!,mode:string!	-	mode:string,path:string	mutating
+files.chown	never	path:string!,owner:string!	-	gid:integer,path:string,uid:integer	mutating
+files.copy	never	from:string!,to:string!	-	destination:string,source:string	mutating
+files.find	never	root:string!,pattern:string!	-	matches:array,pattern:string,root:string	excluded:needs params
+files.list	never	path:string!	-	entries:array,path:string	excluded:needs params
+files.mkdir	never	path:string!	-	created:boolean,path:string	mutating
+files.plist	never	path:string!	-	path:string,plist:any*	excluded:needs params
+files.plist_set	never	path:string!,key:string!,value:any,remove:boolean	-	format:string,key:string,path:string,previous:any*,value:any*	mutating
+files.read	never	path:string!,binary:boolean,limit:integer	-	content:string,encoding:string,path:string,size:any,truncated:boolean	excluded:needs params
+files.remove	never	path:string!,recursive:boolean	-	message:string?,path:string,removed:boolean,type:string?	mutating
+files.rename	never	from:string!,to:string!	-	destination:string,source:string	mutating
+files.save_to_files_app	never	path:string!,name:string!	-	folder:string,name:string,path:string	mutating
+files.symlink	never	target:string!,link:string!,replace:boolean	-	link:string,resolved:any,target:string	mutating
+files.write	never	path:string!,content:string!,encoding:string	-	bytes:integer,path:string	mutating
+homepod.debug.call	never	operation:string!,arguments:object!	-	operation:any,submitted:boolean?,value:any?*	mutating
+homepod.debug.catalog	never	-	-	animations:array,available:boolean,interface:string,operations:array,phases:array	excluded:HomePod guests only
+homepod.display.state	never	-	-	available:boolean,bit_depth:any,configured:any,display_count:any,displays:array,error:any,frame_timestamp:any?,frames_received:any,generation:any,geometry:any,hardware_version:any,last_report_id:any,last_report_length:any,minus:any,pixels:any,plus:any,rejected_reports:any,report_bit_depth:integer,state:any	excluded:HomePod guests only
+homeview.distance.get	never	-	-	applied:any,available:boolean,backlight_state:any,display_style:any,level_of_detail:integer,mode:any,override_active:any,reset_scope:string	excluded:HomePod guests only
+homeview.distance.set	never	mode:string!,reset_environment:boolean	-	applied:any,available:boolean,backlight_state:any,display_style:any,level_of_detail:integer,mode:any,override_active:any,reset_scope:string	mutating
+input.button	never	name:string!	-	active_category:string?,active_muted:boolean?,active_volume:number?,before:object?,button:string?,error:string?,locked:boolean?,method:string?,screen_off:boolean?	mutating
+input.double_tap	never	x:number!,y:number!,interval:number	-	x:number,y:number	mutating
+input.drag	never	points:array!,seconds:number,hold:number,steps:integer	-	points:integer	mutating
+input.hid	never	page:integer!,usage:integer!,long_press:boolean,down:boolean	-	action:string,long_press:boolean?,page:integer,usage:integer	mutating
+input.key	never	name:string!	-	dispatched:boolean,key:string	mutating
+input.long_press	never	x:number!,y:number!,seconds:number	-	seconds:number,x:number,y:number	mutating
+input.paste	never	text:string!	-	method:string,sent:integer	mutating
+input.pointer	never	x:number!,y:number!,seq:integer,buttons:integer	-	buttons:integer,x:number,y:number	mutating
+input.scroll	never	phase:string!,dx:number,dy:number,x:number,y:number	-	phase:string	mutating
+input.swipe	never	x1:number!,y1:number!,x2:number!,y2:number!,seconds:number,steps:integer	-	from:array,to:array	mutating
+input.tap	never	x:number!,y:number!	-	x:number,y:number	mutating
+input.touch	never	phase:string!,x:number,y:number,edge:integer,normalized:boolean	-	digitizer_x:number?,digitizer_y:number?,edge:integer?,normalized:boolean?,phase:any,x:number?,y:number?	mutating
+input.touch2	never	phase:string!,x1:number,y1:number,x2:number,y2:number,normalized:boolean	-	fingers:integer,phase:any	mutating
+input.touch_sequence	never	events:array!,normalized:boolean	-	duration_ms:integer,events:integer,finger_down:boolean,normalized:boolean	mutating
+input.type	never	text:string!,delay_ms:number	-	method:string,sent:integer	mutating
+keychain.add	never	account:string!,service:string!,password:string!	-	ok:boolean,status:integer	mutating
+keychain.database	never	class:string	-	count:integer,counts:object,items:array,source:string	read
+keychain.delete	never	class:string,account:string,service:string,server:string,group:string,accessGroup:string	-	ok:boolean,removed:boolean	mutating
+keychain.get	never	class:string,account:string,service:string,server:string,group:string,accessGroup:string	-	ok:boolean,value:string*	excluded:needs a keychain item
+keychain.list	never	class:string	-	count:integer,diag:array,items:array	read
+keychain.update	never	class:string,account:string!,service:string,server:string,group:string,accessGroup:string,value:string!	-	ok:boolean	mutating
+launchd.getenv	never	key:string!	-	exists:boolean,key:string,value:string?	excluded:needs params
+launchd.setenv	never	key:string!,value:string!	-	exists:boolean,key:string,value:any,verified:boolean	mutating
+launchd.unsetenv	never	key:string!	-	exists:boolean,key:string,value:any,verified:boolean	mutating
+location.clear	never	-	-	location:object?,simulating:boolean	mutating
+location.current	never	timeout:number	-	age_seconds:any?,altitude:any?,client:string?,course:any?,error:string?,fresh:any?,horizontal_accuracy:any?,latitude:any?,longitude:any?,simulated:any?,speed:any?,timestamp:any?,vertical_accuracy:any?	excluded:needs a location fix on the guest
+location.services	never	enabled:boolean	-	enabled:boolean	read
+location.set	never	latitude:number!,longitude:number!,altitude:number,horizontal_accuracy:number,vertical_accuracy:number,speed:number,course:number	-	location:object,simulating:boolean	mutating
+logs.crash	never	path:string!	-	bytes:integer,content:string,encoding:string,path:string,size:integer,truncated:boolean	excluded:needs params
+logs.crashes	never	bundle_id:string	-	count:integer,crashes:any	read
+logs.syslog	never	seconds:number,process:string,level:string,max_lines:integer,subsystem:string,category:string,message_contains:string	-	count:any?,entries:array?,error:string?,seconds:number?,source:string?,truncated:boolean?	excluded:streams for a time window
+memory.jetsam	never	-	-	memory:object,priorities:array?,priorities_error:string?,properties:object*	read
+memory.pressure	never	-	-	memory:object	read
+methods.list	never	-	-	methods:array	read
+motion.attitude.clear	never	-	-	enabled:any,pitch:any,provider_installed:any,reference_frame:string,roll:any,units:string,yaw:any	mutating
+motion.attitude.get	never	-	-	enabled:any,pitch:any,provider_installed:any,reference_frame:string,roll:any,units:string,yaw:any	read
+motion.attitude.set	never	roll:number!,pitch:number!,yaw:number!,enabled:boolean	-	enabled:any,pitch:any,provider_installed:any,reference_frame:string,roll:any,units:string,yaw:any	mutating
+motion.gyroscope.clear	never	-	-	enabled:any,provider:any,provider_running:any,units:string,x:any,y:any,z:any	mutating
+motion.gyroscope.get	never	-	-	enabled:any,provider:any,provider_running:any,units:string,x:any,y:any,z:any	read
+motion.gyroscope.set	never	x:number!,y:number!,z:number!,enabled:boolean	-	enabled:any,provider:any,provider_running:any,units:string,x:any,y:any,z:any	mutating
+network.capture	never	seconds:number,interface:string,filter:string	-	bytes:any?,error:string?,file_bytes:integer,filter:any?,interface:any?,link_type:string?,packets:integer?,path:any?,seconds:any,summary:array?	excluded:captures for a time window
+network.hostname.get	never	-	-	local_host_name:any,managed:boolean	read
+network.hostname.set	never	local_host_name:string	-	changed:boolean,local_host_name:any,managed:boolean	mutating
+network.ipv4.get	never	interface:string	-	address:any?,dns:array,interface:string,managed:any,method:string,router:any?,service:string,subnet_mask:any?	read
+network.ipv4.set	never	interface:string,method:string!,address:string,subnet_mask:string,router:string,dns:array	-	address:any?,changed:boolean,dns:array,interface:string,managed:any,method:string,router:any?,service:string,subnet_mask:any?	mutating
+network.resolve	never	host:string!,port:integer,family:string,first_only:boolean,timeout_ms:number	-	addresses:any?,elapsed_ms:any,error:string?,host:string,status:string?	excluded:needs params
+network.static_names.get	never	-	-	entries:any	read
+network.static_names.set	never	entries:array	-	changed:boolean,entries:array	mutating
+notify.post	never	name:string!,state:any	-	delivered:boolean,name:string,posted:boolean,state:integer?	mutating
+notify.state	never	name:string!	-	name:string,state:integer	excluded:needs params
+ota.apps.apply	always	removed_bundle_ids:array	update retained Apple app programs from the installed OTA	apps:array,build:string,pending:integer,removed_bundle_ids:array,removed_pending:any	mutating
+ota.apps.status	never	removed_bundle_ids:array	-	apps:array,build:string,pending:integer,removed_bundle_ids:array,removed_pending:any	excluded:needs an installed OTA system-app payload
+packages.compare	never	left:string!,right:string!	-	comparison:integer,left:string,relation:string,right:string	excluded:needs params
+packages.info	never	path:string!	-	control:object?*,control_files:array?,control_member:string?,control_order:array?,control_texts:object~,data_member:string?,destination:string?,error:string?,extracted:boolean?,files:array?,format:string?,scripts:any?	excluded:needs params
+packages.list	never	filter:string	-	count:integer,packages:array	excluded:needs the bootstrap dpkg database
+packages.repos	never	-	-	repos:array	read
+packages.status	never	name:string!	-	architecture:any?,fields:object?,files:array?,installed:boolean,known:boolean,package:string,status:any?,version:any?	excluded:needs params
+packages.tweaks	never	-	-	tweaks:array	read
+poster.inspect	never	pid:integer!	-	available:boolean,pid:integer,reason:string	excluded:needs params
+power.low_power_mode	never	enabled:boolean	-	changed:boolean?,enabled:boolean,method:string	read
+process.spawn	never	executable:string!,arguments:array,timeout_seconds:number	-	arguments:array,executable:any,exit_code:any,pid:integer,signal:any,stderr:string,stdout:string,timed_out:boolean	mutating
+processes.kill	always	pid:integer!,signal:string	-	pid:integer,signal:string	mutating
+processes.list	never	filter:string	-	count:integer,processes:array	read
+screen.screenshot	never	-	-	bytes:integer,coordinate_scale:number,data:string?,height:any,mime_type:string,path:string~,width:any	read
+screen.unlock	never	passcode:string,timeout:number	-	locked:any,screen_off:any,was_locked:boolean,was_screen_off:boolean	mutating
+script.eval	never	source:string!,timeout:number	-	crashed:boolean,error:string?,ok:boolean?,output:string?,result:string?	mutating
+script.info	never	-	-	available:boolean,engine:string,globals:array,programs:object	read
+security.ssl_killswitch	never	-	-	present:boolean	read
+services.disable	always	label:string!	disable `<label>`	changed:boolean,enabled:boolean,label:string	mutating
+services.disabled	never	-	-	count:integer,disabled:object*	read
+services.dump	never	-	-	count:integer,described:integer,errors:object*,services:array	excluded:reply exceeds the 1 MiB live cap
+services.enable	never	label:string!	-	changed:boolean,enabled:boolean,label:string	mutating
+services.kickstart	when:kill	label:string!,kill:boolean	kill and restart `<label>`	accepted:boolean,action:string,domain:string?,kill:boolean,label:string,launchd_status:integer,message:string,pid:integer?,unchanged:boolean	mutating
+services.list	never	-	-	count:integer,services:any	read
+services.load	never	paths:array!,override:boolean	-	errors:object*,loaded:boolean,patched:array?,paths:array,services:array,unchanged:boolean?,verified:boolean	mutating
+services.print	never	label:string!	-	description:string,domain:string,label:string	excluded:needs params
+services.profile	never	-	-	disabled:any,enabled_since:any,groups:any,ios_major:integer,list_version:integer,never_disable:array,profile:string,reboot_required:boolean,record:any,running:any,supported:boolean,supported_ios:array	read
+services.profile.apply	always	profile:string!,groups:array,allow:array	apply a service profile	allowed:array,disabled:array,enabled:array,failed:array,groups:array,ios_major:integer,kept:array,list_version:integer,owned:integer,profile:string,reboot_required:boolean,skipped:any	mutating
+services.remove	always	label:string!	remove `<label>`	accepted:boolean,action:string,domain:string?,label:string,launchd_status:integer,message:string,pid:integer?,unchanged:boolean	mutating
+services.signal	always	label:string!,signal:string!	-	accepted:boolean,action:string,domain:string?,label:string,launchd_status:integer,message:string,pid:integer?,signal:integer,unchanged:boolean	mutating
+services.start	never	label:string!	-	accepted:boolean,action:string,domain:string?,label:string,launchd_status:integer,message:string,pid:integer?,unchanged:boolean	mutating
+services.status	never	label:string!	-	domains:array,enabled:boolean,label:string,last_exit_status:any?,loaded:boolean,override:boolean,pid:integer?,program:any?,running:boolean	excluded:needs params
+services.stop	always	label:string!	stop `<label>`	accepted:boolean,action:string,domain:string?,label:string,launchd_status:integer,message:string,pid:integer?,unchanged:boolean	mutating
+services.unload	always	paths:array!,override:boolean	unload services	errors:object*,loaded:boolean,patched:array?,paths:array,services:array,unchanged:boolean?,verified:boolean	mutating
+settings.delete	never	domain:string!,key:string!	-	domain:string,exists:boolean,key:string,notified:string?,removed:boolean,user:string	mutating
+settings.get	never	domain:string!,key:string	-	count:integer?,domain:string,exists:boolean?,key:string?,type:string?,user:string,value:any?*,values:object?*	excluded:needs params
+settings.set	never	domain:string!,key:string!,value:any!,type:string	-	count:integer?,domain:string,exists:boolean?,key:string?,notified:string?,type:string?,user:string,value:any?*,values:object?*	mutating
+setup.settle	never	timeout_s:number,poll_s:number,stable_polls:number	-	elapsed_s:number,poll_s:number,polls:integer,reasons:array,settled:boolean,signals:object,stable_polls:integer,timeout_s:number	excluded:waits for Setup Assistant to settle
+setup.skip	always	-	skip Setup Assistant	current_version:any,data_migration_done:any,pending:boolean,pid:any,respring:object,running:boolean,setup_done:boolean,setup_version:any	mutating
+setup.status	never	-	-	current_version:any,data_migration_done:any,pending:boolean,pid:any,running:boolean,setup_done:boolean,setup_version:any	read
+system.reboot	always	userspace:boolean	-	accepted:boolean,completion:string,kind:string	mutating
+system.respring	always	-	restart SpringBoard	method:string,pid:any,previous_pid:integer,restarted:boolean	mutating
+system.shutdown	always	-	shut down the guest	accepted:boolean,completion:string	mutating
+system.system_apps	never	visible:boolean	-	changed:boolean?,configured:boolean?,error:string?,requires_respring:boolean?,visible:any	read
+system.uicache	never	directory:string	-	directory:string,failed:array,registered:array,skipped:array,unchanged:array,unregistered:array,unverified:array	mutating
+time.clock	never	time:number,automatic:boolean	-	automatic:any,changed:boolean?,offset:number?,time:number	read
+time.timezone	never	identifier:string,automatic:boolean	-	automatic:any,changed:boolean?,identifier:any,seconds_from_gmt:any	read
+udid.clear	never	-	-	path:any,restarted_pids:any,udid:any,usb_reenumerated:boolean,usb_serial:string	mutating
+udid.get	never	-	-	path:any,udid:any	read
+udid.set	never	udid:string!	-	path:any,restarted_pids:any,udid:any,usb_reenumerated:boolean,usb_serial:string	mutating
+ui.describe	never	-	-	context_changed:boolean,elements:any?,frontmost:object,ocr:any?,screen:object,screenshot:object	read
+ui.element_at	never	x:number!,y:number!	-	element:object?,error:string?,source:string?,x:number?,y:number?	excluded:needs params
+ui.ocr	never	languages:array,min_confidence:number	-	blocks:array,count:integer,engine:string	excluded:needs text recognition the guest lacks
+ui.tap_element	never	text:string,identifier:string,role:string,match:string,index:integer	-	element:object,tapped:boolean	mutating
+ui.tree	never	nested:boolean,max_elements:integer,visible_only:boolean,clickable_only:boolean,limit:integer,max_depth:integer,timeout_ms:integer	-	action_eligible:boolean?,count:any,elapsed_ms:any?,elements:array?,error:string?,filtering_applied:boolean?,foreground_after:object?,foreground_before:object?,format:string?,limits:object?,native_exception:any?,parent_checks:object?,pid:integer?,queries:any?,readiness:object?,relationship_source:string?,roots:array?,runtime:object?,source:string?,status:string?,switches_after_restore:object?,switches_before:object?,symbols:object?,truncated:boolean?,truncation_reasons:any?	excluded:needs an unlocked guest with a frontmost app
+ui.wait	never	text:string,identifier:string,role:string,match:string,index:integer,timeout:number	-	disappeared:boolean,element:object,found:boolean,waited_ms:integer	excluded:needs a selector
+ui.wait_gone	never	text:string,identifier:string,role:string,match:string,index:integer,timeout:number	-	disappeared:boolean,element:object,found:boolean,waited_ms:integer	excluded:needs a selector

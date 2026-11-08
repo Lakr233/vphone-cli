@@ -11,9 +11,27 @@ enum AttitudeMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .motionAttitudeGet: MethodSpec()
-        case .motionAttitudeSet: MethodSpec(.required("roll", .number), .required("pitch", .number), .required("yaw", .number), .optional("enabled", .boolean))
-        case .motionAttitudeClear: MethodSpec()
+        case .motionAttitudeGet: MethodSpec(result: [.required("enabled", .any),
+                                                     .required("pitch", .any),
+                                                     .required("provider_installed", .any),
+                                                     .required("reference_frame", .string),
+                                                     .required("roll", .any),
+                                                     .required("units", .string),
+                                                     .required("yaw", .any)])
+        case .motionAttitudeSet: MethodSpec(.required("roll", .number), .required("pitch", .number), .required("yaw", .number), .optional("enabled", .boolean), result: [.required("enabled", .any),
+                                                     .required("pitch", .any),
+                                                     .required("provider_installed", .any),
+                                                     .required("reference_frame", .string),
+                                                     .required("roll", .any),
+                                                     .required("units", .string),
+                                                     .required("yaw", .any)])
+        case .motionAttitudeClear: MethodSpec(result: [.required("enabled", .any),
+                                                       .required("pitch", .any),
+                                                       .required("provider_installed", .any),
+                                                       .required("reference_frame", .string),
+                                                       .required("roll", .any),
+                                                       .required("units", .string),
+                                                       .required("yaw", .any)])
         }
     }
 }

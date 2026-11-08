@@ -11,9 +11,9 @@ enum DeviceIdentityMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .udidGet: MethodSpec()
-        case .udidSet: MethodSpec(.required("udid", .string))
-        case .udidClear: MethodSpec()
+        case .udidGet: MethodSpec(result: [.required("path", .any), .required("udid", .any)])
+        case .udidSet: MethodSpec(.required("udid", .string), result: [.required("path", .any), .required("restarted_pids", .any), .required("udid", .any), .required("usb_reenumerated", .boolean), .required("usb_serial", .string)])
+        case .udidClear: MethodSpec(result: [.required("path", .any), .required("restarted_pids", .any), .required("udid", .any), .required("usb_reenumerated", .boolean), .required("usb_serial", .string)])
         }
     }
 }

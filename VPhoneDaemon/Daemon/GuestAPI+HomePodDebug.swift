@@ -33,8 +33,14 @@ enum HomePodDebugMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .homepodDebugCatalog: MethodSpec()
-        case .homepodDebugCall: MethodSpec(.required("operation", .string), .required("arguments", .object))
+        case .homepodDebugCatalog: MethodSpec(result: [.required("animations", .array),
+                                                       .required("available", .boolean),
+                                                       .required("interface", .string),
+                                                       .required("operations", .array),
+                                                       .required("phases", .array)])
+        case .homepodDebugCall: MethodSpec(.required("operation", .string), .required("arguments", .object), result: [.required("operation", .any),
+                                                    .optional("submitted", .boolean),
+                                                    .optional("value", .any).open()])
         }
     }
 }

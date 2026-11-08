@@ -15,23 +15,51 @@ enum SystemAppsMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .otaAppsStatus: MethodSpec(.optional("removed_bundle_ids", .array))
+        case .otaAppsStatus: MethodSpec(.optional("removed_bundle_ids", .array), result: [
+                                            .required("apps", .array),
+                                            .required("build", .string),
+                                            .required("pending", .integer),
+                                            .required("removed_bundle_ids", .array),
+                                            .required("removed_pending", .any)])
         case .otaAppsApply:
             MethodSpec(.optional("removed_bundle_ids", .array),
-                       force: .always { _ in "update retained Apple app programs from the installed OTA" })
+                       force: .always { _ in "update retained Apple app programs from the installed OTA" }, result: [
+                           .required("apps", .array),
+                           .required("build", .string),
+                           .required("pending", .integer),
+                           .required("removed_bundle_ids", .array),
+                           .required("removed_pending", .any)])
         case .appsRemoveSystem:
             MethodSpec(.required("bundle_ids", .array),
                        .optional("backup", .boolean),
                        .optional("respring", .boolean),
-                       force: .always { p in try "remove \(GuestAPI.systemAppsToRemove(p).joined(separator: ", "))" })
+                       force: .always { p in try "remove \(GuestAPI.systemAppsToRemove(p).joined(separator: ", "))" }, result: [
+                           .required("backup_directory", .any),
+                           .optional("error", .string),
+                           .required("failed", .integer),
+                           .optional("message", .string),
+                           .required("removed", .integer),
+                           .required("respring", .any),
+                           .required("results", .any)])
         case .appsRestoreSystem:
             MethodSpec(.optional("bundle_ids", .array),
                        .optional("respring", .boolean),
                        force: .always { p in
                            _ = try GuestAPI.systemAppIDs(p)
                            return "restore removed system apps"
-                       })
-        case .appsRemovedSystem: MethodSpec()
+                       }, result: [
+                           .optional("error", .string),
+                           .required("failed", .integer),
+                           .optional("message", .string),
+                           .required("respring", .any),
+                           .required("restored", .integer),
+                           .required("results", .any)])
+        case .appsRemovedSystem: MethodSpec(result: [
+                .required("backups", .array),
+                .required("directory", .string),
+                .required("legacy_directory", .string),
+                .required("legacy_other", .array),
+                .required("other", .array)])
         }
     }
 }

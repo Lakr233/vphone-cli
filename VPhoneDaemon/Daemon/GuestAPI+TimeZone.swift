@@ -8,7 +8,10 @@ enum TimeZoneMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .timeTimezone: MethodSpec(.optional("identifier", .string), .optional("automatic", .boolean))
+        case .timeTimezone: MethodSpec(.optional("identifier", .string), .optional("automatic", .boolean), result: [.required("automatic", .any),
+                                                .optional("changed", .boolean),
+                                                .required("identifier", .any),
+                                                .required("seconds_from_gmt", .any)])
         }
     }
 }

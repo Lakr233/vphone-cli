@@ -30,8 +30,22 @@ enum HomeViewDistanceMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .homeviewDistanceGet: MethodSpec()
-        case .homeviewDistanceSet: MethodSpec(.required("mode", .string), .optional("reset_environment", .boolean))
+        case .homeviewDistanceGet: MethodSpec(result: [.required("applied", .any),
+                                                       .required("available", .boolean),
+                                                       .required("backlight_state", .any),
+                                                       .required("display_style", .any),
+                                                       .required("level_of_detail", .integer),
+                                                       .required("mode", .any),
+                                                       .required("override_active", .any),
+                                                       .required("reset_scope", .string)])
+        case .homeviewDistanceSet: MethodSpec(.required("mode", .string), .optional("reset_environment", .boolean), result: [.required("applied", .any),
+                                                       .required("available", .boolean),
+                                                       .required("backlight_state", .any),
+                                                       .required("display_style", .any),
+                                                       .required("level_of_detail", .integer),
+                                                       .required("mode", .any),
+                                                       .required("override_active", .any),
+                                                       .required("reset_scope", .string)])
         }
     }
 }

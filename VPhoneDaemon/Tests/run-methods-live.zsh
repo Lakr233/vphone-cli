@@ -15,12 +15,120 @@
 # The EXIT trap (also run on INT/TERM) removes the header files and stops the VM this run launched (health
 # answered, or its launch job still booting); a VM this run did not launch is never stopped.
 # VM names must match ^[A-Za-z0-9._-]+$ (else UNAVAILABLE, exit 2).
-# Output: `PASS <check>` or `FAIL <check>: expected <x> got <y>` per check, then the last two lines
+#   VPHONE_LIVE_TIMEOUT positive integer seconds per schema-comparison call (default 30); anything else -> exit 2
+# Schema comparison: every catalog row classed `read` is called serially with no params (no retry, 1048576-byte
+#   reply cap) and its reply's top-level keys and JSON types are compared to the row's result column (REQ-RPC-011).
+#   `mutating` and `excluded:<reason>` rows are never called. Prints `PASS <method>` or `FAIL <method>: <reason>`;
+#   only keys, types and escaped error codes are printed, never reply values, and no reply is written to a file.
+#   Three consecutive timeout/transport/unparsable failures print `FAIL guest unresponsive` and stop the run.
+# Test seam (no VM): VPHONE_LIVE_BASE_URL (e.g. http://127.0.0.1:9), VPHONE_LIVE_TOKEN and optionally
+#   VPHONE_LIVE_CATALOG run only the schema comparison against that server (run-methods-live-stub-tests.sh).
+# Output: `PASS <check>` or `FAIL <check>: expected <x> got <y>` per check, then
 #   live: <n> checks, <f> failures
 #   TOTAL_FAILS=<f>
-# Exit: 0 all checks pass, 1 a check failed (or an unforced destructive call was not refused), 2 guest
-# unavailable (prints `UNAVAILABLE: <reason>`).
+#   <p> passed, <q> failed        (the schema comparison; always the last line)
+# Exit: 0 all checks pass, 1 a check or schema comparison failed (or an unforced destructive call was not refused),
+# 2 guest unavailable (prints `UNAVAILABLE: <reason>`) or bad usage.
 set -eu
+
+case ${1-} in
+  --help|-h) sed -n '2,/^set -eu/p' "$0" | sed '$d'; exit 0 ;;
+  '') ;;
+  *) echo "usage: run-methods-live.zsh [--help]" >&2; exit 2 ;;
+esac
+[ $# -le 1 ] || { echo "usage: run-methods-live.zsh [--help]" >&2; exit 2; }
+live_timeout=${VPHONE_LIVE_TIMEOUT-30}
+case $live_timeout in
+  ''|*[!0-9]*|0|0[0-9]*) echo "invalid VPHONE_LIVE_TIMEOUT $live_timeout; set a positive integer number of seconds" >&2; exit 2 ;;
+esac
+
+# --- schema comparison (REQ-RPC-011) ----------------------------------------
+# jq program: stdin is one reply, $schema the catalog result cell. Prints `PASS`, `UNP` (unparsable), `ERR <code>`
+# or `FAIL <reason>`; never a reply value other than escaped key names and error codes.
+read -r -d '' schema_jq <<'JQ' || true
+def u8: if . < 128 then [.] elif . < 2048 then [192 + (. / 64 | floor), 128 + (. % 64)]
+  elif . < 65536 then [224 + (. / 4096 | floor), 128 + ((. / 64 | floor) % 64), 128 + (. % 64)]
+  else [240 + (. / 262144 | floor), 128 + ((. / 4096 | floor) % 64), 128 + ((. / 64 | floor) % 64), 128 + (. % 64)] end;
+def hx: . as $d | "0123456789abcdef"[($d / 16 | floor):($d / 16 | floor) + 1] + "0123456789abcdef"[($d % 16):($d % 16) + 1];
+def esc: tostring | explode | map(if . >= 32 and . <= 126 then ([.] | implode) else (u8 | map("\\x" + hx) | join("")) end) | join("") | .[0:64];
+def actual: if type == "number" then (if . == floor then "integer" else "number" end) else type end;
+def okType($t): if $t == "any" then true
+  elif type == "null" then false
+  elif $t == "number" then type == "number"
+  elif $t == "integer" then (type == "number" and . == floor)
+  else type == $t end;
+def decl: ($schema | if . == "-" then [] else split(",") end)
+  | map(capture("^(?<n>.+):(?<t>[a-z]+)(?<f>[?~*]*)$") | {n, t, opt: (.f | contains("?")), hid: (.f | contains("~"))});
+if type != "object" then "UNP"
+elif has("error") or has("guest_error") then
+  "ERR " + ((.error.code? // .guest_error.code? // "unknown") | if type == "string" or type == "number" then esc else "unknown" end)
+elif (.result | type) != "object" then "UNP"
+else
+  .result as $res | decl as $d
+  | ([$res | keys[] | . as $k | ($d | map(select(.n == $k and (.hid | not))) | first) as $x
+      | if $x == null then ($k | esc) + " undeclared"
+        elif ($res[$k] | okType($x.t)) then empty
+        else ($k | esc) + " expected " + $x.t + " got " + ($res[$k] | actual) end]
+     + [$d[] | select((.opt or .hid) | not) | select(. as $x | $res | has($x.n) | not) | .n + " missing"])
+  | if length == 0 then "PASS" else "FAIL " + .[0] end
+end
+JQ
+
+sp=0; sf=0; schema_ran=0; stop_unresponsive=0; consec=0
+# live_call <method>: prints the raw reply (capped, sentinel-terminated), leaves curl's exit code in $sdir/rc
+# and the HTTP status in $sdir/code. Neither file ever holds reply data.
+live_call() {
+  local crc=0
+  { curl -s --connect-timeout 3 --max-time "$live_timeout" -H @"$hdr" -H "Content-Type: application/json" \
+      -w "%{stderr}%{http_code}" -d "{\"method\":\"$1\"}" "$schema_base/v1/rpc" 2> "$sdir/code" || crc=$?
+    print -r -- $crc > "$sdir/rc"; } | head -c 1048577
+  printf x
+}
+# schema_fail <method> <reason> <counted>: prints one FAIL line and tracks the consecutive-failure count.
+schema_fail() {
+  print -r -- "FAIL $1: $2"; sf=$((sf+1))
+  if [ "$3" = 1 ]; then consec=$((consec+1)); else consec=0; fi
+}
+schema_section() {
+  local catalog=${VPHONE_LIVE_CATALOG:-$root/VPhoneDaemon/Tests/methods-catalog.tsv}
+  local m f p fa res live r rc code n out c
+  schema_ran=1
+  while IFS=$'\t' read -r m f p fa res live; do
+    [ "$live" = read ] || continue
+    r=$(live_call "$m"); r=${r%x}
+    rc=$(cat "$sdir/rc"); code=$(cat "$sdir/code" 2>/dev/null || true)
+    n=$(print -rn -- "$r" | wc -c | tr -d ' ')
+    if [ "$rc" = 28 ]; then schema_fail "$m" timeout 1
+    elif [ "$n" -gt 1048576 ]; then schema_fail "$m" "reply too large" 0
+    elif [ "$rc" != 0 ]; then
+      case $rc in 7) c=connect ;; 52) c=empty ;; 56) c=reset ;; 6) c=dns ;; *) c="curl $rc" ;; esac
+      schema_fail "$m" "transport $c" 1
+    elif [ "$code" != 200 ] && [ "$code" != 400 ]; then schema_fail "$m" "transport HTTP ${code:-none}" 1
+    else
+      out=$(print -rn -- "$r" | jq -r --arg schema "$res" "$schema_jq" 2>/dev/null) || out=UNP
+      case $out in
+        PASS) echo "PASS $m"; sp=$((sp+1)); consec=0 ;;
+        FAIL\ *) schema_fail "$m" "${out#FAIL }" 0 ;;
+        ERR\ *) schema_fail "$m" "error ${out#ERR }" 0 ;;
+        *) schema_fail "$m" "unparsable reply" 1 ;;
+      esac
+    fi
+    if [ $consec -ge 3 ]; then echo "FAIL guest unresponsive"; stop_unresponsive=1; break; fi
+  done < "$catalog"
+}
+schema_summary() { [ $schema_ran = 0 ] || echo "$sp passed, $sf failed"; }
+
+# Test seam: a stub server stands in for the guest and only the schema comparison runs.
+if [ -n "${VPHONE_LIVE_BASE_URL-}" ]; then
+  root=${0:a:h:h:h}
+  schema_base=$VPHONE_LIVE_BASE_URL
+  sdir=$(mktemp -d); hdr=$sdir/hdr
+  trap 'rm -rf "$sdir"' EXIT
+  (umask 077; printf 'Authorization: Bearer %s\n' "${VPHONE_LIVE_TOKEN-}" > "$hdr")
+  schema_section
+  schema_summary
+  [ $sf = 0 ]; exit
+fi
 
 root=${0:a:h:h:h}
 cd "$root"
@@ -56,13 +164,14 @@ if nc -z 127.0.0.1 8765 >/dev/null 2>&1; then echo "UNAVAILABLE: port 8765 in us
 
 token=$(openssl rand -hex 16)
 hdr=$(mktemp); started=0; lpid=
+sdir=$(mktemp -d); schema_base=http://$addr
 printf 'Authorization: Bearer %s\n' "$token" > "$hdr"
 (umask 077; : > "$hdr.code")
 # The VM is this run's own (checked free above): stop it once health answered, or while its launch job is still booting.
 cleanup() {
   if [ -n "$lpid" ] && { [ $started = 1 ] || kill -0 $lpid 2>/dev/null; }; then "$cli" vm stop "$vm" || true; fi
   if [ -n "$lpid" ] && kill -0 $lpid 2>/dev/null; then kill $lpid 2>/dev/null || true; fi
-  rm -f "$hdr" "$hdr.code"
+  rm -rf "$hdr" "$hdr.code" "$sdir"
 }
 # cu [curl-args]: silent curl with the shared timeouts and the token header file; noauth=1 omits the header.
 cu() { local a=(); [ -n "${noauth-}" ] || a=(-H @"$hdr"); curl -s --connect-timeout 3 --max-time 30 $a "$@"; }
@@ -93,7 +202,7 @@ strs() { print -r -- "$1" | jq -r '.. | strings' 2>/dev/null || print -r -- "$1"
 J() { jq "$@" 2>/dev/null || true; }
 total=0; fails=0
 chk() { total=$((total+1)); if [ "$2" = ok ]; then echo "PASS $1"; else echo "FAIL $1: expected $3 got $4"; fails=$((fails+1)); fi }
-finish() { echo "live: $total checks, $fails failures"; echo "TOTAL_FAILS=$fails"; [ $fails = 0 ]; }
+finish() { echo "live: $total checks, $fails failures"; echo "TOTAL_FAILS=$fails"; schema_summary; [ $fails = 0 ] && [ $sf = 0 ]; }
 
 # --- capability and catalog -------------------------------------------------
 h=$(cu http://$addr/v1/health || true)
@@ -131,7 +240,8 @@ if ps -ww -axo args | VPHONE_API_TOKEN=$token awk 'index($0, ENVIRON["VPHONE_API
 else chk "5 token not in argv" bad "token absent from ps args" "token found"; fi
 
 # --- undeclared keys are dropped on a real method ---------------------------
-pn() { print -r -- "$1" | J -c '[.. | objects | select(has("processes")) | .processes[] | .name?] | sort'; }
+# The filter is a substring match, so transient launchd-named helpers come and go between the two calls; compare launchd itself.
+pn() { print -r -- "$1" | J -c '[.. | objects | select(has("processes")) | .processes[] | .name? | select(. == "launchd")] | sort'; }
 p1=$(pn "$(rpc '{"method":"processes.list","params":{"filter":"launchd"}}')")
 p2=$(pn "$(rpc '{"method":"processes.list","params":{"filter":"launchd","extra":1}}')")
 if [ -n "$p1" ] && [ "$p1" != "[]" ] && [ "$p1" = "$p2" ]; then chk "6 processes.list extra key dropped" ok
@@ -205,4 +315,7 @@ g services.unload '{"paths":["/tmp/none.plist"],"force":true}'
 g apps.remove_system '{"bundle_ids":["com.example.none"],"force":true}'
 g system.respring '{"force":true}'
 
+# --- schema comparison of every read-class method ---------------------------
+schema_section
+[ $stop_unresponsive = 0 ] || { finish || true; exit 1; }
 finish

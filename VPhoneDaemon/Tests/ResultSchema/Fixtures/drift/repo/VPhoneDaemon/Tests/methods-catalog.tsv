@@ -1,0 +1,5 @@
+clipboard.get	never	-	-	count:integer,text:string	read
+device.battery	never	-	-	level:integer	read
+device.info	never	-	-	model:string,name:string,serial:string?	read
+device.ioreg	never	-	-	path:string~,plane:string	read
+progress.status	never	-	-	layout:string?,phase:string,tag:string?	read

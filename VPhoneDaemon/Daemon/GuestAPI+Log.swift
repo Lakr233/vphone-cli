@@ -16,9 +16,9 @@ enum LogMethod: String, GuestMethod {
                                 .optional("max_lines", .integer),
                                 .optional("subsystem", .string),
                                 .optional("category", .string),
-                                .optional("message_contains", .string))
-        case .logsCrashes: MethodSpec(.optional("bundle_id", .string))
-        case .logsCrash: MethodSpec(.required("path", .string))
+                                .optional("message_contains", .string), result: [.optional("count", .any), .optional("entries", .array), .optional("error", .string), .optional("seconds", .number), .optional("source", .string), .optional("truncated", .boolean)])
+        case .logsCrashes: MethodSpec(.optional("bundle_id", .string), result: [.required("count", .integer), .required("crashes", .any)])
+        case .logsCrash: MethodSpec(.required("path", .string), result: [.required("bytes", .integer), .required("content", .string), .required("encoding", .string), .required("path", .string), .required("size", .integer), .required("truncated", .boolean)])
         }
     }
 }

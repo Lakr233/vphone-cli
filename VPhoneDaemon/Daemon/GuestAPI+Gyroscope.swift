@@ -11,9 +11,27 @@ enum GyroscopeMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .motionGyroscopeGet: MethodSpec()
-        case .motionGyroscopeSet: MethodSpec(.required("x", .number), .required("y", .number), .required("z", .number), .optional("enabled", .boolean))
-        case .motionGyroscopeClear: MethodSpec()
+        case .motionGyroscopeGet: MethodSpec(result: [.required("enabled", .any),
+                                                      .required("provider", .any),
+                                                      .required("provider_running", .any),
+                                                      .required("units", .string),
+                                                      .required("x", .any),
+                                                      .required("y", .any),
+                                                      .required("z", .any)])
+        case .motionGyroscopeSet: MethodSpec(.required("x", .number), .required("y", .number), .required("z", .number), .optional("enabled", .boolean), result: [.required("enabled", .any),
+                                                      .required("provider", .any),
+                                                      .required("provider_running", .any),
+                                                      .required("units", .string),
+                                                      .required("x", .any),
+                                                      .required("y", .any),
+                                                      .required("z", .any)])
+        case .motionGyroscopeClear: MethodSpec(result: [.required("enabled", .any),
+                                                        .required("provider", .any),
+                                                        .required("provider_running", .any),
+                                                        .required("units", .string),
+                                                        .required("x", .any),
+                                                        .required("y", .any),
+                                                        .required("z", .any)])
         }
     }
 }

@@ -1,0 +1,5 @@
+clipboard.get	icli:IcliKit/Clipboard.swift#clipboardInfo
+device.battery	VPhoneDaemon/Daemon/GuestAPI+Device.swift#batteryInfo
+device.info	icli:IcliKit/Device.swift#deviceInfo
+device.ioreg	icli:IcliKit/Device.swift#ioregInfo
+progress.status	sink:VPhoneDaemon/Daemon/Progress.swift#setProgress

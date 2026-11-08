@@ -11,8 +11,15 @@ enum EnvironmentMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .environmentStatus: MethodSpec()
-        case .environmentInstall: MethodSpec(.required("libraries", .array))
+        case .environmentStatus: MethodSpec(result: [
+                .required("libraries", .any),
+                .required("root_read_only", .boolean),
+                .required("staging", .string)])
+        case .environmentInstall: MethodSpec(.required("libraries", .array), result: [
+                                                 .required("installed", .array),
+                                                 .required("reboot_required", .boolean),
+                                                 .required("restarted_pids", .array),
+                                                 .required("root_read_only", .boolean)])
         }
     }
 }
