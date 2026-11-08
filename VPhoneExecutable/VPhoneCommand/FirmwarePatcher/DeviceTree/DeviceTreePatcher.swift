@@ -451,6 +451,7 @@ public final class DeviceTreePatcher: BufferedPatcher {
         if presentsGuest {
             try applyGuestEdits(root: root)
         }
+        try applyVirtualUSBDriverKit(root: root)
         // After the board edits, which remove a placeholder the board has too.
         applyWatchCompanion(root: root)
 

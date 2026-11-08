@@ -1,6 +1,14 @@
 import Foundation
 import VPhonePatchKit
 
+/// The classifier's category byte: `[state, #offset]`, or `[pointer]` when
+/// the classifier keeps a pointer to it.
+private struct TXMRemapCategory {
+    let state: ARM64Register
+    let offset: Int64
+    let pointer: ARM64Register?
+}
+
 extension TXMDevPatcher {
     static let executableRemapID = "txm-cfw-executable_remap"
 
@@ -34,12 +42,14 @@ extension TXMDevPatcher {
             throw PatcherError.patchSiteNotFound("TXM classification: expected one policy pre-check")
         }
 
-        var classifiers: [(code: [ARM64Instruction], cms: Int, context: Int64)] = []
+        var classifiers: [(code: [ARM64Instruction], cms: Int, context: Int64, category: TXMRemapCategory)] = []
         for i in 0 ..< max(0, code.count - 6) {
             guard remapBranch(code[i], "bl") == precheck,
+                  let function = remapFunction(code, containing: i),
+                  let category = remapCategory(function, call: code[i]),
                   remapImmediate(code[i + 1], "tst", .w(0), 0xff00),
-                  remapBranch(code[i + 2], "b.eq") != nil,
-                  let context = remapLoad(code[i + 3], "ldr", .x(20)), context.offset == 0,
+                  let success = remapBranch(code[i + 2], "b.eq"),
+                  let context = remapLoad(code[i + 3], "ldr", category.state), context.offset == 0,
                   let tolerance = remapLoad(code[i + 4], "ldrb", context.register),
                   let native = remapBitBranch(code[i + 5], "tbz", tolerance.register, 0),
                   let n = byAddress[UInt64(native)], n + 6 < code.count,
@@ -47,10 +57,9 @@ extension TXMDevPatcher {
                   remapBitBranch(code[n + 1], "tbnz", flags.register, 1) != nil,
                   let cms = remapBranch(code[n + 4], "bl"),
                   remapImmediate(code[n + 5], "tst", .w(0), 0xff00),
-                  remapBranch(code[n + 6], "b.eq") == remapBranch(code[i + 2], "b.eq"),
-                  let function = remapFunction(code, containing: i)
+                  remapSuccess(code, at: n + 6) == success
             else { continue }
-            classifiers.append((function, cms, tolerance.offset))
+            classifiers.append((function, cms, tolerance.offset, category))
         }
         guard classifiers.count == 1, let classifier = classifiers.first,
               let cmsIndex = byAddress[UInt64(classifier.cms)],
@@ -63,7 +72,7 @@ extension TXMDevPatcher {
         var adhocSites: [Int] = []
         let classification = classifier.code
         for i in 0 ..< max(0, classification.count - 7) {
-            guard let context = remapLoad(classification[i], "ldr", .x(20)), context.offset == 0,
+            guard let context = remapLoad(classification[i], "ldr", classifier.category.state), context.offset == 0,
                   let tolerance = remapLoad(classification[i + 1], "ldrb", context.register),
                   tolerance.offset == classifier.context + 1,
                   let reject = remapBitBranch(classification[i + 2], "tbz", tolerance.register, 0),
@@ -73,7 +82,7 @@ extension TXMDevPatcher {
                   remapImmediate(classification[i + 5], "mov", .w(0), 0x2202),
                   remapImmediate(classification[i + 6], "movk", .w(0), 3),
                   let s = byAddress[UInt64(store)],
-                  let type = remapLoad(code[s], "strb", .x(20)), type.register == .w(8), type.offset == 0x101
+                  remapCategoryStore(code[s], classifier.category) == .w(8)
             else { continue }
             adhocSites.append(Int(classification[i + 2].address))
         }
@@ -210,6 +219,78 @@ extension TXMDevPatcher {
             throw PatcherError.patchSiteNotFound("TXM library compatibility: expected one ordinary-library comparison")
         }
         return (site, success + branch)
+    }
+
+    /// The pre-check's arguments: the signature state and its category byte.
+    /// cloudOS 26.4 passes `add x1, x20, #0x101`; 26.1 keeps
+    /// `x20 = x21 + 0xa1` for the whole function and passes `mov x1, x20`.
+    private func remapCategory(_ function: [ARM64Instruction], call: ARM64Instruction) -> TXMRemapCategory? {
+        guard let c = function.firstIndex(where: { $0.address == call.address }) else { return nil }
+        var state: ARM64Register?
+        var argument: ARM64Instruction?
+        for instruction in function[..<c].reversed() {
+            if instruction.isCall || instruction.isJump { break }
+            if state == nil, remapWrites(instruction, .x(0)) {
+                guard let source = remapMove(instruction, to: .x(0)) else { return nil }
+                state = source
+            }
+            if argument == nil, remapWrites(instruction, .x(1)) { argument = instruction }
+            if state != nil, argument != nil { break }
+        }
+        guard let state, let argument else { return nil }
+        if let offset = remapAddImmediate(argument, to: .x(1), from: state) {
+            return TXMRemapCategory(state: state, offset: offset, pointer: nil)
+        }
+        // The pointer must keep its single definition across the classifier;
+        // only the epilogue may reload it from the stack.
+        guard let pointer = remapMove(argument, to: .x(1)),
+              let definition = function[..<c].last(where: { remapWrites($0, pointer) }),
+              let offset = remapAddImmediate(definition, to: pointer, from: state),
+              function.allSatisfy({ instruction in
+                  instruction.address == definition.address || !remapWrites(instruction, pointer)
+                      || instruction.detail?.operands.contains { $0.type == .memory && $0.mem.base == .sp } == true
+              })
+        else { return nil }
+        return TXMRemapCategory(state: state, offset: offset, pointer: pointer)
+    }
+
+    /// The register a `strb` writes into the classifier's category byte.
+    private func remapCategoryStore(_ instruction: ARM64Instruction, _ category: TXMRemapCategory) -> ARM64Register? {
+        if let store = remapLoad(instruction, "strb", category.state), store.offset == category.offset {
+            return store.register
+        }
+        if let pointer = category.pointer, let store = remapLoad(instruction, "strb", pointer), store.offset == 0 {
+            return store.register
+        }
+        return nil
+    }
+
+    /// Where a `tst w0, #0xff00` result continues on success: `b.eq target`,
+    /// or the inverted `b.ne failure; b target` that cloudOS 26.1 emits.
+    private func remapSuccess(_ code: [ARM64Instruction], at index: Int) -> Int? {
+        if let target = remapBranch(code[index], "b.eq") { return target }
+        guard remapBranch(code[index], "b.ne") != nil, index + 1 < code.count else { return nil }
+        return remapBranch(code[index + 1], "b")
+    }
+
+    private func remapWrites(_ instruction: ARM64Instruction, _ register: ARM64Register) -> Bool {
+        instruction.detail?.operands.contains { $0.type == .register && $0.reg == register && $0.writesRegister } == true
+    }
+
+    private func remapMove(_ instruction: ARM64Instruction, to destination: ARM64Register) -> ARM64Register? {
+        guard instruction.mnemonic == "mov", let operands = instruction.detail?.operands, operands.count == 2,
+              operands[0].type == .register, operands[0].reg == destination, operands[1].type == .register
+        else { return nil }
+        return operands[1].reg
+    }
+
+    private func remapAddImmediate(_ instruction: ARM64Instruction, to destination: ARM64Register, from source: ARM64Register) -> Int64? {
+        guard instruction.mnemonic == "add", let operands = instruction.detail?.operands, operands.count == 3,
+              operands[0].type == .register, operands[0].reg == destination,
+              operands[1].type == .register, operands[1].reg == source,
+              operands[2].type == .immediate, operands[2].imm > 0, operands[2].shift.type == .none
+        else { return nil }
+        return operands[2].imm
     }
 
     private func remapFunction(_ code: [ARM64Instruction], containing index: Int) -> [ARM64Instruction]? {

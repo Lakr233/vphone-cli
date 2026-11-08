@@ -247,6 +247,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/zsh;
+			showEnvVarsInLog = 0;
 			shellScript = "\"$SRCROOT/Build/StageBundle.sh\"\n";
 		};
 		DD0000000000000000000062 /* Build VPhoneKit */ = {
@@ -262,7 +263,8 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/zsh;
-			shellScript = "set -euo pipefail\nroot=\"$(cd \"$SRCROOT/../..\" && pwd)\"\n/usr/bin/xcodebuild -project \"$root/VPhoneKit/VPhoneKit.xcodeproj\" -scheme VPhoneArchiveKit -configuration \"$CONFIGURATION\" -destination 'platform=macOS,arch=arm64' -derivedDataPath \"$root/.build/XcodeKit\" CODE_SIGNING_ALLOWED=NO build\n";
+			showEnvVarsInLog = 0;
+			shellScript = "set -euo pipefail\nroot=\"$(cd \"$SRCROOT/../..\" && pwd)\"\n/usr/bin/xcodebuild -hideShellScriptEnvironment -project \"$root/VPhoneKit/VPhoneKit.xcodeproj\" -scheme VPhoneArchiveKit -configuration \"$CONFIGURATION\" -destination 'platform=macOS,arch=arm64' -derivedDataPath \"$root/.build/XcodeKit\" CODE_SIGNING_ALLOWED=NO build\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

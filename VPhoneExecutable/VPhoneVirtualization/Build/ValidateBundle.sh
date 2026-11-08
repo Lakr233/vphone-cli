@@ -137,6 +137,22 @@ for name in Dynamic-Apache-2.0.txt Dynamic-NOTICE.txt; do
         exit 1
     }
 done
+/usr/bin/cmp "$root/VPhoneExecutable/VPhoneVirtualization/Resources/Licenses/Swift-Apache-2.0-with-Runtime-Library-Exception.txt" \
+    "$resources/Licenses/Swift-Apache-2.0-with-Runtime-Library-Exception.txt" || {
+    print -u2 "Missing or changed Swift runtime notice"
+    exit 1
+}
+"$root/scripts/stage-package-notices.zsh" --check "$resources/Licenses/packages"
+for component in MobileRecoveryCore MobileRestoreCore; do
+    [[ -s "$resources/Licenses/vendor/$component/COPYING" ]] || {
+        print -u2 "Missing $component licence"
+        exit 1
+    }
+done
+[[ -s "$resources/Licenses/vendor/VPhoneEscalator/LICENSE" && -s "$resources/Licenses/vphone-cli.txt" ]] || {
+    print -u2 "Missing bundle or escalator licence"
+    exit 1
+}
 # New machines copy this ROM. Without it vm new would fail, and OpenAVB is
 # distributed only with its licences. The ROM window is 512 KiB.
 for name in OpenAVB.bin LICENSE APSL-2.0.txt; do

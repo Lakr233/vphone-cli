@@ -69,7 +69,7 @@
 		5A1000000000000000000011 /* VPhoneLaunchpad */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 5A1000000000000000000092 /* Build configuration list for PBXNativeTarget "VPhoneLaunchpad" */;
-			buildPhases = (5A1000000000000000000051 /* Sources */, 5A1000000000000000000041 /* Frameworks */, 5A1000000000000000000052 /* Resources */, 5A1000000000000000000053 /* Embed Privileged Helper */, 5A10000000000000000000CD /* Embed Command Line Tool */, 5A10000000000000000000ED /* Embed VM Launcher */, 5A10000000000000000000D3 /* Embed Skill */, );
+			buildPhases = (5A1000000000000000000051 /* Sources */, 5A1000000000000000000041 /* Frameworks */, 5A1000000000000000000052 /* Resources */, 5A1000000000000000000053 /* Embed Privileged Helper */, 5A10000000000000000000CD /* Embed Command Line Tool */, 5A10000000000000000000ED /* Embed VM Launcher */, 5A10000000000000000000D3 /* Embed Skill */, 5A10000000000000000000F2 /* Stage Licences */, );
 			buildRules = ();
 			dependencies = (5A1000000000000000000072 /* PBXTargetDependency */, 5A10000000000000000000CB /* PBXTargetDependency */, 5A10000000000000000000EB /* PBXTargetDependency */, );
 			fileSystemSynchronizedGroups = (5A1000000000000000000021 /* VPhoneLaunchpad */, 5A1000000000000000000023 /* VPhoneLaunchpadShared */, );
@@ -135,6 +135,20 @@
 /* Begin PBXResourcesBuildPhase section */
 		5A1000000000000000000052 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
+/* Begin PBXShellScriptBuildPhase section */
+		5A10000000000000000000F2 /* Stage Licences */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			name = "Stage Licences";
+			outputPaths = ();
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/zsh;
+			shellScript = "set -euo pipefail\nroot=\"$(cd \"$SRCROOT/..\" && pwd)\"\nresources=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\n/bin/mkdir -p \"$resources/Licenses\"\n/bin/cp \"$root/LICENSE\" \"$resources/Licenses/vphone-cli.txt\"\n/bin/cp \"$root/VPhoneExecutable/VPhoneVirtualization/Resources/Licenses/Swift-Apache-2.0-with-Runtime-Library-Exception.txt\" \"$resources/Licenses/\"\n\"$root/scripts/stage-package-notices.zsh\" \"$resources/Licenses/packages\" \"$SRCROOT/VPhoneLaunchpad.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved\" \"${BUILD_DIR:h:h}/SourcePackages\"\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 /* Begin PBXSourcesBuildPhase section */
 		5A1000000000000000000051 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 		5A1000000000000000000054 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };

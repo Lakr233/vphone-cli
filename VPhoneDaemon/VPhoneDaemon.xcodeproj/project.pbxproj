@@ -177,7 +177,8 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/zsh;
-			shellScript = "set -euo pipefail\nroot=\"$(cd \"$SRCROOT/..\" && pwd)\"\n# Use this build's device SDK and product suffix without requiring a simulator runtime.\n/usr/bin/env -i HOME=\"$HOME\" TMPDIR=\"${TMPDIR:-/tmp}\" PATH=\"/usr/bin:/bin:/usr/sbin:/sbin\" /usr/bin/xcodebuild -project \"$root/VPhoneExecutable/VPhoneCommand/VPhoneCommand.xcodeproj\" -scheme VPhoneSign -configuration \"$CONFIGURATION\" -sdk \"$PLATFORM_NAME\" -derivedDataPath \"$root/.build/XcodeSignGuest-$CONFIGURATION\" CODE_SIGNING_ALLOWED=NO SUPPORTS_MACCATALYST=NO EFFECTIVE_PLATFORM_NAME=\"$EFFECTIVE_PLATFORM_NAME\" build\n";
+			showEnvVarsInLog = 0;
+			shellScript = "set -euo pipefail\nroot=\"$(cd \"$SRCROOT/..\" && pwd)\"\n# Use this build's device SDK and product suffix without requiring a simulator runtime.\n# Preserve an explicit SwiftPM mirror configuration in the nested resolver.\n/usr/bin/env -i HOME=\"$HOME\" TMPDIR=\"${TMPDIR:-/tmp}\" PATH=\"/usr/bin:/bin:/usr/sbin:/sbin\" ${DEVELOPER_DIR:+\"DEVELOPER_DIR=$DEVELOPER_DIR\"} ${SWIFTPM_NETRC_DATA:+\"SWIFTPM_NETRC_DATA=$SWIFTPM_NETRC_DATA\"} ${SWIFTPM_MIRROR_CONFIG:+\"SWIFTPM_MIRROR_CONFIG=$SWIFTPM_MIRROR_CONFIG\"} /usr/bin/xcodebuild -hideShellScriptEnvironment -project \"$root/VPhoneExecutable/VPhoneCommand/VPhoneCommand.xcodeproj\" -scheme VPhoneSign -configuration \"$CONFIGURATION\" -sdk \"$PLATFORM_NAME\" -derivedDataPath \"$root/.build/XcodeSignGuest-$CONFIGURATION\" CODE_SIGNING_ALLOWED=NO SUPPORTS_MACCATALYST=NO EFFECTIVE_PLATFORM_NAME=\"$EFFECTIVE_PLATFORM_NAME\" build\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

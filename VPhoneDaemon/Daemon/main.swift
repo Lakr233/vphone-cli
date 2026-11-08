@@ -63,10 +63,14 @@ filePool.start()
 let fileIO = NonBlockingFileIO(threadPool: filePool)
 let hub = APIEventHub()
 let eventPublisher = GuestEventPublisher(hub: hub)
+let vsockSendBufferLimit: SocketOptionValue = 64 * 1024
 
 do {
     let server = try ServerBootstrap(group: group)
         .serverChannelOption(ChannelOptions.backlog, value: 128)
+        // Bound Darwin's mbuf chains to the 64 KiB payload limit used by
+        // virtio-vsock backends, even when sosend coalesces a small remainder.
+        .childChannelOption(ChannelOptions.socketOption(.so_sndbuf), value: vsockSendBufferLimit)
         .childChannelInitializer { channel in
             let http = GuestHyperTextHandler(hub: hub, fileIO: fileIO)
             let upgrader = NIOWebSocketServerUpgrader(
@@ -128,9 +132,17 @@ do {
                     }
                 },
             )
-            return channel.pipeline.configureHTTPServerPipeline(
-                withServerUpgrade: (upgraders: [upgrader], completionHandler: { _ in }),
-            ).flatMap { channel.pipeline.addHandler(http) }
+            return channel.getOption(ChannelOptions.socketOption(.so_sndbuf)).flatMapThrowing { size in
+                guard size > 0, size <= vsockSendBufferLimit else {
+                    throw GuestAPIError.operationFailed(
+                        "VSOCK send buffer is \(size) bytes, outside 1...\(vsockSendBufferLimit)",
+                    )
+                }
+            }.flatMap {
+                channel.pipeline.configureHTTPServerPipeline(
+                    withServerUpgrade: (upgraders: [upgrader], completionHandler: { _ in }),
+                )
+            }.flatMap { channel.pipeline.addHandler(http) }
         }
         .bind(to: VsockAddress(cid: .any, port: 1339))
         .wait()

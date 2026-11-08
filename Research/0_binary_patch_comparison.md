@@ -1,5 +1,24 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **Virtual USB DriverKit capability (2026-11-08).**
+> `devicetree-cfw-virtual_usb_driverkit` writes `/product/supports-driverkit`
+> as little-endian UInt32 1 with flags 0 after board presentation, for iPhone
+> and iPad runtime trees, including Duo and the legacy shared iPhone tree.
+> Restore trees and the existing watch/HomeView patch policies are unchanged.
+> The corresponding `preboot-cfw-devicetree_virtual_usb_driverkit` repair uses
+> the existing staged backup and receipt flow. `cfw patch-dt-driverkit`
+> performs only this property repair on an unencrypted virtual iPhone/iPad
+> DeviceTree asset, preserving IMG4 personalization and compression.
+>
+> The motivation is a runtime tree with no `supports-driverkit` capability,
+> no enumerated virtual USB touchscreen and `AppleUserHIDDrivers` launch
+> failures. Correctly normalized input reached the host dispatch path but
+> not backboardd's digitizer handlers. The missing capability is a
+> prerequisite under investigation; guest validation must establish whether
+> enabling it restores the driver and input. Serialized-tree regressions
+> cover runtime role and family selection, gate-off byte preservation,
+> canonicalization, idempotence and personalized IMG4 preservation.
+
 > **Application exception actions and X1 lowering (2026-11-06).** SystemHook
 > preserves the inherited X1 `EXC_BAD_INSTRUCTION` action when an application
 > installs its own task exception ports. Other exception bits, non-X1 and
@@ -1137,6 +1156,15 @@
 > same PAC failure with stock cohorts; with this change, another 20 restarts
 > and 5 cold boots passed, with no new crash reports or watchdog actions. See
 > [evidence and verification](Guest/locationd_27_0_1_startup_race.md).
+
+> **CoreLocation feature schema correction (2026-11-08):** the cohort override
+> now removes `CLAutoCohort.DevelopmentPhase` when setting `Enabled = false`,
+> including plists already written with both keys. An iPadOS 27.0.1 (24A446)
+> boot reported `A flag cannot have both Enabled and DevelopmentPhase keys`
+> for `CoreLocation.plist`. Serialized XML and binary fixtures verify the
+> mutually exclusive schema, retained metadata and other features, dry runs,
+> and idempotence. This is a configuration repair; its effect on that guest's
+> migration failure remains unverified. No new patch or instruction is added.
 
 > **Patch sets and presets (2026-09-28):** every patch is now *declared*, and
 > selection happens before any byte is written. The declarations live in nine

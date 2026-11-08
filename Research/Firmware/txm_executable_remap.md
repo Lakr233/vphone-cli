@@ -131,6 +131,41 @@ Association (`0x1eb10..<0x1efe4`) and final validation
 retains its main-image alias restriction. Unchanged instructions do not prove
 identical runtime enforcement after classification and admission change.
 
+### cloudOS 26.1
+
+Examined image: `TrustedExecutionMonitor_Guarded-182.40.3`, UUID
+`01108044-259B-370C-891A-7FFF39799C39`, from cloudOS 26.1 (23B85), the boot
+chain of the iOS 18.6.2 and 26.0 to 26.1 pairings. Original uncompressed TXM SHA-256:
+`ec68dc5a1ec77d8399365f7164e0384539c75e06ed9555f793ce5ff34a9c1db6`.
+
+The classifier is the same function with a different register allocation. It
+keeps the signature state in `x21` and, for the whole function, a pointer to its
+category byte (`add x20, x21, #0xa1`), where 26.4 keeps the state in `x20` and
+addresses the byte as `[x20, #0x101]`. After the CMS call it branches
+`b.ne <return>; b <output>` instead of `b.eq <output>`. Step 1 therefore takes
+the state and the category byte from the pre-check's `x0`/`x1` arguments
+(`add x1, state, #imm`, or `mov x1, pointer` whose only definition in the
+function is `add pointer, state, #imm`) and accepts both success branches.
+Steps 2–4 are unchanged.
+
+| Site | Enabled behavior |
+| --- | --- |
+| `0x2c1f8` | Keep original cdhash-comparison BL instead of the fabricated cache hit. |
+| `0x313d4` | Select existing hash-flags bypass (`mov x0, #0`). |
+| `0x3039c` | NOP CMS fallback tolerance gate after certificate-policy miss. |
+| `0x319c8` | NOP ad-hoc fallback tolerance gate; fallback stays type 10. |
+| `0x3019c` | Redirect absent-CMS `cbz x0` from `0x301d8` to fallback at `0x30398`. |
+| `0x32a44`, `0x32a48` | Skip ordinary-library Team ID comparison with `mov w21, #7; b 0x32914`. |
+
+The cloudOS 26.2 (23C55) and 26.3 (23D129) TXMs are the same 182.40.3
+classifier and match the same way.
+
+Before this, `fw patch` stopped on every cloudOS 26.1 to 26.3 boot chain with
+`TXM classification: expected one native CMS/ad-hoc split`. With it, an
+iPhone17,3 iOS 18.6.2 (22G100) VM on this boot chain patches with the standard
+preset (16 TXM records), restores, installs CFW and cold-boots twice to vphoned
+and the Hello screen.
+
 ## Validation
 
 The remap, catalog and patch-model suites passed **73 tests**, including the
@@ -163,6 +198,13 @@ xcodebuild -project VPhoneExecutable/VPhoneCommand/VPhoneCommand.xcodeproj \
   -only-testing:FirmwarePatcherTests/FirmwarePatchSetCatalogTests \
   -only-testing:FirmwarePatcherTests/VPhonePatchGateTests test
 ```
+
+`VPHONE_REMAP_TXM_26_1` (and `TEST_RUNNER_VPHONE_REMAP_TXM_26_1`) supplies the
+cloudOS 26.1 image the same way. Its test checks the six instruction differences
+and, on arm64, executes that image's classifier, CMS fallback, final validator
+and library comparison with ldid and ad-hoc signatures. Relocated fixtures of
+its classifier cover the category pointer, the inverted CMS branch and
+rejection when the pointer is redefined.
 
 A standalone validation app remaps known functions from its main executable
 and embedded framework, queries actual protections, and calls the remapped

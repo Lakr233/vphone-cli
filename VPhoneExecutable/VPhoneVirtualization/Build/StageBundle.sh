@@ -19,7 +19,11 @@ location_app="$bundle/Contents/Helpers/VPhoneLocation.app"
 # xcodebuild must resolve each project's own graph, especially the iOS daemon.
 build_project() {
     /usr/bin/env -i HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
-        PATH="/usr/bin:/bin:/usr/sbin:/sbin" /usr/bin/xcodebuild "$@"
+        PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+        ${DEVELOPER_DIR:+"DEVELOPER_DIR=$DEVELOPER_DIR"} \
+        ${SWIFTPM_NETRC_DATA:+"SWIFTPM_NETRC_DATA=$SWIFTPM_NETRC_DATA"} \
+        ${SWIFTPM_MIRROR_CONFIG:+"SWIFTPM_MIRROR_CONFIG=$SWIFTPM_MIRROR_CONFIG"} \
+        /usr/bin/xcodebuild -hideShellScriptEnvironment "$@"
 }
 
 build_project -project "$root/VPhoneExecutable/VPhoneCommand/VPhoneRestore/VPhoneRestore.xcodeproj" \
@@ -198,8 +202,23 @@ fi
 # Native KDK extraction ports MIT-licensed reference algorithms.
 /bin/mkdir -p "$resources/Licenses"
 /bin/cp "$root/VPhoneExecutable/VPhoneVirtualization/Resources/Licenses/"Dynamic-*.txt "$resources/Licenses/"
+/bin/cp "$root/LICENSE" "$resources/Licenses/vphone-cli.txt"
+/bin/cp "$root/VPhoneExecutable/VPhoneVirtualization/Resources/Licenses/Swift-Apache-2.0-with-Runtime-Library-Exception.txt" "$resources/Licenses/"
 /bin/cp "$root/VPhoneExecutable/VPhoneCommand/FirmwarePatcher/KernelCache/KDK/LICENSE" \
     "$resources/Licenses/native-kdk-MIT.txt"
+"$root/scripts/stage-package-notices.zsh" "$resources/Licenses/packages" \
+    "$root/VPhoneExecutable/VPhoneVirtualization/VPhoneVirtualization.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved" "${BUILD_DIR:h:h}/SourcePackages" \
+    "$root/VPhoneExecutable/VPhoneCommand/VPhoneCommand.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved" "$root/.build/XcodeCommand/SourcePackages" \
+    "$root/VPhoneDaemon/VPhoneDaemon.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved" "$root/.build/XcodeDaemon/SourcePackages" \
+    "$root/VPhoneExecutable/VPhoneCommand/VPhoneRestore/VPhoneRestore.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved" "$root/.build/XcodeRestore/SourcePackages"
+for component in MobileRecoveryCore MobileRestoreCore; do
+    /bin/mkdir -p "$resources/Licenses/vendor/$component"
+    /bin/cp "$root/VPhoneExecutable/VPhoneCommand/VPhoneRestore/$component/COPYING" \
+        "$resources/Licenses/vendor/$component/COPYING"
+done
+/bin/mkdir -p "$resources/Licenses/vendor/VPhoneEscalator"
+/bin/cp "$root/VPhoneExecutable/VPhoneEscalator/VPhoneEscalator/LICENSE" \
+    "$resources/Licenses/vendor/VPhoneEscalator/LICENSE"
 
 "${0:a:h}/SyncStrings.sh"
 /usr/bin/xcrun xcstringstool compile \
