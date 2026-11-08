@@ -28,11 +28,12 @@ public enum CustomFirmwareLocationdCohorting {
             else {
                 throw PatcherError.invalidFormat("CLAutoCohort.Enabled is not a boolean: \(url.path)")
             }
-            if !number.boolValue {
+            if !number.boolValue, feature["DevelopmentPhase"] == nil {
                 return false
             }
         }
         feature["Enabled"] = false
+        feature.removeValue(forKey: "DevelopmentPhase")
         root[Self.feature] = feature
         let output = try PropertyListSerialization.data(fromPropertyList: root, format: format, options: 0)
         if !dryRun {

@@ -17,12 +17,14 @@ struct CustomFirmwareLocationdCohortingTests {
         }
     }
 
-    @Test(arguments: [PropertyListSerialization.PropertyListFormat.xml, .binary])
-    func `preserves other features and encoding`(format: PropertyListSerialization.PropertyListFormat) throws {
+    @Test(arguments: [PropertyListSerialization.PropertyListFormat.xml, .binary], [nil, false, true] as [Bool?])
+    func `preserves other features and encoding`(format: PropertyListSerialization.PropertyListFormat, enabled: Bool?) throws {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: url) }
+        var feature: [String: Any] = ["DevelopmentPhase": "FeatureComplete", "Metadata": "retained"]
+        if let enabled { feature["Enabled"] = enabled }
         let original: [String: Any] = [
-            "CLAutoCohort": ["DevelopmentPhase": "FeatureComplete", "Metadata": "retained"],
+            "CLAutoCohort": feature,
             "OtherFeature": ["Enabled": true],
         ]
         let input = try PropertyListSerialization.data(fromPropertyList: original, format: format, options: 0)
@@ -37,8 +39,9 @@ struct CustomFirmwareLocationdCohortingTests {
         #expect((root["OtherFeature"] as? NSDictionary) == (original["OtherFeature"] as? NSDictionary))
         let cohort = try #require(root["CLAutoCohort"] as? [String: Any])
         #expect(cohort["Enabled"] as? Bool == false)
-        #expect(cohort["DevelopmentPhase"] as? String == "FeatureComplete")
+        #expect(cohort["DevelopmentPhase"] == nil)
         #expect(cohort["Metadata"] as? String == "retained")
+        #expect(try !CustomFirmwareLocationdCohorting.patch(at: url, dryRun: true))
         #expect(try !CustomFirmwareLocationdCohorting.patch(at: url))
         #expect(try Data(contentsOf: url) == output)
     }

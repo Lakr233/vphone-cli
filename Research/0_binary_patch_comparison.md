@@ -1138,6 +1138,15 @@
 > and 5 cold boots passed, with no new crash reports or watchdog actions. See
 > [evidence and verification](Guest/locationd_27_0_1_startup_race.md).
 
+> **CoreLocation feature schema correction (2026-11-08):** the cohort override
+> now removes `CLAutoCohort.DevelopmentPhase` when setting `Enabled = false`,
+> including plists already written with both keys. An iPadOS 27.0.1 (24A446)
+> boot reported `A flag cannot have both Enabled and DevelopmentPhase keys`
+> for `CoreLocation.plist`. Serialized XML and binary fixtures verify the
+> mutually exclusive schema, retained metadata and other features, dry runs,
+> and idempotence. This is a configuration repair; its effect on that guest's
+> migration failure remains unverified. No new patch or instruction is added.
+
 > **Patch sets and presets (2026-09-28):** every patch is now *declared*, and
 > selection happens before any byte is written. The declarations live in nine
 > bundled patch sets under `VPhoneExecutable/VPhoneCommand/FirmwarePatcher/PatchSets/`
