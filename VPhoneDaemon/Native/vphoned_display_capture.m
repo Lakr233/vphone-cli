@@ -123,8 +123,6 @@ static NSDictionary *vpCaptureSource(NSDictionary *layout, NSString **reason) {
         @"display_id": displayID, @"name": name, @"point_scale": scale,
         @"bounds_pixels": pixels, @"frontboard_bounds_points": points,
         @"frontboard_reference_bounds_points": reference, @"frontboard_interface_orientation": orientation,
-        @"identity_binding": uuid ? @"matching_nonzero_hardware_uuid_display_id_and_scale_with_unique_render_name"
-                                  : @"matching_display_id_render_name_scale_and_reference_bounds_without_hardware_uuid",
     }];
     if (uuid) source[@"hardware_identifier"] = uuid;
     if ([frontboardName isKindOfClass:NSString.class] && frontboardName.length <= 128) {
@@ -261,7 +259,9 @@ static NSDictionary *vpCapturePerform(BOOL (^cancelled)(void)) {
     NSMutableDictionary *result = [raster mutableCopy];
     result[@"source"] = before;
     result[@"source_after"] = after;
-    result[@"identity_binding"] = before[@"identity_binding"];
+    result[@"identity_binding"] = before[@"hardware_identifier"]
+        ? @"matching_nonzero_hardware_uuid_display_id_and_scale_with_unique_render_name"
+        : @"matching_display_id_render_name_scale_and_reference_bounds_without_hardware_uuid";
     result[@"attribution_limit"] = @"Matching metadata before and after is not an atomic display epoch or proof of rendered content";
     return result;
 }
