@@ -131,6 +131,12 @@ done
     print -u2 "Missing native KDK extraction licence"
     exit 1
 }
+for name in Dynamic-Apache-2.0.txt Dynamic-NOTICE.txt; do
+    /usr/bin/cmp "$root/VPhoneExecutable/VPhoneVirtualization/Resources/Licenses/$name" "$resources/Licenses/$name" || {
+        print -u2 "Missing or changed Dynamic notice: $name"
+        exit 1
+    }
+done
 # New machines copy this ROM. Without it vm new would fail, and OpenAVB is
 # distributed only with its licences. The ROM window is 512 KiB.
 for name in OpenAVB.bin LICENSE APSL-2.0.txt; do

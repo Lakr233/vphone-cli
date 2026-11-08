@@ -1,0 +1,32 @@
+Dynamic
+Source: https://github.com/mhdhejazi/Dynamic/tree/772883073d044bc754d401cabb6574624eb3778f
+
+Original source attribution:
+
+Sources/Dynamic/Dynamic.swift
+//
+//  Dynamic
+//  Created by Mhd Hejazi on 4/15/20.
+//  Copyright © 2020 Samabox. All rights reserved.
+//
+
+Sources/Dynamic/Invocation.swift
+//
+//  Dynamic
+//  Created by Mhd Hejazi on 4/15/20.
+//  Copyright © 2020 Samabox. All rights reserved.
+//
+
+Sources/Dynamic/Logger.swift
+//
+//  Dynamic
+//  Created by Mhd Hejazi on 4/15/20.
+//  Copyright © 2020 Samabox. All rights reserved.
+//
+
+Sources/Dynamic/TypeMapping.swift
+//
+//  Dynamic
+//  Created by Mhd Hejazi on 4/18/20.
+//  Copyright © 2020 Samabox. All rights reserved.
+//
