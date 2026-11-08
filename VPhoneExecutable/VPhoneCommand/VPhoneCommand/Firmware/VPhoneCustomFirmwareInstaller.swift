@@ -222,13 +222,19 @@ struct VPhoneCustomFirmwareInstaller {
         if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.visionOSSkipBuddy), device.family != .vision {
             throw ValidationError("The headset onboarding preference requires a visionOS guest.")
         }
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.visionOSEnvironments), device.family != .vision {
+            throw ValidationError("The native environment feature flag requires a visionOS guest.")
+        }
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.visionOSFramePacing), device.family != .vision {
+            throw ValidationError("The V201 frame pacing correction requires a visionOS guest.")
+        }
         if !effectiveEnabled.isDisjoint(with: [FirmwareGuestSystemPatchSet.visionOSVirtualProduct, FirmwareGuestSystemPatchSet.visionOSLegacyUXM, FirmwareGuestSystemPatchSet.visionOSUXMIPC] + Array(FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches)),
            device.family != .vision {
             throw ValidationError("The virtual display product, legacy UXM and native IPC experiments require a visionOS research guest.")
         }
         let missingHMDIPC = FirmwareGuestPatchResolution.missingVisionOSDisplayIPCDependencies(enabled: effectiveEnabled)
         guard missingHMDIPC.isEmpty else {
-            throw ValidationError("The visionOS display IPC lookups require the scoped UXM IPC adapter: \(missingHMDIPC.joined(separator: ", ")).")
+            throw ValidationError("The visionOS display and environment IPC lookups require the scoped UXM IPC adapter: \(missingHMDIPC.joined(separator: ", ")).")
         }
         if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.visionOSUXMIPC),
            !effectiveEnabled.isDisjoint(with: [FirmwareGuestSystemPatchSet.visionOSLegacyUXM,
@@ -1391,6 +1397,8 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.ios18GPUTransport
                     && identifier != FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
                     && identifier != FirmwareGuestSystemPatchSet.visionOSSkipBuddy
+                    && identifier != FirmwareGuestSystemPatchSet.visionOSEnvironments
+                    && identifier != FirmwareGuestSystemPatchSet.visionOSFramePacing
                     && !FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches.contains(identifier)
             }
             guard plan.isEnabled(identifier) else {
@@ -1646,6 +1654,23 @@ struct VPhoneCustomFirmwareInstaller {
                 }
             }
         }
+        if guestDevice.family == .vision {
+            let pacing = FirmwareGuestSystemPatchSet.visionOSFramePacing
+            let path = String(FirmwareGuestSystemPatchSet.visionOSFramePacingPath.dropFirst())
+            isolate([pacing]) {
+                if on(pacing) {
+                    // This patcher re-attests its one changed code page while
+                    // preserving Apple's identifier, entitlements and profiles.
+                    try patchCopy(of: path, in: system, work: work,
+                                  verb: "patch-visionos-frame-pacing", backupSafe: backupSafe(pacing))
+                    live.insert(pacing)
+                } else if try revertCopy(of: path, in: system) {
+                    print("  [+] \(pacing): restored wakeboardd from backup")
+                } else if priorGuest.contains(pacing) {
+                    throw ValidationError("The visionOS frame pacing patch has no wakeboardd backup; cannot safely restore it.")
+                }
+            }
+        }
         let visionPolicy = FirmwareGuestSystemPatchSet.visionOSNonfatalServices
         if guestDevice.family == .vision {
             isolate([visionPolicy]) {
@@ -1707,6 +1732,41 @@ struct VPhoneCustomFirmwareInstaller {
                         fromPropertyList: domain, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
                     print("  [+] visionOS UXM feature fields \(enabled ? "set to legacy" : "restored"): \(changed.joined(separator: ", "))")
                     if enabled { live.insert(visionUXM) }
+                }
+            }
+        }
+        let visionEnvironments = FirmwareGuestSystemPatchSet.visionOSEnvironments
+        if guestDevice.family == .vision {
+            isolate([visionEnvironments]) {
+                let enabled = on(visionEnvironments)
+                let path = String(FirmwareGuestSystemPatchSet.visionOSEnvironmentsPath.dropFirst())
+                let journalPath = "usr/share/vphone/VisionOSEnvironments.plist"
+                let hasJournal = try system.exists(journalPath)
+                if !enabled && priorGuest.contains(visionEnvironments) && !hasJournal {
+                    throw ValidationError("The visionOS environment feature has no inverse journal; cannot restore its original value.")
+                }
+                if enabled || hasJournal {
+                    guard var domain = try PropertyListSerialization.propertyList(
+                        from: system.readData(path), format: nil) as? PlistDict else {
+                        throw ValidationError("Invalid visionOS environment feature domain")
+                    }
+                    var journal: PlistDict = [:]
+                    if hasJournal {
+                        guard let saved = try PropertyListSerialization.propertyList(
+                            from: system.readData(journalPath), format: nil) as? PlistDict else {
+                            throw ValidationError("Invalid visionOS environment feature journal")
+                        }
+                        journal = saved
+                    }
+                    let changed = try CustomFirmwareDaemons.visionOSEnvironmentFeatures(
+                        domain: &domain, journal: &journal, enabled: enabled)
+                    _ = try system.directory("usr/share/vphone", create: true)
+                    try system.writeFile(journalPath, contents: PropertyListSerialization.data(
+                        fromPropertyList: journal, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
+                    try system.writeFile(path, contents: PropertyListSerialization.data(
+                        fromPropertyList: domain, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
+                    print("  [+] visionOS environment feature \(enabled ? "enabled" : "restored"): \(changed.joined(separator: ", "))")
+                    if enabled { live.insert(visionEnvironments) }
                 }
             }
         }
@@ -2476,7 +2536,7 @@ struct VPhoneCustomFirmwareInstaller {
         }
 
         if isVision {
-            // Each marker owns one optional native display lookup. Removing
+            // Each marker owns one optional native UI service lookup. Removing
             // one leaves the shared adapter and every other rule untouched.
             let displayIPCRules = [
                 (id: FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPC,
@@ -2491,17 +2551,21 @@ struct VPhoneCustomFirmwareInstaller {
                 (id: FirmwareGuestSystemPatchSet.visionOSWakeboardSystemIPC,
                  marker: FirmwareGuestSystemPatchSet.visionOSWakeboardSystemIPCMarker,
                  service: "com.apple.wakeboardd.system"),
+                (id: FirmwareGuestSystemPatchSet.visionOSEnvironmentIPC,
+                 marker: FirmwareGuestSystemPatchSet.visionOSEnvironmentIPCMarker,
+                 service: "com.apple.surfboard.environmentservice"),
             ]
             for rule in displayIPCRules {
                 isolate([rule.id]) {
                     let marker = String(rule.marker.dropFirst())
                     if on(rule.id) {
                         guard visionIPCInstalled else {
-                            throw ValidationError("The visionOS display rule requires a successfully installed UXM IPC adapter.")
+                            throw ValidationError("The visionOS UI service rule requires a successfully installed UXM IPC adapter.")
                         }
                         try system.writeFile(marker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
                         live.insert(rule.id)
-                        print("  [+] \(rule.id): enabled only backboardd's lookup of \(rule.service)")
+                        let caller = rule.id == FirmwareGuestSystemPatchSet.visionOSEnvironmentIPC ? "RealityEnvironment" : "backboardd"
+                        print("  [+] \(rule.id): enabled only \(caller)'s lookup of \(rule.service)")
                     } else if try system.exists(marker) {
                         try system.removeItem(marker)
                         print("  [+] \(rule.id): removed its independent enable marker")

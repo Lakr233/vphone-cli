@@ -7021,6 +7021,21 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
   `system-launchd-exp-visionos_wakeboard_system_ipc`.
   Rules validate audit token/PID version, executable/signing identity, operation
   and filter type; other checks retain the native function's ABI and errno.
+- `system-launchd-exp-visionos_environment_ipc` adds a separate root-owned
+  `/usr/lib/vphone-visionos-environment-ipc` marker for RealityEnvironment's
+  lookup of `com.apple.surfboard.environmentservice`. The 2026-11-08 runtime
+  log records launchd error 159 and a matching kernel sandbox denial; the
+  native app then traps in `BSServiceConnection` because its endpoint is nil.
+  This rule requires the shared UXM adapter and validates the exact app path,
+  signing identity and audit token. Removing its marker leaves the other
+  rules unchanged. It does not supply environment assets or certify rendering.
+- `system-featureflags-exp-visionos_environments` enables only the native
+  `RealityEnvironment/ShowEnvironmentsOnSimulator/Enabled` flag. The inspected
+  23O247 app reports non-synthetic environments unavailable on nonphysical
+  hardware while this flag is off. Its field journal preserves the original
+  Boolean or absence and feature-entry presence; opt-out restores those fields
+  while retaining unrelated metadata. It remains independent of the IPC rule
+  and does not download or install environment assets.
 - `system-wakeboard-exp-visionos_frame_pacing` changes the V201 dequeue's
   positive-lateness conversion from ceiling to truncation so a sub-period
   return from synchronous presentation does not skip another full display
@@ -7036,7 +7051,7 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
 - `system-featureflags-exp-visionos_legacy_uxm` journals two UXM feature fields
   for a diagnostic legacy trial. Keep it off for native ClientSession users.
 
-All ten choices are off in shipped presets. UI adapters are pinned to the
+All twelve choices are off in shipped presets. UI adapters are pinned to the
 26.4/26.4 pairing; the nonfatal policy is pinned to the 26.4 userland. GPU
 LC_BUILD_VERSION retargeting and the exact-pair OOL-port-array boot argument
 reuse the existing GPU install and boot-argument patch paths. No new kernel

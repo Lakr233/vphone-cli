@@ -109,6 +109,10 @@ public enum FirmwareGuestSystemPatchSet {
     public static let visionOSNonfatalServices = "system-launchdaemons-exp-visionos_nonfatal_services"
     public static let visionOSVirtualProduct = "preboot-exp-visionos_virtual_product"
     public static let visionOSLegacyUXM = "system-featureflags-exp-visionos_legacy_uxm"
+    public static let visionOSFramePacing = "system-wakeboard-exp-visionos_frame_pacing"
+    public static let visionOSFramePacingPath = "/usr/libexec/wakeboardd"
+    public static let visionOSEnvironments = "system-featureflags-exp-visionos_environments"
+    public static let visionOSEnvironmentsPath = "/System/Library/FeatureFlags/Domain/RealityEnvironment.plist"
     public static let visionOSSkipBuddy = "system-preferences-exp-visionos_skip_buddy"
     public static let visionOSSkipBuddyMarker = "/usr/share/vphone/VisionOSSkipBuddy.plist"
     public static let visionOSUXMIPC = "system-launchd-exp-visionos_uxm_ipc"
@@ -122,9 +126,11 @@ public enum FirmwareGuestSystemPatchSet {
     public static let visionOSHMDSystemSetterIPCMarker = "/usr/lib/vphone-visionos-hmd-system-setter-ipc"
     public static let visionOSWakeboardSystemIPC = "system-launchd-exp-visionos_wakeboard_system_ipc"
     public static let visionOSWakeboardSystemIPCMarker = "/usr/lib/vphone-visionos-wakeboard-system-ipc"
+    public static let visionOSEnvironmentIPC = "system-launchd-exp-visionos_environment_ipc"
+    public static let visionOSEnvironmentIPCMarker = "/usr/lib/vphone-visionos-environment-ipc"
     public static let visionOSDisplayIPCPatches: Set<String> = [
         visionOSHMDPropertiesIPC, visionOSHMDPresentableIPC, visionOSHMDSystemSetterIPC,
-        visionOSWakeboardSystemIPC,
+        visionOSWakeboardSystemIPC, visionOSEnvironmentIPC,
     ]
 
     private static let ios27 = VPhonePatchApplicability(iOSBase: .major(27))
@@ -235,10 +241,31 @@ public enum FirmwareGuestSystemPatchSet {
                 applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 2)),
             ),
             VPhonePatchDeclaration(
+                identifier: visionOSFramePacing,
+                title: "visionOS virtual display frame pacing",
+                summary: "Corrects V201's late-vsync rounding so the native 60 Hz compositor does not skip another whole period after each synchronous present. Preserves its display clock, rendering, frame submission and native signature metadata. Experimental visionOS26.4/26.4 research only, independently reversible and off by default.",
+                target: .guestExecutable(path: visionOSFramePacingPath),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: visionOSEnvironments,
+                title: "visionOS native environments on VM",
+                summary: "Enables only RealityEnvironment's native ShowEnvironmentsOnSimulator feature flag so ordinary environment assets are not marked unavailable solely because the headset is virtual. Journals and restores the original Enabled Boolean or absence while retaining other feature fields. Does not supply assets or certify background rendering; experimental visionOS26.4 research only.",
+                target: .guestFile(path: visionOSEnvironmentsPath),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+            ),
+            VPhonePatchDeclaration(
                 identifier: visionOSSkipBuddy,
                 title: "visionOS skip headset onboarding",
                 summary: "Installs a System policy for a one-shot UID 501 helper to set only the native ForceNoBuddy debug preference on Data and skip headset onboarding UI. Does not alter activation or account data, but its early return skips the UI-need checks; it does not mark enrollment complete. Journals and restores only the original key.",
                 target: .guestFile(path: visionOSSkipBuddyMarker),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+            ),
+            VPhonePatchDeclaration(
+                identifier: visionOSEnvironmentIPC,
+                title: "visionOS environment service lookup",
+                summary: "Enables only RealityEnvironment's observed lookup of com.apple.surfboard.environmentservice in the scoped launchd adapter, avoiding its nil-endpoint startup crash. Requires the UXM IPC adapter plus its independent root-owned marker, exact native app path/signing identity and validated audit token. Retains the native service's command checks; experimental visionOS26.4 research only.",
+                target: .guestFile(path: visionOSEnvironmentIPCMarker),
                 applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
             ),
             VPhonePatchDeclaration(
