@@ -57,6 +57,7 @@ display.external.configure	VPhoneDaemon/Native/vphoned_external_display.m#vp_ext
 display.external.diagnostics	VPhoneDaemon/Native/vphoned_external_display.m#vp_external_display_diagnostics;writer:VPhoneGuestComponents/FoldDisplay/FoldDisplayExternal.m#vpInspectExternalScenePolicy
 display.external.frame	VPhoneDaemon/Daemon/GuestAPI+Device.swift#executeDevice
 display.external.status	VPhoneDaemon/Native/vphoned_external_display.m#vp_external_display_status;writer:VPhoneGuestComponents/FoldDisplay/FoldDisplayExternal.m#vpApplyExternalRequest;writer:VPhoneGuestComponents/FoldDisplay/FoldDisplayExternal.m#vpInstallExternalDisplay
+display.layout	VPhoneDaemon/Native/vphoned_display.m#vpLayoutResponse
 display.modes	VPhoneDaemon/Native/vphoned_display.m#vp_display_modes
 display.orientation	VPhoneDaemon/Daemon/GuestAPI+Device.swift#interfaceOrientation
 display.pose	VPhoneDaemon/Native/vphoned_pose.m#vp_device_pose_get
