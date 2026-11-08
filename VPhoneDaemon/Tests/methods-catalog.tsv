@@ -53,6 +53,7 @@ diagnostics.self_test	never	-	-	complete:boolean,environment:object,failed:integ
 display.auto_lock	never	-	-	auto_lock_seconds:any,lock_screen_minimum_seconds:any,never:any	read
 display.auto_lock.set	never	seconds:integer!	-	auto_lock_seconds:any,lock_screen_minimum_seconds:any,never:any,requested_auto_lock_seconds:integer	mutating
 display.brightness	never	value:number	-	auto:any,value:number	read
+display.capture_active	never	-	-	attribution_limit:string?,available:boolean,base64:string?,capture_content_verified:boolean?,color_profile_verified:boolean?,color_space:string?,format:string?,height:integer?,identity_binding:string?,orientation_mapping_verified:boolean?,pixel_format:string?,png_bitmap:string?,reason:string?,renderer:string?,renderer_status:string?,resized:boolean?,rotation_applied:integer?,row_bytes:integer?,source:object?*,source_after:object?*,state:string?,surface_bytes:integer?,width:integer?	excluded:needs a display with a verified native capture identity
 display.external.configure	never	enabled:boolean!,width:integer,height:integer	-	enabled:any?,error:any?,height:integer?,name:string?,nonce:string?,ok:boolean?,width:integer?	mutating
 display.external.diagnostics	never	-	-	available:boolean?,error:any?,externalPolicyClasses:object?,monitor:any?,owners:object?,sceneManager:any?,scenes:array?,transformer:any?,updated:any?	read
 display.external.frame	never	-	-	data:string,mime_type:string	excluded:needs an external display on the guest

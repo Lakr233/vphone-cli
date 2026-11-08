@@ -53,6 +53,7 @@ diagnostics.self_test	icli:IcliKit/SelfTests.swift#runSelfTests
 display.auto_lock	VPhoneDaemon/Daemon/GuestLockScreenIdle.swift#describe
 display.auto_lock.set	VPhoneDaemon/Daemon/GuestLockScreenIdle.swift#setAutoLockSeconds
 display.brightness	VPhoneDaemon/Daemon/GuestAPI+Device.swift#brightnessState
+display.capture_active	VPhoneDaemon/Native/vphoned_display_capture.m#vpCapturePerform
 display.external.configure	VPhoneDaemon/Native/vphoned_external_display.m#vp_external_display_configure;writer:VPhoneGuestComponents/FoldDisplay/FoldDisplayExternal.m#vpApplyExternalRequest;writer:VPhoneGuestComponents/FoldDisplay/FoldDisplayExternal.m#vpInstallExternalDisplay
 display.external.diagnostics	VPhoneDaemon/Native/vphoned_external_display.m#vp_external_display_diagnostics;writer:VPhoneGuestComponents/FoldDisplay/FoldDisplayExternal.m#vpInspectExternalScenePolicy
 display.external.frame	VPhoneDaemon/Daemon/GuestAPI+Device.swift#executeDevice
