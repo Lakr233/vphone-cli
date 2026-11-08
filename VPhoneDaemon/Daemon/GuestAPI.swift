@@ -800,13 +800,14 @@ enum GuestAPI {
             let data = try Data(contentsOf: URL(fileURLWithPath: next), options: .mappedIfSafe)
             let actual = sha256Hex(data)
             guard actual == expected else { throw GuestAPIError.invalidRequest("The update is damaged. Try again.") }
+            try GuestCacheFileProtection.setNoneAndVerify(atPath: next)
             guard chmod(next, 0o755) == 0 else {
                 throw GuestAPIError.operationFailed("Could not make update executable")
             }
             guard rename(next, cache) == 0 else { throw GuestAPIError.operationFailed("Could not install update") }
-            try Data(expected.utf8).write(
+            try GuestCacheFileProtection.writeMarker(
+                Data(expected.utf8),
                 to: URL(fileURLWithPath: "/var/root/Library/Caches/vphoned.api-v2"),
-                options: .atomic,
             )
             DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { exit(0) }
             return ["restarting": true]
