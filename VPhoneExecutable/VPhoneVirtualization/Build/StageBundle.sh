@@ -19,7 +19,10 @@ location_app="$bundle/Contents/Helpers/VPhoneLocation.app"
 # xcodebuild must resolve each project's own graph, especially the iOS daemon.
 build_project() {
     /usr/bin/env -i HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
-        PATH="/usr/bin:/bin:/usr/sbin:/sbin" /usr/bin/xcodebuild "$@"
+        PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+        ${DEVELOPER_DIR:+"DEVELOPER_DIR=$DEVELOPER_DIR"} \
+        ${SWIFTPM_MIRROR_CONFIG:+"SWIFTPM_MIRROR_CONFIG=$SWIFTPM_MIRROR_CONFIG"} \
+        /usr/bin/xcodebuild "$@"
 }
 
 build_project -project "$root/VPhoneExecutable/VPhoneCommand/VPhoneRestore/VPhoneRestore.xcodeproj" \
