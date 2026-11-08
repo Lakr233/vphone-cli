@@ -22,6 +22,8 @@ fi
 destination=${1:?usage: stage-package-notices.zsh destination resolved source-packages [resolved source-packages ...]}
 shift
 (( $# > 0 && $# % 2 == 0 )) || { print -u2 'Expected resolved/source-packages pairs'; exit 1; }
+[[ ${destination:A} != / ]] || { print -u2 'The notice destination cannot be the filesystem root'; exit 1; }
+/bin/rm -rf "$destination"
 /bin/mkdir -p "$destination"
 manifest="$destination/manifest.tsv"
 : > "$manifest"
