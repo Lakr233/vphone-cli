@@ -197,8 +197,22 @@ fi
 
 # Native KDK extraction ports MIT-licensed reference algorithms.
 /bin/mkdir -p "$resources/Licenses"
+/bin/cp "$root/LICENSE" "$resources/Licenses/vphone-cli.txt"
 /bin/cp "$root/VPhoneExecutable/VPhoneCommand/FirmwarePatcher/KernelCache/KDK/LICENSE" \
     "$resources/Licenses/native-kdk-MIT.txt"
+"$root/scripts/stage-package-notices.zsh" "$resources/Licenses/packages" \
+    "$root/VPhoneExecutable/VPhoneVirtualization/VPhoneVirtualization.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved" "${BUILD_DIR:h:h}/SourcePackages" \
+    "$root/VPhoneExecutable/VPhoneCommand/VPhoneCommand.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved" "$root/.build/XcodeCommand/SourcePackages" \
+    "$root/VPhoneDaemon/VPhoneDaemon.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved" "$root/.build/XcodeDaemon/SourcePackages" \
+    "$root/VPhoneExecutable/VPhoneCommand/VPhoneRestore/VPhoneRestore.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved" "$root/.build/XcodeRestore/SourcePackages"
+for component in MobileRecoveryCore MobileRestoreCore; do
+    /bin/mkdir -p "$resources/Licenses/vendor/$component"
+    /bin/cp "$root/VPhoneExecutable/VPhoneCommand/VPhoneRestore/$component/COPYING" \
+        "$resources/Licenses/vendor/$component/COPYING"
+done
+/bin/mkdir -p "$resources/Licenses/vendor/VPhoneEscalator"
+/bin/cp "$root/VPhoneExecutable/VPhoneEscalator/VPhoneEscalator/LICENSE" \
+    "$resources/Licenses/vendor/VPhoneEscalator/LICENSE"
 
 "${0:a:h}/SyncStrings.sh"
 /usr/bin/xcrun xcstringstool compile \

@@ -25,6 +25,9 @@ jobs:
           xcodebuild -version
           xcbeautify --version
 
+      - name: Package notice regressions
+        run: zsh scripts/tests/stage-package-notices-tests.zsh
+
       - name: Build VPhone.bundle
         env:
           SWIFT_JOBS: "4"
