@@ -21,8 +21,9 @@ build_project() {
     /usr/bin/env -i HOME="$HOME" TMPDIR="${TMPDIR:-/tmp}" \
         PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
         ${DEVELOPER_DIR:+"DEVELOPER_DIR=$DEVELOPER_DIR"} \
+        ${SWIFTPM_NETRC_DATA:+"SWIFTPM_NETRC_DATA=$SWIFTPM_NETRC_DATA"} \
         ${SWIFTPM_MIRROR_CONFIG:+"SWIFTPM_MIRROR_CONFIG=$SWIFTPM_MIRROR_CONFIG"} \
-        /usr/bin/xcodebuild "$@"
+        /usr/bin/xcodebuild -hideShellScriptEnvironment "$@"
 }
 
 build_project -project "$root/VPhoneExecutable/VPhoneCommand/VPhoneRestore/VPhoneRestore.xcodeproj" \
