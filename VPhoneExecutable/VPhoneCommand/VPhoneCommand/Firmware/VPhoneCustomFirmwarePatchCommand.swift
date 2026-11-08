@@ -584,6 +584,26 @@ struct VPhoneCustomFirmwarePatchHomePodAudioProductCommand: ParsableCommand {
     }
 }
 
+// MARK: - patch-dt-driverkit
+
+struct VPhoneCustomFirmwarePatchDriverKitCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-dt-driverkit",
+        abstract: "Enable DriverKit for a virtual iPhone or iPad USB touchscreen",
+        discussion: "Changes only /product/supports-driverkit to UInt32 1. Requires a virtual iPhone or iPad tree and preserves the IMG4 manifest, restore info and compression.",
+    )
+
+    @Argument(help: "Path to devicetree.img4 or devicetree.im4p", transform: URL.init(fileURLWithPath:))
+    var deviceTree: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Report what would change and exit")
+    var dryRun = false
+
+    func run() throws {
+        try CustomFirmwarePostRestoreDeviceTree.enableVirtualUSBDriverKit(at: deviceTree, dryRun: dryRun)
+    }
+}
+
 // MARK: - patch-dt-iphone-product
 
 struct VPhoneCustomFirmwarePatchIPhoneProductCommand: ParsableCommand {

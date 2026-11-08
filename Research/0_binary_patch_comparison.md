@@ -1,5 +1,24 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **Virtual USB DriverKit capability (2026-11-08).**
+> `devicetree-cfw-virtual_usb_driverkit` writes `/product/supports-driverkit`
+> as little-endian UInt32 1 with flags 0 after board presentation, for iPhone
+> and iPad runtime trees, including Duo and the legacy shared iPhone tree.
+> Restore trees and the existing watch/HomeView patch policies are unchanged.
+> The corresponding `preboot-cfw-devicetree_virtual_usb_driverkit` repair uses
+> the existing staged backup and receipt flow. `cfw patch-dt-driverkit`
+> performs only this property repair on an unencrypted virtual iPhone/iPad
+> DeviceTree asset, preserving IMG4 personalization and compression.
+>
+> The motivation is a runtime tree with no `supports-driverkit` capability,
+> no enumerated virtual USB touchscreen and `AppleUserHIDDrivers` launch
+> failures. Correctly normalized input reached the host dispatch path but
+> not backboardd's digitizer handlers. The missing capability is a
+> prerequisite under investigation; guest validation must establish whether
+> enabling it restores the driver and input. Serialized-tree regressions
+> cover runtime role and family selection, gate-off byte preservation,
+> canonicalization, idempotence and personalized IMG4 preservation.
+
 > **Application exception actions and X1 lowering (2026-11-06).** SystemHook
 > preserves the inherited X1 `EXC_BAD_INSTRUCTION` action when an application
 > installs its own task exception ports. Other exception bits, non-X1 and

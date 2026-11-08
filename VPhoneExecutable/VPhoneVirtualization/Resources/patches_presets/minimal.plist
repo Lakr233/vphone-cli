@@ -56,6 +56,7 @@
 			<string>devicetree-cfw-product_audio_microphone_array</string>
 			<string>devicetree-cfw-product_haptics_node</string>
 			<string>devicetree-cfw-serial_number</string>
+			<string>devicetree-cfw-virtual_usb_driverkit</string>
 			<string>devicetree-cfw-watch_companion</string>
 			<string>filesystem-boot-cryptex_merge</string>
 			<string>filesystem-boot-gpu_driver</string>

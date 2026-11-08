@@ -310,6 +310,62 @@ struct DeviceTreeGuestDeviceTests {
 
     // MARK: - Tests
 
+    @Test func `phone and pad runtime trees enable the virtual USB HID driver`() throws {
+        for device in [VPhoneGuestDevice.iPhone17_3, .iPhone19_4, .iPad16_1, .iPhone11_6] {
+            let role: DeviceTreePatcher.TreeRole = device == .iPhone11_6 ? .shared : .installed
+            let patcher = DeviceTreePatcher(data: Self.tree.serialized(), verbose: false,
+                                           device: device, role: role, sourceTree: Self.board().serialized())
+            patcher.gate = VPhonePatchGate(declared: Set(FirmwareDeviceTreePatchSet.manifest.patches.map(\.identifier)),
+                                          enabled: [DeviceTreePatcher.virtualUSBDriverKitPatch])
+            let records = try patcher.findAll()
+            let property = try #require(Self.read(patcher.patchedData)["device-tree/product"]?["supports-driverkit"])
+            #expect(property.0 == 0)
+            #expect(property.1 == Data([1, 0, 0, 0]))
+            #expect(records.contains { $0.patchID == DeviceTreePatcher.virtualUSBDriverKitPatch })
+        }
+    }
+
+    @Test func `DriverKit selection leaves restore and unrelated runtime trees unchanged`() throws {
+        for (device, role) in [(VPhoneGuestDevice.iPhone17_3, DeviceTreePatcher.TreeRole.restore),
+                               (.iPad16_1, .restore), (.appleTV5_3, .installed), (.watch7_18, .installed),
+                               (.homeAccessory17_1, .installed)] {
+            let input = Self.tree.serialized()
+            let patcher = DeviceTreePatcher(data: input, verbose: false, device: device, role: role,
+                                           sourceTree: Self.board().serialized())
+            patcher.gate = VPhonePatchGate(declared: Set(FirmwareDeviceTreePatchSet.manifest.patches.map(\.identifier)),
+                                          enabled: [DeviceTreePatcher.virtualUSBDriverKitPatch])
+            #expect(try patcher.findAll().isEmpty)
+            #expect(patcher.patchedData == input)
+        }
+        let input = Self.tree.serialized()
+        let blocked = DeviceTreePatcher(data: input, verbose: false, device: .iPad16_1, role: .installed,
+                                       sourceTree: Self.board().serialized())
+        blocked.gate = VPhonePatchGate(declared: Set(FirmwareDeviceTreePatchSet.manifest.patches.map(\.identifier)), enabled: [])
+        #expect(try blocked.findAll().isEmpty)
+        #expect(blocked.patchedData == input)
+    }
+
+    @Test func `standalone DriverKit repair is canonical and idempotent`() throws {
+        let input = Self.tree.serialized()
+        let (output, changes, delta) = try CustomFirmwarePostRestoreDeviceTree.withVirtualUSBDriverKit(input)
+        #expect(delta == 40)
+        #expect(output.count == input.count + delta)
+        #expect(changes.map(\.property) == ["product/supports-driverkit"])
+        let property = try #require(Self.read(output)["device-tree/product"]?["supports-driverkit"])
+        #expect(property.0 == 0)
+        #expect(property.1 == Data([1, 0, 0, 0]))
+        let (again, repeated, repeatedDelta) = try CustomFirmwarePostRestoreDeviceTree.withVirtualUSBDriverKit(output)
+        #expect(again == output)
+        #expect(repeated.isEmpty)
+        #expect(repeatedDelta == 0)
+
+        let physical = Node(properties: Self.tree.properties.filter { $0.name != "compatible" }
+            + [.string("compatible", "AppleARM")], children: Self.tree.children)
+        #expect(throws: PatcherError.self) {
+            try CustomFirmwarePostRestoreDeviceTree.withVirtualUSBDriverKit(physical.serialized())
+        }
+    }
+
     @Test(arguments: ["HomeAccessory17,1", "HomeAccessory17,2"])
     func `HomeView copies the home idiom and enables the virtual USB touch driver`(model: String) throws {
         let board = Self.board(model: model, unique: model.hasSuffix("1") ? "J490AP" : "J491AP", subtype: 1088,

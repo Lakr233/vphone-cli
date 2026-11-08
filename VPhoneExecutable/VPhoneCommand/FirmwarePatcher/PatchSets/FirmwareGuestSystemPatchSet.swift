@@ -1141,6 +1141,12 @@ public enum FirmwareGuestSystemPatchSet {
                 target: .prebootDeviceTree,
             ),
             VPhonePatchDeclaration(
+                identifier: prebootVirtualUSBDriverKit,
+                title: "Virtual USB HID DriverKit",
+                summary: "Enables DriverKit in an existing virtual iPhone or iPad's Preboot tree for its USB touchscreen. Changes only supports-driverkit and keeps the personalized IMG4 container. The shared pre-repair backup allows the change to be reverted with the selection.",
+                target: .prebootDeviceTree,
+            ),
+            VPhonePatchDeclaration(
                 identifier: prebootFoldableVMSubtype,
                 title: "Foldable VM sub-type",
                 summary: """
@@ -1279,6 +1285,7 @@ public enum FirmwareGuestSystemPatchSet {
     /// The iPhone product description in the restored Preboot device tree,
     /// taken from the iPhone's own tree: see `DeviceTreePatcher.presentPhoneProduct`.
     public static let prebootIPhoneProduct = "preboot-cfw-devicetree_iphone_product"
+    public static let prebootVirtualUSBDriverKit = "preboot-cfw-devicetree_virtual_usb_driverkit"
 
     /// Apple's VM sub-type for a foldable board in the restored Preboot
     /// device tree.
@@ -1302,6 +1309,7 @@ public enum FirmwareGuestSystemPatchSet {
     /// patch existed already has. Either one puts the change in the guest, so
     /// the drift report counts the pair as one.
     public static let prebootRepairs: [String: String] = [
+        "devicetree-cfw-virtual_usb_driverkit": prebootVirtualUSBDriverKit,
         "devicetree-cfw-ipad_audio": prebootBoardAudio,
         "devicetree-cfw-product_haptics_node": prebootHaptics,
         "devicetree-cfw-product_audio_microphone_array": prebootMicrophoneArray,

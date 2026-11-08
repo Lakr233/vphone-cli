@@ -4008,6 +4008,9 @@ struct VPhoneCustomFirmwareInstaller {
         if guestDevice.family == .vision {
             repairGroup.append((FirmwareGuestSystemPatchSet.visionOSVirtualProduct, "patch-dt-visionos-virtual-product", []))
         }
+        if [.iPhone, .iPad].contains(guestDevice.family) {
+            repairGroup.append((FirmwareGuestSystemPatchSet.prebootVirtualUSBDriverKit, "patch-dt-driverkit", []))
+        }
         repairGroup.append((FirmwareGuestSystemPatchSet.prebootHaptics, "patch-dt-haptics", []))
         repairGroup.append((FirmwareGuestSystemPatchSet.ios16EphemeralStorage, "patch-dt-ios16-ephemeral", []))
         repairGroup.append((FirmwareGuestSystemPatchSet.prebootMicrophoneArray, "patch-dt-microphone-array", []))
