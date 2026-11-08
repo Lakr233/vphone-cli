@@ -108,13 +108,16 @@ int main(void) {
         require(dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 20 * NSEC_PER_SEC)) == 0,
                 "caller response must be bounded while its private dependency stalls");
         require([first[@"state"] isEqual:@"timed_out"], "stalled capture must time out");
-        dispatch_sync(requests, ^{
+        dispatch_async(requests, ^{
             require([vp_display_capture_active()[@"state"] isEqual:@"busy"],
                     "timed-out capture must retain admission while its dependency runs");
+            dispatch_semaphore_signal(done);
         });
+        require(dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)) == 0,
+                "busy admission must answer without another private call");
         atomic_store(&blockLayout, false);
         dispatch_semaphore_signal(layoutRelease);
-        dispatch_sync(requests, ^{
+        dispatch_async(requests, ^{
             dispatch_time_t deadline = dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC);
             while (true) {
                 NSDictionary *report = vp_display_capture_active();
@@ -125,7 +128,10 @@ int main(void) {
                 require(dispatch_time(DISPATCH_TIME_NOW, 0) < deadline, "capture admission did not recover");
                 usleep(1000);
             }
+            dispatch_semaphore_signal(done);
         });
+        require(dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC)) == 0,
+                "recovered capture must answer from a background caller");
         puts("display capture: identity binding, allocation bounds and retained admission passed");
     }
     return EXIT_SUCCESS;
