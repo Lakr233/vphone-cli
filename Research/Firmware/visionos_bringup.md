@@ -5,6 +5,12 @@ with the cloudOS/PCC 26.4 research kernel and boot chain. The guest retains
 Apple's visionOS userland, SurfBoard, backboardd, wakeboardd, UXM and Polaris.
 The 1280 × 720 VM canvas is provisional; physical stereo output is unverified.
 
+Native environment backgrounds and virtual immersion controls are covered by
+the [environment follow-up](visionos_environments.md), including the independent
+lookup/feature-flag selections and real White Sands rendering evidence.
+Native V201 pacing and the observed Chinese language-switch recovery are covered
+by the [frame-pacing follow-up](visionos_frame_pacing.md).
+
 [Demonstration](https://x.com/onyxaxisowo/status/2118615639074263175)
 
 ![Native Home](Assets/visionos-26.4-home.png)

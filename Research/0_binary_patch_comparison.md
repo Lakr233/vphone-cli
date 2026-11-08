@@ -7045,6 +7045,14 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
   hash while preserving signature identity, entitlements and profile blobs.
   Opt-out restores the pristine executable backup. See
   [V201 pacing](Firmware/visionos_frame_pacing.md) for evidence and limits.
+- The visionOS agent's native immersion getter/setter and the host's
+  `Device > Environment Immersion` actions replace the missing physical Crown
+  operation. Only `vphoned-visionos` receives the native immersion-client
+  entitlement; other agent variants and host programs retain theirs. The
+  setter uses the original type-0 SurfBoard service and independently reads
+  its level back. White Sands rendered through the normal native composite
+  in the existing VM. See [the environment follow-up](Firmware/visionos_environments.md)
+  for ABI, request validation, reversal and runtime limits.
 - `system-preferences-exp-visionos_skip_buddy` supplies a System policy and a
   one-shot UID 501 helper. It durably journals only mobile's original native
   ForceNoBuddy Boolean/absence before applying it; opt-out restores that key.
