@@ -260,6 +260,10 @@ NSDictionary<NSString *, id> * _Nonnull vp_display_modes(void);
 /// already running; its monitor remains owned until main-thread cleanup.
 /// No foreground app, scene or atomic epoch is inferred.
 NSDictionary<NSString *, id> * _Nonnull vp_display_layout(void);
+/// Raw pixels for a uniquely bound active display, without resizing or rotation.
+/// The response deadline does not release admission while a private call runs.
+/// Matching metadata is not an atomic epoch or proof of content/color fidelity.
+NSDictionary<NSString *, id> * _Nonnull vp_display_capture_active(void);
 NSDictionary<NSString *, id> * _Nonnull vp_external_display_status(void);
 NSDictionary<NSString *, id> * _Nonnull vp_external_display_diagnostics(void);
 NSDictionary<NSString *, id> * _Nonnull vp_external_display_configure(BOOL enabled, NSInteger width, NSInteger height);

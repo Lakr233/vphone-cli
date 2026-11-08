@@ -419,6 +419,7 @@ enum GuestAPI {
                 "device_info",
                 "display",
                 "display_layout",
+                "display_capture_active",
                 "display_orientation",
                 "display_auto_lock",
                 "device_pose",
