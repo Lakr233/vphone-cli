@@ -70,6 +70,7 @@ enum DeviceMethod: String, GuestMethod {
     case deviceInputDevices = "device.input_devices"
     case deviceDisplays = "device.displays"
     case displayModes = "display.modes"
+    case displayLayout = "display.layout"
     case displayExternalStatus = "display.external.status"
     case displayExternalDiagnostics = "display.external.diagnostics"
     case displayExternalConfigure = "display.external.configure"
@@ -149,6 +150,14 @@ enum DeviceMethod: String, GuestMethod {
                                                       .optional("services", .array)])
         case .deviceDisplays: MethodSpec(result: [.required("displays", .any)])
         case .displayModes: MethodSpec(result: [.required("available", .boolean), .optional("displays", .array), .optional("reason", .any)])
+        case .displayLayout: MethodSpec(result: [.required("available", .boolean),
+                                                .required("geometry_available", .boolean),
+                                                .required("reason", .string),
+                                                .required("monitors", .array).open(),
+                                                .required("cadisplays", .array).open(),
+                                                .required("thread", .object).open(),
+                                                .required("observation", .object).open(),
+                                                .required("capability_failures", .object).open()])
         case .displayExternalStatus: MethodSpec(result: [.required("enabled", .any),
                                                          .optional("error", .any),
                                                          .optional("height", .integer),
@@ -335,6 +344,8 @@ extension GuestAPI {
             return ["displays": vp_display_probe()]
         case .displayModes:
             return vp_display_modes()
+        case .displayLayout:
+            return vp_display_layout()
         case .displayExternalStatus:
             return vp_external_display_status()
         case .displayExternalDiagnostics:

@@ -75,6 +75,8 @@
 	<true/>
 	<key>com.apple.frontboard.shutdown</key>
 	<true/>
+	<key>com.apple.frontboardservices.display-layout-monitor</key>
+	<true/>
 	<key>com.apple.gasgauge.user-access-device</key>
 	<true/>
 	<key>com.apple.private.IOSurface.protected-access</key>
