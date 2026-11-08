@@ -188,10 +188,10 @@ struct GuestDeviceTests {
     }
 
     @Test
-    func `an iPhone17,3 guest writes no product, so older bundles read it unchanged`() {
+    func `an iPhone17,3 guest records its screen without writing the product`() {
         let manifest = VPhoneVirtualMachineManifest.newVM().updating(guestDevice: .iPhone17_3)
         #expect(manifest.guestProductType == nil)
-        #expect(manifest.screenConfig == .default)
+        #expect(manifest.screenConfig == .init(width: 1179, height: 2556, pixelsPerInch: 460, scale: 3.0))
     }
 
     @Test
