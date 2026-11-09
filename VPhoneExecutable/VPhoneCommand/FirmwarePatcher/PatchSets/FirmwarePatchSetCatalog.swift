@@ -274,6 +274,7 @@ public enum FirmwarePatchSetCatalog {
         "preboot-cfw-devicetree_foldable_product_id",
         "preboot-cfw-devicetree_foldable_displays",
         "preboot-cfw-devicetree_microphone_array",
+        FirmwareGuestSystemPatchSet.prebootVirtualUSBDriverKit,
         RestoreRamDiskSealPatcher.patchIdentifier,
         "system-apps-cfw-attitude",
         FirmwareGuestSystemPatchSet.signInSheets,

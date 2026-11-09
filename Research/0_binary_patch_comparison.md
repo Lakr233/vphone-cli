@@ -10,6 +10,14 @@
 > performs only this property repair on an unencrypted virtual iPhone/iPad
 > DeviceTree asset, preserving IMG4 personalization and compression.
 >
+> The Apple TV, Apple TV 4K, HomePod mini and HomeView presets block the
+> Preboot repair (it is in `tvOSBlockedPatches`), and the visionOS preset
+> blocks both identifiers. The repair only ever runs on iPhone and iPad
+> guests, but `cfw install` refuses a TV-family guest whose plan enables any
+> guest patch its gate does not admit: with the repair on, every Apple TV
+> 4K creation stopped after the restore (2.16.0 candidate on macOS 27.2,
+> 2026-11-09). `TV family presets pass their installation gates` pins it.
+>
 > The motivation is a runtime tree with no `supports-driverkit` capability,
 > no enumerated virtual USB touchscreen and `AppleUserHIDDrivers` launch
 > failures. Correctly normalized input reached the host dispatch path but

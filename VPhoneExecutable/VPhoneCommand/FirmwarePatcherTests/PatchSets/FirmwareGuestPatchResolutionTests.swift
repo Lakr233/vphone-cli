@@ -240,6 +240,29 @@ struct FirmwareGuestPatchResolutionTests {
         }
     }
 
+    /// `cfw install` refuses a TV-family guest whose plan enables a guest patch
+    /// its gate does not admit, after the restore has already run. Every shipped
+    /// TV-family preset must pass its own gate on every userland it is offered.
+    @Test func `TV family presets pass their installation gates`() throws {
+        let gates: [(VPhonePatchPreset, (Set<String>) -> [String])] = [
+            (FirmwarePatchSetCatalog.tvOSPreset, { FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: $0) }),
+            (FirmwarePatchSetCatalog.tvOS4KPreset, { FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: $0, arm64eUserland: true) }),
+            (FirmwarePatchSetCatalog.homeViewPreset, { FirmwareGuestPatchResolution.unvalidatedHomeViewGuestPatches(enabled: $0) }),
+            (FirmwarePatchSetCatalog.homePodMiniPreset, { FirmwareGuestPatchResolution.unvalidatedHomePodGuestPatches(enabled: $0) }),
+        ]
+        for (preset, unvalidated) in gates {
+            for version in ["26.5", "26.6", "27.0", "27.2"] {
+                let plan = try VPhonePatchPlan.resolve(
+                    preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                    iOSBase: VPhoneVersion(version), cloudOS: VPhoneVersion("26.4"),
+                )
+                #expect(unvalidated(plan.enabled).isEmpty, "\(preset.identifier) on \(version)")
+            }
+        }
+        #expect(FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: [FirmwareGuestSystemPatchSet.prebootVirtualUSBDriverKit], arm64eUserland: true)
+            == [FirmwareGuestSystemPatchSet.prebootVirtualUSBDriverKit])
+    }
+
     @Test func `legacy TV setup is not selected by any preset`() throws {
         let identifier = FirmwareGuestSystemPatchSet.tvLegacySetup
         for preset in FirmwarePatchSetCatalog.builtInPresets {

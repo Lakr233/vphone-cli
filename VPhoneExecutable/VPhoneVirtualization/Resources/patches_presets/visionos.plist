@@ -91,6 +91,7 @@
 			<string>devicetree-cfw-product_iopm_node</string>
 			<string>devicetree-cfw-product_rear_cam_offset</string>
 			<string>devicetree-cfw-tv_app_architecture</string>
+			<string>devicetree-cfw-virtual_usb_driverkit</string>
 			<string>devicetree-cfw-watch_companion</string>
 			<string>devicetree-cfw-watch_driverkit</string>
 			<string>devicetree-cfw-watch_presentation</string>
@@ -137,6 +138,7 @@
 			<string>preboot-cfw-devicetree_haptics</string>
 			<string>preboot-cfw-devicetree_iphone_product</string>
 			<string>preboot-cfw-devicetree_microphone_array</string>
+			<string>preboot-cfw-devicetree_virtual_usb_driverkit</string>
 			<string>preboot-exp-devicetree_identity</string>
 			<string>preboot-exp-ios16_ephemeral_storage</string>
 			<string>preboot-exp-visionos_virtual_product</string>
