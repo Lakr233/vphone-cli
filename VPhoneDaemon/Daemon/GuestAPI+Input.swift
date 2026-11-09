@@ -148,49 +148,41 @@ extension GuestAPI {
         case .inputPaste:
             return try pasteText(string(params, "text"))
         case .inputTap:
-            return try tap(x: requiredNumber(params, "x"), y: requiredNumber(params, "y"))
+            let x = try requiredNumber(params, "x"), y = try requiredNumber(params, "y")
+            return try withActivePointGeometry { try tap(x: x, y: y) }
         case .inputDoubleTap:
-            return try doubleTap(
-                x: requiredNumber(params, "x"),
-                y: requiredNumber(params, "y"),
-                interval: number(params, "interval", default: 0.1),
-            )
+            let x = try requiredNumber(params, "x"), y = try requiredNumber(params, "y")
+            let interval = number(params, "interval", default: 0.1)
+            return try withActivePointGeometry { try doubleTap(x: x, y: y, interval: interval) }
         case .inputLongPress:
-            return try longPress(
-                x: requiredNumber(params, "x"),
-                y: requiredNumber(params, "y"),
-                seconds: number(params, "seconds", default: 1),
-            )
+            let x = try requiredNumber(params, "x"), y = try requiredNumber(params, "y")
+            let seconds = number(params, "seconds", default: 1)
+            return try withActivePointGeometry { try longPress(x: x, y: y, seconds: seconds) }
         case .inputSwipe:
-            return try swipe(
-                x1: requiredNumber(params, "x1"),
-                y1: requiredNumber(params, "y1"),
-                x2: requiredNumber(params, "x2"),
-                y2: requiredNumber(params, "y2"),
-                seconds: number(params, "seconds", default: 0.3),
-                steps: (params["steps"] as? NSNumber)?.intValue ?? 20,
-            )
+            let x1 = try requiredNumber(params, "x1"), y1 = try requiredNumber(params, "y1")
+            let x2 = try requiredNumber(params, "x2"), y2 = try requiredNumber(params, "y2")
+            let seconds = number(params, "seconds", default: 0.3)
+            let steps = (params["steps"] as? NSNumber)?.intValue ?? 20
+            return try withActivePointGeometry { try swipe(x1: x1, y1: y1, x2: x2, y2: y2, seconds: seconds, steps: steps) }
         case .inputDrag:
             guard let rows = params["points"] as? [[NSNumber]], rows.count >= 2,
                   rows.allSatisfy({ $0.count == 2 })
             else {
                 throw GuestAPIError.invalidRequest("points must be at least two [x, y] pairs")
             }
-            return try drag(
-                points: rows.map { ($0[0].doubleValue, $0[1].doubleValue) },
-                seconds: number(params, "seconds", default: 0.5),
-                hold: number(params, "hold", default: 0.5),
-                steps: (params["steps"] as? NSNumber)?.intValue ?? 20,
-            )
+            let points = rows.map { ($0[0].doubleValue, $0[1].doubleValue) }
+            let seconds = number(params, "seconds", default: 0.5), hold = number(params, "hold", default: 0.5)
+            let steps = (params["steps"] as? NSNumber)?.intValue ?? 20
+            return try withActivePointGeometry { try drag(points: points, seconds: seconds, hold: hold, steps: steps) }
         case .inputTouchSequence:
             guard let events = params["events"] as? [[String: Any]] else {
                 throw GuestAPIError.invalidRequest("events must be an array of {phase, x, y, delay_ms}")
             }
             let json = try String(decoding: JSONSerialization.data(withJSONObject: events), as: UTF8.self)
-            return try touchSequence(
-                TouchEvent.list(fromJSON: json),
-                normalized: bool(params, "normalized", default: true),
-            )
+            let parsed = try TouchEvent.list(fromJSON: json)
+            let normalized = bool(params, "normalized", default: true)
+            if normalized { return try touchSequence(parsed, normalized: true) }
+            return try withActivePointGeometry { try touchSequence(parsed, normalized: false) }
         }
     }
 

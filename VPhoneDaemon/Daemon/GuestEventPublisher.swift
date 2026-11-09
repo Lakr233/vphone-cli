@@ -47,7 +47,7 @@ final class GuestEventPublisher: @unchecked Sendable {
             return
         }
         let state: [String: Any] = [
-            "screen": screenInfo(),
+            "screen": GuestAPI.activeScreenState(),
             "frontmost_app": frontmostApp(),
             "low_power_mode": (try? lowPowerMode()) ?? [:],
         ]

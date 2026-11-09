@@ -107,9 +107,21 @@ Since icli 0.8.4 a native-resolution screenshot taken while SpringBoard is
 not running (the boot logo, the respring spinner) is captured through the
 render server at its real size; UIKit's capture came out magnified by the
 screen scale.
+Point input (`input.tap`, `input.double_tap`, `input.long_press`, `input.swipe`,
+`input.drag`, and unnormalized `input.touch` or `input.touch_sequence`) uses one
+validated, oriented default-main FrontBoard geometry snapshot. `device.screen`
+reports the same point-space contract. Unknown orientation, invalid reference
+bounds or ambiguous display identity is refused. Nested screen state in
+`device.info` and `device.state` instead reports `available: false` without
+geometry; independent lock metadata remains available when it can be read.
+Normalized touch, edge/multitouch and pointer input retain their existing spaces.
+AX handlers are unchanged; this point-input adapter does not verify their
+foreground-scene ownership or coordinate space.
+tvOS retains its existing behavior and refuses point input.
+
 Screenshot sizing: `screen.screenshot {max_dimension?, quality?, region?}` lets a
 caller ask for a smaller image. `region` (`{x, y, width, height}`, points, the
-space `input.*` takes) crops first; `max_dimension` (integer, 1 or more) scales
+capture's point space) crops first; `max_dimension` (integer, 1 or more) scales
 the longer side down to it, never up; `quality` (0.1 to 1.0) is the JPEG quality,
 0.8 when another param re-encodes. Any one of the three re-encodes in the
 daemon, so only the final image crosses vsock; with none, the capture is sent
@@ -122,6 +134,9 @@ non-numeric field, width or height of 0 or less, negative x or y, outside the
 screen, under one pixel), `quality` or `max_dimension` fails with
 `invalid_operation` naming the param, the value and the valid range; nothing
 is clamped.
+Capture, OCR and screen descriptions remain outside the point-input geometry
+scope. Their coordinates are not implicitly interchangeable with active input
+points, and this adapter does not select or verify a capture display.
 `apps.install` accepts IPA and TIPA archives. IcliKit 0.6.8 validates and
 extracts the archive, then calls vphone's signer on the temporary app bundle
 before IcliKit copies it into a container, registers it, and owns rollback.

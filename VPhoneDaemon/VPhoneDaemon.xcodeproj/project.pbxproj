@@ -363,10 +363,10 @@
 /* Begin XCRemoteSwiftPackageReference section */
 		C10000000000000000000071 /* XCRemoteSwiftPackageReference "icli" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/owngoal-dev/icli.git";
+			repositoryURL = "https://github.com/bvolpato/icli.git";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.10.0;
+				kind = revision;
+				revision = 5dd8ea2bcf592d53ffdcf4af42d46c31901a21b2;
 			};
 		};
 		C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
