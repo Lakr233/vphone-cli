@@ -52,6 +52,9 @@ boot (2.16.0 candidate, macOS 27.2 host, 2026-11-09). With it on, the same guest
 booted with no panic and vphoned answered `methods.list`, `apps.list`,
 `setup.status` and `process.spawn`; `device.info`, `device.screen` and
 `screen.screenshot` did not answer within 60 s with every UI adapter off.
+`vm create` builds a visionOS guest without a template, as Launchpad already
+did: a template's setup boot waits for data migration, which the headless guest
+never finishes ("first-boot work did not settle within 600 s").
 Every visionOS UI adapter remains an independent, off-by-default selection.
 
 Both PCC Metal driver executables are re-signed after retargeting their
