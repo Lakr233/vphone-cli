@@ -45,6 +45,13 @@ The shared cache resides directly under `/System/Library/Caches/com.apple.dyld`.
 The `visionos` preset supplies a headless baseline: donor board identity, PCC
 boot/kernel patches, GPU bundle, launchd cache support and an iPad-compatible
 agent for application management. It excludes iPhone UI, camera, routing and shared-cache injections.
+It also turns on `system-launchdaemons-exp-visionos_nonfatal_services`: polarisd
+exits at once on a VM ("Failed to register expert session"), and with its
+panic-on-crash policy intact every freshly created guest panicked at its first
+boot (2.16.0 candidate, macOS 27.2 host, 2026-11-09). With it on, the same guest
+booted with no panic and vphoned answered `methods.list`, `apps.list`,
+`setup.status` and `process.spawn`; `device.info`, `device.screen` and
+`screen.screenshot` did not answer within 60 s with every UI adapter off.
 Every visionOS UI adapter remains an independent, off-by-default selection.
 
 Both PCC Metal driver executables are re-signed after retargeting their
@@ -57,7 +64,7 @@ native OOL-port-array default. Existing iOS 16–18 Skywalk arguments are retain
 | Identifier | Change |
 | --- | --- |
 | `preboot-exp-visionos_virtual_product` | Replace only the known virtual iPhone token with native V201, selecting wakeboardd's IOMobileFramebuffer path. Retain RealityDevice14,1 board identity. |
-| `system-launchdaemons-exp-visionos_nonfatal_services` | Journal and remove panic-on-crash fields from four headset jobs, retaining their native services. |
+| `system-launchdaemons-exp-visionos_nonfatal_services` | Journal and remove panic-on-crash fields from four headset jobs, retaining their native services. On in the `visionos` preset (see above). |
 | `system-launchd-exp-visionos_uxm_ipc` | Install the scoped UXM/Polaris launchd adapter. |
 | `system-launchd-exp-visionos_hmd_properties_ipc` | Permit only backboardd's lookup of `com.apple.wakeboard.hmdproperties`. |
 | `system-launchd-exp-visionos_hmd_presentable_ipc` | Permit only backboardd's lookup of `com.apple.wakeboard.hmdpresentable.owner`. |

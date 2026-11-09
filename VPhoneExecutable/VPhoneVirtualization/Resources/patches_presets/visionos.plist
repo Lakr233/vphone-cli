@@ -187,7 +187,6 @@
 			<string>system-featureflags-exp-visionos_environments</string>
 			<string>system-wakeboard-exp-visionos_frame_pacing</string>
 			<string>system-launchdaemons-boot-environment</string>
-			<string>system-launchdaemons-exp-visionos_nonfatal_services</string>
 			<string>system-locationd-cfw-disable_auto_cohort</string>
 			<string>system-mobileactivationd-boot-should_hactivate</string>
 			<string>system-mobileactivationd-exp-tv_activation</string>
