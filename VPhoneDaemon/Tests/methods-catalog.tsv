@@ -149,7 +149,7 @@ power.low_power_mode	never	enabled:boolean	-	changed:boolean?,enabled:boolean,me
 process.spawn	never	executable:string!,arguments:array,timeout_seconds:number	-	arguments:array,executable:any,exit_code:any,pid:integer,signal:any,stderr:string,stdout:string,timed_out:boolean	mutating
 processes.kill	always	pid:integer!,signal:string	-	pid:integer,signal:string	mutating
 processes.list	never	filter:string	-	count:integer,processes:array	read
-screen.screenshot	never	-	-	bytes:integer,coordinate_scale:number,data:string?,height:any,mime_type:string,path:string~,width:any	read
+screen.screenshot	never	max_dimension:integer,quality:number,region:object	-	bytes:integer,coordinate_scale:number,data:string,height:integer,mime_type:string,point_height:number,point_width:number,region:object,width:integer	read
 screen.unlock	never	passcode:string,timeout:number	-	locked:any,screen_off:any,was_locked:boolean,was_screen_off:boolean	mutating
 script.eval	never	source:string!,timeout:number	-	crashed:boolean,error:string?,ok:boolean?,output:string?,result:string?	mutating
 script.info	never	-	-	available:boolean,engine:string,globals:array,programs:object	read
