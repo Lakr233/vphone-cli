@@ -106,6 +106,7 @@
 			<string>kernel-exp-tv_tpro_pagers</string>
 			<string>preboot-cfw-devicetree_board_audio</string>
 			<string>preboot-cfw-devicetree_foldable_displays</string>
+			<string>preboot-cfw-devicetree_virtual_usb_driverkit</string>
 			<string>preboot-cfw-devicetree_foldable_product_id</string>
 			<string>preboot-cfw-devicetree_foldable_vm_subtype</string>
 			<string>preboot-cfw-devicetree_haptics</string>
