@@ -14,6 +14,7 @@ while (( $# )); do
         *) print -u2 "Unknown option: $1"; exit 2 ;;
     esac
 done
+icli=${icli:A}
 pin=$(jq -r '.pins[] | select(.identity == "icli") | .state.revision' "$daemon/VPhoneDaemon.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved")
 [[ $(git -C "$icli" rev-parse HEAD) == "$pin" ]] || { print -u2 'Icli checkout does not match the consumer pin'; exit 1; }
 temporary="$(mktemp -d "${TMPDIR:-/tmp}/vphone-point-geometry-tests.XXXXXX")"
