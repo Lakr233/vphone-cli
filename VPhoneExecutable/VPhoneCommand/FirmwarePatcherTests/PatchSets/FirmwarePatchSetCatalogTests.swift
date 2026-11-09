@@ -588,7 +588,7 @@ struct FirmwarePatchSetCatalogTests {
         }
     }
 
-    @Test(arguments: [FirmwareGuestSystemPatchSet.glesUpperLeft, FirmwareGuestSystemPatchSet.metalVertexIDFormat,
+    @Test(arguments: [FirmwareGuestSystemPatchSet.glesDepthClip, FirmwareGuestSystemPatchSet.glesUpperLeft, FirmwareGuestSystemPatchSet.metalVertexIDFormat,
                      FirmwareGuestSystemPatchSet.glesPrimitiveRestart, FirmwareGuestSystemPatchSet.glesPointDraw,
                      FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache, FirmwareGuestSystemPatchSet.metalCacheReuseKey])
     func `Native GLES corrections follow the measured OS pair and can be reverted`(patch: String) throws {

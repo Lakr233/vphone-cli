@@ -12,6 +12,18 @@ import VPhonePatchKit
 
 @Suite("Guest patch resolution")
 struct FirmwareGuestPatchResolutionTests {
+    @Test func `GLES depth transitions require compiler refresh and cache versioning`() {
+        let depth = FirmwareGuestSystemPatchSet.glesDepthClip
+        let cache = FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
+        let bundle = "system-extensions-boot-gpu_bundle"
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [], previouslyApplied: []).isEmpty)
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [depth, cache, bundle], previouslyApplied: []).isEmpty)
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [cache, bundle], previouslyApplied: [depth]).isEmpty)
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [depth, bundle], previouslyApplied: []) == [cache])
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [bundle], previouslyApplied: [depth]) == [cache])
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [cache], previouslyApplied: [depth]) == [bundle])
+    }
+
     @Test func `compiler identity needs cache key validation only when reuse is selected`() throws {
         let identity = FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
         let reuse = FirmwareGuestSystemPatchSet.metalCacheReuse

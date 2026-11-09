@@ -1,5 +1,12 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **GLES signed depth clipping (2026-11-09).** `dyld-cfw-gles_depth_clip`
+> pairs GLES AIR position lowering with renderer viewport correction, gated
+> to iOS 26.6/cloudOS 26.4. Native guest harness 39/45 → 45/45, depth/clip
+> matrix 224/224 across cold/warm/reboot, and disabling restores the same six
+> failures. Native Metal controls are unchanged.
+> See [discovery, transaction boundaries and validation](Guest/gles_depth_clip.md).
+
 > **Virtual USB DriverKit capability (2026-11-08).**
 > `devicetree-cfw-virtual_usb_driverkit` writes `/product/supports-driverkit`
 > as little-endian UInt32 1 with flags 0 after board presentation, for iPhone

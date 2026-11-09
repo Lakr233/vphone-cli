@@ -38,6 +38,15 @@ AppleMetalGLRenderer requests. It accepts half2 and float2 inputs, preserves X,
 and records a module marker to avoid repeated conversion. This compensation
 must be revisited if PV gains native support for the render-pass flag.
 
+For the measured iOS 26.6/cloudOS 26.4 pair, PV also loses the render-pass
+OpenGL clip convention. The selectable `dyld-cfw-gles_depth_clip` correction
+lowers GLES position.z to `.5*z + .5*w` and restores the renderer's viewport
+near endpoint from its midpoint representation. The installer configures
+the compiler's `__DATA,__vphone_gles` byte only with the paired DSC patch,
+re-signs the plugin, and versions its shader cache. Both halves share the
+private disk-clone transaction; native Metal bypasses the conversion.
+See [signed depth clipping](../../Research/Guest/gles_depth_clip.md).
+
 `make -C VPhoneGuestComponents test-gles-air` runs captured modules through the
 plugin and into host Metal, checking pixels, scope and idempotence. The retained
 [AIR tests](../Tests/GLESAIRTests.mm) record fixture origins and the coordinate

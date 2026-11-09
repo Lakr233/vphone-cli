@@ -112,6 +112,7 @@
 			<string>dyld-boot-xpc_lwcr</string>
 			<string>dyld-cfw-arm64e_x1_cache</string>
 			<string>dyld-cfw-camera</string>
+			<string>dyld-cfw-gles_depth_clip</string>
 			<string>dyld-cfw-gles_point_draw</string>
 			<string>dyld-cfw-gles_primitive_restart</string>
 			<string>dyld-cfw-metal_cache_reuse_key</string>

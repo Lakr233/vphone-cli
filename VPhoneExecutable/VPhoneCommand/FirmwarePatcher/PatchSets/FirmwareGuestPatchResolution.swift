@@ -22,6 +22,15 @@ import Foundation
 import VPhonePatchKit
 
 public enum FirmwareGuestPatchResolution {
+    public static func missingGLESDepthDependencies(enabled: Set<String>, previouslyApplied: Set<String>) -> [String] {
+        let depth = FirmwareGuestSystemPatchSet.glesDepthClip
+        guard enabled.contains(depth) || previouslyApplied.contains(depth) else { return [] }
+        return Set([
+            "system-extensions-boot-gpu_bundle",
+            FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache,
+        ]).subtracting(enabled).sorted()
+    }
+
     /// CoreFSCache's original reuse flag also bypasses the compiler key.
     /// Versioning the driver cannot invalidate stale output unless that key
     /// check is retained, or cross-boot reuse is turned off altogether.

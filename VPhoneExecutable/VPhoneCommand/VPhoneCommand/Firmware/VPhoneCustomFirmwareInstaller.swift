@@ -297,6 +297,12 @@ struct VPhoneCustomFirmwareInstaller {
         guard missingGLESDependencies.isEmpty else {
             throw ValidationError("The GLES primitive-restart correction requires these selected guest patches: \(missingGLESDependencies.joined(separator: ", ")).")
         }
+        let missingDepthDependencies = FirmwareGuestPatchResolution.missingGLESDepthDependencies(
+            enabled: effectiveEnabled, previouslyApplied: receiptGuest ?? priorFallback
+        )
+        guard missingDepthDependencies.isEmpty else {
+            throw ValidationError("Changing GLES depth clipping requires these selected guest patches: \(missingDepthDependencies.joined(separator: ", ")).")
+        }
         let missingCacheDependencies = FirmwareGuestPatchResolution.missingCompilerCacheDependencies(enabled: effectiveEnabled)
         guard missingCacheDependencies.isEmpty else {
             throw ValidationError("GPU compiler cache versioning with cross-boot reuse requires these selected guest patches: \(missingCacheDependencies.joined(separator: ", ")).")
@@ -1394,6 +1400,7 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.ios16Touchscreen
                     && identifier != FirmwareGuestSystemPatchSet.ios16KeybaglessUI
                     && identifier != FirmwareGuestSystemPatchSet.glesUpperLeft
+                    && identifier != FirmwareGuestSystemPatchSet.glesDepthClip
                     && identifier != FirmwareGuestSystemPatchSet.ios18GPUTransport
                     && identifier != FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
                     && identifier != FirmwareGuestSystemPatchSet.visionOSSkipBuddy
@@ -2014,6 +2021,7 @@ struct VPhoneCustomFirmwareInstaller {
             (FirmwareGuestSystemPatchSet.metalVertexIDFormat, "patch-metal-vertex-id-format", [dsc]),
             (FirmwareGuestSystemPatchSet.glesPrimitiveRestart, "patch-gles-primitive-restart", [dsc]),
             (FirmwareGuestSystemPatchSet.glesPointDraw, "patch-gles-point-draw", [dsc]),
+            (FirmwareGuestSystemPatchSet.glesDepthClip, "patch-gles-depth-clip", [dsc]),
             (FirmwareGuestSystemPatchSet.homeViewEnvironmentService, "patch-homeview-environment", [dsc]),
             (FirmwareGuestSystemPatchSet.settingsSoftwareUpdate, "patch-settings-software-update", [dsc]),
             (FirmwarePatchSetCatalog.misTrustAuthPatch, "patch-mis-trust-auth", [dsc]),
@@ -2041,6 +2049,11 @@ struct VPhoneCustomFirmwareInstaller {
             live: &live, failures: &failures,
         )
         try requireX1Bootstrap()
+
+        let depthClip = FirmwareGuestSystemPatchSet.glesDepthClip
+        guard on(depthClip) == live.contains(depthClip), !failures.contains(depthClip) else {
+            throw ValidationError("GLES viewport update or rollback failed; the private disk clone was discarded.")
+        }
 
         // Selected is not necessarily applied: optional DSC failures are
         // isolated above. Stop before refreshing the compiler if cache reuse
@@ -2231,6 +2244,26 @@ struct VPhoneCustomFirmwareInstaller {
                     }
                 }
                 live.insert("system-extensions-boot-gpu_bundle")
+            }
+        }
+
+        // This is deliberately outside optional-patch isolation. The DSC
+        // viewport and compiler byte must commit or roll back together.
+        if on(depthClip) || priorGuest.contains(depthClip) {
+            guard !failures.contains("system-extensions-boot-gpu_bundle") else {
+                throw ValidationError("GLES compiler refresh failed; the private disk clone was discarded.")
+            }
+            let gpu = "System/Library/Extensions/\(VPhonePCCGPUDriver.name)"
+            let plugin = "\(gpu)/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
+            let stagedName = "gles-depth-compiler.dylib"
+            try work.directory.removeItem(stagedName)
+            try system.copyFile(from: plugin, to: stagedName, in: work.directory)
+            var data = try Data(contentsOf: work.file(stagedName))
+            if try CustomFirmwareGLESDepthConfiguration.configure(&data, enabled: on(depthClip)) {
+                try data.write(to: work.file(stagedName))
+                _ = try tool("/usr/bin/codesign", ["-f", "-s", "-", "--timestamp=none", work.file(stagedName).path])
+                try system.replaceFile(plugin, fromFileAt: work.file(stagedName), mode: 0o755, owner: Self.guestOwner)
+                try sealGuestBundle(system: system, bundle: gpu)
             }
         }
 
@@ -2857,6 +2890,7 @@ struct VPhoneCustomFirmwareInstaller {
                 || id == FirmwareGuestSystemPatchSet.metalCacheReuseKey
                 || id == FirmwareGuestSystemPatchSet.metalVertexIDFormat
                 || id == FirmwareGuestSystemPatchSet.glesPointDraw
+                || id == FirmwareGuestSystemPatchSet.glesDepthClip
                 || id == FirmwareGuestSystemPatchSet.glesPrimitiveRestart
                 || id == FirmwareGuestSystemPatchSet.textRecognitionANE {
                 return plan?.isEnabled(id) == true

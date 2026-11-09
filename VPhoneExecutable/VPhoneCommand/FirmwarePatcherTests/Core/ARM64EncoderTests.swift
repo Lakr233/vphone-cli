@@ -45,6 +45,33 @@ struct ARM64FramePacingEncoderTests {
     }
 }
 
+// Keystone 0.9.2, native ks_asm driver; also decoded through Capstone.
+@Suite("GLES viewport floating point encoders")
+struct ARM64ViewportEncoderTests {
+    @Test func `scalar conversion matches Keystone and semantic operands`() {
+        let cases: [(String, UInt32, Data?)] = [
+            ("fcvt", 0x1E22_C042, ARM64Encoder.encodeFcvtDFromS(rd: 2, rn: 2)),
+            ("fcvt", 0x1E22_C01F, ARM64Encoder.encodeFcvtDFromS(rd: 31, rn: 0)),
+            ("fcvt", 0x1E22_C3E0, ARM64Encoder.encodeFcvtDFromS(rd: 0, rn: 31)),
+            ("fadd", 0x1E62_2842, ARM64Encoder.encodeFaddSubD(subtract: false, rd: 2, rn: 2, rm: 2)),
+            ("fadd", 0x1E7E_281F, ARM64Encoder.encodeFaddSubD(subtract: false, rd: 31, rn: 0, rm: 30)),
+            ("fsub", 0x1E63_3842, ARM64Encoder.encodeFaddSubD(subtract: true, rd: 2, rn: 2, rm: 3)),
+            ("fsub", 0x1E7E_3BE0, ARM64Encoder.encodeFaddSubD(subtract: true, rd: 0, rn: 31, rm: 30)),
+        ]
+        for (mnemonic, word, encoded) in cases {
+            #expect(encoded == ARM64.encodeU32(word))
+            #expect(ARM64Disassembler().disassembleOne(encoded!)?.mnemonic == mnemonic)
+        }
+        let converted = ARM64Disassembler().disassembleOne(cases[0].2!)!
+        #expect(converted.detail?.operands.map(\.reg) == [.d(2), .s(2)])
+        #expect(ARM64Encoder.encodeFcvtDFromS(rd: 32, rn: 0) == nil)
+        #expect(ARM64Encoder.encodeFcvtDFromS(rd: 0, rn: 32) == nil)
+        #expect(ARM64Encoder.encodeFaddSubD(subtract: false, rd: 32, rn: 0, rm: 0) == nil)
+        #expect(ARM64Encoder.encodeFaddSubD(subtract: true, rd: 0, rn: 32, rm: 0) == nil)
+        #expect(ARM64Encoder.encodeFaddSubD(subtract: true, rd: 0, rn: 0, rm: 32) == nil)
+    }
+}
+
 // LDR literal and BR cases below were checked using the same native Keystone
 // 0.9.2 C driver, outside the repository, for the iOS 16 IOSurface transport stub.
 

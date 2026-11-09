@@ -1123,6 +1123,10 @@ the bytes and what is not covered.
 
 ### Native GLES semantics
 
+Signed clip-z remains a separate pass-state issue after these corrections.
+The paired compiler/viewport correction and its on/off pixel controls are
+documented in [GLES signed depth clipping](gles_depth_clip.md).
+
 Further testing on iOS 26.6.2 (23G90), cloudOS 26.4 (23E5207q) and macOS
 26.6.2 (25G83, Apple M5 Max) found failures after contexts and basic draws
 worked. The following results come from development builds on that OS pair.

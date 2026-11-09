@@ -77,9 +77,13 @@ extern "C" {
     LLVMValueRef LLVMGetParam(LLVMValueRef Fn, unsigned Index);
     LLVMUseRef LLVMGetFirstUse(LLVMValueRef Val);
     LLVMBasicBlockRef LLVMGetFirstBasicBlock(LLVMValueRef Fn);
+    LLVMBasicBlockRef LLVMGetNextBasicBlock(LLVMBasicBlockRef BB);
     LLVMValueRef LLVMGetFirstInstruction(LLVMBasicBlockRef BB);
     LLVMValueRef LLVMGetNextInstruction(LLVMValueRef Inst);
     LLVMValueRef LLVMIsAPHINode(LLVMValueRef Val);
+    LLVMValueRef LLVMIsAReturnInst(LLVMValueRef Val);
+    unsigned LLVMGetNumOperands(LLVMValueRef Val);
+    LLVMValueRef LLVMGetOperand(LLVMValueRef Val, unsigned Index);
     LLVMBuilderRef LLVMCreateBuilderInContext(LLVMContextRef C);
     void LLVMPositionBuilderBefore(LLVMBuilderRef Builder, LLVMValueRef Instr);
     void LLVMDisposeBuilder(LLVMBuilderRef Builder);
@@ -88,6 +92,10 @@ extern "C" {
     LLVMValueRef LLVMConstReal(LLVMTypeRef RealTy, double N);
     LLVMValueRef LLVMBuildExtractElement(LLVMBuilderRef, LLVMValueRef VecVal, LLVMValueRef Index, const char *Name);
     LLVMValueRef LLVMBuildFSub(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);
+    LLVMValueRef LLVMBuildFAdd(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);
+    LLVMValueRef LLVMBuildFMul(LLVMBuilderRef, LLVMValueRef LHS, LLVMValueRef RHS, const char *Name);
+    LLVMValueRef LLVMBuildExtractValue(LLVMBuilderRef, LLVMValueRef AggVal, unsigned Index, const char *Name);
+    LLVMValueRef LLVMBuildInsertValue(LLVMBuilderRef, LLVMValueRef AggVal, LLVMValueRef EltVal, unsigned Index, const char *Name);
     LLVMValueRef LLVMBuildInsertElement(LLVMBuilderRef, LLVMValueRef VecVal, LLVMValueRef EltVal, LLVMValueRef Index, const char *Name);
     void LLVMReplaceAllUsesWith(LLVMValueRef OldVal, LLVMValueRef NewVal);
     void LLVMSetOperand(LLVMValueRef User, unsigned Index, LLVMValueRef Val);
@@ -336,6 +344,97 @@ private:
 };
 
 constexpr const char *pointCoordinateMarker = "vphone.gles.point_coord_y_flipped";
+constexpr const char *depthClipMarker = "vphone.gles.depth_clip_zero_to_one";
+
+struct PositionReturn {
+    LLVMValueRef instruction;
+    int field; // -1 for a direct vector return.
+};
+
+// AIR output metadata is ordered by return-aggregate field. Never infer the
+// position from field names or from a vector's shape alone.
+bool positionReturns(LLVMModuleRef module, std::vector<PositionReturn> &result, const char **error) {
+    if (LLVMGetNamedMetadataNumOperands(module, depthClipMarker))
+        return true;
+    unsigned count = LLVMGetNamedMetadataNumOperands(module, "air.vertex");
+    std::vector<LLVMValueRef> entries(count);
+    if (count)
+        LLVMGetNamedMetadataOperands(module, "air.vertex", entries.data());
+    std::set<LLVMValueRef> seen;
+    for (LLVMValueRef entry : entries) {
+        auto fields = operands(entry);
+        if (fields.size() != 3 || !fields[0] || !LLVMIsAFunction(fields[0])) {
+            *error = "OpenGL ES vertex entry has no supported AIR signature";
+            return false;
+        }
+        LLVMValueRef function = fields[0];
+        if (!seen.insert(function).second)
+            continue;
+        LLVMTypeRef type = LLVMGetReturnType(LLVMGlobalGetValueType(function));
+        bool aggregate = LLVMGetTypeKind(type) == kindStruct;
+        auto outputs = operands(fields[1]);
+        int position = -1;
+        for (size_t i = 0; i < outputs.size(); ++i) {
+            auto output = operands(outputs[i]);
+            if (output.empty() || stringOf(output[0]) != "air.position")
+                continue;
+            if (position >= 0) {
+                *error = "OpenGL ES vertex entry has multiple position outputs";
+                return false;
+            }
+            position = (int)i;
+        }
+        if (position < 0 || (aggregate ? outputs.size() != LLVMCountStructElementTypes(type) : outputs.size() != 1)) {
+            *error = "OpenGL ES position metadata does not match its return type";
+            return false;
+        }
+        LLVMTypeRef vector = aggregate ? LLVMStructGetTypeAtIndex(type, position) : type;
+        if (LLVMGetTypeKind(vector) != kindVector || LLVMGetVectorSize(vector) != 4 ||
+            LLVMGetTypeKind(LLVMGetElementType(vector)) != kindFloat) {
+            *error = "OpenGL ES position output must be float4";
+            return false;
+        }
+        size_t before = result.size();
+        for (LLVMBasicBlockRef block = LLVMGetFirstBasicBlock(function); block; block = LLVMGetNextBasicBlock(block))
+            for (LLVMValueRef inst = LLVMGetFirstInstruction(block); inst; inst = LLVMGetNextInstruction(inst))
+                if (LLVMIsAReturnInst(inst) && LLVMGetNumOperands(inst) == 1)
+                    result.push_back({inst, aggregate ? position : -1});
+        if (result.size() == before) {
+            *error = "OpenGL ES vertex entry has no value return";
+            return false;
+        }
+    }
+    return true;
+}
+
+void convertPositions(LLVMModuleRef module, const std::vector<PositionReturn> &returns) {
+    LLVMContextRef context = LLVMGetModuleContext(module);
+    LLVMBuilderRef builder = LLVMCreateBuilderInContext(context);
+    LLVMValueRef zIndex = LLVMConstInt(LLVMInt32TypeInContext(context), 2, 0);
+    LLVMValueRef wIndex = LLVMConstInt(LLVMInt32TypeInContext(context), 3, 0);
+    for (const auto &site : returns) {
+        LLVMPositionBuilderBefore(builder, site.instruction);
+        LLVMValueRef value = LLVMGetOperand(site.instruction, 0);
+        LLVMValueRef position = site.field < 0 ? value :
+            LLVMBuildExtractValue(builder, value, site.field, "vphone.clip.position");
+        LLVMValueRef z = LLVMBuildExtractElement(builder, position, zIndex, "vphone.clip.z");
+        LLVMValueRef w = LLVMBuildExtractElement(builder, position, wIndex, "vphone.clip.w");
+        LLVMValueRef half = LLVMConstReal(LLVMTypeOf(z), 0.5);
+        // Scale separately to avoid overflowing finite z+w. Preserve x,y,w
+        // and every other output, including transform-feedback varyings.
+        z = LLVMBuildFMul(builder, z, half, "vphone.clip.half_z");
+        w = LLVMBuildFMul(builder, w, half, "vphone.clip.half_w");
+        z = LLVMBuildFAdd(builder, z, w, "vphone.clip.metal_z");
+        position = LLVMBuildInsertElement(builder, position, z, zIndex, "vphone.clip.converted");
+        if (site.field >= 0)
+            position = LLVMBuildInsertValue(builder, value, position, site.field, "vphone.clip.result");
+        LLVMSetOperand(site.instruction, 0, position);
+    }
+    LLVMDisposeBuilder(builder);
+    LLVMValueRef version = LLVMConstInt(LLVMInt32TypeInContext(context), 1, 0);
+    LLVMAddNamedMetadataOperand(module, depthClipMarker, LLVMMDNodeInContext(context, &version, 1));
+}
+
 struct PointCoordinate {
     LLVMValueRef parameter;
     LLVMTypeRef scalar;
@@ -434,12 +533,15 @@ bool isGLESModule(LLVMModuleRef module) {
     return language == "OpenGL ES GLSL" || language == "OpenGL ES Program";
 }
 
-LLVMModuleRef completedGLESModule(LLVMModuleRef module, const char **error) {
+LLVMModuleRef completedGLESModule(LLVMModuleRef module, const char **error, bool depthClip) {
     *error = nullptr;
     if (!module || !isGLESModule(module))
         return nullptr;
     std::vector<PointCoordinate> inputs;
     if (!pointCoordinates(module, inputs, error))
+        return nullptr;
+    std::vector<PositionReturn> positions;
+    if (depthClip && !positionReturns(module, positions, error))
         return nullptr;
     char *printed = LLVMPrintModuleToString(module);
     if (!printed) {
@@ -450,7 +552,7 @@ LLVMModuleRef completedGLESModule(LLVMModuleRef module, const char **error) {
     LLVMDisposeMessage(printed);
     for (const char *stage : {"air.vertex", "air.fragment", "air.kernel"})
         rewriter.completeStage(stage);
-    if (!rewriter.changed && inputs.empty())
+    if (!rewriter.changed && inputs.empty() && positions.empty())
         return nullptr;
     std::string text = rewriter.text();
     LLVMMemoryBufferRef buffer = LLVMCreateMemoryBufferWithMemoryRangeCopy(text.data(), text.size(), "OpenGL ES shader");
@@ -473,9 +575,19 @@ LLVMModuleRef completedGLESModule(LLVMModuleRef module, const char **error) {
             return nullptr;
         }
         flipPointCoordinates(completed, inputs);
+    }
+    if (!positions.empty()) {
+        positions.clear();
+        if (!positionReturns(completed, positions, error)) {
+            LLVMDisposeModule(completed);
+            return nullptr;
+        }
+        convertPositions(completed, positions);
+    }
+    if (!inputs.empty() || !positions.empty()) {
         if (LLVMVerifyModule(completed, 2 /* LLVMReturnStatusAction */, &message)) {
             static thread_local std::string reason;
-            reason = std::string("invalid OpenGL ES point-coordinate conversion: ") + (message ? message : "");
+            reason = std::string("invalid OpenGL ES coordinate conversion: ") + (message ? message : "");
             if (message)
                 LLVMDisposeMessage(message);
             LLVMDisposeModule(completed);

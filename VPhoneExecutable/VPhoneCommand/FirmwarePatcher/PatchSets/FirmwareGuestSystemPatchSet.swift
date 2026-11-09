@@ -50,6 +50,7 @@ public enum FirmwareGuestSystemPatchSet {
     public static let metalVertexIDFormat = "dyld-cfw-metal_vertex_id_format"
     public static let glesPrimitiveRestart = "dyld-cfw-gles_primitive_restart"
     public static let glesPointDraw = "dyld-cfw-gles_point_draw"
+    public static let glesDepthClip = "dyld-cfw-gles_depth_clip"
     public static let metalCacheReuseKey = "dyld-cfw-metal_cache_reuse_key"
     public static let textRecognitionANE = "dyld-cfw-text_recognition_ane"
     public static let gyroscope = "system-backboardd-cfw-gyroscope"
@@ -456,6 +457,22 @@ public enum FirmwareGuestSystemPatchSet {
             ),
 
             // MARK: Shared Cache Policy
+
+            VPhonePatchDeclaration(
+                identifier: glesDepthClip,
+                title: "GLES signed depth clipping",
+                summary: """
+                Converts GLES vertex positions and renderer depth endpoints together so \
+                the paravirtual Metal path preserves OpenGL's signed clip volume and \
+                glDepthRange. Versions the configured compiler plugin's shader cache. \
+                Native Metal shaders and viewport calls are unchanged.
+                """,
+                target: .dyldSharedCache,
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .release(major: 26, minor: 6),
+                    cloudOS: .release(major: 26, minor: 4),
+                ),
+            ),
 
             VPhonePatchDeclaration(
                 identifier: metalCacheReuseKey,
