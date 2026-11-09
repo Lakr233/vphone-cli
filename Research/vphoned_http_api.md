@@ -907,9 +907,9 @@ message.
 
 `methods.list` takes no params and answers `{"methods": [...]}`: one object per
 method, areas in dispatch order and methods within an area in the order the
-catalog above lists them. Each object is `{name, params, result, force}`, where
-`params` is a list of `{name, type, required}` in declaration order (`[]` for
-none).
+catalog above lists them. Each object is `{name, description, params, result, force}`
+(plus `force_action` when `force` is not `never`), where `params` is a list of
+`{name, type, required, description}` in declaration order (`[]` for none).
 
 `type` is the JSON type the method accepts: `string`, `integer` (a whole JSON
 number), `number`, `boolean`, `array` or `object`; `any` when the method takes
@@ -928,6 +928,14 @@ rest of this document does not restate them.
 the method needs `"force": true` only when that param is true. `force` itself
 is never listed as a param. The dispatcher enforces it before the method runs
 and refuses with the same `Pass force: true to ...` message as before.
+
+`description` (method and param) is one-line prose. `force_action` is the
+phrase that completes "Pass force: true to ...", with `<...>` placeholders for
+request values, and is present only when `force` is not `never`. A param also
+carries `enum`, `default`, `minimum` and `maximum`, each only when the method
+declares it; `minimum` and `maximum` are metadata and are not enforced.
+`methods.list` is the authority for per-param prose, and this document does not
+restate it.
 
 From this version vphoned drops every `params` key a method does not list
 before the method runs. A client that relied on an extra key must send only

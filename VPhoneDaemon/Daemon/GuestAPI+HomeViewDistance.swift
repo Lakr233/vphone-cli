@@ -30,7 +30,7 @@ enum HomeViewDistanceMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .homeviewDistanceGet: MethodSpec(result: [.required("applied", .any),
+        case .homeviewDistanceGet: MethodSpec(summary: "Read the HomeView viewing-distance mode, level of detail and override state.", result: [.required("applied", .any),
                                                        .required("available", .boolean),
                                                        .required("backlight_state", .any),
                                                        .required("display_style", .any),
@@ -38,7 +38,7 @@ enum HomeViewDistanceMethod: String, GuestMethod {
                                                        .required("mode", .any),
                                                        .required("override_active", .any),
                                                        .required("reset_scope", .string)])
-        case .homeviewDistanceSet: MethodSpec(.required("mode", .string), .optional("reset_environment", .boolean), result: [.required("applied", .any),
+        case .homeviewDistanceSet: MethodSpec(.required("mode", .string, "Viewing distance mode", values: ["automatic", "near", "standard", "far"]), .optional("reset_environment", .boolean, "Allow clearing persona, display style, detail and backlight overrides; required true for automatic", default: false), summary: "Set the HomeView viewing-distance mode, or return to automatic with reset_environment.", result: [.required("applied", .any),
                                                        .required("available", .boolean),
                                                        .required("backlight_state", .any),
                                                        .required("display_style", .any),

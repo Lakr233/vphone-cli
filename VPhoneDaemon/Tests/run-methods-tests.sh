@@ -27,38 +27,72 @@ raw_values() {
     ' "$1"
 }
 
-# "<raw> <force> <params>" for every case of every enum in one file.
+# "<raw> <force> <params>" for every case of every enum in one file. With a second argument "desc" it prints
+# instead "<raw><tab><field><tab><param><tab><text>" for the summary (field summary, param -), every param (field
+# param) and the force text of a forced method (field force, param -); newlines in a text become \001. Descriptions
+# never contain a double quote, so the scans match "[^"]*"; the result:/force: scans run on a same-length copy of
+# the body with every string blanked, so text inside a string never counts.
 file_specs() {
-    /usr/bin/awk -v file="${1:t}" '
-        function finish(   i, n, labels, label, force, params, rest) {
+    /usr/bin/awk -v file="${1:t}" -v mode="${2:-}" '
+        function blank(n,   s) { s = ""; while (n-- > 0) s = s " "; return s }
+        function row(field, param, text) {
+            gsub(/\n/, "\001", text)
+            return field "\t" param "\t" text "\n"
+        }
+        function finish(   i, n, labels, label, force, params, rest, scrub, tmp, text, descs) {
             if (arm == "") return
             n = split(armLabels, labels, " ")
+            scrub = ""
+            tmp = armBody
+            while (match(tmp, /"[^"]*"/)) {
+                scrub = scrub substr(tmp, 1, RSTART) blank(RLENGTH - 2) "\""
+                tmp = substr(tmp, RSTART + RLENGTH)
+            }
+            scrub = scrub tmp
             force = "never"
-            if (armBody ~ /force: \.always/) force = "always"
-            if (armBody ~ /force: \.when/) force = "when"
+            if (scrub ~ /force: \.always/) force = "always"
+            if (scrub ~ /force: \.when/) force = "when"
             params = ""
+            descs = ""
             rest = armBody
-            if (match(rest, /(^|[(, ])result:/)) rest = substr(rest, 1, RSTART)
-            while (match(rest, /\.(required|optional)\("[^"]+", \.[a-z]+\)/)) {
+            if (match(scrub, /(^|[(, ])result:/)) rest = substr(rest, 1, RSTART)
+            if (match(rest, /summary: "[^"]*"/)) {
+                text = substr(rest, RSTART + 10, RLENGTH - 11)
+                descs = descs row("summary", "-", text)
+            } else descs = descs row("summary", "-", "")
+            while (match(rest, /\.(required|optional)\("[^"]+", \.[a-z]+(, "[^"]*")?/)) {
                 token = substr(rest, RSTART, RLENGTH)
                 rest = substr(rest, RSTART + RLENGTH)
                 split(token, part, "\"")
                 kind = part[3]
                 sub(/^, \./, "", kind)
-                sub(/\)$/, "", kind)
+                sub(/,.*$/, "", kind)
                 params = params (params == "" ? "" : ",") part[2] ":" kind (token ~ /^\.required/ ? "!" : "")
+                descs = descs row("param", part[2], part[4])
+            }
+            if (force != "never") {
+                text = ""
+                if (match(armBody, /force: \.always\("[^"]*"/)) {
+                    split(substr(armBody, RSTART, RLENGTH), part, "\""); text = part[2]
+                } else if (match(armBody, /force: \.when\("[^"]*", "[^"]*"/)) {
+                    split(substr(armBody, RSTART, RLENGTH), part, "\""); text = part[4]
+                }
+                descs = descs row("force", "-", text)
             }
             if (params == "") params = "-"
-            for (i = 1; i <= n; i++) { seen[labels[i]] = 1; out[labels[i]] = force " " params }
+            for (i = 1; i <= n; i++) { seen[labels[i]] = 1; out[labels[i]] = force " " params; dout[labels[i]] = descs }
             arm = ""
         }
         $0 ~ ENVIRON["enum_re"] { inside = 1; insideSpec = 0; next }
         inside && /^\}/ { finish(); inside = 0; insideSpec = 0
             for (name in raw) {
                 if (!(name in seen)) { print "FAIL spec: " file " " name " has no arm" > "/dev/stderr"; bad = 1 }
-                else print raw[name] " " out[name]
+                else if (mode == "desc") {
+                    m = split(dout[name], rows, "\n")
+                    for (r = 1; r < m; r++) print raw[name] "\t" rows[r]
+                } else print raw[name] " " out[name]
             }
-            delete raw; delete seen; delete out; next }
+            delete raw; delete seen; delete out; delete dout; next }
         !inside { next }
         $0 ~ ENVIRON["case_re"] { split($0, quoted, "\""); name = $2; raw[name] = quoted[2]; next }
         /^    var spec: MethodSpec \{$/ { insideSpec = 1; next }
@@ -337,13 +371,36 @@ self_test() {
     mutation_case force "FAIL force: processes.kill" GuestAPI+Process.swift \
         '/case \.processesKill/ { inKill = 1 } inKill && /force: \.always/ { sub(/force: \.always/, "force: .never"); inKill = 0 } 1' "$source" || bad=1
     mutation_case params "FAIL params: processes.list" GuestAPI+Process.swift \
-        '{ sub(/\.optional\("filter", \.string\)/, ".required(\"filter\", .string)") } 1' "$source" || bad=1
+        '{ sub(/\.optional\("filter", \.string/, ".required(\"filter\", .string") } 1' "$source" || bad=1
     mutation_case undeclared-key "FAIL undeclared-key: GuestAPI+Log.swift process" GuestAPI+Log.swift \
-        '{ sub(/\.optional\("process", \.string\)/, ".optional(\"unrelated\", .string)") } 1' "$source" || bad=1
+        '{ sub(/\.optional\("process", \.string/, ".optional(\"unrelated\", .string") } 1' "$source" || bad=1
     mutation_case message-text "FAIL message: system.shutdown" GuestAPI+AppDetail.swift \
         '{ sub(/"shut down the guest"/, "\"shut the guest down\"") } 1' "$source" || bad=1
     mutation_case message-validation "FAIL message: services.stop" GuestAPI+Service.swift \
         '/case \.servicesStop:/ { inStop = 1 } inStop && /force: \.always/ { sub(/\{ p in try "stop [^}]*\}/, "{ _ in \"stop it\" }"); inStop = 0 } 1' "$source" || bad=1
+    mutation_case empty-summary "FAIL description: time.clock summary is empty" GuestAPI+Clock.swift \
+        '/case \.timeClock/ { on = 1 } on && sub(/summary: "[^"]*"/, "summary: \"\"") { on = 0 } 1' "$source" || bad=1
+    mutation_case empty-param-description "FAIL description: time.clock.time param is empty" GuestAPI+Clock.swift \
+        '{ sub(/\.optional\("time", \.number, "[^"]*"/, ".optional(\"time\", .number, \"\"") } 1' "$source" || bad=1
+    mutation_case empty-force-text "FAIL description: processes.kill force is empty" GuestAPI+Process.swift \
+        '/case \.processesKill/ { on = 1 } on && sub(/force: \.always\("[^"]*"/, "force: .always(\"\"") { on = 0 } 1' "$source" || bad=1
+    mutation_case long-description "FAIL description: time.clock summary is over 120 characters (121)" GuestAPI+Clock.swift \
+        'BEGIN { long = sprintf("%121s", ""); gsub(/ /, "x", long) }
+         /case \.timeClock/ { on = 1 } on && sub(/summary: "[^"]*"/, "summary: \"" long "\"") { on = 0 } 1' "$source" || bad=1
+    mutation_case long-param-description "FAIL description: time.clock.time param is over 120 characters (121)" GuestAPI+Clock.swift \
+        'BEGIN { long = sprintf("%121s", ""); gsub(/ /, "x", long) }
+         { sub(/\.optional\("time", \.number, "[^"]*"/, ".optional(\"time\", .number, \"" long "\"") } 1' "$source" || bad=1
+    mutation_case empty-when-force-text "FAIL description: services.kickstart force is empty" GuestAPI+Service.swift \
+        '/case \.servicesKickstart/ { on = 1 } on && sub(/force: \.when\("kill", "[^"]*"/, "force: .when(\"kill\", \"\"") { on = 0 } 1' "$source" || bad=1
+    mutation_case newline-description "FAIL description: time.clock summary contains a newline" GuestAPI+Clock.swift \
+        '/case \.timeClock/ { on = 1 } on && sub(/summary: "[^"]*"/, "summary: \"a\nb\"") { on = 0 } 1' "$source" || bad=1
+    mutation_case newline-param-description "FAIL description: time.clock.time param contains a newline" GuestAPI+Clock.swift \
+        '{ sub(/\.optional\("time", \.number, "[^"]*"/, ".optional(\"time\", .number, \"a\\nb\"") } 1' "$source" || bad=1
+    mutation_case long-force-text "FAIL description: processes.kill force is over 120 characters (121)" GuestAPI+Process.swift \
+        'BEGIN { long = sprintf("%121s", ""); gsub(/ /, "x", long) }
+         /case \.processesKill/ { on = 1 } on && sub(/force: \.always\("[^"]*"/, "force: .always(\"" long "\"") { on = 0 } 1' "$source" || bad=1
+    mutation_case newline-force-text "FAIL description: processes.kill force contains a newline" GuestAPI+Process.swift \
+        '/case \.processesKill/ { on = 1 } on && sub(/force: \.always\("[^"]*"/, "force: .always(\"a\\nb\"") { on = 0 } 1' "$source" || bad=1
     self_test_results || bad=1
     self_test_docs || bad=1
     return $bad
@@ -582,6 +639,25 @@ docs_root="${0:a:h:h:h}"
 for finding in ${(f)"$(check_docs "$docs_root/Skills/vphone-guest-control/references/rpc-methods.md" "$docs_root/Research/vphoned_http_api.md")"}; do
     print -r -- "$finding"
     failures=$((failures + 1))
+done
+
+# 13. description: every method summary, param description and (force != never) force text is non-empty, at most
+# 120 characters and one line. Compile time covers a missing description; this covers the rest.
+for file in $files; do
+    while IFS=$'\t' read -r raw field param text; do
+        [[ -n "$raw" ]] || continue
+        subject="$raw"
+        [[ "$field" == param ]] && subject="$raw.$param"
+        reason=""
+        if [[ -z "$text" ]]; then reason="is empty"
+        elif [[ "$text" == *$'\001'* || "$text" == *'\n'* ]]; then reason="contains a newline"
+        elif (( ${#text} > 120 )); then reason="is over 120 characters (${#text})"
+        fi
+        if [[ -n "$reason" ]]; then
+            print "FAIL description: $subject $field $reason (fill it in ${file:t})"
+            failures=$((failures + 1))
+        fi
+    done < <(file_specs "$file" desc)
 done
 
 # 9. size: the catalog stays far below the 1 MiB request/response body limit (estimated from the specs)

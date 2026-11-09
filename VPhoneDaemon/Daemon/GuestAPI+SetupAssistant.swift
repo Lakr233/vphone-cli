@@ -11,14 +11,14 @@ enum SetupAssistantMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .setupStatus: MethodSpec(result: [.required("current_version", .any),
+        case .setupStatus: MethodSpec(summary: "Report whether Setup Assistant is pending or running and the guest setup version.", result: [.required("current_version", .any),
                                                .required("data_migration_done", .any),
                                                .required("pending", .boolean),
                                                .required("pid", .any),
                                                .required("running", .boolean),
                                                .required("setup_done", .boolean),
                                                .required("setup_version", .any)])
-        case .setupSkip: MethodSpec(force: .always { _ in "skip Setup Assistant" }, result: [.required("current_version", .any),
+        case .setupSkip: MethodSpec(summary: "Mark Setup Assistant complete and restart SpringBoard, unless data migration is still running.", force: .always("skip Setup Assistant"), result: [.required("current_version", .any),
                                              .required("data_migration_done", .any),
                                              .required("pending", .boolean),
                                              .required("pid", .any),

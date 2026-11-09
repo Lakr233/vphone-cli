@@ -12,6 +12,8 @@ vphoned itself refused, the last stderr line is its whole error object as JSON
 Result shapes are not listed here: `methods.list` is the authority. Each method's
 `result` array gives its keys as `name`, `type`, `required` and `open`
 (an open result may carry keys beyond those listed). Call it instead of guessing.
+Each method and param also carries a `description`; `Research/vphoned_http_api.md`
+lists the full field set.
 
 The complete catalog, with REST routes and behaviour, is
 `Research/vphoned_http_api.md` ("Method catalog"). This file is the working
