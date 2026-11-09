@@ -72,7 +72,8 @@ nonisolated struct VPhoneLaunchpadBundleReceipt: Codable, Equatable, Sendable {
 nonisolated enum VPhoneLaunchpadNames {
     /// Minimum bundle version for Launchpad's CLI and receipt contract.
     /// Series 2.14: `--preset` takes the path of a preset plist.
-    private static let minimumBundleComponents = (2, 15, 0)
+    /// Series 2.16: `vm create` of an Apple Vision Pro selects the `visionos` preset.
+    private static let minimumBundleComponents = (2, 16, 0)
     static let minimumBundleVersion =
         "\(minimumBundleComponents.0).\(minimumBundleComponents.1).\(minimumBundleComponents.2)"
 
