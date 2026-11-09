@@ -2,6 +2,7 @@
 set -euo pipefail
 
 root=${0:a:h:h:h}
+zsh "$root/scripts/tests/package-notice-release-gate-tests.zsh"
 temporary=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/vphone-package-notices.XXXXXX")
 trap '/bin/rm -rf "$temporary"' EXIT
 packages="$temporary/SourcePackages"
@@ -13,6 +14,7 @@ print -r -- 'nested dependency attribution' > "$packages/artifacts/fixture/Fake.
 print -r -- 'binary payload must stay outside the notice set' > "$packages/artifacts/fixture/Fake.xcframework/payload.bin"
 collector="$root/scripts/stage-package-notices.zsh"
 "$collector" "$temporary/notices" "$temporary/pins.json" "$packages"
+"$collector" --check "$temporary/notices" --require-notices
 /usr/bin/git -C "$root" show "$revision:LICENSE" |
     /usr/bin/cmp - "$temporary/notices/fixture/$revision/checkout/LICENSE"
 /usr/bin/cmp "$packages/artifacts/fixture/Fake.xcframework/Licenses/dependency.txt" \
@@ -20,6 +22,10 @@ collector="$root/scripts/stage-package-notices.zsh"
 [[ ! -e "$temporary/notices/fixture/$revision/artifacts-${packages:h:t}/Fake.xcframework/payload.bin" ]]
 /bin/rm "$packages/artifacts/fixture/Fake.xcframework/Licenses/dependency.txt"
 "$collector" "$temporary/notices" "$temporary/pins.json" "$packages"
+if "$collector" --check "$temporary/notices" --require-notices; then
+    print -u2 'An artifact without notices unexpectedly passed distribution admission'
+    exit 1
+fi
 [[ ! -e "$temporary/notices/fixture/$revision/artifacts-${packages:h:t}/Fake.xcframework/Licenses/dependency.txt" ]]
 print -r -- 'changed' >> "$temporary/notices/fixture/$revision/checkout/LICENSE"
 if "$collector" --check "$temporary/notices"; then
