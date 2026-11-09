@@ -550,8 +550,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/mhdhejazi/Dynamic.git";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.2.0;
+				kind = revision;
+				revision = 772883073d044bc754d401cabb6574624eb3778f;
 			};
 		};
 		DD0000000000000000000173 /* XCRemoteSwiftPackageReference "swift-nio" */ = {

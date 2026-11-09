@@ -15,8 +15,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/mhdhejazi/Dynamic.git",
       "state" : {
-        "revision" : "ab9a2570862d54aed2663691bb767f881226a12f",
-        "version" : "1.2.0"
+        "revision" : "772883073d044bc754d401cabb6574624eb3778f"
       }
     },
     {
