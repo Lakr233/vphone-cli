@@ -144,12 +144,7 @@ extension GuestAPI {
     }
 
     private static func drainSpawnPipe(_ fd: Int32, into data: inout Data) {
-        guard data.count < GuestProcessSpawnPolicy.outputLimit else { return }
-        var buffer = [UInt8](repeating: 0, count: min(4096, GuestProcessSpawnPolicy.outputLimit - data.count))
-        while true {
-            let count = read(fd, &buffer, buffer.count)
-            if count > 0 { data.append(contentsOf: buffer[0..<count]) } else { break }
-        }
+        GuestProcessOutput.drain(fd, into: &data, limit: GuestProcessSpawnPolicy.outputLimit)
     }
 
     /// The three kernel memory sysctls of `memory.jetsam`, without its priority

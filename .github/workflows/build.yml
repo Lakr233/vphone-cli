@@ -31,6 +31,9 @@ jobs:
       - name: Active display capture regressions
         run: zsh VPhoneDaemon/Tests/run-display-capture-tests.sh
 
+      - name: Process output capture regressions
+        run: zsh VPhoneDaemon/Tests/run-process-output-tests.sh
+
       - name: Build VPhone.bundle
         env:
           SWIFT_JOBS: "4"
