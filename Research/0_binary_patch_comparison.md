@@ -8,6 +8,20 @@
 > patch keeps its identifier and stays off in every other preset; the UI
 > adapters stay opt-in. Details in `Research/Firmware/visionos_bringup.md`.
 
+> **GLES signed depth clipping (2026-11-09).** `dyld-cfw-gles_depth_clip`
+> pairs GLES vertex-depth conversion with renderer viewport correction.
+> It and its compiler-cache dependencies have no OS version gate; binary
+> semantics determine capability before writes; unsupported fresh pairs are
+> skipped, and installed pairs retain coherent state. On the measured
+> iOS 26.6.2 and iOS 27.1 guests with cloudOS 26.4, valid negative-z
+> triangles become visible
+> and occlude farther triangles in ES1/2/3. Depth-range, cache/reboot and
+> native Metal controls pass. The iOS 27 port resolves shared selector stubs
+> and split state addressing; the adjacent point, restart, ID-format and
+> orientation repairs now admit iOS userlands by capability on cloudOS 26.4.
+> Both guests complete privileged environment updates with no pending patches.
+> See [discovery, transaction boundaries and validation](Guest/gles_depth_clip.md).
+
 > **Virtual USB DriverKit capability (2026-11-08).**
 > `devicetree-cfw-virtual_usb_driverkit` writes `/product/supports-driverkit`
 > as little-endian UInt32 1 with flags 0 after board presentation, for iPhone
@@ -1895,14 +1909,15 @@ do NOT execute these).
 | 28  | `cbz`/`cbnz` -> `b` at the four compact-command choices in `-[PGSerializerRenderCommandEncoder drawIndexedPrimitives:…]` (`0x140b0`, `0x1421c`, `0x143b4`, `0x143c4` in 23E5207q) — **cloudOS 26.4** | `AppleParavirtGPUMetalIOGPUFamily` (`/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle`) | **Heap index buffer fix.** The compact command stores `parentResourceOffset + indexBufferOffset` in 16 bits but is chosen by testing `indexBufferOffset` alone, so an index buffer 64 KiB or more into an `MTLHeap` is read from the wrong address and meshes (Unity games) draw with another mesh's indices. Every indexed draw takes the 64-bit command instead. `system-paravirt_gpu-cfw-heap_index_offset`; see "Heap index buffers reach the host whole (2026-10-14)" and `Research/Guest/gpu_acceleration.md` |    Y    |  Y  |  Y  |
 | 29  | No binary change: SystemHook calls `setenv("FS_CACHE_REUSE_ON_REBOOT", "1", 0)` first thing in its constructor, in every process it is inserted into, while `/usr/lib/vphone-metal-cache-reuse` exists — **all bases** | none (`VPhoneGuestComponents/SystemHook/SystemHook-vphone.c`; marker written by `cfw install` / `cfw update-environment`) | **Keep the guest's Metal shader caches across a reboot.** `libCoreFSCache` stamps each cache with `kern.bootsessionuuid` and resets it at the next boot unless the variable is set; on the paravirtual GPU CoreAnimation's precompiled pipelines are disabled, so backboardd rebuilt every pipeline after every boot. `system-systemhook-cfw-metal_cache_reuse`; see "Guest Metal caches survive a reboot (2026-10-19)" |    Y    |  Y  |  Y  |
 | 30  | `pacibsp` -> `ret` at the entry of `-[PGSerializerRenderCommandEncoder setPrimitiveRestartEnabled:index:]` (`0x174b4` in 23E5207q) — **cloudOS 26.4** | `AppleParavirtGPUMetalIOGPUFamily` (`/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle`) | **OpenGL ES draws reach the host.** The observed restart-disabled renderer call passes `NO, 0xffffffff`; the driver sends it as command 0x91 and the host's GPU task checks the index against `maxViewportCount`, throws "Invalid viewport index" and fails the command buffer (guest: `kIOGPUCommandBufferCallbackErrorHang`, GPU restart). The command is no longer sent, so Metal's own restart (on, at the index type's maximum) applies. Found by command 0x91's unique `mov w2, #0x8 ; mov w3, #0x91` and the nearest `pacibsp` before it. `system-paravirt_gpu-cfw-primitive_restart`, verb `patch-paravirt-gpu-primitive-restart`, staged with the heap index patch on one copy; see "OpenGL ES in guests (2026-11-02)" |    Y    |  Y  |  Y  |
-| 31  | SystemHook selects `AGX_GL_VIEWPORT_INVERT_CONFIG=UPPER_LEFT` while `/usr/lib/vphone-gles-upper-left` exists — **iOS 26.6 / cloudOS 26.4** | No Apple binary change; project's SystemHook and installer marker | **Correct native GLES drawable orientation.** The renderer's existing viewport/scissor path avoids IOSurface attachment `yInvert`, whose effect the measured paravirtual path does not preserve. `system-systemhook-cfw-gles_upper_left`; selectable and revertible. See "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
-| 32  | Convert legacy vertex/instance ID attribute formats 43/44 to public UInt (36) at the descriptor wire write — **iOS 26.6 / cloudOS 26.4** | Metal framework's `PipelineLibrarySerializer::serializeVertexDescriptor`, guest dyld shared cache | **Let the host compile GLES builtin-ID pipelines.** Preserve guest descriptors and AIR; normalize only the serialized format through a 32-byte in-image trampoline. `dyld-cfw-metal_vertex_id_format`; symbol/operand discovery, page re-attestation and undo-log revert. See "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
-| 33  | Select GLEngine primitive expansion for indexed line/triangle strips with restart disabled — **iOS 26.6 / cloudOS 26.4** | AppleMetalGLRenderer's `gldRenderVertexArray`, guest dyld shared cache | **Preserve a valid maximum index while restart is disabled.** A checked 68-byte entry trampoline reads state fields derived from `updateRenderPrimitiveRestart`; other draws keep their normal path. `dyld-cfw-gles_primitive_restart` requires rows 30/32, adds CPU vertex copying and supports undo-log revert. Guest validation passes the seven restart cases, seven builtin controls and 36 matrix cases. See "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
-| 34  | Remove four point-size reflection guards that suppress valid `GL_POINTS` submissions — **iOS 26.6 / cloudOS 26.4** | AppleMetalGLRenderer's direct and primitive-buffer draw paths, guest dyld shared cache | **Submit points despite missing PV pipeline usage flags.** `dyld-cfw-gles_point_draw` replaces only the four bit-7 `TBZ` guards with NOPs, preserving other gates and the native shader/rasterizer. Semantic discovery and transactional DSC undo; cloned-cache apply/repeat/revert restores all 85 files exactly. Process-local diagnostics restore point footprints but expose a separate coordinate Y-flip transport gap. Development-build guest validation passes all 21 point cases on the restored old default cache and a warm repeat; see "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
-| 35  | Derive the paravirtual driver compiler cache identity from the installed plugin — **iOS 26.6 / cloudOS 26.4** | AppleParavirtGPUMetalIOGPUFamily | **Invalidate shader output after plugin updates.** `system-paravirt_gpu-cfw-compiler_cache` replaces only two eight-byte SHA-256 seed inputs with a 96-bit plugin content identity. Changes compose with the other driver patches on its pristine backup. Requires row 36 when cross-boot reuse is enabled; installer verifies it actually applied before refreshing the plugin. Private APFS clone and fatal identity-failure handling prevent inconsistent publication. Development-build guest validation rejects stale default-cache shaders and passes all 21 point cases. |    Y    |  Y  |  Y  |
-| 36  | Retain cache-key validation when cross-boot reuse is enabled — **iOS 26.6 / cloudOS 26.4** | libCoreFSCache in the guest dyld shared cache | **Reject stale compiler output while retaining warm caches across boots.** The original `FS_CACHE_REUSE_ON_REBOOT=1` skips both the key and boot checks. `dyld-cfw-metal_cache_reuse_key` routes only that path through the key comparison; the no-reuse path remains intact. Development-build guest validation passes all 21 point cases on the restored old default cache and a warm repeat; actual-cache apply/repeat/undo restores all 85 files. |    Y    |  Y  |  Y  |
+| 31  | SystemHook selects `AGX_GL_VIEWPORT_INVERT_CONFIG=UPPER_LEFT` while `/usr/lib/vphone-gles-upper-left` exists — **cloudOS 26.4; validated iOS 26.6 / 27.1** | No Apple binary change; project's SystemHook and installer marker | **Correct native GLES drawable orientation.** The renderer's existing viewport/scissor path avoids IOSurface attachment `yInvert`, whose effect the measured paravirtual path does not preserve. `system-systemhook-cfw-gles_upper_left`; selectable and revertible. See "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
+| 32  | Convert legacy vertex/instance ID attribute formats 43/44 to public UInt (36) at the descriptor wire write — **cloudOS 26.4; binary capability across iOS userlands** | Metal framework's `PipelineLibrarySerializer::serializeVertexDescriptor`, guest dyld shared cache | **Let the host compile GLES builtin-ID pipelines.** Preserve guest descriptors and AIR; normalize only the serialized format through a 32-byte in-image trampoline. `dyld-cfw-metal_vertex_id_format`; symbol/operand discovery, page re-attestation and undo-log revert. See "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
+| 33  | Select GLEngine primitive expansion for indexed line/triangle strips with restart disabled — **cloudOS 26.4; binary capability across iOS userlands** | AppleMetalGLRenderer's `gldRenderVertexArray`, guest dyld shared cache | **Preserve a valid maximum index while restart is disabled.** A checked 68-byte entry trampoline reads state fields derived from `updateRenderPrimitiveRestart`; other draws keep their normal path. `dyld-cfw-gles_primitive_restart` requires rows 30/32, adds CPU vertex copying and supports undo-log revert. Guest validation passes the seven restart cases, seven builtin controls and 36 matrix cases. See "Native GLES follow-up (2026-11-02)". |    Y    |  Y  |  Y  |
+| 34  | Remove four point-size reflection guards that suppress valid `GL_POINTS` submissions — **cloudOS 26.4; binary capability across iOS userlands** | AppleMetalGLRenderer's direct and primitive-buffer draw paths, guest dyld shared cache | **Submit points despite missing PV pipeline usage flags.** `dyld-cfw-gles_point_draw` replaces only the four bit-7 `TBZ` guards with NOPs, preserving other gates and the native shader/rasterizer. Semantic discovery and transactional DSC undo; cloned-cache apply/repeat/revert restores all 85 files exactly. Process-local diagnostics restore point footprints but expose a separate coordinate Y-flip transport gap. Development-build guest validation passes all 21 point cases on the restored old default cache and a warm repeat; see "Native GLES follow-up (2026-11-02)" for the newer iOS 27 corpus. |    Y    |  Y  |  Y  |
+| 35  | Derive the paravirtual driver compiler cache identity from the installed plugin — **binary capability; validated iOS 26.6 / 27.1 with cloudOS 26.4** | AppleParavirtGPUMetalIOGPUFamily | **Invalidate shader output after plugin updates.** `system-paravirt_gpu-cfw-compiler_cache` replaces two eight-byte SHA-256 seed inputs with a 96-bit plugin identity. Read-only discovery precedes GPU replacement. Requires row 36 when reuse is selected; an unsupported dependency skips fresh dependent features or preserves the installed group. Actual write/signing failures discard the private clone. |    Y    |  Y  |  Y  |
+| 36  | Retain cache-key validation when cross-boot reuse is enabled — **binary capability; validated iOS 26.6 / 27.1 with cloudOS 26.4** | libCoreFSCache in the guest dyld shared cache | **Reject stale compiler output while retaining warm caches across boots.** `dyld-cfw-metal_cache_reuse_key` redirects only `FS_CACHE_REUSE_ON_REBOOT=1` through the key comparison. A dry-run discovery miss is optional; compiler updates depending on it are skipped or preserved as a group. The no-reuse path is unchanged. Actual-cache apply/repeat/undo restores all 85 files in the validated corpus. |    Y    |  Y  |  Y  |
 | 37  | No Apple binary change: SystemHook detours IOKit's `IOServiceOpen`/`IOServiceClose`/`IOConnectCallMethod`/`IOConnectCallAsyncMethod` while `/usr/lib/vphone-ios18-gpu` exists, and `fw prepare` stages the iOS release's own cloudOS GPU driver — **iOS 18.6 / cloudOS 26.1** | none (`VPhoneGuestComponents/SystemHook/VPhoneIOS18GPU.c`; driver from cloudOS 18.6; marker written by `cfw install` only over that driver) | **An iOS 18 guest gets a Metal device.** The 26.1 driver does not load on iOS 18, and the 18.6 one is refused by the 26.1 kernel: IOGPU device method 6 is gone and 7–255 moved down by one, the resource-create reply gained 8 bytes at 0x18, the multi-buffer submit takes 0x30-byte entries instead of 0x28 and returns a scalar iOS 18 does not ask for, and AppleParavirtGPU method 265 grew from 0x10c to 0x118. The transport renumbers and repacks for IOGPU device connections only. `system-systemhook-cfw-ios18_gpu_transport`; see "iOS 18 GPU transport (2026-11-05)" and `Research/Guest/ios18_gpu_transport.md` |    Y    |  Y  |  Y  |
 | 38  | `tbz` -> `nop` on the cached Neural Engine existence answer in `___deviceHasModernNeuralEngine_block_invoke`, plus the host's MIL sources for the five E5 models — **iOS 27** | TextRecognition, guest dyld shared cache; `/System/Library/PrivateFrameworks/TextRecognition.framework/cr_*_e5.mlmodelc.bundle` | **Accurate text recognition.** A VM is never given a modern Neural Engine, so TextRecognition picks CPU models whose weights the iPhone firmware does not ship. `dyld-cfw-text_recognition_ane` selects the E5 models instead and adds the `model.mil` and weights E5RT compiles them from on the paravirtual Neural Engine; local-symbol and call-target discovery, page re-attestation, undo-log revert and a journal of the added files. See "Accurate text recognition on the paravirtual Neural Engine". |    Y    |  Y  |  Y  |
+| 39  | Preserve GLES signed clip depth — **binary capability; validated iOS 26.6 / 27.1 with cloudOS 26.4** | AppleMetalGLRenderer and the GPU compiler plugin | **Keep legal negative-z geometry and correct depth rejection.** `dyld-cfw-gles_depth_clip` pairs `(z+w)/2` vertex conversion with `near=2*midpoint-far` viewport correction. Discover both setter and update data flow before writing. New unsupported pairs skip both halves; installed pairs remain coherent. Native Metal is unchanged. See the reveal procedure below and `Guest/gles_depth_clip.md`. |    Y    |  Y  |  Y  |
 
 ### Swift port status — the eight DSC patchers (2026-09-23)
 
@@ -6443,12 +6458,57 @@ service. With primitive restart no longer sent, a strip that draws vertex
 65535 while restart is disabled is cut there. This includes ES2 and ES3's
 initial or explicitly disabled state; row 33 addresses that gap.
 
+## GLES signed depth capability and paired rollout (2026-11-10)
+
+Row 39 resolves `GLDContextRec::setRenderViewport` and
+`GLDContextRec::updateRenderViewport` from the renderer's local symbols.
+The setter's three contiguous loads reveal the 48-byte `MTLViewport` field;
+decoded stores and arithmetic in the updater reveal midpoint and far values.
+A verified 16-byte executable header-padding trampoline corrects only the near
+conversion. The configured compiler transforms only GLES vertex output.
+Undo captures both branch and cave, and modified cache pages are re-attested.
+
+Rows 35, 36 and 39 are probed without writes before any GPU refresh. Missing symbols,
+images or semantic matches skip unsupported new capabilities. Missing selected
+GPU/cache prerequisites skip the default depth pair too. An already installed
+group is preserved when its transition cannot be completed; failures during
+actual mutation, signing, verification or rollback discard the private clone.
+The compiler is signed with an explicit identifier before hashing its installed
+bytes. The receipt distinguishes skipped intent from preserved live patches.
+See [reveal, state transitions and validation](Guest/gles_depth_clip.md).
+
 ## Native GLES follow-up (2026-11-02)
 
-Rows 31–36 are selected by `standard` only for iOS 26.6/cloudOS 26.4,
-including patch releases; TV, HomePod and HomeView presets exclude them.
-A missing plan enables none, opt-in cannot widen the version gate, and current
-guest selections can enable declarations absent from an older boot plan.
+Rows 31–34 are selected by `standard` across iOS userland versions for the
+cloudOS 26.4 driver transport; opt-in cannot widen that driver boundary.
+Binary repairs are probed before writes. A newly unsupported vertex-ID
+repair also skips primitive expansion; an unsupported installed renderer
+repair preserves the installed GPU/compiler/renderer group.
+Rows 35–36 now use the binary-capability checks described in the paired
+rollout section above. TV, HomePod and HomeView presets exclude these six
+patches. A missing plan enables none, and current guest selections can
+enable declarations absent from an older boot plan.
+
+**iOS 27.1 discovery (24A94425, 2026-11-10).** Image-local selector-stub
+symbols are stale in this cache. Follow actual BL destinations and decode
+ADRP/ADD into x1, verify the exact selector string, then verify the tail B
+against exported `_objc_msgSend` entries in `libobjcMsgSend*.dylib`.
+This recovers `setViewport:`, `format`, `setRenderPipelineState:`,
+`methodForSelector:` and both nonindexed draw selectors; direct named stubs
+remain supported on 23G90. The restart updater also uses ADD + LDRB/STRB
+instead of indexed byte operations. Its pointer, index, normalized boolean
+and context-store chain are all checked. No patch-site address is built in.
+Read-only discovery passes for rows 32–34 and 39 on 24A94425, and recognizes
+the installed 23G90 patches. A 24A94425 cache copy passes apply/repeat/undo:
+only `.07` and `.44` change, and all 80 cache files are byte-identical after
+undo and re-attestation. The selected regression tests pass (92 on the local
+base; 99 with newer upstream tests). Privileged environment updates apply all
+repairs on both guest releases with zero pending patches. iOS 27 improves from
+176/224 to 224/224 depth samples, 6/35 to 35/35 point samples and 10/12 to 12/12
+restart comparisons; the scene-compatible App improves from 39/45 to 45/45
+and its triangles become upright. ID controls remain 24/24 and native Metal
+28/28, so this particular ID probe does not establish a pre-port ID failure.
+See [runtime corpus and limits](Guest/gles_depth_clip.md#ios-27-runtime-validation-2026-11-10).
 
 **Orientation, `system-systemhook-cfw-gles_upper_left` (row 31).** Reveal
 AppleMetalGLRenderer's `AGX_GL_VIEWPORT_INVERT_CONFIG` / `UPPER_LEFT` strings

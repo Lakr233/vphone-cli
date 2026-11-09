@@ -37,6 +37,28 @@ struct DyldSharedCacheGLESPrimitiveRestartTests {
 
     func decode(_ data: Data) -> [ARM64Instruction] { ARM64Disassembler().disassemble(data, at: entry) }
 
+    @Test func `recovers split address calculations and rejects changed state flow`() throws {
+        // Frozen 24A94425 updater: ADD + byte access replaced indexed accesses.
+        let words: [UInt32] = [
+            0xf9403408, 0x52878a89, 0x8b090108, 0x39400108, 0x7100011f,
+            0x1a9f07e8, 0x52827b89, 0x8b090009, 0x39000128, 0xb949a808,
+            0x32110108, 0xb909a808, 0xd65f03c0,
+        ]
+        let original = words.reduce(into: Data()) { $0 += ARM64.encodeU32($1) }
+        #expect(try Patcher.stateFields(in: decode(original)) == .init(pointerOffset: 0x68, enabledOffset: 0x3c54))
+        for count in 0 ..< 9 {
+            #expect(throws: PatcherError.self) { try Patcher.stateFields(in: decode(Data(original.prefix(count * 4)))) }
+        }
+        for index in [0, 1, 2, 3, 4, 5, 6, 7, 8] {
+            var changed = original
+            changed.replaceSubrange(index * 4 ..< index * 4 + 4, with: ARM64.nop)
+            #expect(throws: PatcherError.self) { try Patcher.stateFields(in: decode(changed)) }
+        }
+        var wrongState = original
+        wrongState.replaceSubrange(3 * 4 ..< 4 * 4, with: try #require(ARM64Encoder.encodeLdrBUnsignedOffset(rt: 8, rn: 0, offset: 0)))
+        #expect(throws: PatcherError.self) { try Patcher.stateFields(in: decode(wrongState)) }
+    }
+
     @Test func `recovers actual fields and rejects stale layouts`() throws {
         let fields = try Patcher.stateFields(in: decode(stateFixture()))
         #expect(fields == .init(pointerOffset: 0x68, enabledOffset: 0x3c54))

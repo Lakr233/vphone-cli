@@ -154,8 +154,6 @@ public enum DyldSharedCacheGLESPrimitiveRestartPatcher {
 
     static func stateFields(in code: [ARM64Instruction]) throws -> StateFields {
         guard code.count >= 7, code[0].mnemonic == "ldr", code[1].mnemonic == "mov",
-              code[2].mnemonic == "ldrb", code[3].mnemonic == "cmp", code[4].mnemonic == "cset",
-              code[5].mnemonic == "mov", code[6].mnemonic == "strb",
               let load = code[0].detail?.operands, load.count == 2,
               load[0].type == .register, load[1].type == .memory,
               load[1].mem.base == .x(0), load[1].mem.index == .invalid,
@@ -165,19 +163,52 @@ public enum DyldSharedCacheGLESPrimitiveRestartPatcher {
               let offset = code[1].detail?.operands, offset.count == 2,
               let index = (1 ... 17).first(where: { offset[0].reg == .w($0) }),
               pointer != index, offset[1].type == .immediate,
-              let byteOffset = UInt16(exactly: offset[1].imm),
-              let byte = code[2].detail?.operands, byte.count == 2,
+              let byteOffset = UInt16(exactly: offset[1].imm)
+        else { throw PatcherError.patchSiteNotFound("\(label) updater does not expose a verified state pointer") }
+
+        // Both compiler forms compute the same byte address: an indexed
+        // LDRB/STRB or ADD followed by a zero-offset byte access. Derive and
+        // verify each register; the context and state offsets remain inputs.
+        func adds(_ instruction: ARM64Instruction, destination: Int, base: ARM64Register, index: Int) -> Bool {
+            guard instruction.mnemonic == "add", let operands = instruction.detail?.operands,
+                  operands.count == 3, operands.allSatisfy({ $0.type == .register }),
+                  operands[0].reg == .x(destination), operands[1].reg == base,
+                  operands[2].reg == .x(index), operands[2].shift.amount == 0
+            else { return false }
+            return true
+        }
+        let expandedLoad = adds(code[2], destination: pointer, base: .x(pointer), index: index)
+        let byteIndex = expandedLoad ? 3 : 2
+        let compareIndex = byteIndex + 1
+        let setIndex = byteIndex + 2
+        let offsetIndex = byteIndex + 3
+        guard offsetIndex + 1 < code.count,
+              code[byteIndex].mnemonic == "ldrb",
+              let byte = code[byteIndex].detail?.operands, byte.count == 2,
               byte[0].reg == .w(pointer), byte[1].type == .memory,
-              byte[1].mem.base == .x(pointer), byte[1].mem.index == .x(index),
+              byte[1].mem.base == .x(pointer), byte[1].mem.index == (expandedLoad ? .invalid : .x(index)),
               byte[1].mem.disp == 0, byte[1].shift.amount == 0,
-              code[2].detail?.writeback == false,
-              let compare = code[3].detail?.operands, compare.count == 2,
+              code[byteIndex].detail?.writeback == false,
+              code[compareIndex].mnemonic == "cmp",
+              let compare = code[compareIndex].detail?.operands, compare.count == 2,
               compare[0].reg == .w(pointer), compare[1].type == .immediate, compare[1].imm == 0,
-              code[4].detail?.conditionCode == .ne,
-              code[4].detail?.operands.first?.reg == .w(pointer),
-              let store = code[6].detail?.operands, store.count == 2,
-              store[0].reg == .w(pointer), store[1].type == .memory, store[1].mem.base == .x(0)
+              code[setIndex].mnemonic == "cset", code[setIndex].detail?.conditionCode == .ne,
+              code[setIndex].detail?.operands.first?.reg == .w(pointer),
+              code[offsetIndex].mnemonic == "mov", let output = code[offsetIndex].detail?.operands,
+              output.count == 2, output[0].type == .register,
+              let outputIndex = (1 ... 17).first(where: { output[0].reg == .w($0) }),
+              outputIndex != pointer, output[1].type == .immediate, UInt16(exactly: output[1].imm) != nil
         else { throw PatcherError.patchSiteNotFound("\(label) updater does not expose a verified current-state byte") }
+        let expandedStore = adds(code[offsetIndex + 1], destination: outputIndex, base: .x(0), index: outputIndex)
+        let storeIndex = offsetIndex + (expandedStore ? 2 : 1)
+        guard storeIndex < code.count, code[storeIndex].mnemonic == "strb",
+              let store = code[storeIndex].detail?.operands, store.count == 2,
+              store[0].reg == .w(pointer), store[1].type == .memory,
+              store[1].mem.base == (expandedStore ? .x(outputIndex) : .x(0)),
+              store[1].mem.index == (expandedStore ? .invalid : .x(outputIndex)),
+              store[1].mem.disp == 0, store[1].shift.amount == 0,
+              code[storeIndex].detail?.writeback == false
+        else { throw PatcherError.patchSiteNotFound("\(label) updater does not store the normalized state byte") }
         return StateFields(pointerOffset: UInt32(load[1].mem.disp), enabledOffset: byteOffset)
     }
 

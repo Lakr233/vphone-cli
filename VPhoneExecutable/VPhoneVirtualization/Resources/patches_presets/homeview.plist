@@ -90,6 +90,7 @@
 			<string>dyld-cfw-gles_primitive_restart</string>
 			<string>dyld-cfw-metal_cache_reuse_key</string>
 			<string>dyld-cfw-gles_point_draw</string>
+			<string>dyld-cfw-gles_depth_clip</string>
 			<string>dyld-exp-hv_vmm</string>
 			<string>dyld-exp-mis_trust_auth</string>
 			<string>dyld-exp-settings_software_update_row</string>
