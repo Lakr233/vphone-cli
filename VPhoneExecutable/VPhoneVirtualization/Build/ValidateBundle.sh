@@ -131,6 +131,12 @@ done
     print -u2 "Missing native KDK extraction licence"
     exit 1
 }
+for name in Dynamic-Apache-2.0.txt Dynamic-NOTICE.txt; do
+    /usr/bin/cmp "$root/VPhoneExecutable/VPhoneVirtualization/Resources/Licenses/$name" "$resources/Licenses/$name" || {
+        print -u2 "Missing or changed Dynamic notice: $name"
+        exit 1
+    }
+done
 /usr/bin/cmp "$root/VPhoneExecutable/VPhoneVirtualization/Resources/Licenses/Swift-Apache-2.0-with-Runtime-Library-Exception.txt" \
     "$resources/Licenses/Swift-Apache-2.0-with-Runtime-Library-Exception.txt" || {
     print -u2 "Missing or changed Swift runtime notice"

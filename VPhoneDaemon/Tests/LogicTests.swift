@@ -1,4 +1,6 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import MachO
 
 // MARK: - Harness
@@ -7,8 +9,8 @@ import MachO
 /// profile lists and bookkeeping, the first-boot settle verdict (data
 /// migration included), the device name rule, the pointer scroll
 /// parameters, the Irisin package a guest takes and the MobileGestalt
-/// answers vphoned adds. `run-logic-tests.sh`
-/// builds this file with those sources.
+/// answers vphoned adds, and the screenshot crop, scale and encode.
+/// `run-logic-tests.sh` builds this file with those sources.
 nonisolated(unsafe) var failures = 0
 nonisolated(unsafe) var checks = 0
 
@@ -45,6 +47,7 @@ enum LogicTests {
         locationServicesOffError()
         mobileGestaltAnswers()
         settingsValue()
+        screenshotSizing()
         methodDispatch()
         print("\(checks) checks, \(failures) failures")
         exit(failures == 0 ? 0 : 1)
@@ -505,6 +508,189 @@ enum LogicTests {
             return nil
         } catch {
             return error.message
+        }
+    }
+
+    static func screenshotSizing() {
+        typealias Sizing = GuestScreenshotSizing
+        let pointSize = (width: 100.0, height: 50.0)
+
+        // 200x100 px, two per point: red top-left, green top-right, blue
+        // bottom-left, yellow bottom-right.
+        let colors: [(r: Double, g: Double, b: Double)] = [(1, 0, 0), (0, 1, 0), (0, 0, 1), (1, 1, 0)]
+        func jpeg(_ image: CGImage, quality: Double) -> Data {
+            let data = NSMutableData()
+            let destination = CGImageDestinationCreateWithData(data, "public.jpeg" as CFString, 1, nil)!
+            CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary)
+            _ = CGImageDestinationFinalize(destination)
+            return data as Data
+        }
+        let context = CGContext(data: nil, width: 200, height: 100, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+        for (index, color) in colors.enumerated() {
+            context.setFillColor(red: color.r, green: color.g, blue: color.b, alpha: 1)
+            // CoreGraphics counts y from the bottom.
+            context.fill(CGRect(x: (index % 2) * 100, y: index < 2 ? 50 : 0, width: 100, height: 50))
+        }
+        let original = jpeg(context.makeImage()!, quality: 1.0)
+
+        func isColor(_ data: Data, _ x: Int, _ y: Int, _ color: (r: Double, g: Double, b: Double)) -> Bool {
+            let image = CGImageSourceCreateImageAtIndex(CGImageSourceCreateWithData(data as CFData, nil)!, 0, nil)!
+            let canvas = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: 0,
+                                   space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                   bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+            canvas.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            let bytes = canvas.data!.assumingMemoryBound(to: UInt8.self) + y * canvas.bytesPerRow + x * 4
+            return abs(Int(bytes[0]) - Int(color.r * 255)) < 40 && abs(Int(bytes[1]) - Int(color.g * 255)) < 40
+                && abs(Int(bytes[2]) - Int(color.b * 255)) < 40
+        }
+        func region(_ x: Double, _ y: Double, _ width: Double, _ height: Double) -> [String: Any] {
+            ["x": x, "y": y, "width": width, "height": height]
+        }
+        func run(_ params: [String: Any]) -> (jpeg: Data, width: Int, height: Int, region: Sizing.Region)? {
+            guard let options = try? Sizing.parse(params) else { return nil }
+            return try? Sizing.apply(options, jpeg: original, pointSize: pointSize)
+        }
+        func parseError(_ params: [String: Any]) -> GuestAPIError? {
+            do { _ = try Sizing.parse(params) } catch let error as GuestAPIError { return error } catch {}
+            return nil
+        }
+        func applyError(_ params: [String: Any], _ data: Data? = nil) -> GuestAPIError? {
+            do { _ = try Sizing.apply(Sizing.parse(params), jpeg: data ?? original, pointSize: pointSize) }
+            catch let error as GuestAPIError { return error } catch {}
+            return nil
+        }
+
+        // no params: nothing to do, so the daemon never decodes
+        expect((try? Sizing.parse([:]))?.isEmpty == true, "no param is an empty option set")
+        expect((try? Sizing.parse(["quality": 0.5]))?.isEmpty == false, "quality alone is not empty")
+
+        // crop alone: the bottom-right quarter
+        let crop = run(["region": region(50, 25, 50, 25)])
+        expectEqual(crop.map { [$0.width, $0.height] } ?? [], [100, 50], "crop size")
+        expectEqual(crop?.region, Sizing.Region(x: 50, y: 25, width: 50, height: 25), "crop reports the requested region")
+        expect(crop.map { isColor($0.jpeg, 50, 25, colors[3]) && isColor($0.jpeg, 2, 2, colors[3]) } ?? false, "crop shows yellow")
+
+        // a fractional region rounds each edge to whole pixels
+        let fractional = run(["region": region(10.3, 5.2, 20.4, 10.1)])
+        expectEqual(fractional.map { [$0.width, $0.height] } ?? [], [40, 21], "edge-rounded crop size")
+
+        // scale alone
+        let scaled = run(["max_dimension": 100])
+        expectEqual(scaled.map { [$0.width, $0.height] } ?? [], [100, 50], "scale keeps the aspect ratio")
+        expectEqual(scaled?.region, Sizing.Region(x: 0, y: 0, width: 100, height: 50), "no region is the full screen")
+        expect(scaled.map { isColor($0.jpeg, 10, 10, colors[0]) && isColor($0.jpeg, 90, 40, colors[3]) } ?? false, "scale keeps the quadrants")
+        expectEqual(run(["max_dimension": 5000]).map { [$0.width, $0.height] } ?? [], [200, 100], "never scales up")
+        expectEqual(run(["max_dimension": 200])?.width, 200, "at the longer side is unchanged")
+
+        // both: the crop is scaled
+        let both = run(["region": region(0, 0, 50, 25), "max_dimension": 50])
+        expectEqual(both.map { [$0.width, $0.height] } ?? [], [50, 25], "crop then scale")
+        expect(both.map { isColor($0.jpeg, 25, 12, colors[0]) } ?? false, "crop then scale shows red")
+
+        // quality changes the byte size, not the image size
+        let low = run(["quality": 0.5])
+        let high = run(["quality": 0.9])
+        expect((low?.jpeg.count ?? Int.max) < (high?.jpeg.count ?? 0), "quality 0.5 is smaller than quality 0.9")
+        let cropExplicit = run(["region": region(50, 25, 50, 25), "quality": 0.8])
+        expect(crop != nil && crop?.jpeg == cropExplicit?.jpeg, "a crop without quality encodes at 0.8")
+        let scaleExplicit = run(["max_dimension": 100, "quality": 0.8])
+        expect(scaled != nil && scaled?.jpeg == scaleExplicit?.jpeg, "a scale without quality encodes at 0.8")
+        expectEqual(low.map { [$0.width, $0.height] } ?? [], [200, 100], "quality alone keeps the size")
+
+        // the coordinate mapping: pixel (px, py) is point (x + px / scale, y + py / scale)
+        // a crop across the red/green edge (point 50) puts the edge at (50 - region.x) * scale
+        for maxDimension in [nil, 20] as [Int?] {
+            var params: [String: Any] = ["region": region(40, 0, 20, 25)]
+            if let maxDimension { params["max_dimension"] = maxDimension }
+            guard let edge = run(params) else { expect(false, "the edge crop ran"); continue }
+            let scale = Double(edge.width) / edge.region.width
+            let expected = (50 - edge.region.x) * scale
+            let row = edge.height / 4
+            let boundary = (0 ..< edge.width).first { !isColor(edge.jpeg, $0, row, colors[0]) } ?? -1
+            expect(abs(Double(boundary) - expected) <= 1, "the red/green edge is at pixel \(boundary), expected \(expected)")
+        }
+
+        let tiny = run(["max_dimension": 1])
+        expectEqual(tiny.map { [$0.width, $0.height] } ?? [], [1, 1], "max_dimension 1 on a 2:1 image")
+        if let tiny {
+            let scale = Double(tiny.width) / tiny.region.width
+            expectEqual(scale, 0.01, "1 pixel over 100 points")
+            expectEqual(tiny.region.x + 1 / scale, 100, "the pixel's far edge is the screen's")
+        }
+
+        // the reply: empty options keep the image bytes and add the point keys
+        let capture: [String: Any] = ["bytes": original.count, "mime_type": "image/jpeg", "width": 200, "height": 100,
+                                      "coordinate_scale": 2.0, "data": original.base64EncodedString(),
+                                      "jpeg": original]
+        func reply(_ params: [String: Any], _ input: [String: Any]) -> [String: Any]? {
+            guard let options = try? Sizing.parse(params) else { return nil }
+            return try? Sizing.reply(capture: input, options: options, pointSize: pointSize)
+        }
+        if let plain = reply([:], capture) {
+            expect(plain["data"] as? String == original.base64EncodedString(), "empty options leave the data identical")
+            expectEqual(plain["bytes"] as? Int, original.count, "empty options leave bytes identical")
+            expectEqual(plain["point_width"] as? Double, 100, "empty options add point_width")
+            expectEqual(plain["point_height"] as? Double, 50, "empty options add point_height")
+            expectEqual((plain["region"] as? [String: Double])?["width"], 100, "empty options add the full-screen region")
+        } else {
+            expect(false, "the empty-options reply ran")
+        }
+        // pinned replies on the 200x100 px, 100x50 pt fixture: width, height, region, pixels per point
+        let sizedCases: [(params: [String: Any], width: Int, height: Int, region: [String: Double], scale: Double)] = [
+            (["quality": 0.5], 200, 100, ["x": 0, "y": 0, "width": 100, "height": 50], 2),
+            (["region": region(50, 25, 50, 25)], 100, 50, ["x": 50, "y": 25, "width": 50, "height": 25], 2),
+            (["max_dimension": 100], 100, 50, ["x": 0, "y": 0, "width": 100, "height": 50], 1),
+            // 40x21 px crop scaled to 30 wide: 21 * 30 / 40 rounds to 16
+            (["region": region(10.3, 5.2, 20.4, 10.1), "max_dimension": 30], 30, 16,
+             ["x": 10.3, "y": 5.2, "width": 20.4, "height": 10.1], 30 / 20.4),
+        ]
+        for testCase in sizedCases {
+            let label = "\(testCase.params)"
+            guard let out = reply(testCase.params, capture) else { expect(false, "reply ran for \(label)"); continue }
+            expectEqual(out["width"] as? Int, testCase.width, "\(label) width")
+            expectEqual(out["height"] as? Int, testCase.height, "\(label) height")
+            expectEqual(out["point_width"] as? Double, 100, "\(label) point_width")
+            expectEqual(out["point_height"] as? Double, 50, "\(label) point_height")
+            expectEqual(out["region"] as? [String: Double], testCase.region, "\(label) region")
+            expectEqual(out["coordinate_scale"] as? Double, testCase.scale, "\(label) coordinate_scale")
+        }
+
+        // one-past-bound rejections: the code, and a message naming param, value and range
+        func rejected(_ error: GuestAPIError?, _ parts: [String], _ label: String, line: Int = #line) {
+            guard let error else { expect(false, "\(label) is rejected", line: line); return }
+            expectEqual(error.code, "invalid_operation", label, line: line)
+            guard case .invalidRequest = error else { expect(false, "\(label) is invalidRequest", line: line); return }
+            for part in parts {
+                expect(error.description.contains(part), "\(label): \"\(error.description)\" names \(part)", line: line)
+            }
+        }
+        rejected(parseError(["max_dimension": 0]), ["max_dimension", "0", "1 or more"], "max_dimension 0")
+        rejected(parseError(["max_dimension": 1.5]), ["max_dimension", "1.5"], "max_dimension fraction")
+        rejected(parseError(["max_dimension": "9"]), ["max_dimension", "9"], "max_dimension text")
+        rejected(parseError(["quality": 0.09]), ["quality", "0.09", "0.1 to 1.0"], "quality 0.09")
+        rejected(parseError(["quality": 1.01]), ["quality", "1.01", "0.1 to 1.0"], "quality 1.01")
+        rejected(parseError(["quality": true]), ["quality", "true"], "quality boolean")
+        rejected(parseError(["region": region(0, 0, 0, 10)]), ["region.width", "0", "above 0"], "width 0")
+        rejected(parseError(["region": region(0, 0, 10, -1)]), ["region.height", "-1", "above 0"], "height -1")
+        rejected(parseError(["region": region(-1, 0, 10, 10)]), ["region.x", "-1", "0 or more"], "x -1")
+        rejected(parseError(["region": region(0, -1, 10, 10)]), ["region.y", "-1", "0 or more"], "y -1")
+        rejected(parseError(["region": ["x": 0, "y": 0, "width": 10]]), ["region.height", "missing"], "missing field")
+        rejected(parseError(["region": ["x": 0, "y": 0, "width": 10, "height": "ten"]]), ["region.height", "ten"], "non-numeric field")
+        rejected(parseError(["region": "all"]), ["region", "all"], "region not an object")
+        rejected(applyError(["region": region(50, 0, 50.1, 10)]), ["x + width", "100.1", "at most 100"], "x + width one past the edge")
+        rejected(applyError(["region": region(0, 40, 10, 10.5)]), ["y + height", "50.5", "at most 50"], "y + height past the edge")
+        rejected(applyError(["region": region(10, 10, 0.1, 10)]), ["region.width", "0.1", "at least 0.5"], "0.1-point region")
+        expect(applyError(["region": region(0, 0, 100, 50)]) == nil, "the whole screen is inside")
+
+        // an image that does not decode fails the operation, never succeeds
+        if let error = applyError(["quality": 0.5], Data("not a jpeg".utf8)) {
+            expectEqual(error.code, "invalid_operation")
+            if case .operationFailed = error {} else { expect(false, "non-JPEG is operationFailed") }
+            expect(error.description.contains("decode"), "the message names the decode step: \(error.description)")
+        } else {
+            expect(false, "non-JPEG bytes are rejected")
         }
     }
 

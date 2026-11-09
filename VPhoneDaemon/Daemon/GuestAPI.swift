@@ -78,13 +78,18 @@ enum CoreMethod: String, GuestMethod {
                                                 .required("scale", .number),
                                                 .required("screen_off", .boolean),
                                                 .required("width", .number)])
-        case .screenScreenshot: MethodSpec(result: [.required("bytes", .integer),
+        case .screenScreenshot: MethodSpec(.optional("max_dimension", .integer),
+                                           .optional("quality", .number),
+                                           .optional("region", .object),
+                                           result: [.required("bytes", .integer),
                                                     .required("coordinate_scale", .number),
-                                                    .optional("data", .string),
-                                                    .required("height", .any),
+                                                    .required("data", .string),
+                                                    .required("height", .integer),
                                                     .required("mime_type", .string),
-                                                    .hidden("path", .string),
-                                                    .required("width", .any)])
+                                                    .required("point_height", .number),
+                                                    .required("point_width", .number),
+                                                    .required("region", .object),
+                                                    .required("width", .integer)])
         case .appsList: MethodSpec(.optional("filter", .string), result: [.required("apps", .array)])
         case .appsSearch: MethodSpec(.required("query", .string), result: [.required("apps", .any), .required("query", .string)])
         case .appsRefresh: MethodSpec(.optional("directory", .string), result: [
@@ -480,6 +485,37 @@ enum GuestAPI {
         try GuestMethodArea.dispatch(areas, method: method, params: params)
     }
 
+    /// `screen.screenshot`. Without options the capture is base64-encoded as it
+    /// is; otherwise the daemon crops, scales and encodes it, so only the final
+    /// image crosses vsock.
+    private static func sizedScreenshot(_ options: GuestScreenshotSizing.Options) throws -> [String: Any] {
+        let screen = screenInfo()
+        guard let pointWidth = (screen["width"] as? NSNumber)?.doubleValue,
+              let pointHeight = (screen["height"] as? NSNumber)?.doubleValue,
+              pointWidth > 0, pointHeight > 0
+        else {
+            throw GuestAPIError.operationFailed("screenshot failed: the screen size is unknown")
+        }
+        var capture: [String: Any]
+        do { capture = try takeScreenshot(base64: options.isEmpty, nativeResolution: true) } catch {
+            throw GuestAPIError.operationFailed("screenshot capture failed: \(error)")
+        }
+        if !options.isEmpty {
+            guard let path = capture["path"] as? String else {
+                throw GuestAPIError.operationFailed("screenshot capture failed: no scratch file")
+            }
+            defer { try? FileManager.default.removeItem(atPath: path) }
+            do { capture["jpeg"] = try Data(contentsOf: URL(fileURLWithPath: path)) } catch {
+                throw GuestAPIError.operationFailed("screenshot read failed: \(error.localizedDescription)")
+            }
+        }
+        return try GuestScreenshotSizing.reply(
+            capture: capture,
+            options: options,
+            pointSize: (Double(pointWidth), Double(pointHeight)),
+        )
+    }
+
     static func executeCore(_ m: CoreMethod, _ params: [String: Any]) throws -> [String: Any] {
         switch m {
         case .deviceSnapshot:
@@ -489,7 +525,7 @@ enum GuestAPI {
         case .deviceScreen:
             return screenInfo()
         case .screenScreenshot:
-            return try takeScreenshot(base64: true, nativeResolution: true)
+            return try sizedScreenshot(try GuestScreenshotSizing.parse(params))
         case .appsList:
             let filter = params["filter"] as? String ?? "all"
             let apps = try listedApps()
