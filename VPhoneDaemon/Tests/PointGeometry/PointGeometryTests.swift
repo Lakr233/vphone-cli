@@ -70,7 +70,8 @@ func rejects(_ operation: () throws -> Void) {
         precondition(LayoutWitness.reads == before, "invalid parameters reached layout observation")
         _ = try GuestAPI.executeInput(.inputTouchSequence, ["events": [["phase": "down", "x": 0.5, "y": 0.5]]])
         _ = try GuestAPI.executeTouch(["phase": "down", "x": 0.5, "y": 0.5])
-        _ = try GuestAPI.executeTouch(["phase": "down", "edge": 1, "normalized": true, "x": 0.5, "y": 0.5])
+        let edge = try GuestAPI.executeTouch(["phase": "down", "edge": 1, "normalized": true, "x": 0.5, "y": 0.5])
+        precondition(edge["phase"] as? String == "down" && edge["edge"] as? Int == 1)
         rejects { _ = try GuestAPI.executeTouch(["phase": "down", "edge": 1, "normalized": false]) }
         _ = try GuestAPI.executeInput(.inputButton, ["name": "home"])
         _ = try GuestAPI.executeInterface(.uiTree, [:])

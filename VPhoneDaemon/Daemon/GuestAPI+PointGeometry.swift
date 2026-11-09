@@ -50,10 +50,14 @@ extension GuestAPI {
                 throw GuestAPIError.invalidRequest("edge touch coordinates are normalized 0..1 only")
             }
             vp_hid_touch_edge(touchPhaseCode(phase), number(params, "x"), number(params, "y"), Int32(edge))
-            return ["phase": phase.rawValue, "edge": edge]
+            return edgeTouchResult(phase, edge: edge)
         }
         let x = number(params, "x"), y = number(params, "y")
         if normalized { return try touch(phase, x: x, y: y, normalized: true) }
         return try withActivePointGeometry { try touch(phase, x: x, y: y, normalized: false) }
+    }
+
+    static func edgeTouchResult(_ phase: TouchPhase, edge: Int) -> [String: Any] {
+        ["phase": phase.rawValue, "edge": edge]
     }
 }

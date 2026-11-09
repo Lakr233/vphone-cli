@@ -97,7 +97,7 @@ input.pointer	never	x:number!,y:number!,seq:integer,buttons:integer	-	buttons:in
 input.scroll	never	phase:string!,dx:number,dy:number,x:number,y:number	-	phase:string	mutating
 input.swipe	never	x1:number!,y1:number!,x2:number!,y2:number!,seconds:number,steps:integer	-	from:array,to:array	mutating
 input.tap	never	x:number!,y:number!	-	x:number,y:number	mutating
-input.touch	never	phase:string!,x:number,y:number,edge:integer,normalized:boolean	-	digitizer_x:number?,digitizer_y:number?,edge:integer?,normalized:boolean?,phase:any,x:number?,y:number?	mutating
+input.touch	never	phase:string!,x:number,y:number,edge:integer,normalized:boolean	-	digitizer_x:number?,digitizer_y:number?,edge:integer?,normalized:boolean?,phase:string,x:number?,y:number?	mutating
 input.touch2	never	phase:string!,x1:number,y1:number,x2:number,y2:number,normalized:boolean	-	fingers:integer,phase:any	mutating
 input.touch_sequence	never	events:array!,normalized:boolean	-	duration_ms:integer,events:integer,finger_down:boolean,normalized:boolean	mutating
 input.type	never	text:string!,delay_ms:number	-	method:string,sent:integer	mutating

@@ -192,7 +192,7 @@ enum CoreMethod: String, GuestMethod {
                                 .optional("digitizer_y", .number),
                                 .optional("edge", .integer),
                                 .optional("normalized", .boolean),
-                                .required("phase", .any),
+                                .required("phase", .string),
                                 .optional("x", .number),
                                 .optional("y", .number)])
         case .inputTouch2:

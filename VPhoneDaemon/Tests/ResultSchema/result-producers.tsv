@@ -97,7 +97,7 @@ input.pointer	VPhoneDaemon/Daemon/GuestAPI.swift#executeCore
 input.scroll	VPhoneDaemon/Daemon/GuestAPI.swift#executeCore
 input.swipe	icli:IcliKit/Input/Screen.swift#swipe
 input.tap	icli:IcliKit/Input/Screen.swift#tap
-input.touch	VPhoneDaemon/Daemon/GuestAPI.swift#executeCore
+input.touch	VPhoneDaemon/Daemon/GuestAPI+PointGeometry.swift#edgeTouchResult;icli:IcliKit/Input/RawInput.swift#touch
 input.touch2	VPhoneDaemon/Daemon/GuestAPI.swift#executeCore
 input.touch_sequence	icli:IcliKit/Input/RawInput.swift#touchSequence
 input.type	icli:IcliKit/Input/Screen.swift#typeText
