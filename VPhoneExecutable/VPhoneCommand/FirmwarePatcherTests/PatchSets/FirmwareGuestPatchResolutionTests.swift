@@ -101,6 +101,30 @@ struct FirmwareGuestPatchResolutionTests {
         #expect(!plan.isEnabled(FirmwareGuestSystemPatchSet.tvLocalActivation))
     }
 
+    /// polarisd exits at once on a VM, and launchd panics on its exit unless
+    /// the headset jobs lose their panic-on-crash policy: without it a freshly
+    /// created visionOS 26.4 guest panics at its first boot.
+    @Test func `visionOS preset keeps headset service exits nonfatal and no other preset does`() throws {
+        let identifier = FirmwareGuestSystemPatchSet.visionOSNonfatalServices
+        for preset in FirmwarePatchSetCatalog.builtInPresets {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("26.4"), cloudOS: VPhoneVersion("26.4"),
+            )
+            #expect(plan.isEnabled(identifier) == (preset.identifier == VPhonePatchPreset.visionOSIdentifier), "\(preset.identifier)")
+        }
+        let vision = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.visionOSPreset, patchSets: FirmwarePatchSetCatalog.bundled,
+            iOSBase: VPhoneVersion("26.4"), cloudOS: VPhoneVersion("26.4"),
+        )
+        for experiment in [FirmwareGuestSystemPatchSet.visionOSVirtualProduct, FirmwareGuestSystemPatchSet.visionOSLegacyUXM,
+                           FirmwareGuestSystemPatchSet.visionOSUXMIPC, FirmwareGuestSystemPatchSet.visionOSSkipBuddy,
+                           FirmwareGuestSystemPatchSet.visionOSEnvironments, FirmwareGuestSystemPatchSet.visionOSFramePacing]
+            + Array(FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches) {
+            #expect(!vision.isEnabled(experiment), "\(experiment) stays an opt-in experiment")
+        }
+    }
+
     @Test func `visionOS Buddy preference is independent opt in for the tested OS pair`() throws {
         let identifier = FirmwareGuestSystemPatchSet.visionOSSkipBuddy
         let declaration = try #require(FirmwarePatchSetCatalog.allDeclarations.first { $0.identifier == identifier })

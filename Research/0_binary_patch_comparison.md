@@ -1,5 +1,13 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **visionOS preset: nonfatal headset services (2026-11-09).**
+> The `visionos` preset now turns on
+> `system-launchdaemons-exp-visionos_nonfatal_services`. polarisd exits at once
+> on a VM ("Failed to register expert session"); with its panic-on-crash policy
+> intact, a freshly created visionOS 26.4 guest panicked at its first boot. The
+> patch keeps its identifier and stays off in every other preset; the UI
+> adapters stay opt-in. Details in `Research/Firmware/visionos_bringup.md`.
+
 > **Virtual USB DriverKit capability (2026-11-08).**
 > `devicetree-cfw-virtual_usb_driverkit` writes `/product/supports-driverkit`
 > as little-endian UInt32 1 with flags 0 after board presentation, for iPhone
