@@ -1,3 +1,4 @@
+import CoreFoundation
 import CryptoKit
 @testable import FirmwarePatcher
 import Foundation
