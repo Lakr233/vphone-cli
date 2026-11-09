@@ -94,14 +94,15 @@ extension GuestAPI {
         let timeout = (params["timeout_seconds"] as? NSNumber).map { $0.doubleValue } ?? 3.0
         if let error = GuestProcessSpawnPolicy.validate(executable: name, arguments: arguments, timeout: timeout) { throw GuestAPIError.invalidRequest(error) }
 
-        var stdoutPipe: [Int32] = [0, 0]
-        var stderrPipe: [Int32] = [0, 0]
-        guard pipe(&stdoutPipe) == 0, pipe(&stderrPipe) == 0 else {
-            throw GuestAPIError.operationFailed("pipe: " + String(cString: strerror(errno)))
+        let stdoutPipe: GuestProcessPipe
+        let stderrPipe: GuestProcessPipe
+        do {
+            stdoutPipe = try GuestProcessPipe()
+            stderrPipe = try GuestProcessPipe()
+        } catch let error as POSIXError {
+            throw GuestAPIError.operationFailed("pipe: " + String(cString: strerror(error.code.rawValue)))
         }
-        defer {
-            close(stdoutPipe[0]); close(stdoutPipe[1]); close(stderrPipe[0]); close(stderrPipe[1])
-        }
+        defer { withExtendedLifetime((stdoutPipe, stderrPipe)) {} }
 
         var argv = [UnsafeMutablePointer<CChar>?](repeating: nil, count: arguments.count + 2)
         argv[0] = strdup(executable)
@@ -110,23 +111,23 @@ extension GuestAPI {
         var actions: posix_spawn_file_actions_t?
         vp_spawn_file_actions_init(&actions)
         defer { vp_spawn_file_actions_destroy(&actions) }
-        vp_spawn_file_actions_adddup2(&actions, stdoutPipe[1], STDOUT_FILENO)
-        vp_spawn_file_actions_adddup2(&actions, stderrPipe[1], STDERR_FILENO)
-        vp_spawn_file_actions_addclose(&actions, stdoutPipe[0])
-        vp_spawn_file_actions_addclose(&actions, stderrPipe[0])
+        vp_spawn_file_actions_adddup2(&actions, stdoutPipe.writeEnd, STDOUT_FILENO)
+        vp_spawn_file_actions_adddup2(&actions, stderrPipe.writeEnd, STDERR_FILENO)
+        vp_spawn_file_actions_addclose(&actions, stdoutPipe.readEnd)
+        vp_spawn_file_actions_addclose(&actions, stderrPipe.readEnd)
         var pid: pid_t = 0
         let spawnError = vp_spawn(&pid, executable, &actions, nil, &argv, environ)
         guard spawnError == 0 else { throw GuestAPIError.operationFailed("posix_spawn: " + String(cString: strerror(spawnError))) }
-        close(stdoutPipe[1]); close(stderrPipe[1])
+        stdoutPipe.closeWriteEnd(); stderrPipe.closeWriteEnd()
 
-        fcntl(stdoutPipe[0], F_SETFL, O_NONBLOCK)
-        fcntl(stderrPipe[0], F_SETFL, O_NONBLOCK)
+        fcntl(stdoutPipe.readEnd, F_SETFL, O_NONBLOCK)
+        fcntl(stderrPipe.readEnd, F_SETFL, O_NONBLOCK)
         var output = Data(); var errorOutput = Data(); var status: Int32 = 0
         let deadline = Date().addingTimeInterval(timeout)
         var exited = false
         while Date() < deadline {
-            drainSpawnPipe(stdoutPipe[0], into: &output)
-            drainSpawnPipe(stderrPipe[0], into: &errorOutput)
+            drainSpawnPipe(stdoutPipe.readEnd, into: &output)
+            drainSpawnPipe(stderrPipe.readEnd, into: &errorOutput)
             if waitpid(pid, &status, WNOHANG) == pid { exited = true; break }
             usleep(10_000)
         }
@@ -134,7 +135,7 @@ extension GuestAPI {
             kill(pid, SIGKILL)
             _ = waitpid(pid, &status, 0)
         }
-        drainSpawnPipe(stdoutPipe[0], into: &output); drainSpawnPipe(stderrPipe[0], into: &errorOutput)
+        drainSpawnPipe(stdoutPipe.readEnd, into: &output); drainSpawnPipe(stderrPipe.readEnd, into: &errorOutput)
         return [
             "executable": executable, "arguments": arguments, "pid": Int(pid),
             "timed_out": !exited, "exit_code": exited && (status & 0x7f) == 0 ? Int((status >> 8) & 0xff) : NSNull(),
