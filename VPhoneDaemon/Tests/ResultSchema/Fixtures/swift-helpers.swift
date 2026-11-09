@@ -230,3 +230,95 @@ func mergeService(_ service: [String: Any], into row: inout [String: Any]) {
         row["program"] = program
     }
 }
+
+// A key whose value is a helper call or a dict-returning function takes the callee's type;
+// `?? NSNull()`, `nil` and `as Any?` make the key nullable instead of `any`.
+func appPath() -> String { return "/Applications/X.app" }
+func pidCount() -> Int { return 1 }
+func otherCount() -> Int { return 2 }
+func storedName() -> String? { return nil }
+func registrationInfo() -> [String: Any] { return ["ok": true] }
+
+// expect: nullableKeys => app_path:string:null,cast:string:null,defaulted:string,helper:integer,name:string:null,pid:integer:null,plain:integer:null,registration:object:null,udid:null
+func nullableKeys(installed: Bool, path: String?, pid: Int?) -> [String: Any] {
+    return [
+        "app_path": installed ? appPath() : NSNull(),
+        "registration": installed ? registrationInfo() : NSNull(),
+        "name": storedName() ?? NSNull(),
+        "pid": pid ?? NSNull(),
+        "udid": NSNull(),
+        "cast": path as Any? ?? NSNull(),
+        "plain": pid as Any?,
+        "helper": pidCount(),
+        "defaulted": storedName() ?? "",
+    ]
+}
+
+// A key that is NSNull on one return and a value on another is the value type, nullable and required.
+// expect: nullAcrossReturns => v:integer:null
+func nullAcrossReturns(flag: Bool) -> [String: Any] {
+    if flag { return ["v": pidCount()] }
+    return ["v": NSNull()]
+}
+
+// Two paths with the same helper type stay that type; different types stay any.
+// expect: samePaths => both:integer?,diff:any?,info:object,ternary:integer
+func samePaths(flag: Bool) -> [String: Any] {
+    var out: [String: Any] = ["info": registrationInfo(), "ternary": flag ? pidCount() : otherCount()]
+    if flag {
+        out["both"] = pidCount()
+        out["diff"] = pidCount()
+    } else {
+        out["both"] = 7
+        out["diff"] = appPath()
+    }
+    return out
+}
+
+// An undeclared dict-returning function still fails loudly.
+func unresolvedHelper() -> [String: Any] {
+    return missingDictionary()
+}
+
+// A followed call that passes a `nil` literal binds that parameter to nil in the callee: `value ?? NSNull()`
+// is then null-only, while the arm passing a value keeps the nullable type.
+// expect: setOrUnset@unset => exists:boolean,key:string,value:null
+// expect: setOrUnset@set => exists:boolean,key:string,value:string:null
+func setOrUnset(_ m: Method, _ params: [String: Any]) throws -> [String: Any] {
+    switch m {
+    case .set:
+        return try storeValue("k", value: params["v"] as? String)
+    case .unset:
+        return try storeValue("k", value: nil)
+    }
+}
+
+func storeValue(_ key: String, value: String?) throws -> [String: Any] {
+    var payload: [String: Any] = ["key": key, "exists": value != nil]
+    payload["value"] = value ?? NSNull()
+    return payload
+}
+
+// `guard d["k"] as? T == x` with `x` passed as `nil`: past the guard `d["k"]` is not a `T`, so null-only.
+// expect: applyOrClear@clear => path:string:null,serial:string,udid:null
+// expect: applyOrClear@apply => path:string:null,serial:string,udid:string:null
+func applyOrClear(_ m: Method, _ params: [String: Any]) throws -> [String: Any] {
+    switch m {
+    case .apply:
+        try applyStored(params["v"] as? String)
+    case .clear:
+        try applyStored(nil)
+    }
+}
+
+func applyStored(_ udid: String?) throws -> [String: Any] {
+    var state = storedState()
+    guard state["udid"] as? String == udid else { throw Failure() }
+    state["serial"] = appPath()
+    return state
+}
+
+func storedState() -> [String: Any] {
+    guard flag else { return ["udid": NSNull(), "path": NSNull()] }
+    return ["udid": storedName() ?? NSNull(), "path": appPath()]
+}

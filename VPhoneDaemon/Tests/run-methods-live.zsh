@@ -17,7 +17,7 @@
 # VM names must match ^[A-Za-z0-9._-]+$ (else UNAVAILABLE, exit 2).
 #   VPHONE_LIVE_TIMEOUT positive integer seconds per schema-comparison call (default 30); anything else -> exit 2
 # Schema comparison: every catalog row classed `read` is called serially with no params (no retry, 1048576-byte
-#   reply cap) and its reply's top-level keys and JSON types are compared to the row's result column (REQ-RPC-011).
+#   reply cap) and its reply's top-level keys and JSON types are compared to the row's result column.
 #   `mutating` and `excluded:<reason>` rows are never called. Prints `PASS <method>` or `FAIL <method>: <reason>`;
 #   only keys, types and escaped error codes are printed, never reply values, and no reply is written to a file.
 #   Three consecutive timeout/transport/unparsable failures print `FAIL guest unresponsive` and stop the run.
@@ -42,7 +42,7 @@ case $live_timeout in
   ''|*[!0-9]*|0|0[0-9]*) echo "invalid VPHONE_LIVE_TIMEOUT $live_timeout; set a positive integer number of seconds" >&2; exit 2 ;;
 esac
 
-# --- schema comparison (REQ-RPC-011) ----------------------------------------
+# --- schema comparison ----------------------------------------
 # jq program: stdin is one reply, $schema the catalog result cell. Prints `PASS`, `UNP` (unparsable), `ERR <code>`
 # or `FAIL <reason>`; never a reply value other than escaped key names and error codes.
 read -r -d '' schema_jq <<'JQ' || true
@@ -52,13 +52,14 @@ def u8: if . < 128 then [.] elif . < 2048 then [192 + (. / 64 | floor), 128 + (.
 def hx: . as $d | "0123456789abcdef"[($d / 16 | floor):($d / 16 | floor) + 1] + "0123456789abcdef"[($d % 16):($d % 16) + 1];
 def esc: tostring | explode | map(if . >= 32 and . <= 126 then ([.] | implode) else (u8 | map("\\x" + hx) | join("")) end) | join("") | .[0:64];
 def actual: if type == "number" then (if . == floor then "integer" else "number" end) else type end;
-def okType($t): if $t == "any" then true
-  elif type == "null" then false
+def okType($t; $nl): if $t == "any" then true
+  elif type == "null" then ($nl or $t == "null")
+  elif $t == "null" then false
   elif $t == "number" then type == "number"
   elif $t == "integer" then (type == "number" and . == floor)
   else type == $t end;
 def decl: ($schema | if . == "-" then [] else split(",") end)
-  | map(capture("^(?<n>.+):(?<t>[a-z]+)(?<f>[?~*]*)$") | {n, t, opt: (.f | contains("?")), hid: (.f | contains("~"))});
+  | map(capture("^(?<n>.+?):(?<t>[a-z]+)(?<nl>:null)?(?<f>[?~*]*)$") | {n, t, nl: (.nl != null), opt: (.f | contains("?")), hid: (.f | contains("~"))});
 if type != "object" then "UNP"
 elif has("error") or has("guest_error") then
   "ERR " + ((.error.code? // .guest_error.code? // "unknown") | if type == "string" or type == "number" then esc else "unknown" end)
@@ -67,7 +68,7 @@ else
   .result as $res | decl as $d
   | ([$res | keys[] | . as $k | ($d | map(select(.n == $k and (.hid | not))) | first) as $x
       | if $x == null then ($k | esc) + " undeclared"
-        elif ($res[$k] | okType($x.t)) then empty
+        elif ($res[$k] | okType($x.t; $x.nl)) then empty
         else ($k | esc) + " expected " + $x.t + " got " + ($res[$k] | actual) end]
      + [$d[] | select((.opt or .hid) | not) | select(. as $x | $res | has($x.n) | not) | .n + " missing"])
   | if length == 0 then "PASS" else "FAIL " + .[0] end
