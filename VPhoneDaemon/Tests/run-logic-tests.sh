@@ -5,7 +5,8 @@ set -euo pipefail
 # Mac and runs them: service profile lists and bookkeeping, the first-boot
 # settle verdict, the device name rule, the pointer scroll parameters, the
 # Irisin package a guest takes, the MobileGestalt answers vphoned adds, the
-# value settings.set writes. No guest is needed.
+# value settings.set writes, the screenshot crop, scale and encode. No guest
+# is needed.
 
 daemon="${0:a:h:h}"
 temporary="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/vphone-logic-tests.XXXXXX")"
@@ -24,6 +25,7 @@ trap '/bin/rm -rf "$temporary"' EXIT
     "$daemon/Daemon/GuestMobileGestaltAnswers.swift" \
     "$daemon/Daemon/GuestSettingsValue.swift" \
     "$daemon/Daemon/GuestMethodSpec.swift" \
+    "$daemon/Daemon/GuestScreenshotSizing.swift" \
     "$daemon/Tests/LogicTests.swift" \
     -o "$temporary/logic-tests"
 
