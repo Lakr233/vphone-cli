@@ -219,10 +219,9 @@ AX orientation request whenever the HID provider is alive and enumerated.
 Mobile preferences retain the pose across a SpringBoard or backboardd restart;
 invalid or absent preferences default to stationary portrait. The read form
 adds `accelerometer` with the configuration and provider status. Its original
-SpringBoard interface-orientation readback still decides request success, and a
-refused request puts the previous pose back and asks again for the previous
-interface orientation; otherwise the persisted pose and iPadOS's pointer stay
-turned the way the interface is not.
+SpringBoard interface-orientation readback still decides request success. A
+refused request keeps the pose (see "Held pose after a refusal" below); with
+the screen off the AX request is not made at all.
 Nested `orientation_sink` reports native readiness, the last BKS orientation
 and delivery count separately from HID enumeration/dispatch. The outer
 `device_orientation` remains UIDevice's value in vphoned, which does not
@@ -308,6 +307,79 @@ SpringBoard backlight/deferral gate. Do not describe HID enumeration or
 dispatch as proof that the language-change wedge is fixed: acceptance needs
 the actual language transition, orientation callback and successful interface
 readback, including a request following the transition without lock/unlock.
+
+## Held pose after a refusal (2026-11-10)
+
+Until this change a refused `display.rotation` put the previous pose back, so
+the guest behaved as if the device had never turned: a landscape request made
+in a portrait-only iPhone app (Settings) left the device portrait, and Safari
+stayed portrait when it came to the front afterwards. The VM window follows the
+interface, so it turned back too. A real device held sideways stays sideways
+and the next app that allows it turns. Measured on `rot-ipad26` (iPad16,1 /
+26.6.2) and `rot-ios26` (iPhone17,3 / 26.6.2), driving the AX request alone
+through `script.eval` (`AXSpringBoardServer.server().setOrientation_(n)`) and
+the pose alone through the preference and notification above:
+
+| Sequence | Interface afterwards |
+| --- | --- |
+| iPhone, Settings in front: pose 90, then Safari / Settings / Safari | 90 / 0 / 90 |
+| iPhone, Settings: pose 90 + AX 90 (refused), then Safari | 90 |
+| iPhone, Settings: pose 90 + AX 90 + AX 0 (the old "ask again"), then Safari | 0, pinned |
+| iPad, locked: pose 270 + AX 270 (refused), unlock | 270 |
+| iPad, locked: pose 270 + AX 270 + AX 0, unlock (4 of 4 runs) | 0, pinned |
+| iPad, pinned as above, then pose 90, 270, 0 | follows each |
+| iPad, screen off: pose 90 alone, wake | 0 (no wake delivery) |
+
+The second AX request, made to turn iPadOS's pointer back, is what pins the
+interface: SpringBoard holds an AX orientation until the device orientation
+next changes, and a virtual device that holds still never changes it. It is
+gone. The pointer it fixed was turned only by an AX request refused with the
+screen off; a probe app logging `UITouch` locations (pointer clicks through
+`input.pointer` at 0.25, 0.25) recorded:
+
+| iPad, portrait-only probe in front | Click landed at |
+| --- | --- |
+| locked, pose 270 / + AX 270 / + AX 0 / pose 180 + AX 180 | 0.25, 0.25 each |
+| screen off: pose 180 + AX 180, wake | 0.75, 0.75 (mirrored) |
+| screen off: pose 180 + AX 180 + AX 0, wake | 0.25, 0.25 |
+| screen off: pose 180 alone, wake | 0.25, 0.25 |
+
+So with the screen off vphoned publishes the pose and makes no AX request. On
+iPadOS 26 a portrait-only app does not refuse: `UIRequiresFullScreen` no
+longer limits orientations, SpringBoard turns the interface and shows the app
+pillarboxed upright, so an iPad refuses only while locked or dark.
+
+The last row is the wake gap. `_updateOrientationEventsEnabledState` stops
+`BKSAccelerometer` delivery while the backlight is off, and turning it back on
+does not deliver the orientation backboardd already holds. The SpringBoard
+half of the library now hooks
+`backlightController:willAnimateBacklightToFactor:source:` and, for a nonzero
+factor, calls `accelerometer:didChangeDeviceOrientation:` with the
+`currentDeviceOrientation` of a `BKSAccelerometer` of its own (SpringBoard's
+`_accelerometer` answered 0 after a SpringBoard restart, until its first
+delivery; it stands in only when the new instance cannot answer). After it,
+on `rot-ipad26`: screen off, pose 90 → wake 90; pose 270 → wake 270; pose 0 →
+wake 0.
+
+### Acceptance (bundle `2.16.0-local.70ae5170`)
+
+Five clones, each bound to the build and checked for the bundle's vphoned and
+`libvphoneaccelerometer.dylib` hashes through `device.info` and
+`environment.status`: iPhone17,3 18.6.2 (cloudOS 26.1), 26.6.2 and 27.0.1,
+iPad16,1 26.6.2 and 27.0.1 (cloudOS 26.4). Each ran the scenario twice, 10 of
+10 runs clean. iPhone: Settings refuses 90 with the pose held, Safari takes it,
+Settings returns to portrait, Safari takes it again; rotation lock refuses 270
+and unlocking turns to it; with the screen off 90 is refused at once and waking
+turns to it. iPad: the lock and screen-off cases, then an upside-down request
+with the screen off, waking to 180, and a pointer click at 0.25, 0.25 in the
+probe landing at 0.25, 0.25. An iPadOS 18 guest was not tested: no iPad pairing
+in the firmware catalog starts below 26.0.
+
+The VM window (on `rot-ios26` with `2.16.0-local.9a402bd4`, which adds only the
+host's rotation-generation guard; the Device menu's Rotate Right, the view
+rotation sampled every 0.1 s through `display.geometry`) stayed still for
+refused turns, turned once when the guest turned for an accepted one, and
+turned by itself on wake and on switching to Safari.
 
 ## Residual unknowns
 
