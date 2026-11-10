@@ -71,6 +71,7 @@ enum DeviceMethod: String, GuestMethod {
     case deviceDisplays = "device.displays"
     case displayModes = "display.modes"
     case displayLayout = "display.layout"
+    case displayMetrics = "display.metrics"
     case displayCaptureActive = "display.capture_active"
     case displayExternalStatus = "display.external.status"
     case displayExternalDiagnostics = "display.external.diagnostics"
@@ -159,6 +160,13 @@ enum DeviceMethod: String, GuestMethod {
                                                 .required("thread", .object).open(),
                                                 .required("observation", .object).open(),
                                                 .required("capability_failures", .object).open()])
+        case .displayMetrics: MethodSpec(result: [.required("available", .boolean),
+                                                 .required("source", .string),
+                                                 .required("reason", .string),
+                                                 .optional("display_id", .integer),
+                                                 .optional("bounds", .object).open(),
+                                                 .optional("reference_bounds", .object).open(),
+                                                 .optional("point_scale", .number)])
         case .displayCaptureActive: MethodSpec(result: [.required("available", .boolean),
                                                        .optional("reason", .string),
                                                        .optional("state", .string),
@@ -370,6 +378,8 @@ extension GuestAPI {
             return vp_display_modes()
         case .displayLayout:
             return vp_display_layout()
+        case .displayMetrics:
+            return GuestDisplayMetrics.report(from: vp_display_layout())
         case .displayCaptureActive:
             return vp_display_capture_active()
         case .displayExternalStatus:

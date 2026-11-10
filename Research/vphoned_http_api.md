@@ -430,6 +430,18 @@ JavaScriptCore can use its JIT, and JSC falls back to its interpreter by
 itself where that is refused, so a guest whose AMFI declines it still runs
 scripts, more slowly.
 
+`display.metrics {}` reports configuration metrics from one owned default-main
+FrontBoard layout. It returns `available`, `source: "frontboard_default_main"`
+and `reason`; when available it also returns `display_id`, `bounds`,
+`reference_bounds` and `point_scale`. Bounds are zero-origin rectangles in
+FrontBoard points. The identity must be a positive 32-bit integer, dimensions
+and scale must be finite and positive, and the monitor must be unique.
+Missing or invalid configuration returns `available: false` with a reason.
+An unknown interface orientation does not prevent this read. The report does
+not select a panel from CADisplay inventory, infer orientation from dimensions,
+verify a screenshot's pixels or establish an input coordinate transform.
+The observation uses the same bounded monitor lifecycle as `display.layout`.
+
 `apps.launch` returns a PID and `frontmost_verified`. IcliKit 0.6.8 checks
 RunningBoard's live focal assertion and accepts it only when one real app owns
 it. iOS 26.6.2 uses `SuspendableRole-UIFocal`; older systems may use
