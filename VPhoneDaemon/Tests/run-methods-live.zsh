@@ -315,6 +315,56 @@ g services.unload '{"paths":["/tmp/none.plist"],"force":true}'
 g apps.remove_system '{"bundle_ids":["com.example.none"],"force":true}'
 g system.respring '{"force":true}'
 
+# --- self-describing methods.list (methods-list-descriptions) ----------------
+# Descriptions: every method and param has a non-empty one-line description of at most 120 characters; force_action
+# is present exactly when force is not "never".
+bad=$(print -r -- "$r1" | J -r "$L"' | map(
+    (select((.description | type) != "string" or (.description | length) == 0 or (.description | length) > 120 or (.description | test("\n"))) | .name),
+    (.name as $m | .params[] | select((.description | type) != "string" or (.description | length) == 0 or (.description | length) > 120 or (.description | test("\n"))) | $m + "." + .name),
+    (select((.force != "never") != has("force_action")) | .name + " force_action"),
+    (select(.force != "never" and has("force_action") and (((.force_action | type) != "string") or (.force_action | length) == 0 or (.force_action | length) > 120)) | .name + " force_action")
+  ) | flatten | join(" ")')
+[ -z "$bad" ] && [ -n "$r1" ] && chk "7 descriptions and force_action well formed" ok || chk "7 descriptions and force_action well formed" bad "none" "${bad:-no reply}"
+# Optional keys: never null; a falsy default (0 or false) is emitted; a named param without default omits it.
+bad=$(print -r -- "$r1" | J -r "$L"' | [.[].params[] | to_entries[] | select(.value == null) | .key] | join(" ")')
+[ -z "$bad" ] && chk "7 no null param keys" ok || chk "7 no null param keys" bad "no null" "$bad"
+z=$(print -r -- "$r1" | J -r "$L"' | [.[].params[] | select(has("default") and (.default == 0 or .default == false))] | length')
+[ "${z:-0}" -gt 0 ] && chk "7 falsy default emitted" ok || chk "7 falsy default emitted" bad "a param with default 0 or false" "${z:-none}"
+# A named param declared without a default must not emit one (time.clock.time).
+z=$(print -r -- "$r1" | J -r "$L"' | [.[] | select(.name == "time.clock") | .params[] | select(.name == "time") | has("default")] | if length == 1 then .[0] else "missing" end')
+[ "$z" = false ] && chk "7 time.clock.time default omitted" ok || chk "7 time.clock.time default omitted" bad "time.clock param time without default" "${z:-no reply}"
+# enum, minimum and maximum are emitted with the declared values (GuestAPI+Input.swift).
+z=$(print -r -- "$r1" | J -c "$L"' | [(.[] | select(.name == "input.button") | .params[] | select(.name == "name") | .enum), (.[] | select(.name == "accessibility.tree") | .params[] | select(.name == "max_elements") | [.minimum, .maximum])]')
+[ "$z" = '[["home","power","volume-up","volume-down","mute","wake"],[1,2000]]' ] && chk "7 enum minimum maximum emitted" ok || chk "7 enum minimum maximum emitted" bad "input.button name enum and accessibility.tree max_elements [1,2000]" "${z:-no reply}"
+# Force text: for each forced method, call it without force (refused before any side effect) with dummy required
+# params (first enum value for enums, the `when` key true) and require the error to match
+# "Pass force: true to " + force_action, a `<...>` placeholder matching any text. A reply that is not a force
+# refusal (the closure rejected the dummy params first) is skipped.
+fa=$(print -r -- "$r1" | J -r "$L"'
+  | def esc: gsub("(?<c>[\\\\.^$*+?()\\[\\]{}|])"; "\\\(.c)");
+  .[] | select(.force != "never")
+  | (if (.force | startswith("when:")) then (.force | sub("^when:"; "")) else "" end) as $key
+  | ([.params[] | select(.required or .name == $key) | {key: .name, value:
+      (if .name == $key then true
+       elif .enum then .enum[0]
+       elif .type == "integer" or .type == "number" then 1
+       elif .type == "boolean" then true
+       elif .type == "array" then ["x"]
+       elif .type == "object" then {}
+       else "x" end)}] | from_entries) as $p
+  | [.name, ($p | tojson), ("^Pass force: true to " + (.force_action | gsub("`?<[^>]*>`?"; "\u0001") | esc | gsub("\u0001"; ".+")) + "$")] | join("\t")')
+verified=0
+while IFS=$'\t' read -r fm fp fpat; do
+  [ -n "$fm" ] || continue
+  r=$(rpc "{\"method\":\"$fm\",\"params\":$fp}"); s=$(strs "$r")
+  if print -r -- "$s" | grep -qE -- "$fpat"; then chk "8 $fm force text" ok; verified=$((verified+1))
+  elif print -r -- "$s" | grep -qF 'Pass force: true to'; then chk "8 $fm force text" bad "$fpat" "$s"
+  elif print -r -- "$r" | jq -e '.. | objects | select(has("error"))' >/dev/null 2>&1; then echo "SKIP 8 $fm force text: params rejected first"
+  else echo "LEAK: $fm was not refused unforced; stopping"; finish || true; exit 1; fi
+done <<< "$fa"
+floor=$((n_forces-4))
+[ $verified -ge $floor ] && chk "8 force text verified >= $floor" ok || chk "8 force text verified >= $floor" bad ">= $floor of $n_forces" "$verified"
+
 # --- schema comparison of every read-class method ---------------------------
 schema_section
 [ $stop_unresponsive = 0 ] || { finish || true; exit 1; }
