@@ -29012,19 +29012,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "앞에 있는 앱이 이 방향을 지원하지 않거나 화면 회전이 잠겨 있습니다. 기기는 돌려진 상태로 유지되므로, 상황이 바뀌면 화면도 회전합니다."
+            "value" : "앞에 있는 앱이 이 방향을 지원하지 않거나 화면 방향 잠금이 켜져 있습니다. 기기는 회전된 상태로 유지되므로, 상황이 바뀌면 화면도 회전합니다."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ứng dụng đang mở không hỗ trợ hướng này hoặc hướng màn hình đang bị khóa. Thiết bị vẫn giữ hướng đã xoay, nên màn hình sẽ xoay khi điều đó thay đổi."
+            "value" : "Ứng dụng đang mở không hỗ trợ hướng này hoặc Khóa xoay đang bật. Thiết bị vẫn giữ hướng đã xoay, nên màn hình sẽ tự xoay khi tình trạng này thay đổi."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "前台 App 不支持此方向，或屏幕方向已锁定。设备会保持转动后的方向，情况变化后屏幕会随之旋转。"
+            "value" : "前台 App 不支持此方向，或已打开方向锁定。设备会保持旋转后的方向，情况变化后屏幕会随之旋转。"
           }
         }
       }
