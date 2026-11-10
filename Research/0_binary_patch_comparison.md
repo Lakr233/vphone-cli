@@ -1,5 +1,16 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **TXM missing-profile compatibility (2026-11-10).**
+> `txm-cfw-executable_remap` includes `.missing_profile` whenever
+> `kernel-boot-amfi_trustcache` is enabled, as in standard. The correction
+> preserves native classification and non-null profile validation while
+> admitting a type-4 signature whose profile association AMFI skipped.
+> All required sites must match before records are emitted. Native replay and
+> complete-image comparisons pass on hash-pinned cloudOS 26.1–26.4 TXMs
+> (83 tests in eight suites, zero skips); guest launch validation remains
+> pending. See
+> [the investigation and validation limits](Firmware/txm_missing_profile.md).
+
 > **visionOS preset: nonfatal headset services (2026-11-09).**
 > The `visionos` preset now turns on
 > `system-launchdaemons-exp-visionos_nonfatal_services`. polarisd exits at once
@@ -1747,11 +1758,17 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 | 14  | Native ad-hoc research tolerance                  | NOP tolerance flag after native classification miss; retain Apple's type-10 fallback and mapping restrictions | - | Y | Y |
 | 15  | CMS-less installer research tolerance             | Redirect only the absent CMS wrapper branch to the existing path-dependent fallback; retain SuperBlob validation, present-CMS failures and the second policy restriction | - | Y | Y |
 | 16  | Temporary ordinary-library Team-ID tolerance      | Skip only absent/mismatched Team-ID comparison for framework/dylib types 3–5; retain signature admission, category ordering, context/role and mapping checks | - | Y | Y |
+| 17  | Missing-profile compatibility with AMFI bypass    | Waive only the type-4 null-profile error when AMFI trust-cache bypass skips association; retain type 4 and checks of present profiles | - | Y | Y |
 
-> **Executable remapping:** rows 13–16 form `txm-cfw-executable_remap`, selected
+> **Executable remapping:** rows 13–17 form `txm-cfw-executable_remap`, selected
 > by standard without an iOS/cloudOS version gate. Unique semantic matches in
 > pristine TXM are still required; missing or ambiguous shapes stop patching.
 > Row 1 then uses the hash-flags alternative so cache misses remain real.
+> Row 17 is included with AMFI trust-cache bypass and omitted without it;
+> it cannot be selected independently. Existing runtime reports predate row 17.
+> Row 17's host replay covers four original cloudOS images (26.1–26.4),
+> preserving type 4, non-null profile failures and earlier policy rejections;
+> the category field is recovered from the classifier for both signature layouts.
 > Runtime reports on iOS 26.6.2 and iOS 27.1 each execute 28/28 main/framework
 > original-code remaps with actual RX mappings; the tester also reports normal
 > startup and App loading with the replacement. The iOS 27 forced type-10 pre-check

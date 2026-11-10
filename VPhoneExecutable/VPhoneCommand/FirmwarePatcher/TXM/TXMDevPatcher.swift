@@ -17,10 +17,17 @@ import VPhonePatchKit
 public final class TXMDevPatcher: TXMPatcher {
     override public func findAll() throws -> [PatchRecord] {
         patches = []
-        if gate.isEnabled(Self.executableRemapID) {
-            try patchExecutableRemap() // includes the base bypass with real cache queries
-        } else {
-            try patchTrustcacheBypass()
+        do {
+            if gate.isEnabled(Self.executableRemapID) {
+                try patchExecutableRemap() // includes the base bypass with real cache queries
+            } else {
+                try patchTrustcacheBypass()
+            }
+        } catch {
+            // A failed compatibility lookup must not leave an applicable
+            // partial plan behind if the caller retries apply().
+            patches = []
+            throw error
         }
         patchSelector24ForcePass()
         patchGetTaskAllowForceTrue()
