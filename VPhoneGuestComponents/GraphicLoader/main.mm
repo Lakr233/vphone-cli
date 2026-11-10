@@ -10,6 +10,12 @@
 
 #include "GLESAIR.h"
 
+// The installer changes this byte only with the matching renderer viewport
+// patch, then re-signs the plugin and versions the driver's compiler cache.
+// Volatile prevents compile-time folding of the installed configuration.
+__attribute__((used, section("__DATA,__vphone_gles")))
+static volatile const unsigned char glesDepthConfiguration[] = "VPHONE_GLES_DEPTH_CLIP_V1:0";
+
 // --- LLVM C API (from libLLVM.dylib) ---
 extern "C" {
     // Opaque types
@@ -153,7 +159,8 @@ bool AppleParavirtCompiler::buildRequestWithOptions(
 
     if (isGLESModule(module)) {
         const char *error = nullptr;
-        if (LLVMModuleRef completed = completedGLESModule(module, &error))
+        if (LLVMModuleRef completed = completedGLESModule(module, &error,
+                glesDepthConfiguration[sizeof(glesDepthConfiguration) - 2] == '1'))
             module = completed;
         else if (error) {
             *outError = error;

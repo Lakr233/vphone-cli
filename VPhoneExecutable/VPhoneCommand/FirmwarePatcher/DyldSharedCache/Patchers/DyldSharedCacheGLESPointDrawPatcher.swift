@@ -93,7 +93,7 @@ public enum DyldSharedCacheGLESPointDrawPatcher {
     ) throws -> DyldSharedCacheGLESPointDrawPatch {
         try resolver.requireLocalSymbols()
         let symbols = try resolver.symbols(inImage: imagePath)
-        let required = [symbolName, primitiveSymbol, pipelineSymbol, pipelineSelector, beginRenderPassSymbol, methodForSelector] + drawSelectors
+        let required = [symbolName, primitiveSymbol, pipelineSymbol, beginRenderPassSymbol]
         let addresses = try resolver.addresses(of: required, inImage: imagePath)
         let decoder = ARM64Disassembler()
         func code(_ name: String) throws -> [ARM64Instruction] {
@@ -108,13 +108,21 @@ public enum DyldSharedCacheGLESPointDrawPatcher {
             else { throw PatcherError.patchSiteNotFound("\(label) function did not decode completely") }
             return instructions
         }
-        let fields = try pipelineFields(in: code(pipelineSymbol), selector: addresses[pipelineSelector]!)
-        let indexedDraw = try indexedDrawFields(in: code(beginRenderPassSymbol), fields: fields,
-                                                methodForSelector: addresses[methodForSelector]!) {
+        let pipeline = try code(pipelineSymbol)
+        let beginPass = try code(beginRenderPassSymbol)
+        let direct = try code(symbolName)
+        let primitive = try code(primitiveSymbol)
+        let fields = try pipelineFields(in: pipeline, selector: resolver.objcMessageTarget(
+            pipelineSelector, inImage: imagePath, calledBy: pipeline, chunks: chunks))
+        let method = try resolver.objcMessageTarget(methodForSelector, inImage: imagePath, calledBy: beginPass, chunks: chunks)
+        let indexedDraw = try indexedDrawFields(in: beginPass, fields: fields, methodForSelector: method) {
             try chunks.bytesAtVMA($0, length: $1)
         }
-        let plan = try plan(direct: code(symbolName), primitive: code(primitiveSymbol), fields: fields,
-                            indexedDraw: indexedDraw, drawTargets: Set(drawSelectors.map { addresses[$0]! }))
+        let draws = try Set(drawSelectors.map {
+            try resolver.objcMessageTarget($0, inImage: imagePath, calledBy: direct + primitive, chunks: chunks)
+        })
+        let plan = try plan(direct: direct, primitive: primitive, fields: fields,
+                            indexedDraw: indexedDraw, drawTargets: draws)
         log?("  [.] \(label) pipeline/usage context fields +0x\(String(fields.pipeline, radix: 16))/+0x\(String(fields.usage, radix: 16))")
         log?("  [.] \(label) indexed selector/IMP context fields +0x\(String(indexedDraw.selector, radix: 16))/+0x\(String(indexedDraw.imp, radix: 16))")
         for site in plan.sites {

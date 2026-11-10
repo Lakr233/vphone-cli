@@ -247,6 +247,7 @@ public enum FirmwarePatchSetCatalog {
     /// plain-arm64 HD cannot load it), debugserver, the environment hooks, and
     /// the iPhone 19 ARM64E_X1 boot path.
     public static let tvOSBlockedPatches: Set<String> = [
+        FirmwareGuestSystemPatchSet.glesDepthClip,
         FirmwareGuestSystemPatchSet.metalCacheReuseKey,
         FirmwareGuestSystemPatchSet.glesPointDraw,
         FirmwareGuestSystemPatchSet.glesPrimitiveRestart,

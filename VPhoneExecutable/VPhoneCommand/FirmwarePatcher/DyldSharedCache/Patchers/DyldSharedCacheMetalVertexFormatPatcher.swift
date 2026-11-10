@@ -84,7 +84,6 @@ public enum DyldSharedCacheMetalVertexFormatPatcher {
         log: ((String) -> Void)? = DyldSharedCacheCodeSignature.stderrLog,
     ) throws -> DyldSharedCacheMetalVertexFormatPatch {
         let function = try resolver.address(of: symbolName, inImage: imagePath)
-        let format = try resolver.address(of: formatSymbol, inImage: imagePath)
         let headerAddress = try resolver.headerAddress(ofImage: imagePath)
         let prefix = try chunks.bytesAtVMA(headerAddress, length: 32)
         let commandsSize = Int(prefix.loadLE(UInt32.self, at: 20))
@@ -100,6 +99,7 @@ public enum DyldSharedCacheMetalVertexFormatPatcher {
         let instructions = try DyldSharedCacheIOMFBSwapEndPatcher.disassembleFunction(
             in: chunks, at: function, maximumInstructions: 1024, disassembler: ARM64Disassembler(),
         )
+        let format = try resolver.objcMessageTarget(formatSymbol, inImage: imagePath, calledBy: instructions, chunks: chunks)
         let site = try findFormatSite(in: instructions, formatStub: format)
         let plan = try plan(site: site, padding: padding) {
             try chunks.bytesAtVMA($0, length: $1)

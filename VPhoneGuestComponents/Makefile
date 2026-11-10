@@ -193,6 +193,14 @@ GPU_DYNAMIC_LOOKUP_SYMS := \
 	-Wl,-U,_LLVMGetParam \
 	-Wl,-U,_LLVMGetFirstUse \
 	-Wl,-U,_LLVMGetFirstBasicBlock \
+	-Wl,-U,_LLVMGetNextBasicBlock \
+	-Wl,-U,_LLVMIsAReturnInst \
+	-Wl,-U,_LLVMGetNumOperands \
+	-Wl,-U,_LLVMGetOperand \
+	-Wl,-U,_LLVMBuildFAdd \
+	-Wl,-U,_LLVMBuildFMul \
+	-Wl,-U,_LLVMBuildExtractValue \
+	-Wl,-U,_LLVMBuildInsertValue \
 	-Wl,-U,_LLVMGetFirstInstruction \
 	-Wl,-U,_LLVMGetNextInstruction \
 	-Wl,-U,_LLVMIsAPHINode \

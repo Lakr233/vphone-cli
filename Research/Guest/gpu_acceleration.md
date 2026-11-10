@@ -1123,11 +1123,25 @@ the bytes and what is not covered.
 
 ### Native GLES semantics
 
+Signed clip-z remains a separate pass-state issue after these corrections.
+The paired compiler/viewport correction and its on/off pixel controls are
+documented in [GLES signed depth clipping](gles_depth_clip.md).
+
 Further testing on iOS 26.6.2 (23G90), cloudOS 26.4 (23E5207q) and macOS
 26.6.2 (25G83, Apple M5 Max) found failures after contexts and basic draws
 worked. The following results come from development builds on that OS pair.
 Six declarations cover these repairs; their semantic discovery, version gates
 and rollback rules are in the [patch comparison](../0_binary_patch_comparison.md#native-gles-follow-up-2026-11-02).
+
+The 2026-11-10 port resolves actual shared selector-stub calls and both indexed
+and split byte-state accesses on iOS 27.1 (24A94425). These renderer repairs
+now admit iOS userlands by binary capability while retaining the cloudOS 26.4
+driver-transport gate. The installer probes the renderer before writes and
+keeps an unavailable installed GPU/compiler group intact. Real iOS 26 and 27
+updates apply every selected repair. The newer guest corpus passes depth
+224/224, ES1/2/3 points 35/35, restart 12/12, IDs 24/24 and native Metal
+28/28 on both releases; the iOS 27 App also passes 45/45 and displays upright.
+See the [runtime comparison and probe limits](gles_depth_clip.md#ios-27-runtime-validation-2026-11-10).
 
 **Drawable orientation.** The renderer normally uses a private IOSurface
 attachment `yInvert` flag. A 16-case host/guest control showed it reversing

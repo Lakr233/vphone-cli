@@ -108,6 +108,7 @@
 			<string>dyld-cfw-gles_primitive_restart</string>
 			<string>dyld-cfw-metal_cache_reuse_key</string>
 			<string>dyld-cfw-gles_point_draw</string>
+			<string>dyld-cfw-gles_depth_clip</string>
 			<string>dyld-cfw-arm64e_x1_cache</string>
 			<string>system-cibarcode-cfw-arm64e_x1</string>
 		<string>system-homepopaccessibility-cfw-arm64e_x1</string>

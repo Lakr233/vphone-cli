@@ -12,6 +12,132 @@ import VPhonePatchKit
 
 @Suite("Guest patch resolution")
 struct FirmwareGuestPatchResolutionTests {
+    @Test func `unsupported renderer prerequisites skip dependent draws and preserve installed group`() {
+        let format = FirmwareGuestSystemPatchSet.metalVertexIDFormat
+        let restart = FirmwareGuestSystemPatchSet.glesPrimitiveRestart
+        let point = FirmwareGuestSystemPatchSet.glesPointDraw
+        let selected: Set<String> = [format, restart, point]
+        let fresh = FirmwareGuestPatchResolution.glesUpdatePolicy(
+            enabled: selected, previouslyApplied: [], unavailable: [format], gpuInstalled: false)
+        #expect(fresh.skipped == [format, restart])
+        #expect(fresh.preserved.isEmpty)
+        let independent = FirmwareGuestPatchResolution.glesUpdatePolicy(
+            enabled: selected, previouslyApplied: [], unavailable: [point], gpuInstalled: true)
+        #expect(independent.skipped == [point])
+        #expect(independent.preserved.isEmpty)
+        for missing in selected {
+            let installed = FirmwareGuestPatchResolution.glesUpdatePolicy(
+                enabled: selected, previouslyApplied: selected, unavailable: [missing], gpuInstalled: true)
+            #expect(installed.preserved.isSuperset(of: selected))
+            #expect(installed.preserved.contains(FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache))
+            #expect(!installed.preserved.contains("system-vphoned-boot-install"))
+        }
+    }
+
+    @Test func `unsupported fresh depth leaves both halves unconfigured`() {
+        let depth = FirmwareGuestSystemPatchSet.glesDepthClip
+        let identity = FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
+        let selected: Set<String> = [depth, identity, "system-extensions-boot-gpu_bundle"]
+        let result = FirmwareGuestPatchResolution.glesUpdatePolicy(
+            enabled: selected, previouslyApplied: [], unavailable: [depth], gpuInstalled: false)
+        #expect(result.skipped == [depth])
+        #expect(result.preserved.isEmpty)
+        let supported = FirmwareGuestPatchResolution.glesUpdatePolicy(
+            enabled: selected, previouslyApplied: [], unavailable: [], gpuInstalled: false)
+        #expect(supported.skipped.isEmpty)
+        #expect(supported.preserved.isEmpty)
+    }
+
+    @Test func `disabled depth dependencies skip new defaults and preserve installed pairs`() {
+        let depth = FirmwareGuestSystemPatchSet.glesDepthClip
+        let identity = FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
+        let bundle = "system-extensions-boot-gpu_bundle"
+        let all: Set<String> = [depth, identity, bundle]
+        for blocked in [identity, bundle] {
+            let selected = all.subtracting([blocked])
+            let fresh = FirmwareGuestPatchResolution.glesUpdatePolicy(
+                enabled: selected, previouslyApplied: [], unavailable: [], gpuInstalled: false)
+            #expect(fresh.skipped.contains(depth))
+            #expect(fresh.preserved.isEmpty)
+            let installed = FirmwareGuestPatchResolution.glesUpdatePolicy(
+                enabled: selected, previouslyApplied: all, unavailable: [], gpuInstalled: true)
+            #expect(installed.preserved.isSuperset(of: all))
+        }
+        let off = FirmwareGuestPatchResolution.glesUpdatePolicy(
+            enabled: [bundle, identity], previouslyApplied: all, unavailable: [], gpuInstalled: true)
+        #expect(off.skipped.isEmpty)
+        #expect(off.preserved.isEmpty)
+    }
+
+    @Test func `unsupported installed depth freezes the compiler driver and renderer`() {
+        let depth = FirmwareGuestSystemPatchSet.glesDepthClip
+        let identity = FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
+        let selected: Set<String> = [depth, identity, "system-extensions-boot-gpu_bundle"]
+        let result = FirmwareGuestPatchResolution.glesUpdatePolicy(
+            enabled: selected, previouslyApplied: selected, unavailable: [depth], gpuInstalled: true)
+        #expect(result.preserved.isSuperset(of: selected))
+        #expect(result.preserved.contains(FirmwareGuestSystemPatchSet.glesPrimitiveRestart))
+        #expect(!result.preserved.contains("system-vphoned-boot-install"))
+    }
+
+    @Test func `cache capability failure skips fresh dependent features and freezes existing GPU`() {
+        let depth = FirmwareGuestSystemPatchSet.glesDepthClip
+        let identity = FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
+        let key = FirmwareGuestSystemPatchSet.metalCacheReuseKey
+        let reuse = FirmwareGuestSystemPatchSet.metalCacheReuse
+        let selected: Set<String> = [depth, identity, key, reuse, "system-extensions-boot-gpu_bundle"]
+        for missing in [identity, key] {
+            let fresh = FirmwareGuestPatchResolution.glesUpdatePolicy(
+                enabled: selected, previouslyApplied: [], unavailable: [missing], gpuInstalled: false)
+            #expect(fresh.skipped.isSuperset(of: [depth, identity, reuse]))
+            #expect(fresh.preserved.isEmpty)
+            let installed = FirmwareGuestPatchResolution.glesUpdatePolicy(
+                enabled: selected, previouslyApplied: selected.subtracting([depth]),
+                unavailable: [missing], gpuInstalled: true)
+            #expect(installed.preserved.isSuperset(of: selected))
+        }
+        let reuseOff = FirmwareGuestPatchResolution.glesUpdatePolicy(
+            enabled: selected.subtracting([reuse]), previouslyApplied: [], unavailable: [key], gpuInstalled: false)
+        #expect(reuseOff.skipped == [key])
+        let keyBlocked = FirmwareGuestPatchResolution.glesUpdatePolicy(
+            enabled: selected.subtracting([key]), previouslyApplied: [], unavailable: [], gpuInstalled: false)
+        #expect(keyBlocked.skipped.isSuperset(of: [depth, identity, reuse]))
+    }
+
+    @Test func `only read only discovery misses qualify as unsupported layouts`() {
+        let misses: [any Error] = [
+            PatcherError.patchSiteNotFound("different setter"),
+            DyldSharedCacheError.symbolNotFound(symbol: "viewport", image: nil),
+            DyldSharedCacheError.imageNotFound("renderer"),
+            DyldSharedCacheError.localSymbolsMissing(path: "symbols"),
+        ]
+        for error in misses {
+            #expect(FirmwareGuestPatchResolution.isUnsupportedGLESLayout(error))
+        }
+        let failures: [any Error] = [
+            PatcherError.patchVerificationFailed("orphaned trampoline"),
+            PatcherError.invalidFormat("truncated commands"),
+            DyldSharedCacheError.shortRead(vma: 0, wanted: 4, got: 0),
+            DyldSharedCacheError.undoRecordInvalid(chunk: "cache", reason: "changed bytes"),
+            CocoaError(.fileWriteNoPermission),
+        ]
+        for error in failures {
+            #expect(!FirmwareGuestPatchResolution.isUnsupportedGLESLayout(error))
+        }
+    }
+
+    @Test func `GLES depth transitions require compiler refresh and cache versioning`() {
+        let depth = FirmwareGuestSystemPatchSet.glesDepthClip
+        let cache = FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
+        let bundle = "system-extensions-boot-gpu_bundle"
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [], previouslyApplied: []).isEmpty)
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [depth, cache, bundle], previouslyApplied: []).isEmpty)
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [cache, bundle], previouslyApplied: [depth]).isEmpty)
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [depth, bundle], previouslyApplied: []) == [cache])
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [bundle], previouslyApplied: [depth]) == [cache])
+        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(enabled: [cache], previouslyApplied: [depth]) == [bundle])
+    }
+
     @Test func `compiler identity needs cache key validation only when reuse is selected`() throws {
         let identity = FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
         let reuse = FirmwareGuestSystemPatchSet.metalCacheReuse
