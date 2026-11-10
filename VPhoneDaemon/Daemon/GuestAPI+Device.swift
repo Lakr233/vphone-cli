@@ -534,7 +534,7 @@ extension GuestAPI {
         // from following.
         let accelerometer = vp_accelerometer_get()
         if accelerometer["provider_running"] as? Bool == true,
-           let pose = (accelerometer["degrees"] as? NSNumber)?.intValue {
+           let pose = accelerometer["degrees"] as? Int {
             reply["device_degrees"] = pose
         }
         if let angle = settledFoldAngle() {
