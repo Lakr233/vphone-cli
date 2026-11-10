@@ -341,7 +341,9 @@ public enum DyldSharedCacheGLESPointDrawPatcher {
     }
 
     static func move(_ instruction: ARM64Instruction, destination: ARM64Register) -> ARM64Register? {
-        guard instruction.mnemonic == "mov", let operands = instruction.detail?.operands, operands.count == 2,
+        guard instruction.mnemonic == "mov", let detail = instruction.detail else { return nil }
+        let operands = detail.operands
+        guard operands.count == 2,
               operands[0].type == .register, operands[0].reg == destination, operands[1].type == .register
         else { return nil }
         return operands[1].reg
