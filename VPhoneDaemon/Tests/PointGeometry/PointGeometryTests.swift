@@ -28,6 +28,14 @@ func layout(orientation: Int = 4) -> [String: Any] {
     ]]]
 }
 
+func unorientedLayout(rootGeometry: Any = false, monitorGeometry: Any = false) -> [String: Any] {
+    let bounds: [String: Any] = ["x": 0, "y": 0, "width": 744, "height": 1133]
+    return ["available": true, "geometry_available": rootGeometry, "monitors": [[
+        "available": true, "geometry_available": monitorGeometry, "monitor_source": "default_main", "display_id": 1,
+        "bounds": bounds, "reference_bounds": bounds, "point_scale": 2, "interface_orientation": 0,
+    ]]]
+}
+
 func rejects(_ operation: () throws -> Void) {
     do { try operation(); preconditionFailure("invalid geometry or input was accepted") } catch {}
 }
@@ -47,6 +55,53 @@ func rejects(_ operation: () throws -> Void) {
             precondition((screen["orientation"] as? NSNumber)?.intValue == [1: 0, 2: 180, 3: 270, 4: 90][orientation])
             precondition(screen["locked"] as? Bool == true && screen["screen_off"] as? Bool == false)
         }
+        LayoutWitness.layout = unorientedLayout()
+        do {
+            // FrontBoard's 744x1133-point report cannot replace Icli's independent
+            // 678x466-point contract without a known orientation.
+            let legacy = screenInfo()
+            let reported = try GuestAPI.activeScreenInfo()
+            precondition(NSDictionary(dictionary: reported).isEqual(NSDictionary(dictionary: legacy)))
+            let snapshots = PointInputWitness.snapshotReads
+            precondition(NSDictionary(dictionary: GuestAPI.activeScreenState()).isEqual(NSDictionary(dictionary: legacy)))
+            precondition(PointInputWitness.snapshotReads == snapshots)
+            _ = try GuestMethodArea.dispatch([.make(InputMethod.self, GuestAPI.executeInput)],
+                                            method: "input.tap", params: ["x": 600, "y": 300])
+            let fallbackPoint = PointInputWitness.points.last!
+            precondition(abs(fallbackPoint[0] - 300 / 466.0) < 1e-9)
+            precondition(abs(fallbackPoint[1] - 78 / 678.0) < 1e-9)
+            for method in [InputMethod.inputDoubleTap, .inputLongPress, .inputSwipe, .inputDrag] {
+                _ = try GuestAPI.executeInput(method, ["x": 600, "y": 300, "x1": 600, "y1": 300,
+                                                      "x2": 500, "y2": 200, "points": [[600, 300], [500, 200]]])
+            }
+            _ = try GuestAPI.executeTouch(["phase": "down", "x": 600, "y": 300, "normalized": false])
+            _ = try GuestAPI.executeInput(.inputTouchSequence,
+                                         ["normalized": false, "events": [["phase": "down", "x": 600, "y": 300]]])
+            let inputs = PointInputWitness.points.count
+            rejects { _ = try GuestAPI.executeInput(.inputTap, ["x": 900, "y": 300]) }
+            precondition(PointInputWitness.points.count == inputs, "fallback bypassed Icli point bounds")
+            precondition(!icli_interface_geometry_current(nil), "fallback installed an active override")
+        } catch {
+            print("Orientation-zero legacy input regression: \(error)")
+            exit(1)
+        }
+        for report in [unorientedLayout(rootGeometry: 0), unorientedLayout(monitorGeometry: 0),
+                       unorientedLayout(rootGeometry: true), unorientedLayout(monitorGeometry: true)] {
+            rejects { _ = try GuestPointGeometry.geometry(from: report) }
+        }
+        for changes: [String: Any] in [["available": 1], ["monitor_source": "other"], ["display_id": true],
+                                       ["point_scale": 0], ["interface_orientation": true],
+                                       ["bounds": ["x": 1, "y": 0, "width": 744, "height": 1133]],
+                                       ["reference_bounds": ["x": 0, "y": 0, "width": -1, "height": 1133]]] {
+            var report = unorientedLayout()
+            var rows = report["monitors"] as! [[String: Any]]
+            rows[0].merge(changes, uniquingKeysWith: { _, new in new })
+            report["monitors"] = rows
+            rejects { _ = try GuestPointGeometry.geometry(from: report) }
+        }
+        var ambiguous = unorientedLayout()
+        ambiguous["monitors"] = (ambiguous["monitors"] as! [[String: Any]]) + (ambiguous["monitors"] as! [[String: Any]])
+        rejects { _ = try GuestPointGeometry.geometry(from: ambiguous) }
         var invalid = layout()
         func monitor(_ changes: [String: Any]) -> [String: Any] {
             var report = layout(); var rows = report["monitors"] as! [[String: Any]]

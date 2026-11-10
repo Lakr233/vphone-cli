@@ -10,7 +10,9 @@ extension GuestAPI {
         // IcliKit refuses point input on tvOS before consulting its geometry.
         return try operation()
         #else
-        let geometry = try GuestPointGeometry.geometry(from: vp_display_layout())
+        guard let geometry = try GuestPointGeometry.geometry(from: vp_display_layout()) else {
+            return try operation()
+        }
         return try withInterfaceGeometry(geometry, operation)
         #endif
     }
