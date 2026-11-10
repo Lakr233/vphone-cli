@@ -248,6 +248,7 @@ enum DeviceMethod: String, GuestMethod {
                                                    .required("name", .string),
                                                    .optional("requested", .any)])
         case .displayOrientation: MethodSpec(summary: "Read SpringBoard's interface orientation without a screen capture; cheap to poll", result: [.required("degrees", .any),
+                                                      .optional("device_degrees", .integer),
                                                       .optional("fold_angle", .number),
                                                       .optional("screen_off", .boolean),
                                                       .required("source", .string)])
@@ -421,32 +422,31 @@ extension GuestAPI {
             if let orientation = optionalString(params, "orientation") {
                 // Preserve the physical pose across SpringBoard relaunches.
                 // CoreMotion's app pose provider cannot feed this HID sink.
-                let accelerometer = vp_accelerometer_get()
-                let previousPose = (accelerometer["degrees"] as? NSNumber).map { String($0.intValue) }
-                let publishesPose = accelerometer["provider_running"] as? Bool == true
-                let previousInterface = interfaceRotationDegrees()
-                if publishesPose {
-                    guard vp_accelerometer_set_orientation(orientation) else {
-                        throw GuestAPIError.operationFailed("Could not publish the accelerometer orientation")
-                    }
+                guard vp_accelerometer_get()["provider_running"] as? Bool == true else {
+                    return try setRotationWithoutPose(orientation)
                 }
-                do {
-                    return try setRotation(orientation)
-                } catch {
-                    // A refused rotation leaves the guest as it was. The pose
-                    // is persisted, and a refused request still turns iPadOS's
-                    // pointer: with the screen off, an upside-down request
-                    // left the interface portrait and the pointer upside down,
-                    // so the mouse ran backwards. Asking again for the
-                    // interface's own orientation turns the pointer back.
-                    if publishesPose, let previousPose {
-                        _ = vp_accelerometer_set_orientation(previousPose)
-                    }
-                    if let previousInterface {
-                        _ = try? setRotation(String(previousInterface))
-                    }
-                    throw error
+                guard vp_accelerometer_set_orientation(orientation) else {
+                    throw GuestAPIError.operationFailed("Could not publish the accelerometer orientation")
                 }
+                // The device is turned now, and stays turned whatever the
+                // interface does, as a real one held that way: SpringBoard
+                // turns the interface to it by itself once the app in front
+                // supports it, the rotation lock comes off or the screen comes
+                // on. The request below only makes the turn prompt and tells
+                // whether the interface followed.
+                //
+                // With the screen off SpringBoard refuses every orientation,
+                // and the refused request still turns iPadOS's pointer: the
+                // interface stayed portrait and the mouse ran backwards. So
+                // the screen-off case is left to the pose alone. Asking again
+                // for the interface's own orientation would turn the pointer
+                // back, but SpringBoard then holds that orientation until the
+                // device turns again, and stops following the pose.
+                if GuestScreenUnlock.screenIsOff {
+                    throw IcliError.unavailable(
+                        "The screen is off; the device stays turned and the interface turns to it when the screen comes on.")
+                }
+                return try setRotation(orientation)
             }
             var rotation = rotationInfo()
             rotation["accelerometer"] = vp_accelerometer_get()
@@ -501,6 +501,24 @@ extension GuestAPI {
         }
     }
 
+    /// `display.rotation` on a guest without the gravity provider: the
+    /// request alone turns the interface, and a refused one is undone. A
+    /// refused request still turns iPadOS's pointer (with the screen off, an
+    /// upside-down request left the interface portrait and the pointer upside
+    /// down, so the mouse ran backwards); asking again for the interface's
+    /// own orientation turns it back.
+    private static func setRotationWithoutPose(_ orientation: String) throws -> [String: Any] {
+        let previousInterface = interfaceRotationDegrees()
+        do {
+            return try setRotation(orientation)
+        } catch {
+            if let previousInterface {
+                _ = try? setRotation(String(previousInterface))
+            }
+            throw error
+        }
+    }
+
     /// Reads SpringBoard directly; the UIScreen path can abort before display registration.
     /// A foldable guest adds the angle its last fold settled at, so a host
     /// polling the orientation also follows folds it did not ask for (Xcode's
@@ -510,6 +528,15 @@ extension GuestAPI {
             "degrees": interfaceRotationDegrees().map { $0 as Any } ?? NSNull(),
             "source": "springboard",
         ]
+        // The way the device is held, in the interface degrees that match it,
+        // when the gravity provider publishes one. It differs from `degrees`
+        // while the app in front or the rotation lock keeps the interface
+        // from following.
+        let accelerometer = vp_accelerometer_get()
+        if accelerometer["provider_running"] as? Bool == true,
+           let pose = (accelerometer["degrees"] as? NSNumber)?.intValue {
+            reply["device_degrees"] = pose
+        }
         if let angle = settledFoldAngle() {
             reply["fold_angle"] = angle
             // The window covers the panel while it is off: coming on, it

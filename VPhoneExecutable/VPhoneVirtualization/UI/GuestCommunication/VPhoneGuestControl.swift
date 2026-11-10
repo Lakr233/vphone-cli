@@ -104,7 +104,7 @@ final class VPhoneGuestControl {
     @ObservationIgnored var onGuestIPAddressChange: ((String?) -> Void)?
 
     /// The guest interface orientation: the one the window last read, or the
-    /// one a menu rotation is turning to. Nil until one is known, and again
+    /// one a menu rotation turned it to. Nil until one is known, and again
     /// after a disconnect.
     var interfaceOrientation: VPhoneDisplayOrientation? {
         didSet {
@@ -115,6 +115,25 @@ final class VPhoneGuestControl {
         }
     }
 
+    /// The way the guest device is held, in the interface degrees that match
+    /// it: the one the window last read, or the one a menu rotation is
+    /// turning it to. It differs from `interfaceOrientation` while the app in
+    /// front or the rotation lock keeps the interface from following. Nil
+    /// when the guest publishes none (no gravity provider, an older vphoned).
+    @ObservationIgnored var deviceOrientation: VPhoneDisplayOrientation?
+
+    /// Takes the interface and device orientation from a `display.orientation`
+    /// reply. A null interface reading (SpringBoard not answering) leaves the
+    /// interface where it was.
+    func followOrientation(_ reading: [String: Any]) {
+        deviceOrientation = (reading["device_degrees"] as? NSNumber)
+            .flatMap { VPhoneDisplayOrientation(degrees: $0.intValue) }
+        if let degrees = (reading["degrees"] as? NSNumber)?.intValue,
+           let orientation = VPhoneDisplayOrientation(degrees: degrees) {
+            interfaceOrientation = orientation
+        }
+    }
+
     /// True while a menu rotation waits for the guest, so the poll does not
     /// turn the window back to an orientation read before the guest turned.
     var isChangingOrientation: Bool {
@@ -122,6 +141,7 @@ final class VPhoneGuestControl {
     }
 
     @ObservationIgnored private var pendingRotations = 0
+    @ObservationIgnored private var rotationGeneration = 0
     @ObservationIgnored private var orientationObservers: [(VPhoneDisplayOrientation?) -> Void] = []
 
     func observeInterfaceOrientation(_ observer: @escaping (VPhoneDisplayOrientation?) -> Void) {
@@ -184,28 +204,75 @@ final class VPhoneGuestControl {
         setupAssistantObservers.append(observer)
     }
 
-    /// Turns the guest to the first of `candidates` it accepts. Each is set
-    /// before the guest is asked, so the window turns with the guest instead
-    /// of after it, and a refused one moves straight on to the next. When
-    /// every one is refused, the orientation from before is restored and the
-    /// last refusal is thrown.
+    /// Turns the guest to the first of `candidates` it accepts, a refused one
+    /// moving straight on to the next. When every one is refused, the last
+    /// refusal is thrown.
+    ///
+    /// A guest that publishes its device orientation keeps the device turned
+    /// when the interface does not follow, so `deviceOrientation` takes each
+    /// candidate at once, and the interface (and with it the window) turns
+    /// only once the guest's own reading shows it turning: a refused turn
+    /// leaves the window where it is instead of turning it there and back.
+    /// Any other guest is answered only once its interface has settled, so
+    /// each candidate is set before the guest is asked, the window turning
+    /// with the guest, and a refusal puts the orientation from before back.
+    ///
+    /// A rotation started while another one waits for the guest supersedes
+    /// it: the older one's answer, arriving after, changes nothing.
     func rotate(toFirstOf candidates: [VPhoneDisplayOrientation]) async throws {
         let previous = interfaceOrientation
+        let watchesGuest = deviceOrientation != nil
+        rotationGeneration &+= 1
+        let generation = rotationGeneration
+        let isLatest: @MainActor () -> Bool = { generation == self.rotationGeneration }
         pendingRotations += 1
         defer { pendingRotations -= 1 }
         var refusal: Error = ControlError.protocolError("no orientation to rotate to")
         for orientation in candidates {
-            interfaceOrientation = orientation
+            var watch: Task<Void, Never>?
+            if watchesGuest {
+                deviceOrientation = orientation
+                watch = Task { await self.followInterface(turningTo: orientation, while: isLatest) }
+            } else {
+                interfaceOrientation = orientation
+            }
             do {
                 _ = try await call("display.rotation", params: ["orientation": String(orientation.rawValue)])
+                watch?.cancel()
+                if isLatest() { interfaceOrientation = orientation }
                 return
             } catch {
+                watch?.cancel()
                 print("[rotate] \(orientation) refused: \(error)")
                 refusal = error
             }
         }
-        interfaceOrientation = previous
+        guard isLatest() else { throw refusal }
+        if watchesGuest {
+            // The window turned only if the guest did, so nothing is put
+            // back; the guest's reading says where the device ended up.
+            if let reading = try? await call("display.orientation"), isLatest() {
+                followOrientation(reading)
+            }
+        } else {
+            interfaceOrientation = previous
+        }
         throw refusal
+    }
+
+    /// Reads the guest's interface orientation until it shows `target`, and
+    /// turns the window then. `display.rotation` answers only after the turn
+    /// has settled, and the interface starts turning well before that.
+    private func followInterface(turningTo target: VPhoneDisplayOrientation, while isLatest: @escaping @MainActor () -> Bool) async {
+        while !Task.isCancelled {
+            let degrees = try? await (call("display.orientation")["degrees"] as? NSNumber)?.intValue
+            if Task.isCancelled || !isLatest() { return }
+            if degrees == target.rawValue {
+                interfaceOrientation = target
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
     }
 
     var useGuestTouchInjection: Bool {
@@ -329,6 +396,7 @@ final class VPhoneGuestControl {
         onGuestIPAddressChange?(nil)
         guestIOSVersion = nil
         interfaceOrientation = nil
+        deviceOrientation = nil
         foldAngle = nil
         foldPosition = nil
         foldSweepSeconds = 0

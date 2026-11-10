@@ -1490,6 +1490,21 @@
 > relaunch on `2.10.1-local.a8c22dce`, without a recovery respring/lock cycle.
 > Evidence and regression procedure:
 > `Research/Guest/springboard_orientation_stuck.md`.
+>
+> **Held pose and wake (2026-11-10):** a refused `display.rotation` now keeps
+> the published pose, as a turned real device stays turned, and SpringBoard
+> takes it up once the app in front, the rotation lock or the screen allows it.
+> SpringBoard's half of the library also hooks
+> `-[SBTraitsEmbeddedDisplayPipelineManager backlightController:willAnimateBacklightToFactor:source:]`
+> and, when the backlight animates on, hands
+> `accelerometer:didChangeDeviceOrientation:` the `currentDeviceOrientation`
+> of a `BKSAccelerometer` of its own (SpringBoard's answered 0 after a
+> restart): SpringBoard stops listening while the screen is off and does not
+> ask on wake, and a still virtual device sends no next sample, so a turn made
+> with the screen off stayed unapplied. The selectors
+> and the `_accelerometer` ivar are resolved at runtime (present on iOS 18.6.2,
+> 26.6.2 and 27.0.1); the factor's float or double encoding is read from the
+> method. Still no system executable, kernel or DSC byte change.
 
 > **Device attitude (2026-10-08; guest acceptance pending):**
 > `system-apps-cfw-attitude` in Guest System is selected by both presets on
