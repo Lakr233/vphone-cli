@@ -114,7 +114,8 @@ static NSDictionary *vpLayoutRect(id object, NSString *key, NSMutableDictionary 
 static NSDictionary *vpLayoutRow(id monitor, NSMutableDictionary *failures) {
     NSMutableDictionary *row = [@{@"monitor_source": @"default_main", @"geometry_available": @NO} mutableCopy];
     id layout = vpLayoutObject(monitor, @"currentLayout", failures);
-    row[@"available"] = @(layout != nil);
+    BOOL available = layout != nil;
+    row[@"available"] = @(available);
     if (!layout) {
         row[@"reason"] = @"Monitor or ABI unavailable, or FrontBoard returned no initial layout";
         return row;
@@ -144,7 +145,8 @@ static NSDictionary *vpLayoutRow(id monitor, NSMutableDictionary *failures) {
         && floor(displayID.doubleValue) == displayID.doubleValue;
     BOOL validOrientation = orientation && orientation.doubleValue >= 1 && orientation.doubleValue <= 4
         && floor(orientation.doubleValue) == orientation.doubleValue;
-    row[@"geometry_available"] = @(bounds && reference && scale.doubleValue > 0 && validID && validOrientation);
+    BOOL geometryAvailable = bounds && reference && scale.doubleValue > 0 && validID && validOrientation;
+    row[@"geometry_available"] = @(geometryAvailable);
     if (![row[@"geometry_available"] boolValue]) row[@"reason"] = @"Active display geometry is incomplete or unsupported";
     return row;
 }

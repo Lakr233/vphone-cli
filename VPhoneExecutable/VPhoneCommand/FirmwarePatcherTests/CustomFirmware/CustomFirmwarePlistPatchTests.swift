@@ -22,6 +22,7 @@
 // when it is absent — but a skip is not a pass, and the migration notes record
 // which ones actually ran.
 
+import CoreFoundation
 import CryptoKit
 @testable import FirmwarePatcher
 import Foundation

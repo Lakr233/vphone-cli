@@ -59,6 +59,7 @@ display.external.diagnostics	never	-	-	available:boolean?,error:any?,externalPol
 display.external.frame	never	-	-	data:string,mime_type:string	excluded:needs an external display on the guest
 display.external.status	never	-	-	enabled:any,error:any?,height:integer?,name:string?,nonce:string?,ok:boolean?,width:integer?	read
 display.layout	never	-	-	available:boolean,cadisplays:array*,capability_failures:object*,geometry_available:boolean,monitors:array*,observation:object*,reason:string,thread:object*	read
+display.metrics	never	-	-	available:boolean,bounds:object?*,display_id:integer?,point_scale:number?,reason:string,reference_bounds:object?*,source:string	read
 display.modes	never	-	-	available:boolean,displays:array?,reason:any?	read
 display.orientation	never	-	-	degrees:any,fold_angle:number?,screen_off:boolean?,source:string	read
 display.pose	never	-	-	available:boolean,device_orientation:any?,hinge:any?,orientation:any?,reason:string?,tabletop:any?	read

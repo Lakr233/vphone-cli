@@ -5,7 +5,7 @@ enum HomePodDisplayMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .homepodDisplayState: MethodSpec(result: [.required("available", .boolean),
+        case .homepodDisplayState: MethodSpec(summary: "Read the HomePod display state: availability, geometry, pixel format and frame counters.", result: [.required("available", .boolean),
                                                        .required("bit_depth", .any),
                                                        .required("configured", .any),
                                                        .required("display_count", .any),

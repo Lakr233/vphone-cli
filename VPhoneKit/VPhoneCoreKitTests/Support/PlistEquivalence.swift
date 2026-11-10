@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 
 /// Compares two property lists for *semantic* equality.

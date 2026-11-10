@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 
 /// The host screen API, `GET /v1/host/screen` on the `--api-listen` proxy.
