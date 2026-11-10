@@ -147,6 +147,12 @@ extension TXMDevPatcher {
         }
 
         let library = try remapLibraryCompatibility(code, byAddress: byAddress)
+        // AMFI's fabricated cache hit skips profile association. With native
+        // CMS classification restored, type 4 needs the corresponding null-
+        // profile compatibility exit in the same plan. Without that AMFI
+        // bypass, keep native profile authorization intact.
+        let missingProfile = gate.isEnabled("kernel-boot-amfi_trustcache")
+            ? try remapMissingProfileCompatibility(code, categoryOffset: classifier.category.offset) : nil
 
         // Resolve every site before selecting a different base bypass. A missing
         // shape must not leave fabricated cache hits disabled without tolerance.
@@ -159,6 +165,10 @@ extension TXMDevPatcher {
              description: "use native path-dependent research fallback for CMS-less installer signatures")
         emit(library.site, library.bytes, patchID: Self.executableRemapID + ".library",
              description: "research compatibility: allow absent or mismatched library Team IDs")
+        if let missingProfile {
+            emit(missingProfile.site, missingProfile.bytes, patchID: Self.executableRemapID + ".missing_profile",
+                 description: "research compatibility: waive type-4 profile authorization only when no profile is associated")
+        }
     }
 
     /// Temporary research policy for installed and separately pushed hot-reload

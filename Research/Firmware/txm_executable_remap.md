@@ -11,8 +11,9 @@ It also deliberately relaxes ordinary-library Team ID matching.
 **Scope:** `txm-cfw-executable_remap` is selected by the standard preset,
 non-boot-essential, and has no iOS/cloudOS version gate. It requires unique
 semantic matches in pristine TXM; missing or ambiguous shapes stop patching.
-Runtime reports cover iOS 26.6.2 and iOS 27.1 on a VRESEARCH1 kernel; other
-combinations are not established by these results. This revision removes the
+Runtime reports cover iOS 26.6.2 and iOS 27.1 on a VRESEARCH1 kernel and predate
+the integrated missing-profile correction; other combinations are not
+established by these results. This revision removes the
 iOS 27 forced pre-check admission and uses the same native classification path
 there. The tester reports successful startup and no App crashes with the
 replacement; measured remap results and their limits are detailed below.
@@ -59,6 +60,18 @@ their own Team ID, so testing only two identity-less images is insufficient.
 CMS/profile admission and category ordering can still reject a library before
 it reaches the relaxed comparison.
 
+For Development CMS signatures, AMFI's separate forced trust-cache hit can
+skip provisioning-profile association while this patch retains native type 4.
+That produces selector-24 `0x112A6`. Native classification therefore includes
+the `.missing_profile` compatibility site whenever `kernel-boot-amfi_trustcache`
+is enabled. It permits the null-profile exit without changing type or remap
+policy, waiving missing profile authorization while retaining validation of
+associated profiles. It shares the remap patch's selection and semantic
+discovery; there is no independent switch. With AMFI bypass off, native profile
+checks remain intact. The profile path has been inspected and replayed on
+cloudOS 26.1–26.4. See
+[the conflict, binary evidence and validation limits](txm_missing_profile.md).
+
 ## Replacement of the iOS 27 pre-check override
 
 The former `txm-boot-precheck_admission` wrote type 10 and returned success
@@ -96,7 +109,8 @@ Original uncompressed TXM SHA-256:
 
 The table gives file offsets for review and pinned-image tests only. Production
 locators use Capstone operands/control-flow, not these offsets or byte strings.
-Relative to the patch-disabled standard preset, seven instructions differ:
+Relative to the patch-disabled standard preset, nine instructions differ
+when AMFI trust-cache bypass is enabled:
 
 | Site | Enabled behavior |
 | --- | --- |
@@ -106,6 +120,7 @@ Relative to the patch-disabled standard preset, seven instructions differ:
 | `0x32070` | NOP ad-hoc fallback tolerance gate; fallback stays type 10. |
 | `0x30824` | Redirect absent-CMS `cbz x0` from `0x30860` to fallback at `0x30a24`. |
 | `0x33080`, `0x33084` | Skip ordinary-library Team ID comparison with `mov w21, #7; b 0x32f50`. |
+| `0x313cc`, `0x313d0` | Return `0xa6` only from the type-4 null-profile exit when AMFI bypass skips profile association. |
 
 To recover and validate the sites on the examined image:
 
@@ -121,7 +136,11 @@ To recover and validate the sites on the examined image:
 3. Locate ordinary-library comparison via category dispatch, Team ID reader
    calls, rejection codes and shared return path. Require the preceding category
    comparison and special type-1/2/>=6 dispatch to match before changing it.
-4. Resolve all sites uniquely before emitting the revision. Require an original
+4. With AMFI trust-cache bypass enabled, recover the unique type-4 null-profile
+   error exit and its sole finalizer caller as described in
+   [the profile investigation](txm_missing_profile.md). Treat a missing or
+   ambiguous profile site as failure of the whole remap revision.
+5. Resolve all sites uniquely before emitting the revision. Require an original
    cdhash BL; reject already-bypassed input and missing/ambiguous shapes without
    falling back to fabricated cache hits. Start from pristine extracted firmware.
 
@@ -146,7 +165,7 @@ addresses the byte as `[x20, #0x101]`. After the CMS call it branches
 the state and the category byte from the pre-check's `x0`/`x1` arguments
 (`add x1, state, #imm`, or `mov x1, pointer` whose only definition in the
 function is `add pointer, state, #imm`) and accepts both success branches.
-Steps 2–4 are unchanged.
+The remaining reveal steps use the same control-flow anchors.
 
 | Site | Enabled behavior |
 | --- | --- |
@@ -156,26 +175,31 @@ Steps 2–4 are unchanged.
 | `0x319c8` | NOP ad-hoc fallback tolerance gate; fallback stays type 10. |
 | `0x3019c` | Redirect absent-CMS `cbz x0` from `0x301d8` to fallback at `0x30398`. |
 | `0x32a44`, `0x32a48` | Skip ordinary-library Team ID comparison with `mov w21, #7; b 0x32914`. |
+| `0x30d48`, `0x30d4c` | With AMFI bypass enabled, return `0xa6` only from the type-4 null-profile exit. |
 
 The cloudOS 26.2 (23C55) and 26.3 (23D129) TXMs are the same 182.40.3
-classifier and match the same way.
+classifier and match the same way. Their sites in this table are at `+0x20`.
+The profile follow-up acquired and hash-pinned all three full images and
+checks the complete output before replaying their native functions; see
+[the corpus and profile field layouts](txm_missing_profile.md#old-version-corpus).
 
 Before this, `fw patch` stopped on every cloudOS 26.1 to 26.3 boot chain with
 `TXM classification: expected one native CMS/ad-hoc split`. With it, an
-iPhone17,3 iOS 18.6.2 (22G100) VM on this boot chain patches with the standard
-preset (16 TXM records), restores, installs CFW and cold-boots twice to vphoned
-and the Hello screen.
+iPhone17,3 iOS 18.6.2 (22G100) VM on this boot chain patched with the standard
+preset (16 TXM records), restored, installed CFW and cold-booted twice to vphoned
+and the Hello screen. That upstream validation predates the profile follow-up;
+it does not establish a guest launch with the new profile site.
 
 ## Validation
 
-The remap, catalog and patch-model suites passed **73 tests**, including the
+The initial remap, catalog and patch-model suites passed **73 tests**, including the
 optional full-image test. The iOS 26.6.2 validation also included a complete
 `VPhone` bundle build, bundle admission and deep strict codesign verification.
 
 - Relocated fixtures check exact output, changed/missing/ambiguous shapes,
   rejection without partial emission, version-independent selection and explicit
   disabling.
-- The supplied original image checks all seven instruction differences and
+- The supplied original image now checks all nine instruction differences and
   unchanged association/final-validation code. On arm64, tests execute its real
   SuperBlob parser, CMS classifier and final validator using the default signer,
   including truncated/malformed signatures and retained policy restrictions.
@@ -184,6 +208,15 @@ optional full-image test. The iOS 26.6.2 validation also included a complete
   signatures, wrong roles or different contexts. Types 6/8/9/10 retain their
   results; type-1/2/7 paths are covered by byte comparison, not runtime inputs.
   Host tests do not execute guest cache/profile setup or page mapping.
+
+The merged profile correction has its own native replay and failure cases in
+`TXMMissingProfileTests`. The remap fixture includes the profile validator and
+finalizer, so missing-profile discovery failure is tested before any part of
+the combined plan is emitted. Disabling AMFI bypass retains the original
+profile bytes and the other remap corrections. On 2026-11-10, the follow-up
+against upstream `9d9d796b` passed **83 tests in eight suites with no skips**,
+including all four pinned cloudOS 26.1–26.4 TXMs and CMS-signed executable
+replay. Guest validation of the profile correction remains pending.
 
 Supply the pristine uncompressed TXM above; without it the full-image test is
 skipped. Xcode forwards `TEST_RUNNER_VPHONE_REMAP_TXM` to the test process:
@@ -195,6 +228,7 @@ xcodebuild -project VPhoneExecutable/VPhoneCommand/VPhoneCommand.xcodeproj \
   -scheme FirmwarePatcherTests -configuration Debug \
   -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/XcodeCommand \
   -only-testing:FirmwarePatcherTests/TXMExecutableRemapTests \
+  -only-testing:FirmwarePatcherTests/TXMMissingProfileTests \
   -only-testing:FirmwarePatcherTests/FirmwarePatchSetCatalogTests \
   -only-testing:FirmwarePatcherTests/VPhonePatchGateTests test
 ```

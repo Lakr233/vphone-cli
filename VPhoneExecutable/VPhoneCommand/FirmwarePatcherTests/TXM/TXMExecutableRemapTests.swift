@@ -9,7 +9,7 @@ import VPhoneSign
 @Suite("TXM native classification for remapping")
 struct TXMExecutableRemapTests {
     static var reference: String? { ProcessInfo.processInfo.environment["VPHONE_REMAP_TXM"] }
-    static var reference26_1: String? { ProcessInfo.processInfo.environment["VPHONE_REMAP_TXM_26_1"] }
+    static var oldImages: [TXMMissingProfileTests.Image] { TXMMissingProfileTests.availableImages.filter { $0.version != "26.4" } }
 
     // Unmodified functions from TXM 187.100.3, relative to its v2 cache search.
     // Retaining relative positions preserves direct calls and cold-block branches
@@ -196,7 +196,7 @@ struct TXMExecutableRemapTests {
         """),
     ]
 
-    private func fixture(start: Int = 0x400, fragments: [(Int, String)] = Self.fragments) throws -> Data {
+    private func fixture(start: Int = 0x400, legacy: Bool = false) throws -> Data {
         var image = Data(repeating: 0, count: start + 0x6980)
         func u32(_ offset: Int, _ value: UInt32) {
             image.replaceSubrange(offset ..< offset + 4, with: ARM64.encodeU32(value))
@@ -220,7 +220,13 @@ struct TXMExecutableRemapTests {
         u64(80, UInt64(image.count - start))
         u32(88, 5)
         u32(92, 5)
-        for (offset, string) in fragments {
+        // Preserve the profile validator/finalizer's positions relative to
+        // the cache search, so the combined locator sees the native call graph.
+        let fragments = legacy ? Self.cloudOS26_1Fragments : Self.fragments
+        let profile = legacy
+            ? TXMMissingProfileTests.cloudOS26_1Fragments.map { (0x4b60 + $0.0, $0.1) }
+            : TXMMissingProfileTests.fragments.map { (0x4bf4 + $0.0, $0.1) }
+        for (offset, string) in fragments + profile {
             let hex = string.filter { !$0.isWhitespace }
             var bytes = Data()
             var index = hex.startIndex
@@ -240,11 +246,11 @@ struct TXMExecutableRemapTests {
         let patcher = TXMDevPatcher(data: data, verbose: false)
         try patcher.patchExecutableRemap()
         #expect(patcher.patches.map(\.patchID) == [
-            "txm-boot-trustcache_bypass", "txm-cfw-executable_remap.cms", "txm-cfw-executable_remap.adhoc", "txm-cfw-executable_remap.ldid", "txm-cfw-executable_remap.library",
+            "txm-boot-trustcache_bypass", "txm-cfw-executable_remap.cms", "txm-cfw-executable_remap.adhoc", "txm-cfw-executable_remap.ldid", "txm-cfw-executable_remap.library", "txm-cfw-executable_remap.missing_profile",
         ])
-        #expect(patcher.patches.map(\.fileOffset) == [start + 0x530c, start + 0x42d4, start + 0x591c, start + 0x40d0, start + 0x692c])
+        #expect(patcher.patches.map(\.fileOffset) == [start + 0x530c, start + 0x42d4, start + 0x591c, start + 0x40d0, start + 0x692c, start + 0x4c78])
         let count = try patcher.apply()
-        #expect(count == 5)
+        #expect(count == 6)
         var expected = data
         expected.replaceSubrange(start + 0x530c ..< start + 0x5310, with: ARM64.movX0_0)
         expected.replaceSubrange(start + 0x42d4 ..< start + 0x42d8, with: ARM64.nop)
@@ -255,6 +261,8 @@ struct TXMExecutableRemapTests {
         expected.replaceSubrange(start + 0x692c ..< start + 0x6934, with:
             try #require(ARM64Encoder.encodeMovzW(rd: 21, imm16: 7))
                 + #require(ARM64Encoder.encodeB(from: start + 0x6930, to: start + 0x67fc)))
+        expected.replaceSubrange(start + 0x4c78 ..< start + 0x4c80, with:
+            try #require(ARM64Encoder.encodeMovzW(rd: 0, imm16: 0xa6)) + ARM64.nop)
         #expect(patcher.patchedData == expected)
         // In particular the real cdhash comparison, successful cache/CMS exits,
         // CS_ADHOC split, path marker, type assignments and CMS digest errors stay.
@@ -283,6 +291,7 @@ struct TXMExecutableRemapTests {
         0x68b0, // special type-2 path
         0x6914, // ordinary library category comparison
         0x6940, // first Team ID reader call
+        0x4c78, // null-profile error: required with AMFI trust-cache bypass
     ])
     func changedPolicyDoesNotEmitPartialRevision(offset: Int) throws {
         var data = try fixture()
@@ -295,14 +304,14 @@ struct TXMExecutableRemapTests {
 
     @Test(arguments: [0x400, 0x8400])
     func cloudOS26_1CategoryPointerLayout(start: Int) throws {
-        let data = try fixture(start: start, fragments: Self.cloudOS26_1Fragments)
+        let data = try fixture(start: start, legacy: true)
         let patcher = TXMDevPatcher(data: data, verbose: false)
         try patcher.patchExecutableRemap()
         #expect(patcher.patches.map(\.patchID) == [
-            "txm-boot-trustcache_bypass", "txm-cfw-executable_remap.cms", "txm-cfw-executable_remap.adhoc", "txm-cfw-executable_remap.ldid", "txm-cfw-executable_remap.library",
+            "txm-boot-trustcache_bypass", "txm-cfw-executable_remap.cms", "txm-cfw-executable_remap.adhoc", "txm-cfw-executable_remap.ldid", "txm-cfw-executable_remap.library", "txm-cfw-executable_remap.missing_profile",
         ])
-        #expect(patcher.patches.map(\.fileOffset) == [start + 0x5270, start + 0x4238, start + 0x5864, start + 0x4038, start + 0x68e0])
-        #expect(try patcher.apply() == 5)
+        #expect(patcher.patches.map(\.fileOffset) == [start + 0x5270, start + 0x4238, start + 0x5864, start + 0x4038, start + 0x68e0, start + 0x4be4])
+        #expect(try patcher.apply() == 6)
         var expected = data
         expected.replaceSubrange(start + 0x5270 ..< start + 0x5274, with: ARM64.movX0_0)
         expected.replaceSubrange(start + 0x4238 ..< start + 0x423c, with: ARM64.nop)
@@ -313,6 +322,8 @@ struct TXMExecutableRemapTests {
         expected.replaceSubrange(start + 0x68e0 ..< start + 0x68e8, with:
             try #require(ARM64Encoder.encodeMovzW(rd: 21, imm16: 7))
                 + #require(ARM64Encoder.encodeB(from: start + 0x68e4, to: start + 0x67b0)))
+        expected.replaceSubrange(start + 0x4be4 ..< start + 0x4bec, with:
+            try #require(ARM64Encoder.encodeMovzW(rd: 0, imm16: 0xa6)) + ARM64.nop)
         #expect(patcher.patchedData == expected)
         #expect(patcher.patchedData[start + 0x94 ..< start + 0x98] == data[start + 0x94 ..< start + 0x98])
     }
@@ -329,9 +340,10 @@ struct TXMExecutableRemapTests {
         0x3019c, // absent-wrapper exit
         0x313d4, // alternate base bypass
         0x329a0, 0x329cc, 0x32a30, 0x32a58, // library category and Team ID policy
+        0x30d48, // null-profile exit
     ])
     func changedCloudOS26_1PolicyDoesNotEmitPartialRevision(offset: Int) throws {
-        var data = try fixture(fragments: Self.cloudOS26_1Fragments)
+        var data = try fixture(legacy: true)
         let site = 0x400 + offset - 0x2c164
         data.replaceSubrange(site ..< site + 4, with: ARM64.nop)
         let patcher = TXMDevPatcher(data: data, verbose: false)
@@ -342,7 +354,7 @@ struct TXMExecutableRemapTests {
 
     @Test
     func redefinedCloudOS26_1CategoryPointerIsRejected() throws {
-        var data = try fixture(fragments: Self.cloudOS26_1Fragments)
+        var data = try fixture(legacy: true)
         // `ldrb w8, [x20]` in the output block becomes a write to the pointer.
         let site = 0x400 + 0x31958 - 0x2c164
         data.replaceSubrange(site ..< site + 4, with: try #require(ARM64Encoder.encodeMovzX(rd: 20, imm16: 0)))
@@ -383,6 +395,24 @@ struct TXMExecutableRemapTests {
     }
 
     @Test
+    func nativeAMFIProfileAssociationDoesNotNeedTheCompatibilitySite() throws {
+        var data = try fixture()
+        // Missing profile shape is only required when AMFI bypass skips
+        // association; disabling that bypass preserves all profile bytes.
+        data.replaceSubrange(0x400 + 0x4c78 ..< 0x404 + 0x4c78, with: ARM64.nop)
+        let patcher = TXMDevPatcher(data: data, verbose: false)
+        let enabled: Set<String> = [TXMDevPatcher.executableRemapID, "txm-boot-trustcache_bypass"]
+        patcher.gate = VPhonePatchGate(
+            declared: enabled.union(["kernel-boot-amfi_trustcache"]), enabled: enabled,
+        )
+        try patcher.patchExecutableRemap()
+        #expect(patcher.patches.count == 5)
+        #expect(!patcher.patches.contains { $0.patchID.hasSuffix(".missing_profile") })
+        try patcher.apply()
+        #expect(patcher.patchedData[0x400 + 0x4bf4 ..< 0x400 + 0x4c94] == data[0x400 + 0x4bf4 ..< 0x400 + 0x4c94])
+    }
+
+    @Test
     func declarationCoversAllPathsWithoutVersionRestrictions() throws {
         let declaration = try #require(FirmwarePatchSetCatalog.allDeclarations.first {
             $0.identifier == TXMDevPatcher.executableRemapID
@@ -391,9 +421,11 @@ struct TXMExecutableRemapTests {
         #expect(declaration.covers(recordIdentifier: TXMDevPatcher.executableRemapID + ".adhoc"))
         #expect(declaration.covers(recordIdentifier: TXMDevPatcher.executableRemapID + ".ldid"))
         #expect(declaration.covers(recordIdentifier: TXMDevPatcher.executableRemapID + ".library"))
+        #expect(declaration.covers(recordIdentifier: TXMDevPatcher.executableRemapID + ".missing_profile"))
         #expect(!declaration.bootEssential)
         #expect(declaration.applicability == .always)
         #expect(!FirmwarePatchSetCatalog.allDeclarations.contains { $0.identifier == "txm-boot-precheck_admission" })
+        #expect(!FirmwarePatchSetCatalog.allDeclarations.contains { $0.identifier == "txm-exp-missing_profile" })
         for iOSBase in [nil, "18.7.2", "26.6.1", "27.0.1"] as [String?] {
             for cloudOS in [nil, "26.1", "26.3", "26.4", "26.5"] as [String?] {
                 for blocked in [false, true] {
@@ -404,6 +436,8 @@ struct TXMExecutableRemapTests {
                         iOSBase: iOSBase.flatMap { VPhoneVersion($0) }, cloudOS: cloudOS.flatMap { VPhoneVersion($0) },
                     )
                     #expect(plan.isEnabled(TXMDevPatcher.executableRemapID) == !blocked)
+                    let gate = VPhonePatchGate(plan: plan)
+                    #expect(gate.allows(record: TXMDevPatcher.executableRemapID + ".missing_profile") == !blocked)
                 }
             }
         }
@@ -414,9 +448,10 @@ struct TXMExecutableRemapTests {
         let data = try Data(contentsOf: URL(fileURLWithPath: #require(Self.reference)))
         let sha256 = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
         try #require(sha256 == "819861b6b534b6dc53287b010e822b9d93633d07a29b6e5b968c076929ebfbc1")
-        func patcher(blocked: Bool, iOSBase: String = "26.6.1") throws -> TXMDevPatcher {
+        func patcher(blocked: Bool, iOSBase: String = "26.6.1", amfiBypass: Bool = true) throws -> TXMDevPatcher {
             var preset = FirmwarePatchSetCatalog.standardPreset
             if blocked { preset.selection = preset.selection.blocking([TXMDevPatcher.executableRemapID]) }
+            if !amfiBypass { preset.selection = preset.selection.blocking(["kernel-boot-amfi_trustcache"]) }
             let plan = try VPhonePatchPlan.resolve(
                 preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
                 iOSBase: VPhoneVersion(iOSBase), cloudOS: VPhoneVersion("26.4"),
@@ -430,7 +465,7 @@ struct TXMExecutableRemapTests {
         }
         let baseline = try patcher(blocked: true)
         let patched = try patcher(blocked: false)
-        #expect(patched.patches.count == baseline.patches.count + 4)
+        #expect(patched.patches.count == baseline.patches.count + 5)
         var expected = baseline.patchedData
         expected.replaceSubrange(0x2c7e8 ..< 0x2c7ec, with: data[0x2c7e8 ..< 0x2c7ec])
         expected.replaceSubrange(0x31a60 ..< 0x31a64, with: ARM64.movX0_0)
@@ -442,6 +477,8 @@ struct TXMExecutableRemapTests {
         expected.replaceSubrange(0x33080 ..< 0x33088, with:
             try #require(ARM64Encoder.encodeMovzW(rd: 21, imm16: 7))
                 + #require(ARM64Encoder.encodeB(from: 0x33084, to: 0x32f50)))
+        expected.replaceSubrange(0x313cc ..< 0x313d4, with:
+            try #require(ARM64Encoder.encodeMovzW(rd: 0, imm16: 0xa6)) + ARM64.nop)
         #expect(patched.patchedData == expected)
         #expect(patched.patchedData[0x1eb10 ..< 0x1efe4] == data[0x1eb10 ..< 0x1efe4])
         #expect(patched.patchedData[0x32088 ..< 0x321f8] == data[0x32088 ..< 0x321f8])
@@ -453,6 +490,12 @@ struct TXMExecutableRemapTests {
         let patched27 = try patcher(blocked: false, iOSBase: "27.0.1")
         #expect(baseline27.patchedData == baseline.patchedData)
         #expect(patched27.patchedData == patched.patchedData)
+
+        let nativeAMFI = try patcher(blocked: false, amfiBypass: false)
+        var nativeAMFIExpected = patched.patchedData
+        nativeAMFIExpected.replaceSubrange(0x313cc ..< 0x313d4, with: data[0x313cc ..< 0x313d4])
+        #expect(nativeAMFI.patchedData == nativeAMFIExpected)
+        #expect(nativeAMFI.patches.count == patched.patches.count - 1)
 
         #if arch(arm64)
             // Execute the actual parser/classifier, not a model of their result.
@@ -469,20 +512,30 @@ struct TXMExecutableRemapTests {
             }
             try executeLibraryCompatibility(image: data, relaxed: false)
             try executeLibraryCompatibility(image: patched.patchedData, relaxed: true)
+            // Disabling AMFI bypass removes only the profile compatibility
+            // site; installer/ad-hoc admission and library checks still work.
+            for adHoc in [false, true] {
+                try executeInstallerClassification(image: nativeAMFI.patchedData, admitsMissingCMS: true, outerClassifier: true, adHoc: adHoc)
+            }
+            try executeLibraryCompatibility(image: nativeAMFI.patchedData, relaxed: true)
         #endif
     }
 
-    @Test(.enabled(if: reference26_1 != nil))
-    func suppliedCloudOS26_1TXMPreservesNativePolicy() throws {
-        let data = try Data(contentsOf: URL(fileURLWithPath: #require(Self.reference26_1)))
+    @Test(.enabled(if: !oldImages.isEmpty), arguments: oldImages)
+    func suppliedOlderTXMPreservesNativePolicy(image: TXMMissingProfileTests.Image) throws {
+        let data = try Data(contentsOf: URL(fileURLWithPath: #require(image.path)))
         let sha256 = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        try #require(sha256 == "ec68dc5a1ec77d8399365f7164e0384539c75e06ed9555f793ce5ff34a9c1db6")
-        func patcher(blocked: Bool) throws -> TXMDevPatcher {
+        try #require(sha256 == image.hash)
+        // Reviewed functions in 26.2/26.3 are at +0x20 relative to 26.1;
+        // compare every changed byte before calling any of their instructions.
+        let slide = image.version == "26.1" ? 0 : 0x20
+        func patcher(blocked: Bool, amfiBypass: Bool = true) throws -> TXMDevPatcher {
             var preset = FirmwarePatchSetCatalog.standardPreset
             if blocked { preset.selection = preset.selection.blocking([TXMDevPatcher.executableRemapID]) }
+            if !amfiBypass { preset.selection = preset.selection.blocking(["kernel-boot-amfi_trustcache"]) }
             let plan = try VPhonePatchPlan.resolve(
                 preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
-                iOSBase: VPhoneVersion("18.6.2"), cloudOS: VPhoneVersion("26.1"),
+                iOSBase: VPhoneVersion("18.6.2"), cloudOS: VPhoneVersion(image.version),
             )
             let patcher = TXMDevPatcher(data: data, verbose: false)
             patcher.gate = VPhonePatchGate(plan: plan)
@@ -492,29 +545,39 @@ struct TXMExecutableRemapTests {
         }
         let baseline = try patcher(blocked: true)
         let patched = try patcher(blocked: false)
-        #expect(patched.patches.count == baseline.patches.count + 4)
+        #expect(patched.patches.count == baseline.patches.count + 5)
         var expected = baseline.patchedData
-        expected.replaceSubrange(0x2c1f8 ..< 0x2c1fc, with: data[0x2c1f8 ..< 0x2c1fc])
-        expected.replaceSubrange(0x313d4 ..< 0x313d8, with: ARM64.movX0_0)
-        expected.replaceSubrange(0x3039c ..< 0x303a0, with: ARM64.nop)
-        expected.replaceSubrange(0x319c8 ..< 0x319cc, with: ARM64.nop)
-        expected.replaceSubrange(0x3019c ..< 0x301a0, with: try #require(ARM64Encoder.encodeCompareBranch(
-            nonzero: false, register: 0, from: 0x3019c, to: 0x30398, width64: true,
+        expected.replaceSubrange(slide + 0x2c1f8 ..< slide + 0x2c1fc, with: data[slide + 0x2c1f8 ..< slide + 0x2c1fc])
+        expected.replaceSubrange(slide + 0x313d4 ..< slide + 0x313d8, with: ARM64.movX0_0)
+        expected.replaceSubrange(slide + 0x3039c ..< slide + 0x303a0, with: ARM64.nop)
+        expected.replaceSubrange(slide + 0x319c8 ..< slide + 0x319cc, with: ARM64.nop)
+        expected.replaceSubrange(slide + 0x3019c ..< slide + 0x301a0, with: try #require(ARM64Encoder.encodeCompareBranch(
+            nonzero: false, register: 0, from: slide + 0x3019c, to: slide + 0x30398, width64: true,
         )))
-        expected.replaceSubrange(0x32a44 ..< 0x32a4c, with:
+        expected.replaceSubrange(slide + 0x32a44 ..< slide + 0x32a4c, with:
             try #require(ARM64Encoder.encodeMovzW(rd: 21, imm16: 7))
-                + #require(ARM64Encoder.encodeB(from: 0x32a48, to: 0x32914)))
-        #expect(patched.patchedData == expected)
+                + #require(ARM64Encoder.encodeB(from: slide + 0x32a48, to: slide + 0x32914)))
+        expected.replaceSubrange(image.error ..< image.error + 8, with:
+            try #require(ARM64Encoder.encodeMovzW(rd: 0, imm16: 0xa6)) + ARM64.nop)
+        try #require(patched.patchedData == expected)
+        let nativeAMFI = try patcher(blocked: false, amfiBypass: false)
+        expected.replaceSubrange(image.error ..< image.error + 8, with: data[image.error ..< image.error + 8])
+        try #require(nativeAMFI.patchedData == expected)
+        #expect(nativeAMFI.patches.count == patched.patches.count - 1)
 
         #if arch(arm64)
+            let layout = ExecutionLayout.cloudOS26_1.shifted(by: slide)
             for adHoc in [false, true] {
                 try executeInstallerClassification(image: baseline.patchedData, admitsMissingCMS: false,
-                                                   outerClassifier: true, adHoc: adHoc, layout: .cloudOS26_1)
+                                                   outerClassifier: true, adHoc: adHoc, layout: layout)
                 try executeInstallerClassification(image: patched.patchedData, admitsMissingCMS: true,
-                                                   outerClassifier: true, adHoc: adHoc, layout: .cloudOS26_1)
+                                                   outerClassifier: true, adHoc: adHoc, layout: layout)
+                try executeInstallerClassification(image: nativeAMFI.patchedData, admitsMissingCMS: true,
+                                                   outerClassifier: true, adHoc: adHoc, layout: layout)
             }
-            try executeLibraryCompatibility(image: data, relaxed: false, layout: .cloudOS26_1)
-            try executeLibraryCompatibility(image: patched.patchedData, relaxed: true, layout: .cloudOS26_1)
+            try executeLibraryCompatibility(image: data, relaxed: false, layout: layout)
+            try executeLibraryCompatibility(image: patched.patchedData, relaxed: true, layout: layout)
+            try executeLibraryCompatibility(image: nativeAMFI.patchedData, relaxed: true, layout: layout)
         #endif
     }
 
@@ -527,6 +590,10 @@ struct TXMExecutableRemapTests {
                                           finalizer: 0x32088, library: 0x32ec4, category: 0x101, restriction: 0xd4)
             static let cloudOS26_1 = Self(validator: 0x2e124, cms: 0x300ec, classifier: 0x318c0,
                                           finalizer: 0x319e0, library: 0x32888, category: 0xa1, restriction: 0xcc)
+            func shifted(by slide: Int) -> Self {
+                Self(validator: validator + slide, cms: cms + slide, classifier: classifier + slide,
+                     finalizer: finalizer + slide, library: library + slide, category: category, restriction: restriction)
+            }
         }
 
         private func executeLibraryCompatibility(image: Data, relaxed: Bool, layout: ExecutionLayout = .cloudOS26_4) throws {

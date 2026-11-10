@@ -120,7 +120,7 @@ public enum FirmwareBootChainPatchSet {
             VPhonePatchDeclaration(
                 identifier: "txm-cfw-executable_remap",
                 title: "TXM native signature classification",
-                summary: "Preserves real classification and native mapping bounds. Admits CMS-less installer signatures and temporarily tolerates absent or mismatched Team IDs for ordinary libraries, including hot reload; category and remap restrictions remain.",
+                summary: "Preserves real classification and native mapping bounds. Admits CMS-less installer signatures and temporarily tolerates absent or mismatched ordinary-library Team IDs. With AMFI trust-cache bypass enabled, also waives missing profile authorization for type 4; present-profile, category and remap checks remain.",
                 target: .firmware(.txm),
             ),
             VPhonePatchDeclaration(
