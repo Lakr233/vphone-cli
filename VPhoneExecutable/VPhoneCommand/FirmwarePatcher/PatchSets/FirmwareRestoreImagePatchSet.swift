@@ -36,12 +36,20 @@ public enum FirmwareRestoreImagePatchSet {
     public static let watchAudio = "filesystem-exp-watch_audio"
     public static let debugserver = "filesystem-exp-debugserver"
     public static let launchdJetsam = "filesystem-exp-launchd_jetsam_panic_guard"
+    /// Restores the guest as trusted darwinOS (`Ap,OSEnvironment` 6) and adds
+    /// cryptexctl, so cryptexes can be installed while it runs. Changes the
+    /// restore's ticket, so it reaches a guest only through a restore.
+    public static let trustedDarwinOS = "filesystem-exp-trusted_darwinos"
+    /// The `Ap,OSEnvironment` value of trusted darwinOS, which every cloudOS
+    /// research identity carries; `/osenvironments/trusted-darwinos` in the
+    /// device tree is its overlay.
+    public static let trustedDarwinOSEnvironment = 6
     public static let digestRehash = "manifest-boot-digest_rehash"
 
     /// Patches a machine asks for by name (`--allow`, or a preset that lists them);
     /// `minimal` and `watchos` leave them off, so the plain presets stay a lifelike
     /// stock guest.
-    public static let optInPatches: Set = [debugserver, launchdJetsam]
+    public static let optInPatches: Set = [debugserver, launchdJetsam, trustedDarwinOS]
     /// What `minimal` and `watchos` select from this set: everything but the
     /// opt-in patches.
     public static var presetPatches: Set<String> {
@@ -116,6 +124,12 @@ public enum FirmwareRestoreImagePatchSet {
                 identifier: launchdJetsam,
                 title: "launchd jetsam panic guard",
                 summary: "Patches launchd, before the reseal, so a daemon without jetsam properties does not panic the guest. Off by default. With developer mode on, MobileStorageMounter mounts the Developer disk image, and launchd's guard against its daemons kills init (\"jetsam property category (Daemon) is not initialized\"). The same change cfw install makes with system-launchd-boot-jetsam_panic_guard_bypass.",
+                target: .firmware(.filesystem),
+            ),
+            VPhonePatchDeclaration(
+                identifier: trustedDarwinOS,
+                title: "Trusted darwinOS environment",
+                summary: "Restores the guest in the trusted darwinOS environment (Ap,OSEnvironment 6, as cloudOS runs) and installs cloudOS's cryptexctl, so cryptexes can be personalized and installed while the guest runs instead of restoring again. Off by default, and an iPhone or iPad guest only. The environment comes from the restore's ticket, so changing this box needs a new restore. In it AMFI enforces Restricted Execution Mode, so the rebuilt trust cache allows every binary in both phases, and AMFI turns Developer Mode on only in its research build: on a research-board guest, whose kernel mix takes AMFI from the release kernel, it cannot be turned on (\"Developer Mode can not be enabled on trusted darwinOS\"), which leaves out Xcode, the Developer disk image and Userspace debugging.",
                 target: .firmware(.filesystem),
             ),
             VPhonePatchDeclaration(

@@ -73,9 +73,34 @@ extension CryptexFilesystemPatcher {
         try target.replaceFile("System/Library/LaunchDaemons/vphoned.plist", fromFileAt: source, mode: 0o644, owner: (0, 0))
         try editGuestFile(CustomFirmwareDetachedSignature.launchdCachePath, targetMount: targetMount, mode: 0o644) { file in
             try CustomFirmwareDaemons.injectDaemon(into: file, name: "vphoned", from: source)
+            if trustedDarwinOS {
+                try dropNRDUpdated(fromLaunchdCache: file)
+            }
         }
         print("  [+] Injected vphoned")
         try resignLaunchdCache(targetMount: targetMount)
+    }
+
+    static let nrdUpdatedJob = "/System/Library/LaunchDaemons/com.apple.mobile.NRDUpdated.plist"
+
+    /// Leave NRDUpdated out of a trusted darwinOS guest's launchd cache.
+    ///
+    /// In environment 6 TXM selects the policy with Restricted Execution Mode
+    /// support, which checks each trust cache load against the digest the SEP
+    /// pins on their shared page. NRDUpdated loads the trust cache of the
+    /// recoveryOS update brain it downloads (`global.ota-update-brain`), which
+    /// fails it, and TXM panics instead of refusing: `TXM [Panic]: [code:
+    /// 0x000000F3 | 4]` in NRDUpdated, minutes into the first boot with
+    /// network. A VM has no recoveryOS to update. Its job starts only on
+    /// demand (MachService and two XPC activities), so leaving it out stops
+    /// every way it runs. Research/Firmware/trusted_darwinos_cryptexes.md.
+    func dropNRDUpdated(fromLaunchdCache file: URL) throws {
+        var cache = try CustomFirmwareDaemons.loadPlist(file)
+        var jobs = cache["LaunchDaemons"] as? PlistDict ?? [:]
+        guard jobs.removeValue(forKey: Self.nrdUpdatedJob) != nil else { return }
+        cache["LaunchDaemons"] = jobs
+        try CustomFirmwareDaemons.savePlist(cache, to: file)
+        print("  [+] Left out com.apple.mobile.NRDUpdated (trusted darwinOS: its update-brain trust cache panics TXM)")
     }
 
     /// Sign the edited `launchd.plist` as Apple signs it, so the stock
@@ -142,6 +167,20 @@ extension CryptexFilesystemPatcher {
     func stageVphoned(to vphonedBin: URL) throws {
         let prebuilt = try VPhoneGuestBinaries.resolve(VPhoneResources.vphonedName(for: guestFamily))
         try FileManager.default.copyItem(at: prebuilt, to: vphonedBin)
+    }
+
+    /// cloudOS's cryptexctl, which `fw prepare` stages for a trusted darwinOS
+    /// guest. Apple ad hoc signed: createTrustcache's scan takes its cdhash.
+    func addCryptexctl(targetMount: String) throws {
+        let staged = VPhonePCCCryptexctl.staged(in: restoreDir)
+        guard FileManager.default.fileExists(atPath: staged.path) else {
+            throw VPhonePatchKit.PatcherError.patchVerificationFailed(
+                "cryptexctl is missing: \(staged.path). This restore tree was prepared without it; turn the trusted darwinOS environment on (fw set-patches --allow filesystem-exp-trusted_darwinos) and run fw prepare again.",
+            )
+        }
+        let confined = try VPhoneConfinedDirectory.pin(absolutePath: targetMount)
+        try confined.replaceFile(VPhonePCCCryptexctl.guestPath, fromFileAt: staged, mode: 0o755, owner: (0, 0))
+        print("  [+] /\(VPhonePCCCryptexctl.guestPath)")
     }
 
     func addGpuDriver(targetMount: String) throws {

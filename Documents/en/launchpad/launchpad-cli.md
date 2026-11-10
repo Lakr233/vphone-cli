@@ -125,7 +125,7 @@ The result names the template, whether this creation built it, and the patches i
 
 Two more cases run steps as root through the helper:
 
-- `--preset minimal` (Minimal: a stock boot chain, kernel and TXM, with the system customized before the restore) is also restored on its own without slimming, and its `fw patch` runs as root through the helper. Its Userspace debugging box (`userspace-debugging` under Features in `vphone-cli fw patches`) is an `--allow` for each patch it lists.
+- `--preset minimal` (Minimal: a stock boot chain, kernel and TXM, with the system customized before the restore) is also restored on its own without slimming, and its `fw patch` runs as root through the helper. Its Userspace debugging box (`userspace-debugging` under Features in `vphone-cli fw patches`) is an `--allow` for each patch it lists. Its Trusted darwinOS environment box (`trusted-darwinos`, which is `--allow filesystem-exp-trusted_darwinos`) restores an iPhone or iPad as trusted darwinOS with cloudOS's cryptexctl, so a cryptex can be installed while it runs (Apps › Install Cryptex… in the VM window; see [Cryptexes](../machines/cryptexes.md)), and the box's summary says what it changes. The guest then enforces Restricted Execution Mode, and a research-board guest (cloudOS 26.5 to 26.7) cannot turn on Developer Mode, and changing the box takes effect only with a new restore.
 - For a machine whose cloudOS has no vphone600 components (its release's own cloudOS, a watch, an iOS 18 guest), the kernelcache mix is staged with `fw kernelcache` and linked by the helper as root.
 
 ### Patch overrides

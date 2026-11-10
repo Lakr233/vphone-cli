@@ -125,7 +125,7 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 
 さらに 2 つの場合では、ヘルパーを通じて root として手順が実行されます。
 
-- `--preset minimal`（Minimal：未変更のブートチェーン、カーネル、TXM を使い、復元前にシステムをカスタマイズします）も軽量化なしで単独で復元され、その `fw patch` はヘルパーを通じて root として実行されます。Userspace debugging のボックス（`vphone-cli fw patches` の Features にある `userspace-debugging`）は、そこに記載された各パッチに対する `--allow` です。
+- `--preset minimal`（Minimal：未変更のブートチェーン、カーネル、TXM を使い、復元前にシステムをカスタマイズします）も軽量化なしで単独で復元され、その `fw patch` はヘルパーを通じて root として実行されます。Userspace debugging のボックス（`vphone-cli fw patches` の Features にある `userspace-debugging`）は、そこに記載された各パッチに対する `--allow` です。Trusted darwinOS environment のボックス（`trusted-darwinos`、つまり `--allow filesystem-exp-trusted_darwinos`）は、iPhone または iPad を trusted darwinOS として復元し、cloudOS の cryptexctl を追加します。これにより、ゲストの実行中に cryptex をインストールできます（VM ウインドウの Apps › Install Cryptex…。[Cryptex](../machines/cryptexes.md) を参照）。ボックスの説明に、その影響が記載されています。ゲストでは Restricted Execution Mode が強制され、リサーチボードのゲスト（cloudOS 26.5〜26.7）ではデベロッパモードをオンにできません。ボックスの変更は、復元をやり直したときにのみ反映されます。
 - cloudOS に vphone600 のコンポーネントがないマシン（そのリリース自身の cloudOS、Watch、iOS 18 ゲスト）では、kernelcache ミックスを `fw kernelcache` で準備し、ヘルパーが root としてリンクします。
 
 ### パッチの上書き設定

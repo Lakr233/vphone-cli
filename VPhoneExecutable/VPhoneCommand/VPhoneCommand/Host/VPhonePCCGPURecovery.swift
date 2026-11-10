@@ -3,7 +3,12 @@ import VPhoneCoreKit
 import VPhoneRestore
 
 /// Restores the selected cloudOS firmware with this project's own VM and
-/// idevicerestore backend when Apple's public AEA key is unavailable.
+/// idevicerestore backend when Apple's public AEA key is unavailable, and
+/// takes what the guest needs from cloudOS off the restored System volume:
+/// the GPU driver, and cryptexctl for a trusted darwinOS guest. The restored
+/// device obtains the OS image key itself, the way pccvre's VMs do; WKMS
+/// refuses the public one for cloudOS images at times (403 on 2026-11-10 and
+/// 11, while it served iOS 26.5's).
 enum VPhonePCCGPURecovery {
     enum Error: Swift.Error, LocalizedError {
         case identityTimedOut
@@ -26,6 +31,7 @@ enum VPhonePCCGPURecovery {
         cloudOSDirectory: URL,
         into restoreDirectory: URL,
         expectedPlatformVersion: String,
+        gpuDriver: Bool = true,
     ) throws {
         let fm = FileManager.default
         let temporaryLibrary = restoreDirectory.deletingLastPathComponent()
@@ -103,6 +109,7 @@ enum VPhonePCCGPURecovery {
         try stageFromSystemDisk(
             vm.url.appending(path: "Disk.img"),
             into: restoreDirectory, expectedPlatformVersion: expectedPlatformVersion,
+            gpuDriver: gpuDriver,
             diskMayBeAttached: &diskMayBeAttached,
         )
     }
@@ -127,6 +134,7 @@ enum VPhonePCCGPURecovery {
         _ diskImage: URL,
         into restoreDirectory: URL,
         expectedPlatformVersion: String,
+        gpuDriver: Bool,
         diskMayBeAttached: inout Bool,
     ) throws {
         let fm = FileManager.default
@@ -209,14 +217,24 @@ enum VPhonePCCGPURecovery {
         mounted = true
         try run("/sbin/mount_apfs", ["-o", "rdonly", "/dev/\(container)s1", mount.path])
 
-        let source = mount.appending(
-            path: "System/Library/Extensions/\(VPhonePCCGPUDriver.name)",
-        )
-        try VPhonePCCGPUDriver.stage(
-            from: source,
-            into: restoreDirectory,
-            expectedPlatformVersion: expectedPlatformVersion,
-        )
+        if gpuDriver {
+            let source = mount.appending(
+                path: "System/Library/Extensions/\(VPhonePCCGPUDriver.name)",
+            )
+            try VPhonePCCGPUDriver.stage(
+                from: source,
+                into: restoreDirectory,
+                expectedPlatformVersion: expectedPlatformVersion,
+            )
+        }
+        // Taken whenever the system has it: a restore costs minutes, and the
+        // preparer caches it for a later trusted darwinOS guest.
+        let cryptexctl = mount.appending(path: VPhonePCCCryptexctl.guestPath)
+        if fm.fileExists(atPath: cryptexctl.path) {
+            try VPhonePCCCryptexctl.stage(file: cryptexctl, into: restoreDirectory)
+        } else if !gpuDriver {
+            throw VPhonePCCCryptexctl.Error.notFound(mount)
+        }
         do {
             try run("/sbin/umount", [mount.path])
         } catch {
@@ -231,7 +249,7 @@ enum VPhonePCCGPURecovery {
         }
         diskAttached = false
         diskMayBeAttached = false
-        print("[+] GPU driver staged from cloudOS restored by vphone-cli")
+        print(gpuDriver ? "[+] GPU driver staged from cloudOS restored by vphone-cli" : "[+] cryptexctl staged from cloudOS restored by vphone-cli")
     }
 
     @discardableResult

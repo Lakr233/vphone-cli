@@ -125,7 +125,7 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 
 另有两种情况会通过辅助程序以 root 身份运行某些步骤：
 
-- `--preset minimal`（Minimal：原装的启动链、内核和 TXM，在恢复前定制系统）也会单独恢复且不做精简，它的 `fw patch` 通过辅助程序以 root 身份运行。它的用户空间调试选项（`vphone-cli fw patches` 中 Features 下的 `userspace-debugging`）相当于对其列出的每个补丁使用 `--allow`。
+- `--preset minimal`（Minimal：原装的启动链、内核和 TXM，在恢复前定制系统）也会单独恢复且不做精简，它的 `fw patch` 通过辅助程序以 root 身份运行。它的用户空间调试选项（`vphone-cli fw patches` 中 Features 下的 `userspace-debugging`）相当于对其列出的每个补丁使用 `--allow`。它的 Trusted darwinOS environment 选项（`trusted-darwinos`，即 `--allow filesystem-exp-trusted_darwinos`）会把 iPhone 或 iPad 以 trusted darwinOS 环境恢复，并加入 cloudOS 的 cryptexctl，这样就能在客体运行时安装 cryptex（VM 窗口中的 Apps › Install Cryptex…，参阅 [Cryptex](../machines/cryptexes.md)），选项下方的说明列出了它的影响。此后客体会强制执行 Restricted Execution Mode，研究板客体（cloudOS 26.5 至 26.7）无法打开开发者模式；更改此选项只有在重新恢复后才会生效。
 - 对于 cloudOS 不含 vphone600 组件的虚拟机（使用其版本自己的 cloudOS、手表、iOS 18 客户机），kernelcache 组合由 `fw kernelcache` 准备，再由辅助程序以 root 身份链接。
 
 ### 补丁覆盖

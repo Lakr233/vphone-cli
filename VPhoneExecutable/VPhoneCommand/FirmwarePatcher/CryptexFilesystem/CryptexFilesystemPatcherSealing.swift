@@ -253,7 +253,12 @@ extension CryptexFilesystemPatcher {
         }
         let container = try IM4P(contentsOf: trustCache)
         let generated = try TrustCache(payload: container.payload())
-        let cache = generated.withConstraintCategories(from: originals, inherited: resignedCDHashes)
+        var cache = generated.withConstraintCategories(from: originals, inherited: resignedCDHashes)
+        if trustedDarwinOS {
+            let before = cache.entries.count
+            cache = cache.allowingBothRestrictedExecutionPhases()
+            print("  [+] Restricted Execution Mode: all \(cache.entries.count) entries allowed in both phases (\(before - cache.entries.count) duplicates dropped)")
+        }
         try IM4P(fourcc: container.fourcc, description: container.description, payload: cache.payload)
             .data.write(to: trustCache)
         let categorized = cache.entries.filter { $0.constraintCategory != 0 }.count

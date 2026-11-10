@@ -120,6 +120,34 @@ struct TrustCache: Equatable {
         })
     }
 
+    // MARK: - Restricted Execution Mode
+
+    /// Flags of an entry that may run before (`0x40`) and after (`0x80`) the
+    /// system enters Restricted Execution Mode. `cryptexctl generate-trust-cache
+    /// --restricted-exec-mode-default` writes `0x40` for before, `0x80` for
+    /// after, `0xC0` for both, which is also what it writes with no option
+    /// (its help says "before"), and `0x00` for none.
+    static let restrictedExecutionBothPhases: UInt8 = 0xC0
+
+    /// Every entry allowed in both REM phases, each CDHash once.
+    ///
+    /// A trusted darwinOS guest enforces REM: AMFI kills launchd itself if its
+    /// entry has neither bit ("not allowed for Restricted Execution Mode
+    /// state"). cryptexctl gives the binaries its scan finds `0xC0`, but copies
+    /// each `--base-trust-cache` entry as it is, and Apple's iOS entries are
+    /// `0x00`; the same CDHash is then in the cache twice, once allowed and once
+    /// not. One entry per CDHash, allowed, is what is left.
+    func allowingBothRestrictedExecutionPhases() -> TrustCache {
+        var seen = Set<Data>()
+        var allowed: [Entry] = []
+        for entry in entries where seen.insert(entry.cdHash + [entry.hashType]).inserted {
+            var entry = entry
+            entry.flags |= Self.restrictedExecutionBothPhases
+            allowed.append(entry)
+        }
+        return TrustCache(version: version, uuid: uuid, entries: allowed)
+    }
+
     // MARK: - CDHashes
 
     /// The CDHash of each CodeDirectory in each slice of a Mach-O, which is

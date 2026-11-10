@@ -50,6 +50,9 @@ public struct FirmwarePatchFeature: Sendable, Hashable, Identifiable {
             FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: result)
         case VPhonePatchPreset.tvOS4KIdentifier:
             FirmwareGuestPatchResolution.unvalidatedTVGuestPatches(enabled: result, arm64eUserland: true)
+        case VPhonePatchPreset.watchOSIdentifier:
+            // The restore image skips trusted darwinOS on a watch.
+            result.contains(FirmwareRestoreImagePatchSet.trustedDarwinOS) ? [FirmwareRestoreImagePatchSet.trustedDarwinOS] : []
         default:
             []
         }
@@ -125,6 +128,21 @@ extension FirmwarePatchSetCatalog {
         ],
     )
 
+    /// A ``minimalPreset`` iPhone or iPad guest restored as trusted darwinOS,
+    /// the environment cloudOS runs in, with cloudOS's cryptexctl: a cryptex
+    /// can then be personalized and installed while the guest runs, instead of
+    /// a restore for every change to the sealed system. It is one patch,
+    /// `filesystem-exp-trusted_darwinos`; a feature so the editor offers it as
+    /// a box beside the preset.
+    /// No preset but `minimal` names the restore image set, so no other shows
+    /// it. Research/Firmware/trusted_darwinos_cryptexes.md has the details.
+    public static let trustedDarwinOS = FirmwarePatchFeature(
+        identifier: "trusted-darwinos",
+        title: "Trusted darwinOS environment",
+        summary: "Restores the guest in the environment cloudOS runs in, which lets cryptexes be installed and mounted while it runs instead of restoring for every change to the system. Developer Mode is unavailable on research-board guests.",
+        parts: [[FirmwareRestoreImagePatchSet.trustedDarwinOS]],
+    )
+
     /// The features the bundle offers.
-    public static let features: [FirmwarePatchFeature] = [userspaceDebugging]
+    public static let features: [FirmwarePatchFeature] = [userspaceDebugging, trustedDarwinOS]
 }

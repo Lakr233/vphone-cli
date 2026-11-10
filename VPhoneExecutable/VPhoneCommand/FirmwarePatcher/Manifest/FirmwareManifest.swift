@@ -318,6 +318,11 @@ public enum FirmwareManifest {
         return deepCopyPlistDict(value)
     }
 
+    /// The build identity key iBoot's environment comes from: the restore sends
+    /// it to TSS, iBoot reads it from the ticket and applies the matching
+    /// `/osenvironments` overlay of the device tree.
+    public static let osEnvironmentKey = "Ap,OSEnvironment"
+
     /// Build the single DFU erase identity by merging components from multiple sources.
     static func buildEraseIdentity(
         cloudIdentities C: [PlistDict],
@@ -337,6 +342,13 @@ public enum FirmwareManifest {
         bi["ApBoardID"] = "0x90"
         bi["ApChipID"] = "0xFE01"
         bi["ApSecurityDomain"] = "0x01"
+
+        // The cloudOS identity asks for trusted darwinOS. An iOS userland does
+        // not boot in it unless its trust cache allows it, so the environment
+        // is left out here and only `filesystem-exp-trusted_darwinos` puts it
+        // back (CryptexFilesystemPatcher.setUpdatedComponentsInManifest). The
+        // restore sends whatever the identity carries.
+        bi.removeValue(forKey: osEnvironmentKey)
 
         // Remove NeRDEpoch and RestoreAttestationMode from top-level and Info.
         for key in ["NeRDEpoch", "RestoreAttestationMode"] {

@@ -95,7 +95,28 @@ extension GuestAPI {
         let arguments = params["arguments"] as? [String] ?? []
         let timeout = (params["timeout_seconds"] as? NSNumber).map { $0.doubleValue } ?? 3.0
         if let error = GuestProcessSpawnPolicy.validate(executable: name, arguments: arguments, timeout: timeout) { throw GuestAPIError.invalidRequest(error) }
+        let run = try runProgram(executable, arguments, timeout: timeout)
+        return [
+            "executable": executable, "arguments": arguments, "pid": Int(run.pid),
+            "timed_out": run.timedOut, "exit_code": run.exitCode.map { $0 as Any } ?? NSNull(),
+            "signal": run.signal.map { $0 as Any } ?? NSNull(),
+            "stdout": run.stdout, "stderr": run.stderr,
+        ]
+    }
 
+    struct ProgramRun {
+        let pid: pid_t
+        let timedOut: Bool
+        /// Nil when the program was killed by a signal or did not exit.
+        let exitCode: Int?
+        let signal: Int?
+        let stdout: String
+        let stderr: String
+    }
+
+    /// Run a program at a fixed path with no shell, capture both outputs up to
+    /// GuestProcessSpawnPolicy.outputLimit, and kill it at `timeout`.
+    static func runProgram(_ executable: String, _ arguments: [String], timeout: Double) throws -> ProgramRun {
         let stdoutPipe: GuestProcessPipe
         let stderrPipe: GuestProcessPipe
         do {
@@ -138,15 +159,15 @@ extension GuestAPI {
             _ = waitpid(pid, &status, 0)
         }
         drainSpawnPipe(stdoutPipe.readEnd, into: &output); drainSpawnPipe(stderrPipe.readEnd, into: &errorOutput)
-        return [
-            "executable": executable, "arguments": arguments, "pid": Int(pid),
-            "timed_out": !exited, "exit_code": exited && (status & 0x7f) == 0 ? Int((status >> 8) & 0xff) : NSNull(),
-            "signal": exited && (status & 0x7f) != 0 ? Int(status & 0x7f) : NSNull(),
-            "stdout": String(decoding: output, as: UTF8.self), "stderr": String(decoding: errorOutput, as: UTF8.self),
-        ]
+        return ProgramRun(
+            pid: pid, timedOut: !exited,
+            exitCode: exited && (status & 0x7f) == 0 ? Int((status >> 8) & 0xff) : nil,
+            signal: exited && (status & 0x7f) != 0 ? Int(status & 0x7f) : nil,
+            stdout: String(decoding: output, as: UTF8.self), stderr: String(decoding: errorOutput, as: UTF8.self),
+        )
     }
 
-    private static func drainSpawnPipe(_ fd: Int32, into data: inout Data) {
+    static func drainSpawnPipe(_ fd: Int32, into data: inout Data) {
         GuestProcessOutput.drain(fd, into: &data, limit: GuestProcessSpawnPolicy.outputLimit)
     }
 

@@ -36,6 +36,9 @@ bootstrap.uninstall	VPhoneDaemon/Daemon/Bootstrap/GuestIrisinInstaller.swift#uni
 clipboard.clear	VPhoneDaemon/Daemon/GuestAPI.swift#executeCore
 clipboard.get	VPhoneDaemon/Daemon/GuestAPI.swift#executeCore
 clipboard.set	icli:IcliKit/Clipboard.swift#setClipboard
+cryptex.install	VPhoneDaemon/Daemon/GuestAPI+Cryptex.swift#executeCryptex
+cryptex.list	VPhoneDaemon/Daemon/GuestAPI+Cryptex.swift#executeCryptex
+cryptex.uninstall	VPhoneDaemon/Daemon/GuestAPI+Cryptex.swift#executeCryptex
 developer_mode.enable	icli:IcliKit/Device/SystemModes.swift#enableDeveloperMode
 developer_mode.status	icli:IcliKit/Device/SystemModes.swift#developerModeStatus
 device.basebin	icli:IcliKit/Device/SystemControl.swift#compareBaseBin

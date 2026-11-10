@@ -110,6 +110,15 @@ struct VPhoneLaunchpadNewMachineAdvancedView: View {
                             .environment(model)
                         }
                 }
+                // The features the preset can carry (today only `minimal`'s),
+                // as boxes of their own rather than only in Patch Settings…,
+                // each with the sentence that says what it does.
+                ForEach(patchCatalog.offeredFeatures) { feature in
+                    Toggle(isOn: featureBinding(feature, in: patchCatalog)) {
+                        Text(verbatim: feature.title)
+                        Text(verbatim: feature.summary)
+                    }
+                }
             } else if let patchCatalogError {
                 Label(patchCatalogError, systemImage: "exclamationmark.triangle")
                     .foregroundStyle(.secondary)
@@ -125,6 +134,16 @@ struct VPhoneLaunchpadNewMachineAdvancedView: View {
         } footer: {
             patchNote
         }
+    }
+
+    private func featureBinding(
+        _ feature: VPhoneLaunchpadPatchCatalog.Feature,
+        in catalog: VPhoneLaunchpadPatchCatalog,
+    ) -> Binding<Bool> {
+        Binding(
+            get: { patches.isOn(feature, in: catalog) },
+            set: { patches.set(feature, on: $0, in: catalog) },
+        )
     }
 
     @ViewBuilder

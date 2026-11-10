@@ -59,6 +59,15 @@ extension CryptexFilesystemPatcher {
         )
 
         buildIdentity["Manifest"] = identityManifest
+        // The restore asks TSS for what the identity says; `fw prepare` leaves
+        // the environment out (FirmwareManifest.buildEraseIdentity).
+        if trustedDarwinOS {
+            buildIdentity[FirmwareManifest.osEnvironmentKey] = String(
+                format: "0x%02X", FirmwareRestoreImagePatchSet.trustedDarwinOSEnvironment,
+            )
+        } else {
+            buildIdentity.removeValue(forKey: FirmwareManifest.osEnvironmentKey)
+        }
         buildIdentities[0] = buildIdentity
         root["BuildIdentities"] = buildIdentities
         return root
