@@ -8,6 +8,7 @@
 // here: `inject` is the merge, and the two loaders below are the only difference
 // between the call sites.
 
+import CoreFoundation
 import Foundation
 
 public extension CustomFirmwareDaemons {

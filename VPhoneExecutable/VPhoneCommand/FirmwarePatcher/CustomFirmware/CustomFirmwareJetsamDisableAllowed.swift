@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 import VPhonePatchKit
 
