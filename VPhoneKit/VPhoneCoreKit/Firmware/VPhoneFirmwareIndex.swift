@@ -165,7 +165,25 @@ public enum VPhoneFirmwareIndex {
         return entries
     }
 
+    /// Cloudflare serves the catalogue and offers HTTP/3; a fetch soon after
+    /// another one fails often with NSURLErrorNetworkConnectionLost (-1005),
+    /// up to six times in a row back to back on a 2026-11-10 host, while each
+    /// try after a pause of a second or two succeeded. So: a few tries, apart.
     private static func catalogueData() async throws -> Data {
+        var attempt = 0
+        while true {
+            do {
+                return try await catalogueDataOnce()
+            } catch let error as URLError where attempt < 4
+                && [.networkConnectionLost, .timedOut, .cannotConnectToHost, .notConnectedToInternet].contains(error.code)
+            {
+                attempt += 1
+                try await Task.sleep(for: .seconds(attempt))
+            }
+        }
+    }
+
+    private static func catalogueDataOnce() async throws -> Data {
         let session = URLSession(configuration: .ephemeral)
         defer { session.invalidateAndCancel() }
         let (compressed, response) = try await session.data(from: catalogueURL)
