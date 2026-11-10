@@ -366,7 +366,7 @@
 			repositoryURL = "https://github.com/owngoal-dev/icli.git";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 0.10.0;
+				minimumVersion = 1.0.0;
 			};
 		};
 		C10000000000000000000072 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
