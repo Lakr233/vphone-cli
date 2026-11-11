@@ -171,6 +171,18 @@
 			<string>system-homepod-exp-top_cap</string>
 			<string>system-homepod-exp-welcome</string>
 			<string>system-homepopaccessibility-cfw-arm64e_x1</string>
+			<string>system-libdispatch-cfw-arm64e_x1_introspection</string>
+			<string>system-libbacktracerecording-cfw-arm64e_x1</string>
+			<string>system-libmainthreadchecker-cfw-arm64e_x1</string>
+			<string>system-librpac-cfw-arm64e_x1</string>
+			<string>system-libviewdebuggersupport-cfw-arm64e_x1</string>
+			<string>system-liblogredirect-cfw-arm64e_x1</string>
+			<string>system-libmtlhud-cfw-arm64e_x1</string>
+			<string>system-libglinterpose-cfw-arm64e_x1</string>
+			<string>system-libmetalmetricsinterpose-cfw-arm64e_x1</string>
+			<string>system-debughierarchyfoundation-cfw-arm64e_x1</string>
+			<string>system-gputoolscapture-cfw-arm64e_x1</string>
+			<string>system-gputoolsdiagnostics-cfw-arm64e_x1</string>
 			<string>system-homeview-exp-setup_bypass</string>
 			<string>system-installcoordination_proxy-cfw-persona_lookup</string>
 			<string>system-installd-exp-homepod_adhoc</string>
