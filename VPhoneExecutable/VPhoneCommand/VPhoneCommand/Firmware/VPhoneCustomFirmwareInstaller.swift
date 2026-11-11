@@ -518,9 +518,11 @@ struct VPhoneCustomFirmwareInstaller {
         // installed" signal there), then used again by the Preboot pass.
         var priorGuest = Set<String>()
         var installedOTAUserland: VPhoneRestoreInfo.OSVersion?
-        do {
+        try autoreleasepool {
             // Every descriptor on a guest volume lives in this scope, so none
-            // is left open to hold the volume busy when it is unmounted.
+            // is left open to hold the volume busy when it is unmounted. The
+            // pool drains what Foundation and MachOKit autorelease here too,
+            // such as the guest's shared cache mapped by in-process patchers.
             let systemRoot = try openGuestVolume("system", device: "\(container)s1", in: work)
             let xartRoot = try openGuestVolume("xart", device: "\(container)s3", in: work)
             // `launchd.plist.bak` exists only after a full install's first
