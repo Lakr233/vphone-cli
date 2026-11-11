@@ -27,6 +27,8 @@ VM 창이 이 게스트용 cryptex를 빌드해 업로드하고, 게스트가 �
 
 **Apps › List Cryptexes**에서 설치된 cryptex와 각각의 마운트 지점을 볼 수 있습니다.
 
+VM 창에서 설치한 cryptex는 게스트를 다시 시작할 때까지 유지됩니다. 다시 시작한 후에는 다시 설치하세요. 재시작 후에도 유지하려면 스크립트에서 `persist`로 설치하세요(아래 참고).
+
 여러 cryptex를 동시에 설치할 수 있으며, 각각 자신의 경로를 갖습니다. 폴더 이름이 이미 cryptex로 설치되어 있으면 거부됩니다. 먼저 그 cryptex를 `cryptex.uninstall`로 제거하거나(아래 참조) 폴더 이름을 바꾸십시오.
 
 ## `.cxbd`가 아니라 폴더를 선택하십시오
@@ -37,6 +39,6 @@ Security Research Device iPhone용으로 빌드한 cryptex는 설치되지 않�
 
 ## 스크립트에서
 
-vphoned는 [자동화 API](automation-api.md)를 통해 `cryptex.list`, `cryptex.install`, `cryptex.uninstall`을 제공합니다. `cryptex.install`은 `/var/mobile/Documents/vphone-cryptexes` 아래에 업로드된 `.cxbd`와 그것을 만들 때 쓴 variant를 받습니다.
+vphoned는 [자동화 API](automation-api.md)를 통해 `cryptex.list`, `cryptex.install`, `cryptex.uninstall`을 제공합니다. `cryptex.install`은 `/var/mobile/Documents/vphone-cryptexes` 아래에 업로드된 `.cxbd`와 그것을 만들 때 쓴 variant를 받습니다. `persist: true`를 지정하면 vphoned가 게스트를 다시 시작할 때마다 그 cryptex를 다시 설치합니다. Apple 서명 서버에 다시 요청해야 하면 게스트에 네트워크가 필요합니다. `cryptex.list`는 이런 cryptex를 `persisted`에 보여 주고, `cryptex.uninstall`은 이를 완전히 제거합니다.
 
 구현에 대해서는 [`Research/Firmware/trusted_darwinos_cryptexes.md`](../../../Research/Firmware/trusted_darwinos_cryptexes.md)를 참조하십시오.

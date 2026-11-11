@@ -27,6 +27,8 @@ VM ウインドウがこのゲスト用に cryptex をビルドしてアップ�
 
 **Apps › List Cryptexes** で、インストール済みの cryptex とそれぞれのマウントポイントを確認できます。
 
+VM ウインドウからインストールした cryptex は、ゲストを再起動するまで残ります。再起動後はもう一度インストールしてください。再起動後も残すには、スクリプトから `persist` を指定してインストールします（下記参照）。
+
 複数の cryptex を同時にインストールでき、それぞれに専用のパスが割り当てられます。フォルダ名がすでに cryptex としてインストールされている場合は拒否されます。まずその cryptex を `cryptex.uninstall` でアンインストールするか（後述）、フォルダ名を変更してください。
 
 ## `.cxbd` ではなくフォルダを選ぶ
@@ -37,6 +39,6 @@ Security Research Device の iPhone 用にビルドされた cryptex はイン�
 
 ## スクリプトから
 
-vphoned は [自動化 API](automation-api.md) で `cryptex.list`、`cryptex.install`、`cryptex.uninstall` を提供します。`cryptex.install` は、`/var/mobile/Documents/vphone-cryptexes` の下にアップロード済みの `.cxbd` と、その作成時の variant を受け取ります。
+vphoned は [自動化 API](automation-api.md) で `cryptex.list`、`cryptex.install`、`cryptex.uninstall` を提供します。`cryptex.install` は、`/var/mobile/Documents/vphone-cryptexes` の下にアップロード済みの `.cxbd` と、その作成時の variant を受け取ります。`persist: true` を指定すると、vphoned はゲストが再起動するたびにその cryptex をもう一度インストールします。Apple の署名サーバーに改めて問い合わせる必要がある場合は、ゲストにネットワークが必要です。`cryptex.list` はこれらの cryptex を `persisted` に示し、`cryptex.uninstall` で完全に取り除けます。
 
 実装については [`Research/Firmware/trusted_darwinos_cryptexes.md`](../../../Research/Firmware/trusted_darwinos_cryptexes.md) を参照してください。

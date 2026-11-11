@@ -172,6 +172,61 @@ trust cache that is not personalized would hit the same check; the 23F77 system
 has not been scanned for `load-trust-cache` entitlements yet. The removal runs
 in the vphoned step, which `minimal` always has.
 
+## Persisted cryptexes panic TXM at boot
+
+`cryptexctl install --persist` has cryptexd install a cryptex again at each
+boot. Tested on cryptex9 (iOS 26.5 23F77, cloudOS 26.5, 2026-11-11):
+
+- One persisted cryptex (a shell script) came back after `system.reboot`,
+  mounted at its path and readable; cryptexes installed without `--persist`
+  were gone.
+- With two persisted cryptexes (that one and a cryptex whose launch daemon
+  answers on a TCP port), 3 of 12 boots panicked, the guest left halted:
+
+  ```
+  AppleMobileFileIntegrityUserClient::loadTrustCache(...): PID 189 is requesting a trust cache load
+  panic(cpu 3 caller ...): TXM [Panic]: [code: 0x000000F3 | 4]
+  Panicked task ...: pid 189: cryptexd
+  ```
+
+  The boots that came up (9, warm and cold) had the launch daemon running from
+  the persisted cryptex.
+
+cryptexd reinstalls persisted cryptexes in parallel. In each boot that came up,
+the kernel log has one cryptex's image validated, mounted and its trust cache
+loaded before the next image's validation (`Validating payload and manifest for
+authenticated snapshot mount`). In each panic, the second image was validated
+before the first trust cache load had completed: twice both images before any
+load, once the second between the first load request and its result. A
+runtime install (`cryptex.install`) personalizes and installs one cryptex at a
+time and never showed it.
+
+The code, `| 4`, is the digest mismatch of the Restricted Execution Mode check
+described under NRDUpdated above. Presumably authenticating an image records
+its digest on the TXM–SEP shared page, and the later validation replaces the
+first cryptex's record before its trust cache is checked; the page was not
+read, and the log does not name the trust cache being loaded. Whatever the
+mechanism, TXM panics rather than refusing.
+
+So vphoned never passes `--persist`. `cryptex.install` with `persist: true`
+keeps the cryptex instead, under `/var/db/vphoned/cryptexes/<identifier>`: the
+uploaded `.cxbd`, its personalized copy and the variant. When vphoned starts, it
+installs each kept cryptex that `cryptexctl list` does not show, one after
+another: with the kept ticket first, and if cryptexd refuses that, personalized
+again (which needs the network; retried for a few minutes). Every cryptexctl run
+in vphoned goes through one serial queue, so two clients installing at the same
+time take turns as well. `cryptex.uninstall` forgets a kept cryptex.
+
+Tested on cryptex10 (iOS 26.5 23F77, cloudOS 26.5, bundle 2.16.1-local.7023417e,
+2026-11-11) with the same two cryptexes, both installed with `persist: true`:
+18 reboots (`system.reboot`) and one cold start, no panic. After each, both
+were mounted within 16–27 seconds of boot and the launch daemon answered from
+its cryptex. The kept tickets were used: the personalized copies kept the time
+of the original install, so no boot asked Apple's signing server. After
+`cryptex.uninstall` of both, `persisted` was empty and a reboot brought neither
+back. Whether a ticket stays valid across a nonce change (an erase, a restore)
+is not known; the fallback personalizes again.
+
 ## cryptexctl in the guest
 
 iOS has no cryptexctl. cloudOS's `/usr/bin/cryptexctl` is an iOS-platform
@@ -282,7 +337,7 @@ and calls vphoned's `cryptex.install`, which runs
 
 ```
 cryptexctl personalize --variant <v> --replace --host-identity --output-directory <name>.personalized <bundle>
-cryptexctl install --variant <v> --print-info [--persist] <name>.personalized/<bundle>
+cryptexctl install --variant <v> --print-info <name>.personalized/<bundle>
 ```
 
 Personalization asks Apple's signing server for this guest's ticket, so the guest
@@ -308,7 +363,7 @@ iPhone17,3 26.5 (23F77) / cloudOS 26.5 (23F75), `minimal` with
 | `files.read` of the cryptex's `bin/hello` at the mount point | the script's bytes |
 
 Not checked yet: running a Mach-O from a cryptex (vphoned's `process.spawn`
-runs only `ps`, `launchctl` and `log`), `--persist` across a reboot, the VM
+runs only `ps`, `launchctl` and `log`), the VM
 window's Install Cryptex…, and a cloudOS with vphone600 components (research
 AMFI, so Developer Mode should be on).
 

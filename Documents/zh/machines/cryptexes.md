@@ -27,6 +27,8 @@ VM 窗口会为此客户机构建 cryptex 并上传，客户机随后对其进�
 
 **Apps › List Cryptexes** 显示已安装的 cryptex 及各自的挂载点。
 
+从虚拟机窗口安装的 cryptex 会保留到客户机重启为止；重启后需要重新安装。若要让 cryptex 在重启后保留，请通过脚本以 `persist` 安装（见下文）。
+
 可以同时安装多个 cryptex，每个都有自己的路径。如果文件夹名称已作为 cryptex 安装，安装会被拒绝：先用 `cryptex.uninstall` 卸载该 cryptex（见下文），或重命名文件夹。
 
 ## 选择文件夹，而不是 `.cxbd`
@@ -37,6 +39,6 @@ Install Cryptex… 也接受 `.cxbd` 并按原样安装，但只限为此客户�
 
 ## 通过脚本
 
-vphoned 通过[自动化 API](automation-api.md) 提供 `cryptex.list`、`cryptex.install` 和 `cryptex.uninstall`。`cryptex.install` 接受已上传到 `/var/mobile/Documents/vphone-cryptexes` 下的 `.cxbd` 以及创建它时使用的 variant。
+vphoned 通过[自动化 API](automation-api.md) 提供 `cryptex.list`、`cryptex.install` 和 `cryptex.uninstall`。`cryptex.install` 接受已上传到 `/var/mobile/Documents/vphone-cryptexes` 下的 `.cxbd` 以及创建它时使用的 variant。使用 `persist: true` 时，vphoned 会在客户机每次重启后重新安装该 cryptex；若需要再次向 Apple 的签名服务器请求，客户机需要联网。`cryptex.list` 在 `persisted` 中列出这些 cryptex，`cryptex.uninstall` 会将其彻底移除。
 
 实现细节请参阅 [`Research/Firmware/trusted_darwinos_cryptexes.md`](../../../Research/Firmware/trusted_darwinos_cryptexes.md)。

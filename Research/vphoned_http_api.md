@@ -725,9 +725,15 @@ has uploaded under `/var/mobile/Documents/vphone-cryptexes` and the variant it
 was created with. It runs cloudOS's `cryptexctl personalize --host-identity`,
 which asks Apple's signing server for this guest's ticket (the guest needs
 network), into `<name>.personalized/` beside it, then `cryptexctl install
---print-info` (and `--persist` with `persist: true`) on the result; `output` is
-what install printed and `personalized` the path it installed. `cryptex.list`
-and `cryptex.uninstall {identifier}` are `cryptexctl list` and `uninstall`.
+--print-info` on the result; `output` is what install printed and
+`personalized` the path it installed. With `persist: true` vphoned keeps the
+cryptex under `/var/db/vphoned/cryptexes/<identifier>` and installs it again
+when it starts after a reboot, with the kept ticket or, if cryptexd refuses
+that, personalized again. It never passes cryptexctl's `--persist`: cryptexd's
+own reinstalls at boot run in parallel and can panic TXM. All cryptexctl runs
+take turns. `cryptex.list` is `cryptexctl list`, with `persisted` the
+identifiers vphoned keeps; `cryptex.uninstall {identifier}` is `cryptexctl
+uninstall` and forgets a kept cryptex.
 Each refuses with `operation_failed` on a guest without `/usr/bin/cryptexctl`,
 which only `filesystem-exp-trusted_darwinos` adds; cryptexctl's own output is
 in the message when it fails. The VM window's Apps › Install Cryptex… builds

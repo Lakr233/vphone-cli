@@ -37,7 +37,7 @@ clipboard.clear	never	-	-	change_count:integer,has_image:boolean,has_text:boolea
 clipboard.get	never	-	-	change_count:integer,has_image:boolean,has_text:boolean,image:object?,items:integer,method:string,text:any,types:any	read
 clipboard.set	never	text:string!	-	change_count:integer,has_image:boolean,has_text:boolean,image:object?,items:integer,method:string,text:any,types:any	mutating
 cryptex.install	never	path:string!,variant:string!,persist:boolean	-	output:string,personalized:string	excluded:needs a trusted darwinOS guest
-cryptex.list	never	-	-	output:string	excluded:needs a trusted darwinOS guest
+cryptex.list	never	-	-	output:string,persisted:array	excluded:needs a trusted darwinOS guest
 cryptex.uninstall	never	identifier:string!	-	output:string	excluded:needs a trusted darwinOS guest
 developer_mode.enable	never	-	-	already_enabled:any?,armed:boolean,enabled:boolean,restart_required:boolean?,writable:boolean	mutating
 developer_mode.status	never	-	-	armed:boolean,enabled:boolean,writable:boolean	read

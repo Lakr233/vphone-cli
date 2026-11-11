@@ -27,6 +27,8 @@ The VM window builds the cryptex for this guest, uploads it, and the guest perso
 
 **Apps › List Cryptexes** shows what is installed, with each cryptex's mount point.
 
+A cryptex installed from the VM window stays until the guest restarts; install it again after a restart. To keep one across restarts, install it from a script with `persist` (see below).
+
 Several cryptexes can be installed at once, each at its own path. A folder whose name is already installed as a cryptex is refused: uninstall that cryptex first with `cryptex.uninstall` (see below), or rename the folder.
 
 ## Choose the folder, not a `.cxbd`
@@ -37,6 +39,6 @@ A cryptex built for a Security Research Device iPhone does not install. `cryptex
 
 ## From a script
 
-vphoned offers `cryptex.list`, `cryptex.install` and `cryptex.uninstall` through the [Automation API](automation-api.md). `cryptex.install` takes a `.cxbd` already uploaded under `/var/mobile/Documents/vphone-cryptexes` and the variant it was created with.
+vphoned offers `cryptex.list`, `cryptex.install` and `cryptex.uninstall` through the [Automation API](automation-api.md). `cryptex.install` takes a `.cxbd` already uploaded under `/var/mobile/Documents/vphone-cryptexes` and the variant it was created with. With `persist: true`, vphoned installs the cryptex again each time the guest restarts, which needs network if the guest has to ask Apple's signing server again; `cryptex.list` names these cryptexes under `persisted`, and `cryptex.uninstall` removes one for good.
 
 For the implementation, see [`Research/Firmware/trusted_darwinos_cryptexes.md`](../../../Research/Firmware/trusted_darwinos_cryptexes.md).
