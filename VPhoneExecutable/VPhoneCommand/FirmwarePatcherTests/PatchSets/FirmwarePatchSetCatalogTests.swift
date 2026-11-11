@@ -588,18 +588,70 @@ struct FirmwarePatchSetCatalogTests {
         }
     }
 
+    @Test func `GLES depth and cache dependencies follow selection across OS versions`() throws {
+        let patches: Set<String> = [
+            FirmwareGuestSystemPatchSet.glesDepthClip,
+            FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache,
+            FirmwareGuestSystemPatchSet.metalCacheReuseKey,
+        ]
+        for base in ["16.6.1", "17.7", "18.6.2", "26.4", "26.6.2", "27.1", "28.0", "unknown"] {
+            for cloud in ["26.1", "26.4", "27.0", "unknown"] {
+                let plan = try VPhonePatchPlan.resolve(
+                    preset: FirmwarePatchSetCatalog.standardPreset,
+                    patchSets: FirmwarePatchSetCatalog.bundled,
+                    iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
+                )
+                #expect(plan.enabled.isSuperset(of: patches), "\(base)/\(cloud)")
+                #expect(plan.skippedByVersion.isDisjoint(with: patches))
+                let updated = FirmwareGuestPatchResolution.effectiveEnabled(
+                    planEnabled: [], selectionEnabled: plan.enabled,
+                )
+                #expect(updated.isSuperset(of: patches), "Old boot plans must not suppress the guest correction")
+                #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(
+                    enabled: updated, previouslyApplied: [],
+                ).isEmpty)
+                #expect(FirmwareGuestPatchResolution.missingCompilerCacheDependencies(enabled: updated).isEmpty)
+                for patch in patches {
+                    let blocked = try VPhonePatchPlan.resolve(
+                        preset: FirmwarePatchSetCatalog.standardPreset,
+                        patchSets: FirmwarePatchSetCatalog.bundled,
+                        iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
+                        blocked: [patch],
+                    )
+                    #expect(!blocked.isEnabled(patch))
+                    #expect(FirmwareGuestPatchResolution.guestPatchesOff(selectionEnabled: blocked.enabled).contains(patch))
+                    #expect(!FirmwareGuestPatchResolution.effectiveEnabled(
+                        planEnabled: patches, selectionEnabled: blocked.enabled,
+                    ).contains(patch))
+                    if patch == FirmwareGuestSystemPatchSet.glesDepthClip {
+                        #expect(FirmwareGuestPatchResolution.missingGLESDepthDependencies(
+                            enabled: blocked.enabled, previouslyApplied: patches,
+                        ).isEmpty, "Reverting depth still requires the compiler refresh and cache identity")
+                    }
+                }
+                let excludedFamilies = ["tvos", "tvos-4k", "homepod-mini", "homeview", "visionos"]
+                for preset in FirmwarePatchSetCatalog.builtInPresets where excludedFamilies.contains(preset.identifier) {
+                    let excluded = try VPhonePatchPlan.resolve(
+                        preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                        iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
+                    )
+                    #expect(excluded.enabled.isDisjoint(with: patches), "\(preset.identifier): \(base)/\(cloud)")
+                }
+            }
+        }
+    }
+
     @Test(arguments: [FirmwareGuestSystemPatchSet.glesUpperLeft, FirmwareGuestSystemPatchSet.metalVertexIDFormat,
-                     FirmwareGuestSystemPatchSet.glesPrimitiveRestart, FirmwareGuestSystemPatchSet.glesPointDraw,
-                     FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache, FirmwareGuestSystemPatchSet.metalCacheReuseKey])
-    func `Native GLES corrections follow the measured OS pair and can be reverted`(patch: String) throws {
-        for base in ["26.4", "26.5", "26.6", "26.6.2", "26.7", "27.0.1", "unknown"] {
+                     FirmwareGuestSystemPatchSet.glesPrimitiveRestart, FirmwareGuestSystemPatchSet.glesPointDraw])
+    func `Native GLES corrections follow the driver transport across userland versions`(patch: String) throws {
+        for base in ["26.4", "26.5", "26.6", "26.6.2", "26.7", "27.0.1", "27.1", "unknown"] {
             for cloud in ["26.1", "26.4", "26.5", "unknown"] {
                 let plan = try VPhonePatchPlan.resolve(
                     preset: FirmwarePatchSetCatalog.standardPreset,
                     patchSets: FirmwarePatchSetCatalog.bundled,
                     iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
                 )
-                let supported = (base == "26.6" || base == "26.6.2") && cloud == "26.4"
+                let supported = cloud == "26.4"
                 #expect(plan.isEnabled(patch) == supported, "\(base)/\(cloud)")
                 let updated = FirmwareGuestPatchResolution.effectiveEnabled(
                     planEnabled: [], selectionEnabled: plan.enabled,
@@ -621,7 +673,7 @@ struct FirmwarePatchSetCatalogTests {
         let unsupported = try VPhonePatchPlan.resolve(
             preset: FirmwarePatchSetCatalog.standardPreset,
             patchSets: FirmwarePatchSetCatalog.bundled,
-            iOSBase: VPhoneVersion("27.0.1"), cloudOS: VPhoneVersion("26.4"),
+            iOSBase: VPhoneVersion("27.1"), cloudOS: VPhoneVersion("26.5"),
             allowed: [patch],
         )
         #expect(!unsupported.isEnabled(patch), "An explicit selection must not widen the version gate")

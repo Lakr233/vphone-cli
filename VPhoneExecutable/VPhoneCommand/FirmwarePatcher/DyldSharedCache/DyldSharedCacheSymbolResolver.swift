@@ -16,6 +16,7 @@
 
 import Foundation
 import MachOKit
+import VPhonePatchKit
 
 /// Symbol lookup across the images of a chunked dyld shared cache.
 public final class DyldSharedCacheSymbolResolver {
@@ -202,6 +203,56 @@ public final class DyldSharedCacheSymbolResolver {
             )
         }
         return result
+    }
+
+    /// Cache builders can replace an image's named ObjC stubs with shared
+    /// selector stubs without updating those local symbol entries. Resolve
+    /// the actual BL destinations, including their selector and dispatch
+    /// target, rather than treating the stale local address as a callee.
+    func objcMessageTarget(
+        _ symbol: String, inImage image: String, calledBy code: [ARM64Instruction],
+        chunks: DyldSharedCacheChunkSet
+    ) throws -> UInt64 {
+        let prefix = "_objc_msgSend$"
+        guard symbol.hasPrefix(prefix) else {
+            throw PatcherError.invalidFormat("Not an Objective-C selector symbol: \(symbol)")
+        }
+        let named = try symbols(inImage: image)[symbol]?.address
+        let calls = Set(code.compactMap { DyldSharedCacheMetalVertexFormatPatcher.branchTarget($0, mnemonic: "bl") })
+        var matches = Set<UInt64>()
+        if let named, calls.contains(named) { matches.insert(named) }
+        let dispatch = try Set(imagePaths.filter {
+            $0.hasPrefix("/usr/lib/objc/libobjcMsgSend") && $0.hasSuffix(".dylib")
+        }.compactMap { try symbols(inImage: $0)["_objc_msgSend"]?.address })
+        if !dispatch.isEmpty {
+            let selector = String(symbol.dropFirst(prefix.count))
+            for target in calls where target != named {
+                guard chunks.mappings.contains(where: {
+                    $0.isExecutable && $0.address <= target && $0.endAddress >= target + 12
+                }) else { continue }
+                let stub = ARM64Disassembler().disassemble(try chunks.bytesAtVMA(target, length: 12), at: target)
+                if try Self.isSharedObjCStub(stub, selector: selector, dispatch: dispatch, read: {
+                    try chunks.bytesAtVMA($0, length: $1)
+                }) { matches.insert(target) }
+            }
+        }
+        guard matches.count == 1, let target = matches.first else {
+            throw PatcherError.patchSiteNotFound("\(symbol): expected one verified call target, found \(matches.count)")
+        }
+        return target
+    }
+
+    static func isSharedObjCStub(
+        _ code: [ARM64Instruction], selector: String, dispatch: Set<UInt64>,
+        read: (UInt64, Int) throws -> Data
+    ) throws -> Bool {
+        guard code.count == 3, code.allSatisfy({ $0.isDecoded && $0.size == 4 }),
+              let address = DyldSharedCacheGLESPointDrawPatcher.materializedAddress(code[0], code[1], destination: .x(1)),
+              let target = DyldSharedCacheMetalVertexFormatPatcher.branchTarget(code[2], mnemonic: "b"),
+              dispatch.contains(target)
+        else { return false }
+        let literal = Data((selector + "\0").utf8)
+        return try read(address, literal.count) == literal
     }
 
     /// Every symbol in `imagePath` whose name starts with `prefix`.

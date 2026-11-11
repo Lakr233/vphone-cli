@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <cmath>
 
 #include "GLESAIR.h"
 
@@ -394,6 +395,117 @@ static void testPointCoordinatePixels(const char *fixtures) {
     }
 }
 
+// Exercise a real captured return aggregate, then a direct-return vertex with
+// two return blocks. Only the metadata-identified position may be converted.
+static void testDepthAdaptation(const char *fixtures) {
+    LLVMModuleRef original = parse(fixtures, "textured-vertex.ll");
+    std::string before = moduleText(original);
+    const char *error = nullptr;
+    LLVMModuleRef converted = completedGLESModule(original, &error, true);
+    check(converted && !error && moduleText(original) == before, "captured vertex depth conversion preserves its input module");
+    if (!converted) return;
+    std::string after = moduleText(converted);
+    check(contains(after, "vphone.clip.position") && contains(after, "vphone.gles.depth_clip_zero_to_one"),
+          "captured aggregate position is converted and marked");
+    check(!completedGLESModule(converted, &error, true) && !error, "depth conversion is idempotent");
+
+    std::string native = before;
+    native.replace(native.find("OpenGL ES GLSL"), strlen("OpenGL ES GLSL"), "Metal");
+    LLVMModuleRef metal = parseText(native.data(), native.size(), "native depth control");
+    check(metal && !completedGLESModule(metal, &error, true) && !error,
+          "native Metal bypasses GLES depth conversion");
+}
+
+static void testDepthPixels() {
+    // AIR's legacy buffer and builtin metadata shapes follow the captured
+    // GLES fixtures. The uniform contains three clip-space vertices.
+    const char *source = R"(
+target datalayout = "e-p:64:64:64-i64:64-f32:32:32-v128:128:128-n8:16:32"
+target triple = "air64-apple-ios"
+define <4 x float> @depth_vertex(i32 %id, <4 x float> addrspace(2)* %vertices) {
+entry:
+  %ptr = getelementptr <4 x float>, <4 x float> addrspace(2)* %vertices, i32 %id
+  %position = load <4 x float>, <4 x float> addrspace(2)* %ptr, align 16
+  %first = icmp eq i32 %id, 0
+  br i1 %first, label %left, label %right
+left:
+  ret <4 x float> %position
+right:
+  ret <4 x float> %position
+}
+!air.language_version = !{!0}
+!air.vertex = !{!1}
+!0 = !{!"OpenGL ES GLSL", i32 3, i32 0, i32 0}
+!1 = !{<4 x float> (i32, <4 x float> addrspace(2)*)* @depth_vertex, !2, !4}
+!2 = !{!3}
+!3 = !{!"air.position"}
+!4 = !{!5, !6}
+!5 = !{i32 0, !"air.vertex_id", !"air.arg_type_name", !"uint", !"air.arg_name", !"id"}
+!6 = !{i32 1, !"air.buffer", !"air.location_index", i32 0, i32 1, !"air.read"}
+)";
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    id<MTLCommandQueue> queue = [device newCommandQueue];
+    NSError *metalError = nil;
+    id<MTLLibrary> fragments = [device newLibraryWithSource:
+        @"#include <metal_stdlib>\nusing namespace metal;\nfragment float4 depth_fragment(float4 p [[position]]) { return float4(p.z,1,0,1); }"
+        options:nil error:&metalError];
+    struct { uint64_t target; } info = {0x700000002};
+    void *compiler = MTLCompilerCreate(&info, 8);
+    for (const char *language : {"OpenGL ES GLSL", "OpenGL ES Program"}) {
+        std::string input(source);
+        input.replace(input.find("OpenGL ES GLSL"), strlen("OpenGL ES GLSL"), language);
+        LLVMModuleRef module = parseText(input.data(), input.size(), language);
+        const char *error = nullptr;
+        LLVMModuleRef converted = module ? completedGLESModule(module, &error, true) : nullptr;
+        check(converted && !error, "direct position with multiple returns converts");
+        if (!converted) continue;
+        const void *code = nullptr, *reflection = nullptr, *debug = nullptr;
+        size_t codeSize = 0, reflectionSize = 0, debugSize = 0;
+        bool failed = MTLCompilerBuildRequestWithOptions(compiler, nullptr, 0, 0, converted,
+            &code, &codeSize, &reflection, &reflectionSize, &debug, &debugSize, &error);
+        check(!failed && code && codeSize, "converted GLES position builds a metallib");
+        if (failed || !code) continue;
+        id<MTLLibrary> vertex = [device newLibraryWithData:dispatch_data_create(code, codeSize, nil, nil) error:&metalError];
+        MTLRenderPipelineDescriptor *descriptor = [MTLRenderPipelineDescriptor new];
+        descriptor.vertexFunction = [vertex newFunctionWithName:@"depth_vertex"];
+        descriptor.fragmentFunction = [fragments newFunctionWithName:@"depth_fragment"];
+        descriptor.colorAttachments[0].pixelFormat = MTLPixelFormatRGBA8Unorm;
+        id<MTLRenderPipelineState> pipeline = [device newRenderPipelineStateWithDescriptor:descriptor error:&metalError];
+        check(pipeline != nil, "converted depth shader links with fragment window-depth input");
+        if (!pipeline) continue;
+        MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+            width:16 height:16 mipmapped:NO];
+        td.usage = MTLTextureUsageRenderTarget; td.storageMode = MTLStorageModeShared;
+        id<MTLTexture> texture = [device newTextureWithDescriptor:td];
+        unsigned matches = 0;
+        for (NSArray *range in @[@[@0,@1], @[@.1,@.7], @[@.8,@.2], @[@.3,@.3]])
+        for (float w : {.5f, 1.f, 2.f, -1.f}) for (float ndc : {-1.2f,-1.f,-.5f,0.f,.5f,1.f,1.2f}) {
+            float z = ndc*w;
+            float vertices[] = {-.9f*w,-.9f*w,z,w, .9f*w,-.9f*w,z,w, 0,.9f*w,z,w};
+            MTLRenderPassDescriptor *pass = [MTLRenderPassDescriptor renderPassDescriptor];
+            pass.colorAttachments[0].texture = texture;
+            pass.colorAttachments[0].loadAction = MTLLoadActionClear;
+            pass.colorAttachments[0].storeAction = MTLStoreActionStore;
+            pass.colorAttachments[0].clearColor = MTLClearColorMake(16/255.,32/255.,64/255.,1);
+            id<MTLCommandBuffer> command = [queue commandBuffer];
+            id<MTLRenderCommandEncoder> encoder = [command renderCommandEncoderWithDescriptor:pass];
+            double near = [range[0] doubleValue], far = [range[1] doubleValue];
+            [encoder setViewport:(MTLViewport){0,0,16,16,near,far}];
+            [encoder setRenderPipelineState:pipeline];
+            [encoder setVertexBytes:vertices length:sizeof(vertices) atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
+            [encoder endEncoding]; [command commit]; [command waitUntilCompleted];
+            uint8_t pixel[4] = {};
+            [texture getBytes:pixel bytesPerRow:4 fromRegion:MTLRegionMake2D(8,8,1,1) mipmapLevel:0];
+            bool visible = w > 0 && fabs(ndc) <= 1;
+            int depth = (int)round(255*(near+(ndc+1)*.5*(far-near)));
+            bool correct = visible ? pixel[1] == 255 && abs(pixel[0]-depth) <= 1 : pixel[1] == 32 && pixel[2] == 64;
+            matches += correct && command.status == MTLCommandBufferStatusCompleted;
+        }
+        check(matches == 112, (std::string(language) + " depth pixels match all 112 clip/w/range cases").c_str());
+    }
+}
+
 extern "C" int GLESAIRRunTests(const char *fixtures) {
     @autoreleasepool {
         testCompletion(fixtures);
@@ -401,6 +513,8 @@ extern "C" int GLESAIRRunTests(const char *fixtures) {
         testMetallibs(fixtures);
         testPointCoordinateAdaptation(fixtures);
         testPointCoordinatePixels(fixtures);
+        testDepthAdaptation(fixtures);
+        testDepthPixels();
     }
     printf("%s\n", failures ? "GLES AIR tests FAILED" : "GLES AIR tests passed");
     return failures ? 1 : 0;

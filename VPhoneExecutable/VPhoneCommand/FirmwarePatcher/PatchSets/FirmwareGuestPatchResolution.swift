@@ -22,6 +22,72 @@ import Foundation
 import VPhonePatchKit
 
 public enum FirmwareGuestPatchResolution {
+    /// Only discovery misses from a read-only probe are optional. Never use
+    /// this to catch a write, undo, signing, malformed-file or readback error.
+    public static func isUnsupportedGLESLayout(_ error: any Error) -> Bool {
+        switch error {
+        case PatcherError.patchSiteNotFound,
+             DyldSharedCacheError.symbolNotFound,
+             DyldSharedCacheError.imageNotFound,
+             DyldSharedCacheError.localSymbolsMissing:
+            true
+        default:
+            false
+        }
+    }
+
+    public struct GLESUpdatePolicy {
+        public let skipped: Set<String>
+        public let preserved: Set<String>
+    }
+
+    /// Decide before modifying either half. An unsupported first install can
+    /// use the unconfigured compiler. An installed compiler whose identity
+    /// cannot be updated must stay with its driver and renderer.
+    public static func glesUpdatePolicy(
+        enabled: Set<String>, previouslyApplied: Set<String>,
+        unavailable: Set<String>, gpuInstalled: Bool
+    ) -> GLESUpdatePolicy {
+        let depth = FirmwareGuestSystemPatchSet.glesDepthClip
+        let identity = FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
+        let reuse = FirmwareGuestSystemPatchSet.metalCacheReuse
+        let key = FirmwareGuestSystemPatchSet.metalCacheReuseKey
+        let missingDepth = missingGLESDepthDependencies(enabled: enabled, previouslyApplied: previouslyApplied)
+        let cacheUnavailable = enabled.contains(identity)
+            && (unavailable.contains(identity)
+                || (!gpuInstalled && !enabled.contains("system-extensions-boot-gpu_bundle"))
+                || (enabled.contains(reuse) && (!enabled.contains(key) || unavailable.contains(key))))
+        let depthUnavailable = !missingDepth.isEmpty || unavailable.contains(depth) || cacheUnavailable
+        var skipped = unavailable.intersection(enabled)
+        if depthUnavailable { skipped.insert(depth) }
+        if cacheUnavailable { skipped.formUnion([identity, depth, reuse]) }
+        if !unavailable.isDisjoint(with: glesPrimitiveRestartDependencies) {
+            skipped.insert(FirmwareGuestSystemPatchSet.glesPrimitiveRestart)
+        }
+        let preserve = (previouslyApplied.contains(depth) && depthUnavailable)
+            || (gpuInstalled && cacheUnavailable)
+            || !previouslyApplied.isDisjoint(with: unavailable)
+        let group: Set<String> = [
+            "system-extensions-boot-gpu_bundle", depth, identity, reuse, key,
+            FirmwareGuestSystemPatchSet.paravirtGPUIndexOffset,
+            FirmwareGuestSystemPatchSet.paravirtGPUPrimitiveRestart,
+            FirmwareGuestSystemPatchSet.metalVertexIDFormat,
+            FirmwareGuestSystemPatchSet.glesPrimitiveRestart,
+            FirmwareGuestSystemPatchSet.glesPointDraw,
+            FirmwareGuestSystemPatchSet.glesUpperLeft,
+        ]
+        return GLESUpdatePolicy(skipped: skipped, preserved: preserve ? group : [])
+    }
+
+    public static func missingGLESDepthDependencies(enabled: Set<String>, previouslyApplied: Set<String>) -> [String] {
+        let depth = FirmwareGuestSystemPatchSet.glesDepthClip
+        guard enabled.contains(depth) || previouslyApplied.contains(depth) else { return [] }
+        return Set([
+            "system-extensions-boot-gpu_bundle",
+            FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache,
+        ]).subtracting(enabled).sorted()
+    }
+
     /// CoreFSCache's original reuse flag also bypasses the compiler key.
     /// Versioning the driver cannot invalidate stale output unless that key
     /// check is retained, or cross-boot reuse is turned off altogether.

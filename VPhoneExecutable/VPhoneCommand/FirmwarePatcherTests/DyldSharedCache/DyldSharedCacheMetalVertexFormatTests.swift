@@ -10,6 +10,39 @@ private func invalidateMetalVertexFormatTestCode(_ memory: UnsafeMutableRawPoint
 
 @Suite("Metal serialized vertex ID formats")
 struct DyldSharedCacheMetalVertexFormatTests {
+    @Test func `shared selector stubs require exact selector and exported dispatch`() throws {
+        let base: UInt64 = 0x2480350b0
+        // Frozen 24A94425 shared setViewport: stub; input, not patch bytes.
+        let original = [UInt32(0xf0d6b7e1), 0x91193c21, 0x17ff2dd2]
+            .reduce(into: Data()) { $0 += ARM64.encodeU32($1) }
+        let literal = Data("setViewport:\0".utf8)
+        let dispatch: Set<UInt64> = [0x248000800]
+        func matches(_ bytes: Data, name: String = "setViewport:", targets: Set<UInt64> = dispatch) throws -> Bool {
+            try DyldSharedCacheSymbolResolver.isSharedObjCStub(
+                ARM64Disassembler().disassemble(bytes, at: base), selector: name, dispatch: targets
+            ) { address, count in
+                #expect(address == 0x1f573464f)
+                return literal.prefix(count)
+            }
+        }
+        #expect(try matches(original))
+        #expect(try !matches(original, name: "setViewports:"))
+        #expect(try !matches(original, name: "setViewport"))
+        #expect(try !matches(original, targets: [0x248000804]))
+        #expect(try !matches(Data(original.prefix(8))))
+        var wrongRegister = original
+        wrongRegister.replaceSubrange(0 ..< 4, with: try #require(ARM64Encoder.encodeADRP(rd: 2, pc: base, target: 0x1f5734000)))
+        #expect(try !matches(wrongRegister))
+        var linked = original
+        linked.replaceSubrange(8 ..< 12, with: try #require(ARM64Encoder.encodeBL(from: Int(base + 8), to: 0x248000800)))
+        #expect(try !matches(linked))
+        #expect(throws: CocoaError.self) {
+            try DyldSharedCacheSymbolResolver.isSharedObjCStub(
+                ARM64Disassembler().disassemble(original, at: base), selector: "setViewport:", dispatch: dispatch
+            ) { _, _ in throw CocoaError(.fileReadNoPermission) }
+        }
+    }
+
     typealias Patcher = DyldSharedCacheMetalVertexFormatPatcher
     let base: UInt64 = 0x1000
     let formatStub: UInt64 = 0x3000

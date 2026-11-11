@@ -268,7 +268,85 @@ static void vpOrientationSetupPipeline(id manager, SEL selector, id arbiter) {
     NSLog(@"[vphone-accelerometer] Recomputed orientation gates after backlight seed: %d", on);
 }
 
+// MARK: - SpringBoard's wake
+
+// SpringBoard stops listening for device orientation while the screen is off
+// (_updateOrientationEventsEnabledState) and, turning it back on, does not ask
+// where the device is. A real device sends a new orientation with the next
+// gravity sample; this one holds still, so a turn made with the screen off
+// stayed unapplied after it came on. Give the pipeline the accelerometer's
+// current orientation each time the backlight animates on, as that sample
+// would. An unchanged orientation changes nothing.
+static void (*vpOriginalBacklightWillAnimateFloat)(id, SEL, id, float, NSInteger);
+static void (*vpOriginalBacklightWillAnimateDouble)(id, SEL, id, double, NSInteger);
+
+static void vpSpringBoardRedeliverOrientation(id manager) {
+    Ivar ivar = class_getInstanceVariable(object_getClass(manager), "_accelerometer");
+    id accelerometer = ivar ? object_getIvar(manager, ivar) : nil;
+    SEL current = sel_registerName("currentDeviceOrientation");
+    SEL changed = sel_registerName("accelerometer:didChangeDeviceOrientation:");
+    if (![accelerometer respondsToSelector:current] || ![manager respondsToSelector:changed])
+        return;
+    // SpringBoard's own accelerometer answered 0 after a SpringBoard restart,
+    // until its first delivery. An instance of our own, which never takes
+    // delivery, reads where backboardd has the device now; SpringBoard's
+    // answer stands in only when it cannot.
+    static id fresh;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ fresh = [[object_getClass(accelerometer) alloc] init]; });
+    NSInteger orientation = [fresh respondsToSelector:current]
+        ? ((NSInteger (*)(id, SEL))objc_msgSend)(fresh, current) : 0;
+    if (orientation < 1 || orientation > 4)
+        orientation = ((NSInteger (*)(id, SEL))objc_msgSend)(accelerometer, current);
+    if (orientation < 1 || orientation > 4)
+        return;
+    ((void (*)(id, SEL, id, NSInteger))objc_msgSend)(manager, changed, accelerometer, orientation);
+}
+
+static void vpSpringBoardBacklightAnimated(id manager, double factor) {
+    if (factor <= 0)
+        return;
+    // After the original has turned orientation events back on.
+    dispatch_async(dispatch_get_main_queue(), ^{ vpSpringBoardRedeliverOrientation(manager); });
+}
+
+static void vpSpringBoardBacklightWillAnimateFloat(id manager, SEL selector, id controller, float factor, NSInteger source) {
+    vpOriginalBacklightWillAnimateFloat(manager, selector, controller, factor, source);
+    vpSpringBoardBacklightAnimated(manager, factor);
+}
+
+static void vpSpringBoardBacklightWillAnimateDouble(id manager, SEL selector, id controller, double factor, NSInteger source) {
+    vpOriginalBacklightWillAnimateDouble(manager, selector, controller, factor, source);
+    vpSpringBoardBacklightAnimated(manager, factor);
+}
+
+static void VPhoneOrientationWakeInstall(void) {
+    static BOOL installed;
+    if (installed)
+        return;
+    Class cls = NSClassFromString(@"SBTraitsEmbeddedDisplayPipelineManager");
+    Method method = class_getInstanceMethod(cls, sel_registerName("backlightController:willAnimateBacklightToFactor:source:"));
+    if (!method || method_getNumberOfArguments(method) != 5 || !class_getInstanceVariable(cls, "_accelerometer")) {
+        NSLog(@"[vphone-accelerometer] SpringBoard backlight wake API unavailable");
+        return;
+    }
+    char factorType[16] = {0};
+    method_getArgumentType(method, 3, factorType, sizeof factorType);
+    if (factorType[0] == 'f')
+        vpOriginalBacklightWillAnimateFloat = (void (*)(id, SEL, id, float, NSInteger))method_setImplementation(
+            method, (IMP)vpSpringBoardBacklightWillAnimateFloat);
+    else if (factorType[0] == 'd')
+        vpOriginalBacklightWillAnimateDouble = (void (*)(id, SEL, id, double, NSInteger))method_setImplementation(
+            method, (IMP)vpSpringBoardBacklightWillAnimateDouble);
+    else {
+        NSLog(@"[vphone-accelerometer] Unexpected backlight factor type %s", factorType);
+        return;
+    }
+    installed = YES;
+}
+
 void VPhoneOrientationGateInstall(void) {
+    VPhoneOrientationWakeInstall();
     Class cls = NSClassFromString(@"SBTraitsEmbeddedDisplayPipelineManager");
     Method method = class_getInstanceMethod(cls, sel_registerName("setupDefaultPipelineForArbiter:"));
     if (method && method_getNumberOfArguments(method) == 3 &&

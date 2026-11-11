@@ -61,7 +61,7 @@ display.external.status	never	-	-	enabled:any,error:any?,height:integer?,name:st
 display.layout	never	-	-	available:boolean,cadisplays:array*,capability_failures:object*,geometry_available:boolean,monitors:array*,observation:object*,reason:string,thread:object*	read
 display.metrics	never	-	-	available:boolean,bounds:object?*,display_id:integer?,point_scale:number?,reason:string,reference_bounds:object?*,source:string	read
 display.modes	never	-	-	available:boolean,displays:array?,reason:any?	read
-display.orientation	never	-	-	degrees:any,fold_angle:number?,screen_off:boolean?,source:string	read
+display.orientation	never	-	-	degrees:any,device_degrees:integer?,fold_angle:number?,screen_off:boolean?,source:string	read
 display.pose	never	-	-	available:boolean,device_orientation:any?,hinge:any?,orientation:any?,reason:string?,tabletop:any?	read
 display.posture	never	position:any,duration:number,profile:string,hinge:any,orientation:any,tabletop:integer,angle:number	-	angle:number,hinge:integer,hinge_hid:any,orientation:integer,source:string,sweep:object?,tabletop:any	mutating
 display.rotation	never	orientation:string	-	accelerometer:any?,degrees:integer,device_orientation:integer,locked:boolean,name:string,requested:any?	read

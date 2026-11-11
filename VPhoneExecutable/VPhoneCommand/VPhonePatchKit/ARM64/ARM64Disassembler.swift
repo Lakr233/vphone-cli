@@ -157,6 +157,31 @@ extension ARM64Operand {
 // MARK: - Register Identity
 
 public extension ARM64Register {
+    static func b(_ number: Int) -> ARM64Register {
+        precondition((0 ... 31).contains(number))
+        return ARM64Register(rawValue: AARCH64_REG_B0.rawValue + UInt32(number))
+    }
+
+    static func h(_ number: Int) -> ARM64Register {
+        precondition((0 ... 31).contains(number))
+        return ARM64Register(rawValue: AARCH64_REG_H0.rawValue + UInt32(number))
+    }
+
+    static func s(_ number: Int) -> ARM64Register {
+        precondition((0 ... 31).contains(number))
+        return ARM64Register(rawValue: AARCH64_REG_S0.rawValue + UInt32(number))
+    }
+
+    static func d(_ number: Int) -> ARM64Register {
+        precondition((0 ... 31).contains(number))
+        return ARM64Register(rawValue: AARCH64_REG_D0.rawValue + UInt32(number))
+    }
+
+    static func q(_ number: Int) -> ARM64Register {
+        precondition((0 ... 31).contains(number))
+        return ARM64Register(rawValue: AARCH64_REG_Q0.rawValue + UInt32(number))
+    }
+
     static let invalid = ARM64Register(rawValue: AARCH64_REG_INVALID.rawValue)
     static let sp = ARM64Register(rawValue: AARCH64_REG_SP.rawValue)
     static let wzr = ARM64Register(rawValue: AARCH64_REG_WZR.rawValue)

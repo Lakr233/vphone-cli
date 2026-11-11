@@ -50,6 +50,7 @@ public enum FirmwareGuestSystemPatchSet {
     public static let metalVertexIDFormat = "dyld-cfw-metal_vertex_id_format"
     public static let glesPrimitiveRestart = "dyld-cfw-gles_primitive_restart"
     public static let glesPointDraw = "dyld-cfw-gles_point_draw"
+    public static let glesDepthClip = "dyld-cfw-gles_depth_clip"
     public static let metalCacheReuseKey = "dyld-cfw-metal_cache_reuse_key"
     public static let textRecognitionANE = "dyld-cfw-text_recognition_ane"
     public static let gyroscope = "system-backboardd-cfw-gyroscope"
@@ -457,6 +458,22 @@ public enum FirmwareGuestSystemPatchSet {
 
             // MARK: Shared Cache Policy
 
+            // Depth conversion and its cache dependencies are not tied to an
+            // OS release. Their patchers verify the actual binary semantics;
+            // unsupported layouts skip a new pair before any writes. Existing
+            // paired state is preserved when its upgrade cannot be completed.
+            VPhonePatchDeclaration(
+                identifier: glesDepthClip,
+                title: "GLES signed depth clipping",
+                summary: """
+                Converts GLES vertex positions and renderer depth endpoints together so \
+                the paravirtual Metal path preserves OpenGL's signed clip volume and \
+                glDepthRange. Versions the configured compiler plugin's shader cache. \
+                Native Metal shaders and viewport calls are unchanged.
+                """,
+                target: .dyldSharedCache,
+            ),
+
             VPhonePatchDeclaration(
                 identifier: metalCacheReuseKey,
                 title: "Metal cache version validation",
@@ -466,10 +483,6 @@ public enum FirmwareGuestSystemPatchSet {
                 cache reuse with the same identity and the opt-out path remain intact.
                 """,
                 target: .dyldSharedCache,
-                applicability: VPhonePatchApplicability(
-                    iOSBase: .release(major: 26, minor: 6),
-                    cloudOS: .release(major: 26, minor: 4),
-                ),
             ),
             VPhonePatchDeclaration(
                 identifier: glesPointDraw,
@@ -482,7 +495,6 @@ public enum FirmwareGuestSystemPatchSet {
                 """,
                 target: .dyldSharedCache,
                 applicability: VPhonePatchApplicability(
-                    iOSBase: .release(major: 26, minor: 6),
                     cloudOS: .release(major: 26, minor: 4),
                 ),
             ),
@@ -498,7 +510,6 @@ public enum FirmwareGuestSystemPatchSet {
                 """,
                 target: .dyldSharedCache,
                 applicability: VPhonePatchApplicability(
-                    iOSBase: .release(major: 26, minor: 6),
                     cloudOS: .release(major: 26, minor: 4),
                 ),
             ),
@@ -513,7 +524,6 @@ public enum FirmwareGuestSystemPatchSet {
                 """,
                 target: .dyldSharedCache,
                 applicability: VPhonePatchApplicability(
-                    iOSBase: .release(major: 26, minor: 6),
                     cloudOS: .release(major: 26, minor: 4),
                 ),
             ),
@@ -745,11 +755,10 @@ public enum FirmwareGuestSystemPatchSet {
                 Selects AppleMetalGLRenderer's UPPER_LEFT viewport and scissor path at \
                 process startup because the paravirtual GPU does not preserve IOSurface \
                 attachment yInvert, which reverses GLES screen output. An explicit \
-                environment setting takes precedence. Validated on iOS 26.6 with cloudOS 26.4.
+                environment setting takes precedence.
                 """,
                 target: .guestFile(path: glesUpperLeftMarker),
                 applicability: VPhonePatchApplicability(
-                    iOSBase: .release(major: 26, minor: 6),
                     cloudOS: .release(major: 26, minor: 4),
                 ),
             ),
@@ -819,10 +828,6 @@ public enum FirmwareGuestSystemPatchSet {
                 existing caches are retained.
                 """,
                 target: .guestExecutable(path: "/\(paravirtGPUDriverPath)"),
-                applicability: VPhonePatchApplicability(
-                    iOSBase: .release(major: 26, minor: 6),
-                    cloudOS: .release(major: 26, minor: 4),
-                ),
             ),
             VPhonePatchDeclaration(
                 identifier: "system-vphoned-boot-install",
