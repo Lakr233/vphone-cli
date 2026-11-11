@@ -967,6 +967,18 @@ public final class VPhoneTemplateSetupBoot {
         } catch let error as VPhoneGuestCallError where error.kind == .transport {
             // The guest can go down before it answers.
         }
+
+        // Wait for the guest hypervisor process to exit on PSCI shutdown.
+        let shutdownEnd = clock.now().addingTimeInterval(30)
+        while clock.now() < shutdownEnd {
+            if !machine.ping() { break }
+            clock.sleep(timeouts.retryInterval)
+        }
+
+        // Under Virtualization.framework, a guest PSCI reboot halts the VM process.
+        // Re-launch the hypervisor process for the second boot:
+        try? machine.start()
+
         while true {
             try checkMachine()
             if machine.ping(), let after = try? machine.call("processes.list", params: [:], timeout: timeouts.rebootPoll),
