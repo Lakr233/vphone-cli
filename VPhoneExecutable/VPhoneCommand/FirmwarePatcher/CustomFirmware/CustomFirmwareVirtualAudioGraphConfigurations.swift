@@ -65,7 +65,7 @@ public enum CustomFirmwareVirtualAudioGraphConfigurations {
     ///   plist, its root is not a dictionary, `Configurations` is missing or
     ///   not a dictionary, a speaker configuration is not a dictionary, its
     ///   `chainType` is missing or not one of the two strings this patch
-    ///   knows, or no speaker configuration is present at all. Each is a
+    ///   knows. Each is a
     ///   reason to stop the install rather than write a half-understood file
     ///   back to a mounted guest volume.
     @discardableResult
@@ -97,11 +97,13 @@ public enum CustomFirmwareVirtualAudioGraphConfigurations {
             )
         }
 
+        // Some tuning sets (D17, iPhone 13) carry only microphone configurations.
         let speakerNames = configurations.keys.filter { $0.hasPrefix("speaker_") }.sorted()
         guard !speakerNames.isEmpty else {
-            throw PatcherError.invalidFormat(
-                "no 'speaker_' configurations in '\(configurationsKey)': \(url.path)",
-            )
+            if verbose {
+                print("  [.] \(url.lastPathComponent): no speaker configuration, left as it is")
+            }
+            return .alreadyGraphChains([])
         }
 
         var changed: [String] = []
