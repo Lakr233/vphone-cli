@@ -30,6 +30,7 @@ extension GuestAPI {
             .make(HomeViewDistanceMethod.self, executeHomeViewDistance),
             .make(VisionOSImmersionMethod.self, executeVisionOSImmersion),
             .make(ScriptMethod.self, executeScript),
+            .make(CryptexMethod.self, executeCryptex),
         ]
     }
 }

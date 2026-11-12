@@ -126,7 +126,7 @@ enum GuestAPI {
                 "motion_attitude",
                 "methods",
             ] + pointerCapabilities() + scriptCapabilities() + GuestHomePodDisplay.capabilities
-                + GuestHomePodDebug.capabilities + GuestHomeViewDistance.capabilities,
+                + GuestHomePodDebug.capabilities + GuestHomeViewDistance.capabilities + GuestCryptex.capabilities,
         ]
     }
 

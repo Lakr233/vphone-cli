@@ -39,6 +39,16 @@ extension VPhoneMenuController {
         installPackageItem = install
         menu.addItem(install)
 
+        // Only a guest restored as trusted darwinOS reports `cryptex`.
+        let cryptex = makeItem("Install Cryptex…", action: #selector(installCryptexFromDisk), symbol: "shippingbox")
+        cryptex.isEnabled = false
+        installCryptexItem = cryptex
+        menu.addItem(cryptex)
+        let listCryptexes = makeItem("List Cryptexes", action: #selector(showCryptexes), symbol: "list.bullet")
+        listCryptexes.isEnabled = false
+        listCryptexesItem = listCryptexes
+        menu.addItem(listCryptexes)
+
         menu.addItem(NSMenuItem.separator())
         addBootstrapItems(to: menu)
 
@@ -56,6 +66,64 @@ extension VPhoneMenuController {
 
     func updateInstallAvailability(available: Bool) {
         installPackageItem?.isEnabled = available
+    }
+
+    func updateCryptexAvailability(available: Bool) {
+        installCryptexItem?.isEnabled = available
+        listCryptexesItem?.isEnabled = available
+    }
+
+    @objc func installCryptexFromDisk() {
+        guard control.isConnected else {
+            VPhoneAlert.present(
+                title: "Install Cryptex", message: "The guest is not connected. Start a VM, then try again.",
+                style: .warning,
+            )
+            return
+        }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.treatsFilePackagesAsDirectories = false
+        panel.prompt = VPhoneLocalization.text("Install")
+        panel.message = VPhoneLocalization.text("Choose Root folder (incl. e.g., usr/bin and Library/LaunchDaemons)")
+        VPhoneAlert.present(panel) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            self?.installCryptex(from: url)
+        }
+    }
+
+    private func installCryptex(from url: URL) {
+        Task {
+            do {
+                let result = try await control.installCryptex(from: url)
+                print("[cryptex] \(result)")
+                VPhoneAlert.present(
+                    title: "Install Cryptex",
+                    message: VPhoneLocalization.installedMessage(for: url.lastPathComponent, detail: result),
+                    style: .informational,
+                )
+            } catch {
+                print("[cryptex] install failed: \(error)")
+                VPhoneAlert.present(title: "Install Cryptex", message: error.localizedDescription, style: .warning)
+            }
+        }
+    }
+
+    @objc func showCryptexes() {
+        Task {
+            do {
+                let output = try await control.listCryptexes()
+                VPhoneAlert.present(
+                    title: "Cryptexes",
+                    message: output.isEmpty ? VPhoneLocalization.text("No cryptexes are installed.") : output,
+                    style: .informational,
+                )
+            } catch {
+                VPhoneAlert.present(title: "Cryptexes", message: error.localizedDescription, style: .warning)
+            }
+        }
     }
 
     @objc func openAppBrowser() {

@@ -2346,13 +2346,46 @@ int get_preboard_manifest(struct idevicerestore_client_t* client, plist_t build_
 	return res;
 }
 
+/* vphone: every cloudOS build identity carries `Ap,OSEnvironment` (0x06,
+   trusted darwinOS). libtatsu 1.0.5 copies a fixed list of Ap,* tags into
+   the AP request and this one is not on it, so the ticket never asked for an
+   OS environment. libtatsu copies it since f3641ce (2026-11-11); once the
+   AppleMobileDeviceLibrary pin carries that, this sets the same value again
+   and can go. iBoot reads it from the ticket and applies the matching
+   overlay under /osenvironments in the device tree; for 6 that sets
+   /chosen/darwinos-security-environment = 6, which AMFI and TXM read. Apple's
+   restore host sends the tag, and so does this one now, whenever the build
+   identity has it. The hybrid identity `fw prepare` writes leaves it out;
+   only `filesystem-exp-trusted_darwinos` puts it back. */
+static void vphone_tss_add_os_environment(plist_t request, plist_t build_identity)
+{
+	plist_t node = plist_dict_get_item(build_identity, "Ap,OSEnvironment");
+	uint64_t value = 0;
+	if (plist_get_node_type(node) == PLIST_STRING) {
+		const char* str = plist_get_string_ptr(node, NULL);
+		char* end = NULL;
+		value = strtoull(str, &end, 0);
+		if (!end || end == str || *end != '\0') {
+			logger(LL_WARNING, "Ignoring malformed Ap,OSEnvironment '%s' in build identity\n", str);
+			return;
+		}
+	} else if (plist_get_node_type(node) == PLIST_INT) {
+		plist_get_uint_val(node, &value);
+	} else {
+		return;
+	}
+	plist_dict_set_item(request, "Ap,OSEnvironment", plist_new_uint(value));
+	logger(LL_INFO, "Requesting Ap,OSEnvironment = %" PRIu64 "\n", value);
+}
+
 int get_tss_response(struct idevicerestore_client_t* client, plist_t build_identity, plist_t* tss)
 {
 	plist_t request = NULL;
 	plist_t response = NULL;
 	*tss = NULL;
 
-	/* vphone: the only edit to upstream code in this target. An offline
+	/* vphone: one of two edits to upstream code in this target (the other is
+	   vphone_tss_add_os_environment above). An offline
 	   restore installs a saved, FULL TSS response here instead of asking
 	   Apple; -T/--ticket cannot do that, because it replaces client->tss
 	   with a dict holding only ApImg4Ticket and so loses every per-component
@@ -2488,6 +2521,7 @@ int get_tss_response(struct idevicerestore_client_t* client, plist_t build_ident
 			plist_free(parameters);
 			return -1;
 		}
+		vphone_tss_add_os_environment(request, build_identity);
 	} else {
 		/* add personalized parameters */
 		if (tss_request_add_ap_img3_tags(request, parameters) < 0) {

@@ -579,6 +579,7 @@ request carries `"force": true`.
 | Apps | `apps.list`, `search`, `refresh`, `launch`, `terminate`, `foreground`, `open_url`, `install`, `info`, `binary`, `data_dir`, `url_schemes`, `handlers`, `registration`, `register`, `network_policy {repair?}`; `apps.uninstall`, `unregister`, `unregister_dir` **force**; `apps.removed_system`, `apps.remove_system {bundle_ids, backup?, respring?}` **force**, `apps.restore_system {bundle_ids?, respring?}` **force** (removable system apps, see below) |
 | OTA Apple app programs | `ota.apps.status`, `ota.apps.apply {force:true, removed_bundle_ids?:[]}` (capability `ota_system_apps`; reconciles removed Apple app registrations including placeholders against valid removal backups, then updates retained programs from the installed 24A446 payload; no caller-selected paths or third-party IDs; an omitted baseline infers only absent/placeholder apps, never installed apps; preserves user-data/group containers and original removal backups; see [the OTA runbook](Restore/data_preserving_full_ota.md#preserve-removed-system-apps-2026-10-25)) |
 | System | `system.uicache`, `system.system_apps {visible?}`, `system.respring` **force**, `system.reboot {userspace?}` **force**, `system.shutdown` **force**, `developer_mode.status`, `developer_mode.enable`, `power.low_power_mode`, `time.timezone {identifier?, automatic?}`, `time.clock {time?, automatic?}` (see below), `diagnostics.self_test` |
+| Cryptexes | `cryptex.list`, `cryptex.install {path, variant, persist?}`, `cryptex.uninstall {identifier}` (capability `cryptex`; only a guest restored as trusted darwinOS has `/usr/bin/cryptexctl`, see "Cryptexes" below) |
 | Files | `files.list`, `mkdir`, `remove`, `rename`, `read {binary?, limit?}`, `write`, `find`, `copy`, `symlink`, `chmod`, `chown`, `plist`, `plist_set {value \| remove}` |
 | APFS snapshots | `apfs.snapshots {mount?}`, `apfs.snapshot.delete {mount?, name? \| prefix?}` **force** (only `orig-fs.disabled.rn-*`, see below) |
 | Preferences, clipboard, location | `settings.get/set/delete`, `clipboard.get/set/clear`, `location.set/clear/current/services {enabled?}` |
@@ -756,6 +757,26 @@ after `ended`, so a client that wants a trackpad's momentum sends it as more
 and do not move the view (about 15 points on iPadOS 26). Both answer with
 IcliKit's error, `unavailable` or `failed`, when the device cannot be made or
 is not ready yet.
+
+`cryptex.install` (capability `cryptex`) takes a `.cxbd` directory the host
+has uploaded under `/var/mobile/Documents/vphone-cryptexes` and the variant it
+was created with. It runs cloudOS's `cryptexctl personalize --host-identity`,
+which asks Apple's signing server for this guest's ticket (the guest needs
+network), into `<name>.personalized/` beside it, then `cryptexctl install
+--print-info` on the result; `output` is what install printed and
+`personalized` the path it installed. With `persist: true` vphoned keeps the
+cryptex under `/var/db/vphoned/cryptexes/<identifier>` and installs it again
+when it starts after a reboot, with the kept ticket or, if cryptexd refuses
+that, personalized again. It never passes cryptexctl's `--persist`: cryptexd's
+own reinstalls at boot run in parallel and can panic TXM. All cryptexctl runs
+take turns. `cryptex.list` is `cryptexctl list`, with `persisted` the
+identifiers vphoned keeps; `cryptex.uninstall {identifier}` is `cryptexctl
+uninstall` and forgets a kept cryptex.
+Each refuses with `operation_failed` on a guest without `/usr/bin/cryptexctl`,
+which only `filesystem-exp-trusted_darwinos` adds; cryptexctl's own output is
+in the message when it fails. The VM window's Apps › Install Cryptex… builds
+the cryptex from a folder, uploads and installs it; see
+[the trusted darwinOS note](Firmware/trusted_darwinos_cryptexes.md).
 
 `time.timezone` (capability `timezone`; REST `GET/PUT /v1/timezone`) returns
 `{identifier, automatic, seconds_from_gmt}`: the Olson name

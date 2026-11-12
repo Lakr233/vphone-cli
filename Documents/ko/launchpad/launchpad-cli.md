@@ -125,7 +125,7 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 
 다음 두 경우에는 도우미를 통해 일부 단계를 root로 실행합니다.
 
-- `--preset minimal`(Minimal: 순정 부트 체인, 커널, TXM을 사용하고 복원 전에 시스템을 사용자화)도 경량화 없이 단독으로 복원되며, `fw patch`는 도우미를 통해 root로 실행됩니다. Userspace debugging 상자(`vphone-cli fw patches`의 Features 아래 `userspace-debugging`)는 그 상자가 나열하는 각 패치에 대한 `--allow`에 해당합니다.
+- `--preset minimal`(Minimal: 순정 부트 체인, 커널, TXM을 사용하고 복원 전에 시스템을 사용자화)도 경량화 없이 단독으로 복원되며, `fw patch`는 도우미를 통해 root로 실행됩니다. Userspace debugging 상자(`vphone-cli fw patches`의 Features 아래 `userspace-debugging`)는 그 상자가 나열하는 각 패치에 대한 `--allow`에 해당합니다. Trusted darwinOS environment 상자(`trusted-darwinos`, 즉 `--allow filesystem-exp-trusted_darwinos`)는 iPhone 또는 iPad를 trusted darwinOS로 복원하고 cloudOS의 cryptexctl을 추가하므로, 게스트가 실행 중일 때 cryptex를 설치할 수 있습니다(VM 창의 Apps › Install Cryptex…, [Cryptex](../machines/cryptexes.md) 참조). 상자 아래 설명에 그 영향이 적혀 있습니다. 이후 게스트는 Restricted Execution Mode를 강제하고, 리서치 보드 게스트(cloudOS 26.5~26.7)는 개발자 모드를 켤 수 없으며, 상자를 바꾼 내용은 다시 복원해야만 적용됩니다.
 - cloudOS에 vphone600 구성 요소가 없는 머신(해당 릴리스 자체의 cloudOS, Watch, iOS 18 게스트)은 `fw kernelcache`로 kernelcache 믹스를 준비하고 도우미가 root로 링크합니다.
 
 ### 패치 재정의

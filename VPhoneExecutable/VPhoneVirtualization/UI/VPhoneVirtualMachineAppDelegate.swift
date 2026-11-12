@@ -330,6 +330,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             control.onConnect = { [weak self, weak mc, weak provider = locationProvider, weak timeZoneSync, weak clockSync, weak hostAudioLatencySync, weak developerTunnel] caps in
                 mc?.updateConnectAvailability(available: true)
                 mc?.updateInstallAvailability(available: caps.contains("ipa_install"))
+                mc?.updateCryptexAvailability(available: caps.contains("cryptex"))
                 mc?.updateBootstrapAvailability(available: caps.contains("bootstrap_install"))
                 mc?.updateBootstrapUninstallAvailability(available: caps.contains("bootstrap_uninstall"))
                 mc?.updateAppsAvailability(available: caps.contains("apps"))
@@ -372,6 +373,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 mc?.updateSoftwareKeyboardAvailability(available: false)
                 mc?.updateVisionOSImmersionAvailability(connected: false, capabilities: [])
                 mc?.updateInstallAvailability(available: false)
+                mc?.updateCryptexAvailability(available: false)
                 mc?.updateBootstrapAvailability(available: false)
                 mc?.updateBootstrapUninstallAvailability(available: false)
                 mc?.updateAppsAvailability(available: false)

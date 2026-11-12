@@ -20,6 +20,7 @@ New to vphone? Read [Overview](get-started/overview.md), then follow [Quick Star
 | [Automation API](machines/automation-api.md) | The optional local HTTP and WebSocket interface |
 | [Device Name and Clock](machines/device-name-and-clock.md) | What the guest takes from the VM name and the Mac's clock |
 | [Package Environment](machines/package-environment.md) | Installing and removing a package manager in the guest |
+| [Cryptexes](machines/cryptexes.md) | Installing your own programs in a trusted darwinOS guest as a cryptex |
 
 ## Firmware and Devices
 

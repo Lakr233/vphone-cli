@@ -55,6 +55,8 @@ if iPhoneStartup {
     // locationd can deadlock as it starts; this restarts it.
     GuestLocationdWatchdog.shared.startOnStartup()
     GuestDeveloperModeSnapshot.shared.startOnStartup()
+    // Trusted darwinOS guests only: the cryptexes installed with `persist`.
+    GuestAPI.reinstallPersistedCryptexesOnStartup()
 }
 
 let group = MultiThreadedEventLoopGroup(numberOfThreads: 2)

@@ -124,6 +124,23 @@ struct TrustCacheTests {
 
     // MARK: - Fixtures
 
+    @Test
+    func `trusted darwinOS allows every entry in both REM phases, each CDHash once`() throws {
+        let cache = try TrustCache(payload: Self.payload(version: 2, entries: [
+            (hash(0x10), 2, 0, 2), // from --base-trust-cache: Apple's, REM none
+            (hash(0x10), 2, 0xC0, 2), // the same binary, found by the scan
+            (hash(0x20), 2, 0, 0), // only in a base cache
+            (hash(0x30), 1, 0x40, 0), // REM before only
+            (hash(0x30), 2, 0xC0, 0), // the same CDHash, another hash type
+        ]))
+        let allowed = cache.allowingBothRestrictedExecutionPhases()
+        #expect(allowed.entries.map(\.cdHash) == [hash(0x10), hash(0x20), hash(0x30), hash(0x30)])
+        #expect(allowed.entries.map(\.hashType) == [2, 2, 1, 2])
+        #expect(allowed.entries.allSatisfy { $0.flags == 0xC0 })
+        #expect(allowed.entries.map(\.constraintCategory) == [2, 0, 0, 0])
+        #expect(allowed.version == 2 && allowed.uuid == cache.uuid)
+    }
+
     private func hash(_ byte: UInt8) -> Data {
         Data(repeating: byte, count: 20)
     }

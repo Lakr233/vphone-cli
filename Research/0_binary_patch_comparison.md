@@ -7331,3 +7331,33 @@ images off by default.
 
 Measurements, source paths, no-op iOS 26 results and the remaining live-debugger
 validation boundary are in [debug_library_x1.md](Guest/debug_library_x1.md).
+
+## The trusted darwinOS environment and runtime cryptexes on `minimal` (2026-11-10)
+
+`filesystem-exp-trusted_darwinos` (feature `trusted-darwinos`, restore image
+set, off in `minimal`; skipped on a watch) restores an iPhone or iPad guest in
+the trusted darwinOS environment and adds cloudOS's `/usr/bin/cryptexctl`, so
+cryptexes can be installed at runtime. Details and the REM flag table:
+[Firmware/trusted_darwinos_cryptexes.md](Firmware/trusted_darwinos_cryptexes.md).
+
+| Where | Off (every preset until now) | On |
+| --- | --- | --- |
+| Hybrid build identity | `Ap,OSEnvironment` dropped by `FirmwareManifest.buildEraseIdentity` | `0x06` written back by the merge's manifest rewrite |
+| AP TSS request | no environment (libtatsu 1.0.5 does not copy the tag) | `Ap,OSEnvironment = 6`, sent by `vphone_tss_add_os_environment` whenever the identity has it |
+| Device tree at boot | default environment | iBoot applies `/osenvironments/trusted-darwinos`: `/chosen/darwinos-security-environment = 6` |
+| Static trust cache | cryptexctl's: scanned entries `0xC0`, base entries copied as they are (`0x00`), so some CDHashes twice | one entry per CDHash and hash type, every one `0xC0` (`TrustCache.allowingBothRestrictedExecutionPhases`) |
+| System volume | — | `/usr/bin/cryptexctl` from the cloudOS OS image, staged by `fw prepare` (`VPhonePCCCryptexctl`) |
+| `launchd.plist` | as the vphoned step leaves it | also without `com.apple.mobile.NRDUpdated`, whose update-brain trust cache panics TXM in environment 6 (`0xF3 \| 4`) |
+
+No kernel, TXM or boot chain byte changes. A `standard` guest restored with the
+tag and Apple's stock trust cache panics in launchd ("not allowed for
+Restricted Execution Mode state"), which is why the patch belongs to the restore
+image, whose trust cache is rebuilt anyway. The temporary cloudOS restore that
+recovers the GPU driver now also sends cloudOS's own `Ap,OSEnvironment`.
+In environment 6 AMFI enables Developer Mode only in its research build; the
+research-board kernel mix takes AMFI from the release kernel, so a research-board
+guest has none (the note has the disassembly).
+
+iOS 27 does not boot in environment 6: dyld cannot mount the OS cryptex and
+launchd panics on libSystem (27.0.1 with cloudOS 26.4, 2026-11-12). `fw prepare`
+and the patcher refuse the box for iOS 27 and later (`trustedDarwinOSRefusal`).

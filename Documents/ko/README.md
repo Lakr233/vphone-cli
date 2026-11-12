@@ -20,6 +20,7 @@ vphone이 처음이라면 [개요](get-started/overview.md)를 읽은 뒤 [빠�
 | [자동화 API](machines/automation-api.md) | 선택적으로 사용하는 로컬 HTTP 및 WebSocket 인터페이스 |
 | [기기 이름과 시계](machines/device-name-and-clock.md) | 게스트가 가상 머신 이름과 Mac의 시계에서 가져오는 것 |
 | [패키지 환경](machines/package-environment.md) | 게스트에 패키지 관리자 설치 및 제거 |
+| [Cryptex](machines/cryptexes.md) | trusted darwinOS 게스트에 자신의 프로그램을 cryptex로 설치 |
 
 ## 펌웨어와 기기
 

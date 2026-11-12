@@ -93,9 +93,10 @@ static void vphone_emit(int level, const char *message)
 /* --- THE OFFLINE TICKET ------------------------------------------------ */
 
 /*
- * `ticket_path` is NOT upstream's -T/--ticket, and this is the one place in
- * this target where an upstream file is patched rather than copied. Both
- * halves of that deserve the explanation.
+ * `ticket_path` is NOT upstream's -T/--ticket, and this is one of the two places in
+ * this target where an upstream file is patched rather than copied (the other
+ * adds Ap,OSEnvironment to the AP TSS request). Both halves of that deserve
+ * the explanation.
  *
  * What -T does, in this exact snapshot of src/idevicerestore.c:
  *

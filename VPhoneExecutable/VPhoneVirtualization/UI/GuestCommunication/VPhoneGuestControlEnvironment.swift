@@ -31,6 +31,15 @@ extension VPhoneGuestControl {
             },
             uniquingKeysWith: { first, _ in first },
         )
+        // A guest without any of the libraries was built without the vphone
+        // environment: `minimal`, a stock system sealed before its restore,
+        // which cannot be remounted to install them. Pushing them would upload
+        // every library on each connection and fail; on an iOS 26.5 trusted
+        // darwinOS guest the agent dropped during those uploads, so each
+        // reconnection started them again.
+        guard VPhoneGuestEnvironment.libraries.contains(where: { guestHashes[$0] != nil }) else {
+            return EnvironmentUpdate(installed: [], rebootRequired: false)
+        }
         typealias Library = (name: String, data: Data, hash: String)
         let changed = try VPhoneGuestEnvironment.libraries.compactMap { name -> Library? in
             if VPhoneGuestEnvironment.selectedLibraries.contains(name), guestHashes[name] == nil {

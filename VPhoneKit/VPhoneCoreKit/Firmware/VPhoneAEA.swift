@@ -120,7 +120,28 @@ public enum VPhoneAEA {
 
         let session = URLSession(configuration: .ephemeral)
         defer { session.invalidateAndCancel() }
-        let (pem, urlResponse) = try await session.data(from: keyURL)
+        // A dropped connection (-1005) or a server error is common enough on
+        // some hosts that one try loses a whole `fw prepare`; a pause and
+        // another try succeed.
+        var attempt = 0
+        var fetched: (Data, URLResponse)?
+        while fetched == nil {
+            do {
+                let result = try await session.data(from: keyURL)
+                if let http = result.1 as? HTTPURLResponse, http.statusCode == 429 || http.statusCode >= 500, attempt < 3 {
+                    attempt += 1
+                    try await Task.sleep(for: .seconds(attempt))
+                    continue
+                }
+                fetched = result
+            } catch let error as URLError where attempt < 3
+                && [.networkConnectionLost, .timedOut, .cannotConnectToHost].contains(error.code)
+            {
+                attempt += 1
+                try await Task.sleep(for: .seconds(attempt))
+            }
+        }
+        let (pem, urlResponse) = fetched!
         if let http = urlResponse as? HTTPURLResponse, http.statusCode != 200 {
             throw Error.keyFetchFailed(keyURL, http.statusCode)
         }

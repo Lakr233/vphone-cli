@@ -458,9 +458,16 @@ final class VPhoneLaunchpadCreationPipeline {
             // download clears it: extraction follows with no progress of its own.
             defer { downloadFraction = nil }
             // `fw prepare` stages what the selection needs (the GPU driver, the
-            // seal tool), so the preset is on record before it runs.
-            if !options.patches.presetArguments.isEmpty {
-                try await run(["fw", "set-patches", name] + options.patches.presetArguments + library)
+            // seal tool, cryptexctl for trusted darwinOS), so the preset and the
+            // overrides this machine's build takes are on record before it
+            // runs. The patch step writes the same record again.
+            let buildOverrides = options.patchOverrides
+            if !options.patches.presetArguments.isEmpty || buildOverrides.hasBootChainOverrides {
+                let preset = options.patches.presetArguments.isEmpty ? ["--preset", options.patches.preset] : options.patches.presetArguments
+                try await run(["fw", "set-patches", name] + preset
+                    + buildOverrides.bootChainBlocked.sorted().flatMap { ["--block", $0] }
+                    + buildOverrides.bootChainAllowed.sorted().flatMap { ["--allow", $0] }
+                    + library)
             }
             try await run(["fw", "prepare", name, "--iphone-source", options.iphoneSource,
                            "--cloudos-source", options.cloudOSSource] + deviceArguments + library,

@@ -20,6 +20,7 @@
 | [自动化 API](machines/automation-api.md) | 可选的本机 HTTP 和 WebSocket 接口 |
 | [设备名称与时钟](machines/device-name-and-clock.md) | 客户机从虚拟机名称和 Mac 时钟获取哪些信息 |
 | [软件包环境](machines/package-environment.md) | 在客户机中安装和删除软件包管理器 |
+| [Cryptex](machines/cryptexes.md) | 以 cryptex 形式在 trusted darwinOS 客户机中安装你自己的程序 |
 
 ## 固件与设备
 

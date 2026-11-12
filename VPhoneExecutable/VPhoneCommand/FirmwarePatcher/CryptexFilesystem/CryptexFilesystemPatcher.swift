@@ -79,6 +79,7 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
         switch identifier {
         case FirmwareRestoreImagePatchSet.surfaceCompression: isIOS18
         case FirmwareRestoreImagePatchSet.watchAudio: guestFamily == .watch
+        case FirmwareRestoreImagePatchSet.trustedDarwinOS: guestFamily == .iPhone || guestFamily == .iPad
         default: true
         }
     }
@@ -109,7 +110,14 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
         (FirmwareRestoreImagePatchSet.watchAudio, "Install the virtio sound HAL plugin for a watch"),
         (FirmwareRestoreImagePatchSet.debugserver, "Re-sign debugserver so it can attach in the guest"),
         (FirmwareRestoreImagePatchSet.launchdJetsam, "Patch launchd's jetsam panic guard"),
+        (FirmwareRestoreImagePatchSet.trustedDarwinOS, "Restore as trusted darwinOS and add cryptexctl"),
     ]
+
+    /// Whether this guest is restored as trusted darwinOS.
+    var trustedDarwinOS: Bool {
+        gate.isEnabled(FirmwareRestoreImagePatchSet.trustedDarwinOS)
+            && applies(FirmwareRestoreImagePatchSet.trustedDarwinOS)
+    }
 
     @discardableResult
     public func apply() throws -> Int {
@@ -236,6 +244,15 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
             if gate.isEnabled(FirmwareRestoreImagePatchSet.launchdJetsam) {
                 print("- Patching launchd's jetsam panic guard…")
                 try patchLaunchdJetsam(targetMount: targetMount)
+            }
+            if trustedDarwinOS {
+                // A box turned on after `fw prepare` is caught here, before
+                // the restore, instead of as a first-boot panic.
+                if let refusal = FirmwareRestoreImagePatchSet.trustedDarwinOSRefusal(iOSVersion: try getProductVersion()) {
+                    throw VPhonePatchKit.PatcherError.patchVerificationFailed(refusal)
+                }
+                print("- Adding cryptexctl for trusted darwinOS…")
+                try addCryptexctl(targetMount: targetMount)
             }
             try removeHostEventLog(mount: targetMount)
         }
