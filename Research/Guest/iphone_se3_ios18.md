@@ -37,6 +37,9 @@ Preparation now tries this local image path before a temporary restore:
    state or detach success is uncertain, retain the work directory and report
    it rather than traversing a possibly mounted volume.
 
+Work directories use the preparer's existing `.pcc-system-` retention prefix,
+so outer staging cleanup also preserves an uncertain attachment.
+
 The normal bundled compiler-plugin merge still follows staging. No driver or
 key is bundled in the repository, and no new patch identifier, preset, version
 gate, CLI flag or runtime package dependency is introduced.
@@ -98,3 +101,10 @@ were not tested.
 - The existing GPU transport tests passed with address/undefined sanitizers.
 - The no-cache native extraction and completed VM creation are runtime evidence
   in addition to those unit tests.
+
+The final rebased build was also replayed through `fw prepare` in an isolated
+library and empty GPU cache, using the same local IPSWs. It again extracted the
+18.6 driver directly, merged the compiler plugin, wrote the completed restore
+tree and recorded the SE's 750×1334 display without starting a PCC VM. This
+replay included the retained-staging-prefix correction. The documentation site
+build also passed.

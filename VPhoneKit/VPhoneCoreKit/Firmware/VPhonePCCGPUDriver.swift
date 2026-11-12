@@ -43,7 +43,9 @@ public enum VPhonePCCGPUDriver {
             key = nil
         }
         let fm = FileManager.default
-        let work = restoreDirectory.deletingLastPathComponent().appending(path: ".pcc-gpu-image-\(UUID().uuidString)")
+        // The preparer's outer cleanup retains .pcc-system-* directories
+        // when an image might still be attached.
+        let work = restoreDirectory.deletingLastPathComponent().appending(path: ".pcc-system-gpu-\(UUID().uuidString)")
         let mount = work.appending(path: "mount")
         try fm.createDirectory(at: mount, withIntermediateDirectories: true)
         var mountAttempted = false
