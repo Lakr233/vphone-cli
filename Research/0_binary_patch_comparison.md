@@ -4,7 +4,8 @@
 > 750×1334 panel at 2x and existing board-presentation and LLB scale patches.
 > `devicetree-cfw-home_button_type` copies the concrete D49AP Home button
 > value into the installed SE tree only; restore trees and other devices keep
-> their existing bytes. No new patch identifier or preset.
+> their existing bytes. No new patch identifier or preset. See
+> [bring-up and validation](Guest/iphone_se3_bringup.md).
 
 > **TXM missing-profile compatibility (2026-11-10).**
 > `txm-cfw-executable_remap` includes `.missing_profile` whenever
