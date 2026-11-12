@@ -1,0 +1,11 @@
+# Binary packages whose pinned artifacts ship no notice files yet, admitted by
+# `stage-package-notices.zsh --check --require-notices` until their publishers
+# release artifacts that carry them. One row per package and pinned revision:
+#   identity<TAB>revision<TAB>where the fix is tracked
+# Only an `artifact_missing` row with exactly this identity and revision is
+# admitted. Moving a pin ends its exception, so remove the row with the pin
+# update. Any other package without notices is refused.
+applemobiledevicelibrary	553a0bf1b55812b1a08c727b1a3084e88871343b	https://github.com/Lakr233/AppleMobileDeviceLibrary/pull/1
+libarchive.xcframework	82687c75e530917b7fbeb15cd5f9369524637155	https://github.com/Lakr233/libarchive.xcframework/pull/1
+libghostty-spm	5a025555f0a85ee51da7eb306c35f660d116e879	https://github.com/Lakr233/libghostty-spm/pull/104
+openssl-spm	9f3b525d960fe71e534482310e96cd9c4f2faa17	https://github.com/Lakr233/openssl-spm/pull/6

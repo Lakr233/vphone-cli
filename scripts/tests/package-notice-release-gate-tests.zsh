@@ -31,4 +31,32 @@ for option in --require-notice ''; do
         exit 1
     fi
 done
-print 'Package notice release gate: complete notices accepted; missing notices and unknown options refused'
+
+# An excepted package is admitted only for an artifact without notices, and
+# only at the revision its exception names.
+other=2222222222222222222222222222222222222222
+printf '# comment\nuncovered\t%s\thttps://example.invalid/fix\n' "$revision" > "$temporary/exceptions.tsv"
+export VPHONE_NOTICE_EXCEPTIONS="$temporary/exceptions.tsv"
+/bin/cp "$temporary/complete.tsv" "$destination/manifest.tsv"
+printf 'uncovered\t%s\tartifact_missing\t-\t-\n' "$revision" >> "$destination/manifest.tsv"
+"$collector" --check "$destination" --require-notices
+for row in "uncovered	$other	artifact_missing" "uncovered	$revision	missing" "other	$revision	artifact_missing"; do
+    /bin/cp "$temporary/complete.tsv" "$destination/manifest.tsv"
+    printf '%s\t-\t-\n' "$row" >> "$destination/manifest.tsv"
+    if "$collector" --check "$destination" --require-notices; then
+        print -u2 "An unexcepted row unexpectedly passed the distribution gate: $row"
+        exit 1
+    fi
+done
+unset VPHONE_NOTICE_EXCEPTIONS
+
+# Every committed exception names a package pinned at exactly that revision.
+while IFS=$'\t' read -r identity pinned tracked; do
+    [[ -n $identity && $identity != \#* ]] || continue
+    [[ $tracked == https://* ]] || { print -u2 "Exception for $identity names no tracking link"; exit 1; }
+    /usr/bin/grep -q "\"identity\" : \"$identity\"" "$root/VPhone.xcworkspace/xcshareddata/swiftpm/Package.resolved" \
+        || { print -u2 "Exception for $identity, which is not a package"; exit 1; }
+    /usr/bin/grep -rq --include=Package.resolved "\"revision\" : \"$pinned\"" "$root/VPhone.xcworkspace" "$root/VPhoneLaunchpad" "$root/VPhoneExecutable" "$root/VPhoneKit" "$root/VPhoneDaemon" \
+        || { print -u2 "Exception for $identity at $pinned, which is no longer pinned; remove it"; exit 1; }
+done < "$root/scripts/package-notice-exceptions.tsv"
+print 'Package notice release gate: complete notices accepted; missing notices and unknown options refused; exceptions admit only their pinned artifact rows'
