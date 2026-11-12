@@ -28,6 +28,7 @@ public enum VPhoneAEA {
         case truncatedPrologue(URL)
         case missingAuthField(String)
         case malformedFCSResponse
+        case malformedEmbeddedKey
         case keyFetchFailed(URL, Int)
 
         public var errorDescription: String? {
@@ -40,6 +41,8 @@ public enum VPhoneAEA {
                 "The firmware file is missing decryption key information. Download the firmware again."
             case .malformedFCSResponse:
                 "Unable to read the decryption key information in this firmware file. Download the firmware again."
+            case .malformedEmbeddedKey:
+                "The embedded firmware decryption key is not a 32-byte hexadecimal key. Download the firmware again."
             case let .keyFetchFailed(url, _):
                 "Unable to download the decryption key from \(url.host() ?? url.absoluteString). Try again later."
             }
@@ -94,6 +97,27 @@ public enum VPhoneAEA {
     }
 
     // MARK: - Key
+
+    /// Some PCC images, including cloudOS 18.6, carry their AES key in the
+    /// authenticated prologue. The system aea tool still verifies the archive
+    /// when opening it. Nil means this archive needs its usual key service.
+    public static func embeddedSymmetricKey(of url: URL) throws -> String? {
+        guard let value = try authData(of: url)["encryption_key"] else { return nil }
+        guard let text = String(data: value, encoding: .ascii), text.count == 64,
+              text.utf8.allSatisfy({ (48 ... 57).contains($0) || (65 ... 70).contains($0) || (97 ... 102).contains($0) })
+        else {
+            throw Error.malformedEmbeddedKey
+        }
+        let characters = Array(text)
+        var key = Data()
+        for offset in stride(from: 0, to: 64, by: 2) {
+            guard let byte = UInt8(String(characters[offset ..< offset + 2]), radix: 16) else {
+                throw Error.malformedEmbeddedKey
+            }
+            key.append(byte)
+        }
+        return "base64:" + key.base64EncodedString()
+    }
 
     /// The archive's symmetric key, in the `base64:…` spelling `aea` takes for
     /// `-key-value` — and the spelling `ipsw fw aea --key` printed, so the call

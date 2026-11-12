@@ -235,6 +235,7 @@ public enum VPhoneFirmwareCatalog {
         ]),
         // iPhone SE (3rd generation), D49AP
         (devices: ["iPhone14,6"], releases: [
+            ("18.6.2", "https://updates.cdn-apple.com/2025SummerFCS/fullrestores/093-21069/96BF6917-778F-4201-A1F8-7C001CC09340/iPhone14,6_18.6.2_22G100_Restore.ipsw"),
             ("26.0", "https://updates.cdn-apple.com/2025FallFCS/fullrestores/093-39844/C56BD2CF-DE3B-4623-9942-AF7CE773E0EF/iPhone14,6_26.0_23A341_Restore.ipsw"),
             ("26.0.1", "https://updates.cdn-apple.com/2025FallFCS/fullrestores/093-45961/ED45F3F3-065E-4DC7-B5A9-891AFA36669A/iPhone14,6_26.0.1_23A355_Restore.ipsw"),
             ("26.1", "https://updates.cdn-apple.com/2025FallFCS/fullrestores/089-12251/36490158-9BED-4231-BB67-D7981615A7D3/iPhone14,6_26.1_23B85_Restore.ipsw"),
@@ -788,7 +789,7 @@ public enum VPhoneFirmwareCatalog {
     /// The cloudOS the iPhone pairings give a release of this version.
     static func recommendedCloudOS(forVersion version: String) -> VPhoneCloudOSOption {
         switch version.split(separator: ".").prefix(2).joined(separator: ".") {
-        case "26.0", "26.1": VPhoneCloudOSOption(name: "cloudOS 26.1", url: cloud261)
+        case "18.6", "26.0", "26.1": VPhoneCloudOSOption(name: "cloudOS 26.1", url: cloud261)
         case "26.2": VPhoneCloudOSOption(name: "cloudOS 26.2", url: cloud262)
         case "26.3": VPhoneCloudOSOption(name: "cloudOS 26.3", url: cloud263)
         default: VPhoneCloudOSOption(name: "cloudOS 26.4", url: cloud264)

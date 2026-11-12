@@ -1,5 +1,12 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **SE 3 iOS 18.6.2 pairing and driver extraction (2026-11-12).** The SE
+> catalog uses cloudOS 26.1 and the existing iOS 18.6 GPU transport. Fresh
+> preparation can take the 18.6 driver directly from the PCC OS image when
+> its AEA metadata supplies a valid embedded key, with read-only mounting
+> and platform validation. No GPU ABI rule or patch gate changed. See
+> [fresh creation, Metal readbacks and remaining limits](Guest/iphone_se3_ios18.md).
+
 > **iPhone SE 3 (2026-11-12).** `iPhone14,6` / D49AP uses its own
 > 750×1334 panel at 2x and existing board-presentation and LLB scale patches.
 > `devicetree-cfw-home_button_type` copies the concrete D49AP Home button
