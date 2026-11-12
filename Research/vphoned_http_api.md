@@ -593,6 +593,18 @@ request carries `"force": true`.
 | Scripting | `script.eval {source, timeout_ms?}` (evaluated in a session process, capability `script_js`), `script.info` — the interactive form is the `/v1/shell` WebSocket, see "Scripting sessions" |
 | Setup Assistant | `setup.status`, `setup.skip` **force** (sets `SetupDone`, `SetupFinishedAllSteps` and `SetupVersion` in `com.apple.purplebuddy`, restarts SpringBoard; while the first boot's data migration is still running it does not restart SpringBoard, which reads the keys when migration ends, and `respring` is `{restarted: false, reason: "data_migration_pending"}`; a restart FrontBoard ignored is refused with `reason: busy`, `retryable: true`, the keys already written); `setup.settle {timeout_ms?, poll_ms?, stable_polls?}` (read-only wait for first-boot work, see below); `/v1/health` carries `setup_pending` — see `Research/Guest/setup_assistant_skip.md` |
 
+Every `input.*` method accepts optional `observe` (JSON boolean, default false)
+and `observe_delay_ms` (JSON integer 0 to 5000, default 300; validated whenever
+present). A value of another type fails with the invalid-request error (`invalid_param`) before
+the action runs. With `observe: true`, after the action succeeds the daemon
+waits `observe_delay_ms` and adds `observed` to the reply:
+`{frontmost_bundle_id, frontmost_verified, ui_element_count}`. The foreground
+state comes from the source `apps.launch` uses for `frontmost_verified`
+(`frontmost_verified: false` when it is unconfirmed); `ui_element_count` is the
+count of visible elements `ui.tree` reports, capped at 500 (500 means 500 or
+more). An observe failure never fails the action: the reply carries
+`observed: {observe_error}` instead. Without `observe`, replies are unchanged.
+
 `input.hid` sends a keyboard/consumer usage with 16-bit `page` and `usage`.
 Omitting `down` sends a 100 ms press; a Boolean `down` sends one transition.
 Optional Boolean `long_press: true` requires an explicit Boolean `down` and

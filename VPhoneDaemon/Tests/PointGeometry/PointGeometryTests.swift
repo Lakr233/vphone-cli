@@ -18,6 +18,9 @@ enum GuestAPI {
     static func touchPhaseCode(_ phase: TouchPhase) -> Int32 { switch phase { case .down: 0; case .move: 1; case .up: 3 } }
 }
 
+/// `GuestAPI.liveObservation` defaults to the real foreground lookup, which this harness does not link.
+func frontmostApp() -> [String: Any] { [:] }
+
 func layout(orientation: Int = 4) -> [String: Any] {
     let sideways = orientation == 3 || orientation == 4
     func rect(_ width: Double, _ height: Double) -> [String: Any] { ["x": 0, "y": 0, "width": width, "height": height] }
@@ -45,7 +48,7 @@ func rejects(_ operation: () throws -> Void) {
         LayoutWitness.layout = layout()
         // The real handler must validate and normalize beyond the legacy
         // 678-point capture width, using the actual Icli C conversion core.
-        _ = try GuestMethodArea.dispatch([.make(InputMethod.self, GuestAPI.executeInput)], method: "input.tap", params: ["x": 900, "y": 300])
+        _ = try GuestMethodArea.dispatch([.make(InputMethod.self, GuestAPI.executeInput)], method: "input.tap", params: ["x": 900, "y": 300], observer: { nil })
         let point = PointInputWitness.points.last!
         precondition(abs(point[0] - 300 / 669.0) < 1e-9 && abs(point[1] - 51 / 951.0) < 1e-9)
         precondition(!icli_interface_geometry_current(nil))
@@ -66,7 +69,7 @@ func rejects(_ operation: () throws -> Void) {
             precondition(NSDictionary(dictionary: GuestAPI.activeScreenState()).isEqual(NSDictionary(dictionary: legacy)))
             precondition(PointInputWitness.snapshotReads == snapshots)
             _ = try GuestMethodArea.dispatch([.make(InputMethod.self, GuestAPI.executeInput)],
-                                            method: "input.tap", params: ["x": 600, "y": 300])
+                                            method: "input.tap", params: ["x": 600, "y": 300], observer: { nil })
             let fallbackPoint = PointInputWitness.points.last!
             precondition(abs(fallbackPoint[0] - 300 / 466.0) < 1e-9)
             precondition(abs(fallbackPoint[1] - 78 / 678.0) < 1e-9)

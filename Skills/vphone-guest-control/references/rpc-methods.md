@@ -40,6 +40,12 @@ invalid-request error, read the source named there instead of guessing keys.
 
 - Coordinates for `input.*` and `ui.element_at` are **screen points** as
   `device.screen` reports, not the pixels used by the socket's `tap`.
+- Every `input.*` method takes optional `observe` (boolean, false) and
+  `observe_delay_ms` (integer 0...5000, 300). With `observe: true` the reply
+  gains `observed: {frontmost_bundle_id, frontmost_verified, ui_element_count}`
+  after the delay; `ui_element_count` counts visible `ui.tree` elements and is
+  capped at 500 (500 means 500 or more). A failed observe gives
+  `observed: {observe_error}` and the action still succeeds.
 - **force methods** refuse to run unless the params carry `"force":true`.
   `methods.list` (no params) lists every method with its params and its
   `force` value (`always`, `never` or `when:<key>`, as for `services.kickstart`
