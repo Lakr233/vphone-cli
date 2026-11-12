@@ -813,7 +813,7 @@ public struct VPhoneVirtualMachineCreator {
         } catch let error as VPhoneGuestCallError where error.kind == .refused {
             throw VPhoneVirtualMachineCreationError.bootstrapFailed(error.message)
         } catch let error as VPhoneGuestCallError {
-            print("    \(error.message); following it")
+            print("    no reply yet (\(error.message)); waiting for the guest to finish")
         }
         while Date() < deadline {
             if let status = try? VPhoneHostAutomationProbe.rpc("bootstrap.status", params: [:], socketPath: socketPath, timeout: 10),
