@@ -110,7 +110,7 @@ keychain.list	VPhoneDaemon/Daemon/GuestKeychain.swift#list
 keychain.update	VPhoneDaemon/Daemon/GuestKeychain.swift#update
 launchd.getenv	icli:IcliSystem/Services.swift#launchdEnvironment
 launchd.setenv	icli:IcliKit/Services.swift#setLaunchdEnvironment
-launchd.unsetenv	icli:IcliKit/Services.swift#setLaunchdEnvironment
+launchd.unsetenv	VPhoneDaemon/Daemon/GuestAPI+Service.swift#executeService
 location.clear	icli:IcliKit/Location.swift#clearSimulatedLocation
 location.current	icli:IcliKit/Location.swift#currentLocation
 location.services	VPhoneDaemon/Daemon/GuestAPI+Location.swift#locationServices;VPhoneDaemon/Daemon/GuestAPI+Location.swift#setLocationServices
@@ -184,7 +184,7 @@ system.system_apps	icli:IcliKit/Device/SystemControl.swift#systemAppsVisibility
 system.uicache	VPhoneDaemon/Daemon/GuestAPI+AppDetail.swift#refreshAppRegistrations
 time.clock	VPhoneDaemon/Daemon/GuestAPI+Clock.swift#executeClock
 time.timezone	VPhoneDaemon/Daemon/GuestAPI+TimeZone.swift#executeTimeZone
-udid.clear	VPhoneDaemon/Daemon/GuestAPI+DeviceIdentity.swift#applyUDID
+udid.clear	VPhoneDaemon/Daemon/GuestAPI+DeviceIdentity.swift#executeDeviceIdentity
 udid.get	VPhoneDaemon/Daemon/GuestAPI+DeviceIdentity.swift#udidState
 udid.set	VPhoneDaemon/Daemon/GuestAPI+DeviceIdentity.swift#applyUDID
 ui.describe	icli:IcliKit/Input/Screen.swift#describeScreen

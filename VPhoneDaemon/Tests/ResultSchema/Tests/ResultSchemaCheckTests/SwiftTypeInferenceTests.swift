@@ -40,6 +40,100 @@ final class SwiftTypeInferenceTests: XCTestCase {
         XCTAssertEqual(try cell(mutated, "ternaries"), "agree:any,disagree:any")
     }
 
+    // MARK: nullability
+
+    func testAsAnyOptionalMarksNullable() throws {
+        let text = """
+        func cast(count: Int?, name: String) -> [String: Any] {
+            return ["count": count as Any?, "name": name as Any?, "both": count as Any? ?? NSNull(), "plain": count]
+        }
+        """
+        XCTAssertEqual(try cell(text, "cast"), "both:integer:null,count:integer:null,name:string:null,plain:integer")
+    }
+
+    func testNilAndNSNullOnlyAreNull() throws {
+        let text = """
+        func nulls(flag: Bool, id: Int) -> [String: Any] {
+            return ["a": NSNull(), "b": nil, "c": flag ? nil : id, "d": id as Any? ?? 0, "e": id!]
+        }
+        """
+        XCTAssertEqual(try cell(text, "nulls"), "a:null,b:null,c:integer:null,d:integer,e:integer")
+    }
+
+    // MARK: scoping of same-named bindings
+
+    func testClosureParameterDoesNotUnifyWithOuterLocal() throws {
+        let text = """
+        func scoped(rows: [String]) -> [String: Any] {
+            let item = 1
+            let names = rows.map { item in item.uppercased() }
+            return ["item": item, "names": names]
+        }
+        """
+        XCTAssertEqual(try cell(text, "scoped"), "item:integer,names:array")
+    }
+
+    func testOtherArmLocalsAreSkipped() throws {
+        let text = """
+        func run(method: Method) -> [String: Any] {
+            switch method {
+            case .a:
+                let value = 1
+                return ["value": value]
+            case .b:
+                let value = "x"
+                return ["value": value]
+            }
+        }
+        """
+        let keys = try SwiftExtractor.extract(source: text, function: "run", arm: "a", lookup: SwiftLookup())
+        XCTAssertEqual(catalogCell(keys), "value:integer")
+        let other = try SwiftExtractor.extract(source: text, function: "run", arm: "b", lookup: SwiftLookup())
+        XCTAssertEqual(catalogCell(other), "value:string")
+    }
+
+    func testCatchPatternBindsErrorType() throws {
+        let text = """
+        struct Failure: Error { let message: String }
+        func attempt() -> [String: Any] {
+            do { try work(); return ["ok": true] }
+            catch let error as Failure { return ["error": error.message] }
+        }
+        """
+        XCTAssertEqual(try cell(text, "attempt"), "error:string?,ok:boolean?")
+    }
+
+    func testBareCallPrefersEnclosingTypeMember() throws {
+        let text = """
+        struct A { static func state() -> Int { 1 }; static func report() -> [String: Any] { ["state": state()] } }
+        struct B { static func state() -> String { "s" } }
+        """
+        XCTAssertEqual(try cell(text, "report"), "state:integer")
+    }
+
+    func testSinkCallResolvesShapeAndCrossFileTypes() throws {
+        let sink = try read("swift-sink/sink.swift")
+        let shaped = sink.replacingOccurrences(
+            of: "setProgress([\"phase\": \"preparing\", \"layout\": layout])",
+            with: "let row = [\"layout\": layout]\n        setProgress([\"phase\": \"preparing\", \"layout\": row[\"layout\"]])")
+        XCTAssertNotEqual(shaped, sink)
+        let keys = try SwiftExtractor.extractSink(
+            source: shaped, function: "setProgress",
+            directory: [SwiftSource(file: "sink.swift", text: shaped)], file: "sink.swift"
+        )
+        XCTAssertTrue(catalogCell(keys).contains("layout:string"), catalogCell(keys))
+    }
+
+    func testNullWithDifferentTypesStaysAny() throws {
+        let text = """
+        func mixed(flag: Bool) -> [String: Any] {
+            if flag { return ["v": 1, "w": NSNull()] }
+            return ["v": "s", "w": 2.5]
+        }
+        """
+        XCTAssertEqual(try cell(text, "mixed"), "v:any,w:number:null")
+    }
+
     func testCStructFieldNeedsTheHeader() throws {
         let text = try read("swift-types.swift")
         let without = catalogCell(try SwiftExtractor.extract(source: text, function: "cStruct", arm: nil, lookup: SwiftLookup()))

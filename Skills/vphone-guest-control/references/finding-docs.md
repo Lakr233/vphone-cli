@@ -35,7 +35,7 @@ note's command lines.
 | `dyld ... @loader_path/.jbroot/...` crash, `sudo` fails to load a library | `Research/roothide_loader_links.md` |
 | ssh closes at once or `PAM: initialisation failed`, "no such user" | `Research/Guest/roothide_bootstrap_base.md` (open issues section) |
 | An RPC method's parameters, errors, or capability flags | `Research/vphoned_http_api.md` ("Method catalog", "HTTP and WebSocket contract") |
-| The host API listener, token, 401/403/415 | `Research/vphoned_http_api.md` ("Access control") |
+| The host API listener, token, 401/403/415/502 | `Research/vphoned_http_api.md` ("Access control") |
 | Taps or swipes land in the wrong place; gestures; keyboard | `Research/Guest/trackpad_gesture_mapping.md`, `Research/Guest/keyboard_event_pipeline.md` |
 | Skipping Setup Assistant, device state after boot | `Research/Guest/setup_assistant_skip.md` |
 | Developer Mode, DDI mount errors | `Research/Guest/devmode_xpc_protocol.md` |

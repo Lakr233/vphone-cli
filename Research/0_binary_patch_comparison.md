@@ -7309,3 +7309,25 @@ the patch off restored all 82 cache files and the undo log byte for byte,
 removed the added files, folders and journal, and brought back the original
 failure; turning it on again reproduced the same cache bytes. Other builds
 have not been tested and may need different matching.
+
+## 2026-11-10: standalone debug-library X1 lowering
+
+An LLDB launch selecting `/usr/lib/system/introspection/libdispatch.dylib` on
+iOS 27.1 `24A94425` stopped at `libdispatch_init`'s `pacibsppc` before app entry.
+Standalone debugger, view-hierarchy and GPU libraries are outside the shared
+cache, and an attached debugger can intercept their X1 faults before the
+inherited handler. The existing task-exception preservation does not cover
+remote-task debugger registrations.
+
+The Guest System set now declares twelve independently selectable debug images,
+including introspection dispatch and the FramePacing dependency
+`libMetalMetricsInterpose.dylib`. Selection is checked against actual Mach-O
+content across OS versions. Missing and ordinary arm64/arm64e images remain
+byte-identical and receive `NotApplicable` receipts. Complete conversion and
+native signing precede guest writes; a pristine backup supports deselection,
+and failed bundle sealing restores the prior executable, backup and seal.
+Shared CodeResources protection is reused. Unvalidated OS presets leave these
+images off by default.
+
+Measurements, source paths, no-op iOS 26 results and the remaining live-debugger
+validation boundary are in [debug_library_x1.md](Guest/debug_library_x1.md).

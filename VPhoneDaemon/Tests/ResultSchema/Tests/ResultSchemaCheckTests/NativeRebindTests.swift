@@ -28,7 +28,7 @@ final class NativeRebindTests: XCTestCase {
 
     func testNilThenAssignedInTryCatchUnionsTheValues() throws {
         XCTAssertEqual(try cell(Self.tryCatch, "hierarchy"),
-                       "a:integer,b:string,native_exception:any?,symbols:object")
+                       "a:integer,b:string,native_exception:string?,symbols:object")
         // Mutation: without the catch assignment the exception key is gone.
         let noCatch = Self.tryCatch.replacingOccurrences(of: "failure[@\"native_exception\"] = e.name; ", with: "")
         XCTAssertEqual(try cell(noCatch, "hierarchy"), "a:integer,b:string,symbols:object")

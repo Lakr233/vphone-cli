@@ -514,13 +514,16 @@ struct VPhoneCustomFirmwareInstaller {
         // the receipt. Each step that applies or reverts a guest patch adds to
         // it, so what it holds at the end is exactly the `Guest` part.
         var liveGuest = Set<String>()
+        var notApplicableGuest = Set<String>()
         // Resolved once the system volume is mounted (it needs the "was
         // installed" signal there), then used again by the Preboot pass.
         var priorGuest = Set<String>()
         var installedOTAUserland: VPhoneRestoreInfo.OSVersion?
-        do {
+        try autoreleasepool {
             // Every descriptor on a guest volume lives in this scope, so none
-            // is left open to hold the volume busy when it is unmounted.
+            // is left open to hold the volume busy when it is unmounted. The
+            // pool drains what Foundation and MachOKit autorelease here too,
+            // such as the guest's shared cache mapped by in-process patchers.
             let systemRoot = try openGuestVolume("system", device: "\(container)s1", in: work)
             let xartRoot = try openGuestVolume("xart", device: "\(container)s3", in: work)
             // `launchd.plist.bak` exists only after a full install's first
@@ -560,6 +563,7 @@ struct VPhoneCustomFirmwareInstaller {
                     homePodDisplay: homePodDisplay,
                     plan: plan,
                     priorGuest: priorGuest,
+                    notApplicable: &notApplicableGuest,
                     kernelPatches: receiptKernel,
                     environmentOnly: false,
                     strict: isOTAUpdate,
@@ -583,6 +587,7 @@ struct VPhoneCustomFirmwareInstaller {
                     homePodDisplay: homePodDisplay,
                     plan: plan,
                     priorGuest: priorGuest,
+                    notApplicable: &notApplicableGuest,
                     kernelPatches: receiptKernel,
                     environmentOnly: true,
                 )
@@ -628,7 +633,6 @@ struct VPhoneCustomFirmwareInstaller {
         // product repair on a non-iPhone, and the build spoof with no value set. A
         // guest whose board tree could not be recovered is not among them: its
         // repair is missing, and drift should keep saying so.
-        var notApplicableGuest = Set<String>()
         if !device.presentsBoard {
             notApplicableGuest.insert(FirmwareGuestSystemPatchSet.prebootBoardAudio)
         }
@@ -1363,6 +1367,7 @@ struct VPhoneCustomFirmwareInstaller {
         homePodDisplay: Data?,
         plan: VPhoneVirtualMachinePatchPlan?,
         priorGuest: Set<String>,
+        notApplicable: inout Set<String>,
         kernelPatches: Set<String>?,
         environmentOnly: Bool,
         strict: Bool = false,
@@ -1563,6 +1568,32 @@ struct VPhoneCustomFirmwareInstaller {
                 preserveEntitlements: true,
                 bundle: FirmwareGuestSystemPatchSet.ciBarcodeBundlePath,
             )
+        }
+
+        // Debuggers can receive these standalone libraries' X1 faults before
+        // the inherited translator. Inspect the actual image after cryptex
+        // installation; older arm64e libraries must not be backed up or re-signed.
+        for image in FirmwareGuestSystemPatchSet.arm64eX1DebugImages {
+            let enabled = plan == nil ? guestDevice.family == .iPhone : on(image.identifier)
+            do {
+                let outcome = try CustomFirmwareArm64eX1Installation.update(
+                    system: system,
+                    identifier: image.identifier, path: image.path, bundle: image.bundle,
+                    enabled: enabled, priorApplied: priorGuest.contains(image.identifier),
+                    sealBundle: { try sealGuestBundle(system: system, bundle: $0, preserveEntitlements: true) },
+                )
+                switch outcome {
+                case .applied, .notRevertible: live.insert(image.identifier)
+                case .notApplicable: notApplicable.insert(image.identifier)
+                case .inactive: break
+                }
+            } catch let error as CustomFirmwareArm64eX1Installation.RollbackFailure {
+                throw error
+            } catch {
+                failures.append(image.identifier)
+                print("  [!] \(image.identifier): patch step failed, left in its prior state: \(error)")
+                if priorGuest.contains(image.identifier) { live.insert(image.identifier) }
+            }
         }
 
         // 0. A cache whose span alone overruns the guest kernel's shared region

@@ -47,14 +47,17 @@ struct VPhoneCustomFirmwarePatchArm64eX1Command: ParsableCommand {
         commandName: "patch-arm64e-x1",
         abstract: "Lower X1 instructions in a supported standalone executable",
         discussion: """
-        Supports dyld, launchd, fsck, mount, CIBarcode and SpringBoardHomePopAccessibility. \
-        Other standalone userland \
-        instructions are handled on demand. Re-attests modified code pages.
+        Supports dyld, launchd, fsck, mount, CIBarcode, SpringBoardHomePopAccessibility \
+        and the standalone debug libraries declared in the Guest System patch set. \
+        Debug libraries require a complete conversion. Re-attests modified code pages.
         """,
     )
     @Argument(transform: URL.init(fileURLWithPath:)) var binary: URL
     func run() throws {
         try requireUntruncatedMachO(at: binary)
+        let debugImage = FirmwareGuestSystemPatchSet.arm64eX1DebugImages.first {
+            ($0.path as NSString).lastPathComponent == binary.lastPathComponent
+        }
         let identifier: String
         switch binary.lastPathComponent {
         case "dyld": identifier = FirmwareGuestSystemPatchSet.arm64eX1DyldBootstrap
@@ -65,14 +68,18 @@ struct VPhoneCustomFirmwarePatchArm64eX1Command: ParsableCommand {
             identifier = FirmwareGuestSystemPatchSet.arm64eX1HomePopAccessibility
         case "CIBarcode": identifier = FirmwareGuestSystemPatchSet.arm64eX1CIBarcode
         default:
-            throw ValidationError(
-                "X1 static lowering supports only dyld, launchd, fsck, mount, CIBarcode "
-                    + "and SpringBoardHomePopAccessibility",
-            )
+            guard let debugImage else {
+                throw ValidationError(
+                    "X1 static lowering supports only dyld, launchd, fsck, mount, CIBarcode, "
+                        + "SpringBoardHomePopAccessibility and declared standalone debug libraries",
+                )
+            }
+            identifier = debugImage.identifier
         }
         try CustomFirmwareArm64eX1.patch(
             fileAt: binary,
             identifier: identifier,
+            requireComplete: debugImage != nil,
             log: machOVerbLog,
         )
     }
