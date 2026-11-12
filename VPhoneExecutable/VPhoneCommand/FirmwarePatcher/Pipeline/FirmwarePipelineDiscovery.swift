@@ -102,7 +102,7 @@ extension FirmwarePipeline {
         readProductVersion(restoreDir, manifest: "BuildManifest.plist")
     }
 
-    static func manifestComponentPath(_ component: String, in restoreDir: URL) throws -> String {
+    public static func manifestComponentPath(_ component: String, in restoreDir: URL) throws -> String {
         let url = restoreDir.appendingPathComponent("BuildManifest.plist")
         let data = try Data(contentsOf: url, options: .mappedIfSafe)
         guard let root = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],

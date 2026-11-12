@@ -544,8 +544,14 @@ enum VPhoneFirmwarePreparer {
         let tree = staging.appendingPathComponent("cloudOS-\(release)", isDirectory: true)
         try fm.createDirectory(at: tree, withIntermediateDirectories: false)
         try VPhoneArchiveExtractor.extract(archive.file, into: tree, options: .intoHostDirectory)
-        print("[*] Restoring \(option.name) in a temporary vphone VM to extract its GPU driver...")
-        try VPhonePCCGPURecovery.stage(cloudOSDirectory: tree, into: phoneTree, expectedPlatformVersion: archive.version)
+        let image = tree.appending(path: try FirmwarePipeline.manifestComponentPath("OS", in: tree))
+        print("[*] Trying the \(option.name) OS image for its GPU driver...")
+        if try VPhonePCCGPUDriver.stage(fromSystemImage: image, into: phoneTree, expectedPlatformVersion: archive.version) {
+            print("[+] GPU driver extracted from the PCC OS image without a temporary restore")
+        } else {
+            print("[*] Restoring \(option.name) in a temporary vphone VM to extract its GPU driver...")
+            try VPhonePCCGPURecovery.stage(cloudOSDirectory: tree, into: phoneTree, expectedPlatformVersion: archive.version)
+        }
         let cached = cachedGPUDriver(for: archive, in: cacheDirectory)
         do {
             try storeGPUDriver(VPhonePCCGPUDriver.stagedBundle(in: phoneTree), at: cached)
