@@ -65,7 +65,7 @@ extension GuestAPI {
             var info = try collectDeviceSnapshot()
             info["jailbreak"] = jailbreakInfo()
             info["network"] = networkInfo()
-            info["screen"] = screenInfo()
+            info["screen"] = activeScreenState(lock: info["lock"] as? [String: Any])
             info["rotation"] = rotationInfo()
             info["brightness"] = brightnessState()
             info["volume"] = volume()
