@@ -310,7 +310,16 @@ final class VPhoneGuestControl {
 
     private func probe() async {
         do {
-            let response = try await http(method: "GET", path: "/v1/health")
+            let response: VPhoneHTTPResponse
+            do {
+                response = try await http(method: "GET", path: "/v1/health")
+            } catch where isConnected {
+                // A connection to a running vphoned still fails now and then
+                // (reset while connecting, about one probe in seventy). Try
+                // once more before the guest counts as gone, which refuses
+                // every call until the next probe.
+                response = try await http(method: "GET", path: "/v1/health")
+            }
             guard response.status == 200,
                   let info = try JSONSerialization.jsonObject(with: response.body) as? [String: Any],
                   info["api_version"] as? Int == 1
@@ -1264,6 +1273,8 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
 
     /// Per-read and per-write socket timeout.
     private static let socketTimeout: Duration = .seconds(120)
+    /// How long a new connection waits before its request is written.
+    private static let firstWriteDelayMicroseconds: useconds_t = 2000
 
     init(
         connection: VZVirtioSocketConnection,
@@ -1313,6 +1324,13 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         try source?.seek(toOffset: 0)
         let headers =
             "\(method) \(path) HTTP/1.1\r\nHost: vphoned\r\nConnection: close\r\nContent-Type: \(contentType)\r\nContent-Length: \(bodyLength)\r\n\r\n"
+        // A request written as soon as the connection is made is sometimes
+        // lost: the guest ends the connection within a millisecond with no
+        // reply, before vphoned sees it, and the call reports a guest that is
+        // not connected. On an iOS 27 guest that was 5 to 11 calls in 100 at
+        // one call a second; with this pause, none in 200, and VPhoneAPIProxy,
+        // which writes after a few event-loop hops, almost never saw it.
+        usleep(Self.firstWriteDelayMicroseconds)
         try write(fd, data: Data(headers.utf8))
         if let source {
             var sent: Int64 = 0
