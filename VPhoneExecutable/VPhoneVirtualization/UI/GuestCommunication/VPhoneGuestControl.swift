@@ -105,7 +105,7 @@ final class VPhoneGuestControl {
 
     /// The guest interface orientation: the one the window last read, or the
     /// one a menu rotation turned it to. Nil until one is known, and again
-    /// after a disconnect.
+    /// once a disconnect has lasted `orientationHold`.
     var interfaceOrientation: VPhoneDisplayOrientation? {
         didSet {
             guard interfaceOrientation != oldValue else { return }
@@ -121,6 +121,21 @@ final class VPhoneGuestControl {
     /// front or the rotation lock keeps the interface from following. Nil
     /// when the guest publishes none (no gravity provider, an older vphoned).
     @ObservationIgnored var deviceOrientation: VPhoneDisplayOrientation?
+
+    /// How long the orientation outlives a disconnect. A lost probe or a
+    /// restarted vphoned is back within a second or two with the guest turned
+    /// as it was, and a window that forgot the orientation would turn upright
+    /// and back. A guest that restarts stays away longer and shows its boot
+    /// screen unturned.
+    private static let orientationHold: Duration = .seconds(5)
+    @ObservationIgnored private var orientationExpiry: Task<Void, Never>?
+
+    private func forgetOrientation() {
+        orientationExpiry?.cancel()
+        orientationExpiry = nil
+        interfaceOrientation = nil
+        deviceOrientation = nil
+    }
 
     /// Takes the interface and device orientation from a `display.orientation`
     /// reply. A null interface reading (SpringBoard not answering) leaves the
@@ -306,6 +321,7 @@ final class VPhoneGuestControl {
         orderedLocation = nil
         device = nil
         setDisconnected()
+        forgetOrientation()
     }
 
     private func probe() async {
@@ -359,6 +375,8 @@ final class VPhoneGuestControl {
             }
             if !isConnected {
                 isConnected = true
+                orientationExpiry?.cancel()
+                orientationExpiry = nil
                 print("[control] connected to vphoned HTTP API (iOS \(guestIOSVersion ?? "?"))")
                 onConnect?(guestCapabilities)
                 let instance = info["instance"] as? String
@@ -404,8 +422,12 @@ final class VPhoneGuestControl {
         guestIPAddress = nil
         onGuestIPAddressChange?(nil)
         guestIOSVersion = nil
-        interfaceOrientation = nil
-        deviceOrientation = nil
+        orientationExpiry?.cancel()
+        orientationExpiry = Task { [weak self] in
+            try? await Task.sleep(for: Self.orientationHold)
+            guard !Task.isCancelled, let self, !isConnected else { return }
+            forgetOrientation()
+        }
         foldAngle = nil
         foldPosition = nil
         foldSweepSeconds = 0
