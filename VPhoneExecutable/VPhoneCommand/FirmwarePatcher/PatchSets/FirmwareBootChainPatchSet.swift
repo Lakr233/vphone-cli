@@ -111,7 +111,7 @@ public enum FirmwareBootChainPatchSet {
             VPhonePatchDeclaration(
                 identifier: "llb-cfw-display_scale",
                 title: "LLB display scale",
-                summary: "Gives an iPad guest its own screen scale instead of the virtual phone's 3x.",
+                summary: "Gives a guest, including iPad and iPhone SE, its own screen scale instead of the virtual phone's 3x.",
                 target: .firmware(.llb),
             ),
 

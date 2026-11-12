@@ -83,8 +83,33 @@ final class SwiftExtractorTests: XCTestCase {
         }
         """
         let cell = catalogCell(try SwiftExtractor.extract(source: text, function: "f"))
-        XCTAssertEqual(cell, "ext:any,n:integer,s:string,t:boolean,v:any")
-        XCTAssertNotEqual(cell, "ext:any,n:string,s:string,t:boolean,v:any")
+        XCTAssertEqual(cell, "ext:any,n:integer,s:string,t:boolean,v:integer:null")
+        XCTAssertNotEqual(cell, "ext:any,n:string,s:string,t:boolean,v:integer:null")
+    }
+
+    /// An `icli:` entry is a Swift file of the icli checkout and takes the Swift path; its
+    /// open object (`entitlements`) and typed arrays extract as `object` and `array`.
+    func testIcliEntryUsesSwiftPathForOpenObjectAndTypedArrays() throws {
+        let entry = try ProducerEntry.parse("icli:IcliKit/Apps/Apps.swift#appData").get()
+        XCTAssertTrue(entry.isIcli)
+        XCTAssertTrue(entry.path.hasSuffix(".swift"))
+        let icli = URL(fileURLWithPath: "/checkout/icli")
+        XCTAssertEqual(entry.url(repo: URL(fileURLWithPath: "/repo"), icli: icli).path, "/checkout/icli/Sources/IcliKit/Apps/Apps.swift")
+        let text = """
+        func appData() -> [String: Any] {
+            let entitlements: [String: Any] = [:]
+            let plugins: [String] = []
+            let count: Int = plugins.count
+            return ["entitlements": entitlements, "plugins": plugins, "count": count, "ok": true]
+        }
+        """
+        XCTAssertEqual(
+            catalogCell(try SwiftExtractor.extract(source: text, function: "appData")),
+            "count:integer,entitlements:object,ok:boolean,plugins:array"
+        )
+        // A genuinely mixed key stays any.
+        let mixed = text.replacingOccurrences(of: "\"count\": count", with: "\"count\": count > 1 ? 1 : \"many\"")
+        XCTAssertTrue(catalogCell(try SwiftExtractor.extract(source: mixed, function: "appData")).contains("count:any"))
     }
 
     func testMissingFunctionAndMissingArmAreUnresolvable() {

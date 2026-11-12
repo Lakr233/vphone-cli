@@ -52,6 +52,9 @@ jobs:
             | tee .build/xcodebuild.log \
             | xcbeautify --quiet --disable-logging --renderer github-actions
 
+      - name: Active point geometry regressions
+        run: zsh VPhoneDaemon/Tests/run-point-geometry-tests.sh --icli .build/XcodeBundle/SourcePackages/checkouts/icli
+
       # Quiet mode hides unannotated build-phase output, including the reason
       # a script phase failed. Keep the full log for that case.
       - name: Show raw build log

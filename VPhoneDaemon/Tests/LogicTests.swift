@@ -773,22 +773,22 @@ enum LogicTests {
 
         var spec: MethodSpec {
             switch self {
-            case .echo: MethodSpec(.required("a", .string), .optional("b", .integer))
+            case .echo: MethodSpec(.required("a", .string, "a"), .optional("b", .integer, "b"), summary: "echo fixture")
             case .always:
-                MethodSpec(.required("a", .string), force: .always { p in
+                MethodSpec(.required("a", .string, "a"), summary: "always fixture", force: .always("act on <a>") { p in
                     guard let a = p["a"] as? String, !a.isEmpty else { throw GuestAPIError.invalidRequest("a is required") }
                     return "act on \(a)"
                 })
-            case .when: MethodSpec(.optional("kill", .boolean), force: .when("kill") { _ in "kill fixture" })
+            case .when: MethodSpec(.optional("kill", .boolean, "kill"), summary: "when fixture", force: .when("kill", "kill fixture") { _ in "kill fixture" })
             case .varies:
-                MethodSpec(.optional("userspace", .boolean), force: .always { p in
+                MethodSpec(.optional("userspace", .boolean, "userspace"), summary: "varies fixture", force: .always("reboot fixture") { p in
                     GuestMethodArea.flag(p, "userspace") ? "restart fixture userspace" : "reboot fixture"
                 })
             case .declared:
-                MethodSpec(.required("a", .string), result: [
+                MethodSpec(.required("a", .string, "a"), summary: "declared fixture", result: [
                     .optional("z", .boolean), .required("x", .integer), .hidden("y", .string), .required("e", .object).open(),
                 ])
-            case .empty: MethodSpec(result: [])
+            case .empty: MethodSpec(summary: "empty fixture", result: [])
             }
         }
     }
@@ -801,7 +801,7 @@ enum LogicTests {
 
         var spec: MethodSpec {
             LogicTests.specCount += 1
-            return MethodSpec()
+            return MethodSpec(summary: "counted fixture")
         }
     }
 
@@ -847,19 +847,19 @@ enum LogicTests {
 
         let catalog = GuestMethodArea.catalog([area])
         let expected: [String: Any] = ["methods": [
-            ["name": "fixture.echo", "params": [
-                ["name": "a", "type": "string", "required": true],
-                ["name": "b", "type": "integer", "required": false],
+            ["name": "fixture.echo", "description": "echo fixture", "params": [
+                ["name": "a", "type": "string", "required": true, "description": "a"],
+                ["name": "b", "type": "integer", "required": false, "description": "b"],
             ], "force": "never"],
-            ["name": "fixture.always", "params": [["name": "a", "type": "string", "required": true]], "force": "always"],
-            ["name": "fixture.when", "params": [["name": "kill", "type": "boolean", "required": false]], "force": "when:kill"],
-            ["name": "fixture.varies", "params": [["name": "userspace", "type": "boolean", "required": false]], "force": "always"],
-            ["name": "fixture.declared", "params": [["name": "a", "type": "string", "required": true]], "force": "never", "result": [
-                ["name": "e", "type": "object", "required": true, "open": true],
-                ["name": "x", "type": "integer", "required": true, "open": false],
-                ["name": "z", "type": "boolean", "required": false, "open": false],
+            ["name": "fixture.always", "description": "always fixture", "params": [["name": "a", "type": "string", "required": true, "description": "a"]], "force": "always", "force_action": "act on <a>"],
+            ["name": "fixture.when", "description": "when fixture", "params": [["name": "kill", "type": "boolean", "required": false, "description": "kill"]], "force": "when:kill", "force_action": "kill fixture"],
+            ["name": "fixture.varies", "description": "varies fixture", "params": [["name": "userspace", "type": "boolean", "required": false, "description": "userspace"]], "force": "always", "force_action": "reboot fixture"],
+            ["name": "fixture.declared", "description": "declared fixture", "params": [["name": "a", "type": "string", "required": true, "description": "a"]], "force": "never", "result": [
+                ["name": "e", "type": "object", "required": true, "open": true, "nullable": false],
+                ["name": "x", "type": "integer", "required": true, "open": false, "nullable": false],
+                ["name": "z", "type": "boolean", "required": false, "open": false, "nullable": false],
             ]],
-            ["name": "fixture.empty", "params": [] as [[String: Any]], "force": "never", "result": [] as [[String: Any]]],
+            ["name": "fixture.empty", "description": "empty fixture", "params": [] as [[String: Any]], "force": "never", "result": [] as [[String: Any]]],
         ]]
         expectEqual(json(catalog), json(expected), "catalog")
 
@@ -882,7 +882,7 @@ enum LogicTests {
         // methods.list reaches the dispatch through the same walk GuestAPI.execute uses
         enum FixtureCore: String, GuestMethod {
             case methodsList = "methods.list"
-            var spec: MethodSpec { MethodSpec() }
+            var spec: MethodSpec { MethodSpec(summary: "core fixture") }
         }
         nonisolated(unsafe) var table: [GuestMethodArea] = []
         table = [

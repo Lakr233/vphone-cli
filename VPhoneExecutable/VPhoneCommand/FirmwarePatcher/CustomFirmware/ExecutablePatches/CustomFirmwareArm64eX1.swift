@@ -1,4 +1,4 @@
-// Static ARM64E_X1 lowering for the pre-handler and fork-sensitive boot closure.
+// Static ARM64E_X1 lowering for the boot closure and standalone guest libraries.
 
 import Foundation
 import os
@@ -547,6 +547,24 @@ public enum CustomFirmwareArm64eX1 {
         return (result, slots)
     }
 
+    /// Standalone debug libraries cannot fall back to the inherited exception
+    /// handler while LLDB owns their faults. Refuse a partial conversion before
+    /// publishing any bytes, including when a later universal slice is incomplete.
+    public static func lowerCompletelyAndReattest(
+        _ data: inout Data, identifier: String,
+    ) throws -> (result: Result, slots: [CustomFirmwareSlotRehash]) {
+        var patched = data
+        let outcome = try lowerAndReattest(&patched, identifier: identifier)
+        guard outcome.result.unvisitedCandidates == 0 else {
+            let examples = outcome.result.unvisitedExamples.map { String(format: "0x%X", $0) }.joined(separator: ", ")
+            throw PatcherError.invalidFormat(
+                "X1 lowering left \(outcome.result.unvisitedCandidates) unvisited candidates (\(examples)); refusing partial debug-library conversion",
+            )
+        }
+        data = patched
+        return outcome
+    }
+
     private static func isUniversal(_ data: Data) -> Bool {
         data.count >= 8 && [UInt32(0xBEBA_FECA), 0xBFBA_FECA].contains(data.loadLE(UInt32.self, at: 0))
     }
@@ -621,9 +639,11 @@ public enum CustomFirmwareArm64eX1 {
         try patch(fileAt: url, identifier: FirmwareGuestSystemPatchSet.arm64eX1DyldBootstrap, log: log)
     }
 
-    public static func patch(fileAt url: URL, identifier: String, log: (String) -> Void = { print($0) }) throws {
+    public static func patch(fileAt url: URL, identifier: String, requireComplete: Bool = false, log: (String) -> Void = { print($0) }) throws {
         var data = try Data(contentsOf: url)
-        let (result, slots) = try lowerAndReattest(&data, identifier: identifier)
+        let (result, slots) = try requireComplete
+            ? lowerCompletelyAndReattest(&data, identifier: identifier)
+            : lowerAndReattest(&data, identifier: identifier)
         guard !result.records.isEmpty else {
             log("  [·] X1: no reachable instructions to lower (unvisited candidates: \(result.unvisitedCandidates))")
             return

@@ -7,7 +7,7 @@ static inline NSDictionary *VPhoneGyroscopeEncode(VPhoneGyroscopeState state) {
     return @{@"enabled": @(state.enabled), @"x": @(state.x), @"y": @(state.y), @"z": @(state.z)};
 }
 
-// expect: vp_gyro_get => enabled:any,provider:any,provider_running:any,units:string,x:any,y:any,z:any
+// expect: vp_gyro_get => enabled:any,provider:object:null,provider_running:any,units:string,x:any,y:any,z:any
 NSDictionary *vp_gyro_get(void) {
     CFPreferencesSynchronize(CFSTR(VP_GYRO_DOMAIN), CFSTR("mobile"), kCFPreferencesAnyHost);
     VPhoneGyroscopeState state;
@@ -47,7 +47,7 @@ void vpWriteExternalRequest(BOOL enabled, NSInteger width, NSInteger height, NSS
     [request writeToFile:vpExternalRequest atomically:YES];
 }
 
-// expect: vpApplyExternalRequest@writer => enabled:any,error:any?,height:integer,name:string?,nonce:string,ok:boolean?,width:integer
+// expect: vpApplyExternalRequest@writer => enabled:any,error:string?,height:integer,name:string?,nonce:string,ok:boolean?,width:integer
 static void vpApplyExternalRequest(void) {
     NSDictionary *request = [NSDictionary dictionaryWithContentsOfFile:vpExternalRequest];
     if (![request[@"nonce"] isKindOfClass:NSString.class]) return;
@@ -71,7 +71,7 @@ void vpInstallExternalDisplay(void) {
 }
 
 // A literal on either side of `?:` counts; the status plist takes every writer's literal.
-// expect: vpExternalDiagnostics => enabled:any,error:any?,height:integer?,name:string?,nonce:string?,ok:boolean?,width:integer?
+// expect: vpExternalDiagnostics => enabled:any,error:string?,height:integer?,name:string?,nonce:string?,ok:boolean?,width:integer?
 NSDictionary *vpExternalDiagnostics(void) {
     return [NSDictionary dictionaryWithContentsOfFile:vpExternalStatus] ?: @{@"ok": @NO, @"enabled": @NO};
 }
@@ -130,7 +130,7 @@ NSDictionary *bridgeRemote(void) {
 
 // Type inference (REQ-RPC-007): casts, declared locals and parameters give a type; an
 // external property, an NSNumber or `?: NSNull.null` gives any.
-// expect: nativeTypes => array:array,cast:integer,count:integer,dict:object,external:any,float:number,fmt:string,int:integer,label:string,mixed:any,no:boolean,nullable:any,on:boolean,ratio:number,text:string,wrapped:any,yes:boolean
+// expect: nativeTypes => array:array,cast:integer,count:integer,dict:object,external:any,float:number,fmt:string,int:integer,label:string,mixed:any,no:boolean,nullable:string:null,on:boolean,ratio:number,text:string,wrapped:any,yes:boolean
 NSDictionary *nativeTypes(int n, double ratio, BOOL on, NSString *label, NSNumber *wrapped) {
     return @{@"count": @(n), @"ratio": @(ratio), @"on": @(on), @"label": label, @"wrapped": wrapped,
              @"yes": @YES, @"no": @NO, @"int": @7, @"float": @1.5, @"text": @"t", @"array": @[@1],
@@ -188,4 +188,152 @@ NSDictionary *icliRowDictionary(id proxy) {
         d[@"name"] = @"n";
     }
     return d;
+}
+
+// Typed forms: each key takes the type its ObjC form gives it. FormsPoint is
+// declared in the lookup source (native-icli.m).
+static BOOL formsConfigured;
+static double formsClock(void) { return 1.5; }
+static NSString *formsLabel(int n) { return n ? @"x" : nil; }
+@interface FormsWalker : NSObject {
+@public
+    int queries, seen;
+    double start;
+    NSMutableArray *reasons, *visited;
+    NSPredicate *predicate;
+}
+@property (nonatomic) NSInteger level;
+- (NSInteger)depth;
+@end
+
+// Calls with a declared return type, file-scope variables, members, comparisons and arithmetic.
+// expect: formsCalls => clock:number,configured:boolean,elapsed:number,flag:integer,label:string,level:integer,pid:integer,queries:integer,reasons:array
+NSDictionary *formsCalls(FormsWalker *walker, pid_t pid) {
+    return @{@"pid": @(pid), @"label": formsLabel(1) ?: @"", @"clock": @(formsClock()),
+             @"configured": @(formsConfigured), @"queries": @(walker->queries),
+             @"elapsed": @(formsClock() - walker->start), @"level": @(walker.level),
+             @"flag": @(walker->queries != 0), @"reasons": walker->reasons};
+}
+
+// NSNull on some path is nullable, never optional or any; two different types are still any.
+// expect: formsNull => depth:integer:null,mixed:any,provider:object:null,tag:string:null,when:boolean:null
+NSDictionary *formsNull(BOOL on, id status, FormsWalker *walker, NSString *tag) {
+    id depth = on ? @([walker depth]) : NSNull.null;
+    NSMutableDictionary *r = [NSMutableDictionary dictionary];
+    r[@"depth"] = depth;
+    r[@"mixed"] = on ? @1 : @"a";
+    if ([status isKindOfClass:NSDictionary.class]) {
+        r[@"provider"] = status;
+    } else {
+        r[@"provider"] = [NSNull null];
+    }
+    r[@"tag"] = tag ?: [NSNull null];
+    r[@"when"] = on ? [NSNull null] : @YES;
+    return r;
+}
+
+// Arrays by literal, `alloc`, `addObject:` and a typed local; an open object is an object.
+// expect: formsArrays => failed:array,names:array,open:object,roots:array,sorted:array
+NSDictionary *formsArrays(NSDictionary *entitlements, NSMutableSet *reasons) {
+    NSMutableArray *failed = [[NSMutableArray alloc] init];
+    id names = [NSMutableArray array];
+    [names addObject:@"n"];
+    NSArray *roots = @[@"a"];
+    return @{@"failed": failed, @"names": names, @"roots": roots, @"open": entitlements ?: @{},
+             @"sorted": [reasons.allObjects sortedArrayUsingSelector:@selector(compare:)]};
+}
+
+// An exception's name.
+// expect: formsException => native_exception:string?,ok:boolean
+NSDictionary *formsException(void) {
+    NSMutableDictionary *r = [@{@"ok": @YES} mutableCopy];
+    @try {
+        formsClock();
+    } @catch (NSException *exception) {
+        r[@"native_exception"] = exception.name;
+    }
+    return r;
+}
+
+// A struct field read through the lookup.
+// expect: formsStruct => enabled:boolean,x:number
+NSDictionary *formsStruct(FormsPoint point) {
+    return @{@"enabled": @(point.enabled), @"x": @(point.x)};
+}
+
+// `[v isKindOfClass:C.class]` types the value it guards, in an `if` and in a ternary.
+// expect: formsGuard => ipv4:object,router:string?
+NSDictionary *formsGuard(NSDictionary *service) {
+    NSDictionary *ipv4 = [service[@"IPv4"] isKindOfClass:NSDictionary.class] ? service[@"IPv4"] : @{};
+    NSMutableDictionary *out = [NSMutableDictionary dictionary];
+    out[@"ipv4"] = ipv4;
+    if ([ipv4[@"Router"] isKindOfClass:NSString.class]) out[@"router"] = ipv4[@"Router"];
+    return out;
+}
+
+// Foundation selectors, comparisons and arithmetic.
+// expect: formsSelectors => alive:boolean,fresh:integer,ms:number,total:integer,when:number
+NSDictionary *formsSelectors(NSNumber *n, NSDate *d, double age, int count) {
+    return @{@"alive": @([n boolValue]), @"total": @([n unsignedLongLongValue]),
+             @"when": @([d timeIntervalSince1970]), @"fresh": @(age >= 0 && age < 10),
+             @"ms": @(count * 1000.0)};
+}
+
+// SDK property chains the sources do not declare: CoreLocation, NSDate, NSProcessInfo.
+// expect: formsSdkChains => age:number,lat:number,simulated:boolean,up:number,when:number
+NSDictionary *formsSdkChains(CLLocation *location) {
+    return @{@"lat": @(location.coordinate.latitude),
+             @"simulated": @(location.sourceInformation.isSimulatedBySoftware),
+             @"age": @(MAX(0, -location.timestamp.timeIntervalSinceNow)),
+             @"when": @(NSDate.date.timeIntervalSince1970),
+             @"up": @(NSProcessInfo.processInfo.systemUptime)};
+}
+
+// A member chain ending in count, a CFIndex, a boxed C string, a block's declared result and a date formatter.
+// expect: formsScalars => fresh:boolean,length:integer,path:string,seen:integer,stamp:string
+NSDictionary *formsScalars(FormsWalker *walker, CFIndex length, const char *path, NSDate *date, NSDateFormatter *formatter) {
+    BOOL (^fresh)(NSDate *) = ^BOOL(NSDate *d) { return YES; };
+    return @{@"seen": @(walker->visited.count), @"length": @(length), @"path": @(path),
+             @"fresh": @(fresh(date)), @"stamp": [formatter stringFromDate:date]};
+}
+
+// Receivers reached through `->`, a predicate filter and a `const` pointer declaration.
+// expect: formsReceivers => filtered:array,prefix:string,sorted:array
+NSDictionary *formsReceivers(FormsWalker *walker, NSDictionary *texts) {
+    static NSString *const kPrefix = @"p";
+    return @{@"sorted": [walker->reasons.allObjects sortedArrayUsingSelector:@selector(compare:)],
+             @"filtered": [texts.allKeys filteredArrayUsingPredicate:walker->predicate], @"prefix": kPrefix};
+}
+
+// `array.firstObject[@"k"]` reads what the dictionaries added to the array carry; integer and number join as number.
+// expect: formsElements => pixels:array,plus:number
+NSDictionary *formsElements(double level) {
+    NSMutableArray *displays = [NSMutableArray array];
+    NSMutableArray *pixels = [NSMutableArray array];
+    [displays addObject:@{@"pixels": pixels, @"plus": @(level)}];
+    NSMutableDictionary *result = [NSMutableDictionary dictionary];
+    result[@"pixels"] = displays.firstObject[@"pixels"] ?: @[];
+    result[@"plus"] = displays.firstObject[@"plus"] ?: @0;
+    return result;
+}
+
+// Several declarators in one statement, the second after an initializer.
+// expect: formsDeclarators => failed:array,ok:array
+NSDictionary *formsDeclarators(void) {
+    NSMutableArray *ok = [NSMutableArray array], *failed = [NSMutableArray array];
+    return @{@"ok": ok, @"failed": failed};
+}
+
+// A wrapper that serializes the dictionary literal it is given.
+// expect: formsWrapped => source:string,verified:boolean
+char *formsWrapped(void) {
+    return launchJSON(@{@"verified": @YES, @"source": @"runningboard"});
+}
+
+// A boxed C comparison or logical expression is an `int`; only BOOL values and YES/NO literals are boolean.
+// expect: formsBoxedC => and:integer,eq:integer,ge:integer,lt:integer,ne:integer,not:integer,or:integer,real:boolean,yes:boolean
+NSDictionary *formsBoxedC(int a, int b) {
+    BOOL real = a > b;
+    return @{@"eq": @(a == b), @"ne": @(a != b), @"lt": @(a < b), @"ge": @(a >= b), @"and": @(a && b),
+             @"or": @(a || b), @"not": @(!a), @"real": @(real), @"yes": @YES};
 }

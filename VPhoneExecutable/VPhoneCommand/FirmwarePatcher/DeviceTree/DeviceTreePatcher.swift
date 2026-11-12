@@ -377,6 +377,28 @@ public final class DeviceTreePatcher: BufferedPatcher {
         if presentsGuest {
             patchesToApply.removeAll { !Self.deviceNeutralPatches.contains($0.patchID) }
         }
+        // SE 3 is the first supported iPhone with a Home button. Use its
+        // concrete board value only in the installed tree; restore must keep
+        // the virtual board's presentation. Other devices retain their bytes.
+        if presentsGuest, device == .iPhone14_6, gateAllows("devicetree-cfw-home_button_type") {
+            guard let sourceTree else {
+                throw PatcherError.fileNotFound("DeviceTree: SE 3's board tree is needed for its Home button")
+            }
+            let source = try parsePayload(sourceTree)
+            let buttons = try resolveNode(source, path: ["device-tree", "buttons"])
+            let home = try findProperty(buttons, name: "home-button-type")
+            guard home.flags & Self.placeholderFlag == 0, home.value.count == 4 else {
+                throw PatcherError.invalidFormat("DeviceTree: SE 3 has no concrete 32-bit home-button-type")
+            }
+            patchesToApply = patchesToApply.map { patch in
+                guard patch.patchID == "devicetree-cfw-home_button_type" else { return patch }
+                return PropertyPatch(
+                    nodePath: patch.nodePath, property: patch.property, length: patch.length, flags: 0,
+                    value: .bytes(home.value), patchID: patch.patchID,
+                    description: "Set Home button type from \(device.productName)'s board",
+                )
+            }
+        }
         // An XS-family userland has its own artwork and no Dynamic Island: the
         // artwork patch writes its subtype, and the island patch removes the
         // property instead of setting it.
