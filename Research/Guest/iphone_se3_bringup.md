@@ -95,3 +95,5 @@ On that base with this change:
 
 These are targeted tests and native firmware replays. They do not substitute
 for a fresh 2.16.1 restore or claim that the full test corpus was run.
+
+For the later iOS 18.6.2 pairing, see [SE 3 on iOS 18](iphone_se3_ios18.md).
