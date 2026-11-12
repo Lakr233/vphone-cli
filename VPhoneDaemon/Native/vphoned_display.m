@@ -91,11 +91,22 @@ static NSString *vpLayoutString(id object, NSString *key, NSUInteger limit, NSMu
     return [value isKindOfClass:NSString.class] && [value length] <= limit ? value : nil;
 }
 
-static NSString *vpLayoutUUID(id object, NSString *key, NSMutableDictionary *failures) {
-    id value = vpLayoutValue(object, key, failures);
-    if ([value isKindOfClass:NSUUID.class]) return [(NSUUID *)value UUIDString];
-    if (![value isKindOfClass:NSString.class] || [value length] > 128) return nil;
-    return [[NSUUID alloc] initWithUUIDString:value].UUIDString;
+// Only a verified getter returning nil establishes absence. Keep unreadable or
+// malformed UUIDs explicit so capture cannot mistake them for UUID-less panels.
+static id vpLayoutUUID(id object, NSString *key, NSMutableDictionary *failures) {
+    if (!object || !vpLayoutSignature(object, key, @encode(id), @[], failures)) return NSNull.null;
+    @try {
+        id value = ((id (*)(id, SEL))objc_msgSend)(object, NSSelectorFromString(key));
+        if (!value) return nil;
+        if ([value isKindOfClass:NSUUID.class]) return [(NSUUID *)value UUIDString];
+        if ([value isKindOfClass:NSString.class] && [value length] <= 128) {
+            NSString *uuid = [[NSUUID alloc] initWithUUIDString:value].UUIDString;
+            if (uuid) return uuid;
+        }
+    } @catch (NSException *exception) {
+        (void)exception;
+    }
+    return NSNull.null;
 }
 
 static NSDictionary *vpLayoutRect(id object, NSString *key, NSMutableDictionary *failures) {
@@ -133,7 +144,7 @@ static NSDictionary *vpLayoutRow(id monitor, NSMutableDictionary *failures) {
         NSString *name = vpLayoutString(configuration, key, 128, failures);
         if (name) row[[key isEqual:@"name"] ? @"display_name" : @"device_name"] = name;
     }
-    NSString *uuid = vpLayoutUUID(configuration, @"hardwareIdentifier", failures);
+    id uuid = vpLayoutUUID(configuration, @"hardwareIdentifier", failures);
     if (uuid) row[@"hardware_identifier"] = uuid;
     NSNumber *scale = vpLayoutNumber(configuration, @"pointScale", failures);
     if (scale && scale.doubleValue > 0) row[@"point_scale"] = scale;
@@ -203,7 +214,7 @@ static NSDictionary *vpLayoutCapture(NSMutableDictionary *capture) {
                         if (value) item[key] = value;
                     }
                     NSDictionary *bounds = vpLayoutRect(display, @"bounds", failures);
-                    NSString *uuid = vpLayoutUUID(display, @"uniqueId", failures);
+                    id uuid = vpLayoutUUID(display, @"uniqueId", failures);
                     if (bounds) item[@"bounds"] = bounds;
                     if (uuid) item[@"uniqueId"] = uuid;
                     [inventory addObject:item];

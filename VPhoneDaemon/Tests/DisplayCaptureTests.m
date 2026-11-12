@@ -1,5 +1,13 @@
 #import <Foundation/Foundation.h>
+#import "../Native/Include/VphonedNative.h"
+#define vp_display_layout productionDisplayLayout
+#import "../Native/vphoned_display.m"
+#undef vp_display_layout
+#include <dlfcn.h>
+static void *captureSymbol(void *handle, const char *name);
+#define dlsym captureSymbol
 #import "../Native/vphoned_display_capture.m"
+#undef dlsym
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,8 +15,51 @@
 
 static dispatch_semaphore_t layoutEntered, layoutRelease;
 static atomic_bool blockLayout;
+static NSArray<NSDictionary *> *captureLayouts;
+static NSUInteger captureLayoutIndex;
+
+@interface VPUUIDFixture : NSObject
+@property(nonatomic, strong) id hardwareIdentifier;
+@property(nonatomic, strong) id uniqueId;
+@end
+@implementation VPUUIDFixture
+@end
+
+@interface VPThrowingUUIDFixture : NSObject
+@end
+@implementation VPThrowingUUIDFixture
+- (id)hardwareIdentifier { @throw [NSException exceptionWithName:@"UUID read" reason:@"unavailable" userInfo:nil]; }
+- (id)uniqueId { @throw [NSException exceptionWithName:@"UUID read" reason:@"unavailable" userInfo:nil]; }
+@end
+
+@interface VPScalarUUIDFixture : NSObject
+@end
+@implementation VPScalarUUIDFixture
+- (int)hardwareIdentifier { return 0; }
+- (int)uniqueId { return 0; }
+@end
+
+static void renderFixture(mach_port_t port, CFStringRef name, void *value, int32_t x, int32_t y) {
+    (void)port; (void)name; (void)x; (void)y;
+    IOSurfaceRef surface = value;
+    if (IOSurfaceLock(surface, 0, NULL) != KERN_SUCCESS) abort();
+    unsigned char *pixels = IOSurfaceGetBaseAddress(surface);
+    if (!pixels) abort();
+    pixels[0] = 255;
+    pixels[3] = 255;
+    if (IOSurfaceUnlock(surface, 0, NULL) != KERN_SUCCESS) abort();
+}
+
+static void *captureSymbol(void *handle, const char *name) {
+    return strcmp(name, "CARenderServerRenderDisplay") == 0 ? (void *)renderFixture : dlsym(handle, name);
+}
 
 NSDictionary<NSString *, id> *vp_display_layout(void) {
+    if (captureLayouts) {
+        NSUInteger index = MIN(captureLayoutIndex, captureLayouts.count - 1);
+        captureLayoutIndex++;
+        return captureLayouts[index];
+    }
     dispatch_semaphore_signal(layoutEntered);
     if (atomic_load(&blockLayout)
         && dispatch_semaphore_wait(layoutRelease, dispatch_time(DISPATCH_TIME_NOW, 25 * NSEC_PER_SEC)) != 0) {
@@ -44,12 +95,79 @@ static NSMutableDictionary *layout(void) {
               @"monitors": @[monitor], @"cadisplays": [NSMutableArray arrayWithObject:display]} mutableCopy];
 }
 
+static NSMutableDictionary *coverLayout(void) {
+    NSMutableDictionary *item = layout();
+    NSMutableDictionary *monitor = item[@"monitors"][0], *display = item[@"cadisplays"][0];
+    [monitor removeObjectForKey:@"hardware_identifier"];
+    monitor[@"display_id"] = @1;
+    monitor[@"display_name"] = @"LCD";
+    monitor[@"interface_orientation"] = @1;
+    monitor[@"bounds"] = rect(466, 678);
+    monitor[@"reference_bounds"] = rect(466, 678);
+    [display removeObjectForKey:@"uniqueId"];
+    display[@"displayId"] = @1;
+    display[@"name"] = @"LCD";
+    display[@"bounds"] = rect(1398, 2034);
+    [display removeObjectForKey:@"currentOrientation"];
+    [display removeObjectForKey:@"nativeOrientation"];
+    for (int i = 0; i < 6; i++) {
+        NSMutableDictionary *other = [layout()[@"cadisplays"][0] mutableCopy];
+        other[@"displayId"] = @(i + 2);
+        other[@"name"] = [NSString stringWithFormat:@"Other %d", i];
+        if (i != 0) [other removeObjectForKey:@"uniqueId"];
+        [item[@"cadisplays"] addObject:other];
+    }
+    return item;
+}
+
 static void sourceChecks(void) {
     NSString *reason = nil;
     NSMutableDictionary *valid = layout();
     NSDictionary *source = vpCaptureSource(valid, &reason);
     require(source != nil && [source[@"display_id"] isEqual:@7], "unique native identity must bind");
     require([source[@"bounds_pixels"] isEqual:rect(2007, 2853)], "capture must retain native bounds");
+
+    source = vpCaptureSource(coverLayout(), &reason);
+    require(source != nil, "a cover with UUIDs absent on both sides must bind its unique numeric identity");
+    require(source[@"hardware_identifier"] == nil, "UUID-less binding must not manufacture a hardware UUID");
+    require([source[@"bounds_pixels"] isEqual:rect(1398, 2034)], "cover capture must retain native bounds");
+
+    for (NSString *field in @[@"displayId", @"name"]) {
+        NSMutableDictionary *item = coverLayout();
+        NSMutableDictionary *other = [item[@"cadisplays"][0] mutableCopy];
+        other[@"displayId"] = @99;
+        other[@"name"] = @"Extra";
+        other[field] = item[@"cadisplays"][0][field];
+        [item[@"cadisplays"] addObject:other];
+        require(vpCaptureSource(item, &reason) == nil, "UUID-less ID and render-name collisions must fail");
+    }
+    for (NSString *field in @[@"displayId", @"name", @"pointScale", @"bounds"]) {
+        NSMutableDictionary *item = coverLayout();
+        [item[@"cadisplays"][0] removeObjectForKey:field];
+        require(vpCaptureSource(item, &reason) == nil, "UUID-less binding requires numeric identity, name, scale and geometry");
+    }
+    NSMutableDictionary *named = coverLayout();
+    [named[@"monitors"][0] removeObjectForKey:@"display_name"];
+    require(vpCaptureSource(named, &reason) == nil, "UUID-less binding requires the FrontBoard render name");
+    named[@"monitors"][0][@"display_name"] = @"Inner";
+    require(vpCaptureSource(named, &reason) == nil, "UUID-less FrontBoard and render names must agree");
+    for (NSString *field in @[@"hardware_identifier", @"uniqueId"]) {
+        for (id value in @[@"11111111-2222-4333-8444-555555555555", @"", @"not-a-uuid",
+                           @"00000000-0000-0000-0000-000000000000", NSNull.null]) {
+            NSMutableDictionary *item = coverLayout();
+            item[[field isEqual:@"uniqueId"] ? @"cadisplays" : @"monitors"][0][field] = value;
+            require(vpCaptureSource(item, &reason) == nil, "asymmetric or invalid UUIDs cannot use the UUID-less fallback");
+        }
+    }
+    NSMutableDictionary *mismatch = layout();
+    mismatch[@"cadisplays"][0][@"uniqueId"] = @"51E247B8-F389-4F84-BE57-FE54747ED152";
+    require(vpCaptureSource(mismatch, &reason) == nil, "present hardware UUIDs must match");
+    mismatch = coverLayout();
+    mismatch[@"cadisplays"][0][@"bounds"] = rect(1398, 2031);
+    require(vpCaptureSource(mismatch, &reason) == nil, "UUID-less native bounds must match scaled reference geometry");
+    mismatch = coverLayout();
+    mismatch[@"cadisplays"][0][@"pointScale"] = @2;
+    require(vpCaptureSource(mismatch, &reason) == nil, "UUID-less display scales must agree");
 
     for (NSString *uuid in @[@"", @"00000000-0000-0000-0000-000000000000"]) {
         NSMutableDictionary *item = layout();
@@ -78,6 +196,9 @@ static void sourceChecks(void) {
         [capped[@"cadisplays"] addObject:other];
     }
     require(vpCaptureSource(capped, &reason) == nil, "a potentially truncated inventory cannot prove uniqueness");
+    NSMutableDictionary *cappedCover = coverLayout();
+    [cappedCover[@"cadisplays"] addObjectsFromArray:[capped[@"cadisplays"] subarrayWithRange:NSMakeRange(1, 16 - [cappedCover[@"cadisplays"] count])]];
+    require(vpCaptureSource(cappedCover, &reason) == nil, "UUID-less binding cannot bypass the inventory cap");
     for (NSDictionary *bounds in @[rect(16385, 1), rect(16384, 16384), rect(2007.5, 2853)]) {
         NSMutableDictionary *item = layout();
         item[@"cadisplays"][0][@"bounds"] = bounds;
@@ -88,9 +209,80 @@ static void sourceChecks(void) {
     require(vpCaptureSource(limit, &reason) != nil, "source geometry at the allocation limit remains admissible");
 }
 
+static NSDictionary *layoutFromUUIDGetters(id fixture) {
+    NSMutableDictionary *item = coverLayout(), *failures = [NSMutableDictionary dictionary];
+    id hardware = vpLayoutUUID(fixture, @"hardwareIdentifier", failures);
+    id unique = vpLayoutUUID(fixture, @"uniqueId", failures);
+    if (hardware) item[@"monitors"][0][@"hardware_identifier"] = hardware;
+    if (unique) item[@"cadisplays"][0][@"uniqueId"] = unique;
+    return item;
+}
+
+static void uuidReadChecks(void) {
+    NSString *reason = nil;
+    VPUUIDFixture *fixture = [VPUUIDFixture new];
+    require(vpCaptureSource(layoutFromUUIDGetters(fixture), &reason) != nil,
+            "verified UUID getters returning nil must reach the UUID-less binding");
+    for (id value in @[@"", @"not-a-uuid", @1, NSNull.null,
+                       @"00000000-0000-0000-0000-000000000000"]) {
+        fixture.hardwareIdentifier = value;
+        fixture.uniqueId = value;
+        require(vpCaptureSource(layoutFromUUIDGetters(fixture), &reason) == nil,
+                "production UUID normalization must not turn invalid values into absence");
+    }
+    for (id unreadable in @[[NSObject new], [VPThrowingUUIDFixture new], [VPScalarUUIDFixture new]]) {
+        require(vpCaptureSource(layoutFromUUIDGetters(unreadable), &reason) == nil,
+                "missing, throwing or ABI-incompatible UUID getters cannot establish absence");
+    }
+    fixture.hardwareIdentifier = [[NSUUID alloc] initWithUUIDString:@"51E247B8-F389-4F84-BE57-FE54747ED152"];
+    fixture.uniqueId = @"51e247b8-f389-4f84-be57-fe54747ed152";
+    require(vpCaptureSource(layoutFromUUIDGetters(fixture), &reason) != nil,
+            "production UUID normalization must retain matching valid UUID objects and strings");
+}
+
+static void captureChecks(void) {
+    captureLayouts = @[layout(), layout()];
+    captureLayoutIndex = 0;
+    NSDictionary *report = vpCapturePerform(^BOOL { return NO; });
+    require([report[@"available"] boolValue]
+            && [report[@"identity_binding"] isEqual:@"matching_nonzero_hardware_uuid_display_id_and_scale_with_unique_render_name"],
+            "matching hardware UUIDs must retain the existing capture binding");
+    NSMutableDictionary *before = coverLayout();
+    captureLayouts = @[before, before];
+    captureLayoutIndex = 0;
+    report = vpCapturePerform(^BOOL { return NO; });
+    require([report[@"available"] boolValue] && [report[@"format"] isEqual:@"png"],
+            "stable UUID-less metadata must reach the production renderer and PNG encoder");
+    require([report[@"source"] isEqual:report[@"source_after"]], "both capture samples must retain the same binding");
+    require([report[@"identity_binding"] isEqual:@"matching_display_id_render_name_scale_and_reference_bounds_without_hardware_uuid"],
+            "UUID-less capture must report its actual binding evidence");
+    require([report[@"rotation_applied"] isEqual:@0] && [report[@"resized"] isEqual:@NO]
+            && [report[@"orientation_mapping_verified"] isEqual:@NO] && [report[@"capture_content_verified"] isEqual:@NO],
+            "raw capture cannot claim orientation or content verification");
+    for (NSString *field in @[@"displayId", @"name", @"pointScale", @"bounds", @"uniqueId"]) {
+        NSMutableDictionary *after = coverLayout();
+        after[@"cadisplays"][0][field] = [field isEqual:@"bounds"] ? rect(1398, 2031)
+            : [field isEqual:@"name"] ? @"Other" : [field isEqual:@"uniqueId"] ? @"11111111-2222-4333-8444-555555555555" : @2;
+        captureLayouts = @[before, after];
+        captureLayoutIndex = 0;
+        require([vpCapturePerform(^BOOL { return NO; })[@"state"] isEqual:@"source_changed"],
+                "capture must refuse changed identity, name, scale, geometry or UUID availability");
+    }
+    NSMutableDictionary *changed = coverLayout();
+    changed[@"monitors"][0][@"display_id"] = @99;
+    changed[@"cadisplays"][0][@"displayId"] = @99;
+    captureLayouts = @[before, changed];
+    captureLayoutIndex = 0;
+    require([vpCapturePerform(^BOOL { return NO; })[@"state"] isEqual:@"source_changed"],
+            "two individually valid bindings cannot change across a capture");
+    captureLayouts = nil;
+}
+
 int main(void) {
     @autoreleasepool {
         sourceChecks();
+        uuidReadChecks();
+        captureChecks();
         require([vp_display_capture_active()[@"state"] isEqual:@"main_thread_caller"],
                 "main-thread capture must not block its run loop");
         layoutEntered = dispatch_semaphore_create(0);
