@@ -13,6 +13,7 @@ public struct DriftReport: Equatable {
 struct DeclaredKey {
     let name: String
     let type: KeyType
+    let nullable: Bool
     let optional: Bool
     let hidden: Bool
     let open: Bool
@@ -140,11 +141,14 @@ public enum DriftCheck {
         let order: [Character] = ["?", "~", "*"]
         var keys: [String: DeclaredKey] = [:]
         for piece in cell.split(separator: ",", omittingEmptySubsequences: false) {
-            guard let colon = piece.lastIndex(of: ":") else { return nil }
+            guard let colon = piece.firstIndex(of: ":") else { return nil }
             let name = String(piece[..<colon])
-            let rest = piece[piece.index(after: colon)...]
+            var rest = piece[piece.index(after: colon)...]
             let typeText = String(rest.prefix { $0.isLetter })
-            let flags = Array(rest.dropFirst(typeText.count))
+            rest = rest.dropFirst(typeText.count)
+            let nullable = rest.hasPrefix(":null")
+            if nullable { rest = rest.dropFirst(5) }
+            let flags = Array(rest)
             guard !name.isEmpty, let type = KeyType(rawValue: typeText), keys[name] == nil else { return nil }
             var last = -1
             for flag in flags {
@@ -152,7 +156,7 @@ public enum DriftCheck {
                 last = at
             }
             keys[name] = DeclaredKey(
-                name: name, type: type, optional: flags.contains("?"), hidden: flags.contains("~"), open: flags.contains("*"))
+                name: name, type: type, nullable: nullable, optional: flags.contains("?"), hidden: flags.contains("~"), open: flags.contains("*"))
         }
         return keys
     }
@@ -271,6 +275,11 @@ public enum DriftCheck {
                         add(name, 0, "key \"\(name)\" type changed \(old.type.rawValue) -> \(new.type.rawValue)",
                             "declare \"\(name)\" as .\(new.type.rawValue) in \(place)")
                     }
+                    if new.nullable != old.nullable {
+                        let was = old.nullable ? "nullable" : "non-null", now = new.nullable ? "nullable" : "non-null"
+                        add(name, 2, "key \"\(name)\" nullability changed \(was) -> \(now)",
+                            new.nullable ? "add .nullable() to \"\(name)\" in \(place)" : "remove .nullable() from \"\(name)\" in \(place)")
+                    }
                     let oldPresence = old.optional ? Presence.optional : .required
                     if !old.hidden, new.presence != oldPresence {
                         let was = old.optional ? "optional" : "required", now = new.presence == .optional ? "optional" : "required"
@@ -296,7 +305,8 @@ public enum DriftCheck {
             if entry.kind == .sink {
                 let directory = workspace.swiftSources(
                     under: url.deletingLastPathComponent(), recursive: false)
-                return try SwiftExtractor.extractSink(source: text, function: entry.function, directory: directory, method: method, file: file)
+                return try SwiftExtractor.extractSink(source: text, function: entry.function, directory: directory, method: method, file: file,
+                    lookup: workspace.swiftLookup(producerFile: url))
             }
             let probe = ArmProbe(function: entry.function, arm: arm)
             probe.walk(Parser.parse(source: text))

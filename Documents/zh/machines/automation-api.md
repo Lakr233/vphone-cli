@@ -37,7 +37,7 @@ token 可以用以下任意一种方式发送：
 | `token=<token>` 查询参数 | WebSocket URL，例如 `ws://127.0.0.1:8765/v1/events?token=<token>` |
 | `Sec-WebSocket-Protocol: vphone-token.<token>` | 只能设置子协议的 WebSocket 客户端 |
 
-缺少 token 或 token 错误时返回 `401 Unauthorized`，连接会在任何内容到达客户机之前关闭。
+缺少 token 或 token 错误时返回 `401 Unauthorized`，连接会在任何内容到达客户机之前关闭。如果客户机在发送任何回复字节之前关闭连接，代理会返回 `502 Bad Gateway`，错误码为 `guest_closed`；已经开始的回复不会被改动。
 
 ## 请求示例
 

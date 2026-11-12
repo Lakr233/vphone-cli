@@ -40,7 +40,7 @@ final class SwiftHelperTests: XCTestCase {
         let text = try read("swift-helpers.swift")
         let lookup = try nativeLookup()
         let all = marked("// expect: ", in: text)
-        XCTAssertGreaterThanOrEqual(all.count, 16)
+        XCTAssertGreaterThanOrEqual(all.count, 19)
         for parts in all {
             let target = parts[0].split(separator: "@", maxSplits: 1).map(String.init)
             XCTAssertEqual(
@@ -78,6 +78,34 @@ final class SwiftHelperTests: XCTestCase {
         )
     }
 
+    // MARK: call-site nil
+
+    func testNilArgumentIsNeeded() throws {
+        let text = try read("swift-helpers.swift")
+        let mutated = text.replacingOccurrences(of: "storeValue(\"k\", value: nil)", with: "storeValue(\"k\", value: \"x\")")
+        XCTAssertNotEqual(mutated, text)
+        XCTAssertEqual(
+            try cell(mutated, "setOrUnset", arm: "unset", lookup: SwiftLookup()), "exists:boolean,key:string,value:string:null"
+        )
+    }
+
+    func testGuardNarrowingNeedsTheGuardAndNoLaterWrite() throws {
+        let text = try read("swift-helpers.swift")
+        let guardLine = "    guard state[\"udid\"] as? String == udid else { throw Failure() }\n"
+        let withoutGuard = text.replacingOccurrences(of: guardLine, with: "")
+        XCTAssertNotEqual(withoutGuard, text)
+        XCTAssertEqual(
+            try cell(withoutGuard, "applyOrClear", arm: "clear", lookup: SwiftLookup()),
+            "path:string:null,serial:string,udid:string:null"
+        )
+        // A later write of the key is not narrowed by the guard.
+        let rewritten = text.replacingOccurrences(of: guardLine, with: guardLine + "    state[\"udid\"] = storedName() ?? NSNull()\n")
+        XCTAssertEqual(
+            try cell(rewritten, "applyOrClear", arm: "clear", lookup: SwiftLookup()),
+            "path:string:null,serial:string,udid:string:null"
+        )
+    }
+
     func testCycleTerminates() throws {
         let text = try read("swift-helpers.swift")
         XCTAssertEqual(try cell(text, "pong", lookup: SwiftLookup()), "p:integer?,q:string?")
@@ -91,6 +119,13 @@ final class SwiftHelperTests: XCTestCase {
             try SwiftExtractor.extract(source: text, function: "unresolvableHelper", method: "m.x", file: "H.swift")
         ) { error in
             XCTAssertEqual("\(error)", "unresolvable: m.x H.swift#unresolvableHelper line \(line)" + Self.tail)
+        }
+    }
+
+    func testUnresolvedDictReturningFunctionFailsLoudly() throws {
+        let text = try read("swift-helpers.swift")
+        XCTAssertThrowsError(try SwiftExtractor.extract(source: text, function: "unresolvedHelper", method: "m.x", file: "H.swift")) {
+            XCTAssertTrue("\($0)".hasPrefix("unresolvable: m.x H.swift#unresolvedHelper line "), "\($0)")
         }
     }
 

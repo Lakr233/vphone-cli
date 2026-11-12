@@ -5,31 +5,6 @@ import IcliSystem
 
 // MARK: - Setup Assistant
 
-enum SetupAssistantMethod: String, GuestMethod {
-    case setupStatus = "setup.status"
-    case setupSkip = "setup.skip"
-
-    var spec: MethodSpec {
-        switch self {
-        case .setupStatus: MethodSpec(summary: "Report whether Setup Assistant is pending or running and the guest setup version.", result: [.required("current_version", .any),
-                                               .required("data_migration_done", .any),
-                                               .required("pending", .boolean),
-                                               .required("pid", .any),
-                                               .required("running", .boolean),
-                                               .required("setup_done", .boolean),
-                                               .required("setup_version", .any)])
-        case .setupSkip: MethodSpec(summary: "Mark Setup Assistant complete and restart SpringBoard, unless data migration is still running.", force: .always("skip Setup Assistant"), result: [.required("current_version", .any),
-                                             .required("data_migration_done", .any),
-                                             .required("pending", .boolean),
-                                             .required("pid", .any),
-                                             .required("respring", .object),
-                                             .required("running", .boolean),
-                                             .required("setup_done", .boolean),
-                                             .required("setup_version", .any)])
-        }
-    }
-}
-
 /// Setup Assistant (Setup.app) keeps its state in `com.apple.purplebuddy`
 /// for user mobile. SpringBoard reads it once, when it starts: it runs the
 /// full flow while `SetupDone` is not true, and the flow shown after a
