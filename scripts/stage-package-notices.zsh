@@ -4,10 +4,32 @@ set -euo pipefail
 
 destination=${2:-}
 if [[ ${1:-} == --check ]]; then
+    if (( $# < 2 || $# > 3 )) || [[ $# == 3 && ${3:-} != --require-notices ]]; then
+        print -u2 'usage: stage-package-notices.zsh --check destination [--require-notices]'
+        exit 1
+    fi
+    require_notices=0
+    [[ ${3:-} != --require-notices ]] || require_notices=1
+    missing_notices=0
     [[ -s "$destination/manifest.tsv" ]] || { print -u2 'Missing package notice manifest'; exit 1; }
+    # Pinned binary packages whose artifacts carry no notices yet, each with
+    # the publisher change that adds them (package-notice-exceptions.tsv).
+    exceptions=${VPHONE_NOTICE_EXCEPTIONS:-${0:a:h}/package-notice-exceptions.tsv}
+    typeset -A excepted
+    if [[ -f $exceptions ]]; then
+        while IFS=$'\t' read -r identity revision tracked; do
+            [[ -n $identity && $identity != \#* ]] || continue
+            excepted[$identity@$revision]=$tracked
+        done < "$exceptions"
+    fi
     while IFS=$'\t' read -r identity revision kind relative digest; do
+        if [[ $kind == artifact_missing && -n ${excepted[$identity@$revision]:-} ]]; then
+            print -u2 "No artifact notice file supplied by $identity at $revision; admitted until ${excepted[$identity@$revision]}"
+            continue
+        fi
         if [[ $kind == (missing|artifact_missing) ]]; then
             print -u2 "No $kind notice file supplied by $identity at $revision"
+            missing_notices=1
             continue
         fi
         file="$destination/$identity/$revision/$kind/$relative"
@@ -16,6 +38,10 @@ if [[ ${1:-} == --check ]]; then
             exit 1
         }
     done < "$destination/manifest.tsv"
+    if (( require_notices && missing_notices )); then
+        print -u2 'Cannot distribute packages with missing notices'
+        exit 1
+    fi
     exit 0
 fi
 

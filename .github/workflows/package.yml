@@ -28,6 +28,7 @@ jobs:
           set -euo pipefail
           bundle=.build/XcodeBundle/Build/Products/Release/VPhone.bundle
           zsh VPhoneExecutable/VPhoneVirtualization/Build/ValidateBundle.sh "$bundle"
+          zsh scripts/stage-package-notices.zsh --check "$bundle/Contents/Resources/Licenses/packages" --require-notices
           # Xcode before 27 drops arm64e.x1 without a warning, and M6 hosts
           # need that slice of the AMFI allowlist tool.
           archs=" $(lipo -archs "$bundle/Contents/MacOS/vphone-escalator") "
@@ -49,6 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           app=.build/XcodeLaunchpad/Build/Products/Release/vphone-launchpad.app
+          zsh scripts/stage-package-notices.zsh --check "$app/Contents/Resources/Licenses/packages" --require-notices
           ditto -c -k --keepParent "$app" "vphone-launchpad-${GITHUB_SHA}.zip"
 
       - name: Upload Release packages
