@@ -1425,6 +1425,9 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
         repeat {
             count = Darwin.read(fd, &bytes, bytes.count)
         } while count < 0 && errno == EINTR
+        if count < 0, errno == EAGAIN || errno == EWOULDBLOCK {
+            throw VPhoneGuestControl.ControlError.protocolError("HTTP response timed out")
+        }
         guard count > 0 else {
             throw VPhoneGuestControl.ControlError.notConnected
         }

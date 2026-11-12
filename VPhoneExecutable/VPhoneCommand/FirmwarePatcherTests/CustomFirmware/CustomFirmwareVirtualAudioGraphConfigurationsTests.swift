@@ -5,8 +5,9 @@
 // speaker_* → chainType "clhs", mic configurations on "dflt"), so the
 // synthetic fixtures below mirror it name for name. The patcher's contract
 // is what needs holding: every speaker_* flips, nothing else moves, the
-// file's format survives, a re-run writes nothing, and anything unexpected
-// refuses rather than half-patches.
+// file's format survives, a re-run writes nothing, a set with no speaker
+// configuration is left alone, and anything unexpected refuses rather than
+// half-patches.
 
 @testable import FirmwarePatcher
 import Foundation
@@ -117,24 +118,26 @@ struct CustomFirmwareVirtualAudioGraphConfigurationsTests {
     }
 
     @Test
+    func `leaves a set with only microphone chains alone`() throws {
+        let url = try writeTemporary([
+            "Configurations": [
+                "back_mic_general": ["chainType": "dflt", "graph": "back_mic_general"],
+                "beamformed_mic_general": ["chainType": "dflt", "graph": "beam_mic_general"],
+            ],
+        ])
+        let before = try Data(contentsOf: url)
+        let outcome = try CustomFirmwareVirtualAudioGraphConfigurations.patch(at: url, verbose: false)
+        #expect(outcome == .alreadyGraphChains([]))
+        #expect(try Data(contentsOf: url) == before)
+    }
+
+    @Test
     func `refuses a speaker chain on an unknown chainType`() throws {
         var plist = Self.tuningSet()
         var configurations = try #require(plist["Configurations"] as? [String: Any])
         configurations["speaker_siri"] = ["chainType": "sprt", "graph": "speaker_general"]
         plist["Configurations"] = configurations
         let url = try writeTemporary(plist)
-        #expect(throws: PatcherError.self) {
-            try CustomFirmwareVirtualAudioGraphConfigurations.patch(at: url, verbose: false)
-        }
-    }
-
-    @Test
-    func `refuses a plist with no speaker configurations`() throws {
-        let micOnly: [String: Any] = [
-            "CommonData": ["tuningPath": "/Library/Audio/Tunings/AID2029/VAD"],
-            "Configurations": ["beamformed_mic_general": ["chainType": "dflt", "graph": "beam_mic_general"]],
-        ]
-        let url = try writeTemporary(micOnly)
         #expect(throws: PatcherError.self) {
             try CustomFirmwareVirtualAudioGraphConfigurations.patch(at: url, verbose: false)
         }

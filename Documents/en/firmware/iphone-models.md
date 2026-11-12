@@ -24,7 +24,7 @@ vphone-cli vm create iphone17pro \
 
 Each iPhone model has an IPSW of its own, so `--device` is not needed with explicit sources.
 
-To find a release, run `fw catalog`. It lists the iPhone 16 and 17 models' releases from 26.0 to 27.0.1 (the iPhone 17e from 26.3.1) and the iPhone 18 Pro's 27.0.1, each with the cloudOS an iPhone17,3 of that release uses. To list one model's releases:
+To find a release, run `fw catalog`. It lists the iPhone 13, 16 and 17 models' releases from 26.0 to 27.0.1 (the iPhone 17e from 26.3.1) and the iPhone 18 Pro's 27.0.1, each with the cloudOS an iPhone17,3 of that release uses. To list one model's releases:
 
 ```sh
 vphone-cli fw catalog --device iPhone18,1
@@ -34,6 +34,7 @@ vphone-cli fw catalog --device iPhone18,1
 
 | Product | Model | Board | Panel | Points @3x |
 | --- | --- | --- | --- | --- |
+| `iPhone14,5` | iPhone 13 | D17AP | 1170x2532 @ 460 ppi | 390x844 |
 | `iPhone17,3` | iPhone 16 | D47AP | 1179x2556 @ 460 ppi | 393x852 |
 | `iPhone17,4` | iPhone 16 Plus | D48AP | 1290x2796 @ 460 ppi | 430x932 |
 | `iPhone17,1` | iPhone 16 Pro | D93AP | 1206x2622 @ 460 ppi | 402x874 |

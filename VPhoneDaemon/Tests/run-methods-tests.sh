@@ -8,7 +8,9 @@ set -euo pipefail
 # table names is declared; --self-test mutates a copy of the sources to prove
 # each failing check fires. Checks 6, 8, 10 and 11 compare against methods-catalog.tsv
 # beside this script (method, force, params, force action text, result, live; tab separated).
-# --results <dir> <catalog> runs only check 11 (result schemas and live classes) on those files.
+# --results <dir> <catalog> runs only check 11 (result schemas and live classes) on those files. Check 11 compiles
+# MethodsHarness.swift over the method enums and compares its result cells with the catalog; --write-results rewrites
+# only the result column of the catalog from the same output.
 
 declare -a files
 default_dir="${0:a:h:h}/Daemon"
@@ -162,36 +164,31 @@ forced_methods() {
     all_specs | /usr/bin/awk '$2 != "never" { print $1, $2 }'
 }
 
-# "<raw><tab>missing", "<raw><tab>nonliteral" or "<raw><tab>ok<tab><cell>" for every spec arm on stdin (file_arms
-# output). The cell lists the keys of a literal `result: [ ... ]` in declaration order as name:type plus the flags
-# ? (optional) ~ (hidden) * (open), "-" for an empty list.
-result_cells() {
-    /usr/bin/awk -F'\t' '
-        {
-            raw = $1; body = $2
-            if (!match(body, /(^|[(, ])result:/)) { print raw "\tmissing"; next }
-            rest = substr(body, RSTART + RLENGTH)
-            sub(/^ +/, "", rest)
-            closeAt = index(rest, "]")
-            if (substr(rest, 1, 1) != "[" || closeAt == 0 || substr(rest, closeAt + 1) !~ /^ *[)]/) { print raw "\tnonliteral"; next }
-            inner = substr(rest, 2, closeAt - 2)
-            cell = ""; bad = 0
-            while (1) {
-                sub(/^[ ,]+/, "", inner)
-                if (inner == "") break
-                if (!match(inner, /^\.(required|optional|hidden)\("[^"]+", \.[a-z]+\)(\.open\(\))?/)) { bad = 1; break }
-                token = substr(inner, 1, RLENGTH)
-                inner = substr(inner, RLENGTH + 1)
-                split(token, part, "\"")
-                kind = token; sub(/^\./, "", kind); sub(/\(.*/, "", kind)
-                type = part[3]; sub(/^, \./, "", type); sub(/\).*/, "", type)
-                flags = (kind == "optional" ? "?" : kind == "hidden" ? "~" : "") (token ~ /[.]open\(\)$/ ? "*" : "")
-                cell = cell (cell == "" ? "" : ",") part[2] ":" type flags
-            }
-            if (bad) print raw "\tnonliteral"
-            else print raw "\tok\t" (cell == "" ? "-" : cell)
-        }
-    '
+# "<method><tab><result cell>" for every method the GuestAPI*Methods.swift files of dir $1 declare, sorted by name: the
+# MethodsHarness (next to this script) compiled with GuestMethodSpec.swift, those files and GuestAPIStub.swift, plus a
+# generated `kinds` list of their `enum XMethod: String, GuestMethod` types. Prints "FAIL harness: ..." and returns 1
+# when the build fails.
+harness_cells() {
+    local dir="$1" here="${script:h}" spec="$1/GuestMethodSpec.swift"
+    [[ -f "$spec" ]] || spec="$default_dir/GuestMethodSpec.swift"
+    local work="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/vphone-methods-harness.XXXXXX")"
+    local -a enum_files=("$dir"/GuestAPI*Methods.swift(N))
+    {
+        print 'nonisolated(unsafe) let kinds: [GuestMethodArea] = ['
+        /usr/bin/awk '$0 ~ ENVIRON["enum_re"] { sub(/:$/, "", $2); print "    .make(" $2 ".self) { _, p in p }," }' $enum_files
+        print ']'
+    } > "$work/kinds.swift"
+    local output code=0
+    output="$(/usr/bin/xcrun --sdk macosx swiftc -swift-version 6 -parse-as-library -module-cache-path "$work/mc" \
+        "$spec" $enum_files "$here/GuestAPIStub.swift" "$here/MethodsHarness.swift" "$work/kinds.swift" -o "$work/harness" 2>&1)" || code=$?
+    if (( code != 0 )); then
+        print -r -- "FAIL harness: build failed: ${output//$'\n'/ }"
+        /bin/rm -rf "$work"
+        return 1
+    fi
+    "$work/harness" || code=$?
+    /bin/rm -rf "$work"
+    return $code
 }
 
 # Check 12: prints one FAIL line per doc ($@) that has a heading or table header row naming results, which would
@@ -206,22 +203,13 @@ check_docs() {
 }
 
 # Check 11: prints one FAIL line per finding comparing the result and live columns of catalog $2 with the specs in dir $1.
+# The result column must equal the harness cell of the method (both must exist); the live column must be a valid class.
 check_results() {
-    spec_files "$1"
-    local swift_cells="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/vphone-methods-results.XXXXXX")"
-    for file in $files; do file_arms "$file"; done | result_cells > "$swift_cells"
-    LC_ALL=C /usr/bin/awk -F'\t' -v swift="$swift_cells" '
-        function keyname(token,   name) { name = token; sub(/:.*/, "", name); return name }
-        function sortkeys(list, n,   i, j, tmp) {
-            for (i = 2; i <= n; i++) {
-                tmp = list[i]
-                for (j = i - 1; j >= 1 && keyname(list[j]) > keyname(tmp); j--) list[j + 1] = list[j]
-                list[j + 1] = tmp
-            }
-        }
-        BEGIN {
-            while ((getline line < swift) > 0) { split(line, field, "\t"); status[field[1]] = field[2]; cell[field[1]] = field[3] }
-        }
+    local cells; cells="$(harness_cells "$1")" || { print -r -- "$cells"; return 0; }
+    local cells_file="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/vphone-methods-results.XXXXXX")"
+    print -r -- "$cells" > "$cells_file"
+    LC_ALL=C /usr/bin/awk -F'\t' -v cells="$cells_file" '
+        BEGIN { while ((getline line < cells) > 0) { split(line, field, "\t"); cell[field[1]] = field[2] } }
         {
             m = $1; force = $2; params = $3; res = $5; live = $6
             if (live !~ /^(read|mutating|excluded:.+)$/) print "FAIL live: " m " has invalid live value \"" live "\""
@@ -229,39 +217,27 @@ check_results() {
                 if (force != "never") print "FAIL live: " m " is read but has force " force
                 if (params ~ /!/) print "FAIL live: " m " is read but has a required param"
             }
-            if (!(m in status)) next
-            if (status[m] == "missing") { print "FAIL result: " m " result: missing"; next }
-            if (status[m] == "nonliteral") { print "FAIL result: " m " result: is not a literal list of ResultKey"; next }
-            bad = 0
-            n = (cell[m] == "-") ? 0 : split(cell[m], mine, ",")
-            delete seen
-            for (i = 1; i <= n; i++) {
-                k = keyname(mine[i])
-                if (k in seen) { print "FAIL result: " m " repeats key " k " in its declaration"; bad = 1 }
-                seen[k] = 1
-            }
-            sortkeys(mine, n)
-            canon = ""
-            for (i = 1; i <= n; i++) canon = canon (i > 1 ? "," : "") mine[i]
-            if (canon == "") canon = "-"
-            if (res == "") { print "FAIL result: " m " catalog result cell is empty"; next }
-            if (res != "-") {
-                t = split(res, theirs, ",")
-                delete seen
-                for (i = 1; i <= t; i++) {
-                    if (theirs[i] !~ /^[A-Za-z_][A-Za-z0-9_]*:(string|integer|number|boolean|array|object|any)[?]?~?[*]?$/) {
-                        print "FAIL result: " m " catalog has malformed key \"" theirs[i] "\""; bad = 1; continue
-                    }
-                    k = keyname(theirs[i])
-                    if (k in seen) { print "FAIL result: " m " catalog repeats key " k; bad = 1 }
-                    seen[k] = 1
-                    if (i > 1 && keyname(theirs[i - 1]) > k) { print "FAIL result: " m " catalog keys are not sorted by name at " k; bad = 1 }
-                }
-            }
-            if (!bad && canon != res) print "FAIL result: " m " differs from the catalog: swift " canon " catalog " res
+            rows[m] = 1
+            if (!(m in cell)) print "FAIL result: " m " has no harness cell"
+            else if (cell[m] != res) print "FAIL result: " m " differs from the catalog: swift " cell[m] " catalog " res
         }
+        END { for (m in cell) if (!(m in rows)) print "FAIL result: " m " has a harness cell but no catalog row" }
     ' "$2"
-    /bin/rm -f "$swift_cells"
+    /bin/rm -f "$cells_file"
+}
+
+# --write-results: rewrites only the result column (5) of catalog $2 from the harness cells of dir $1.
+write_results() {
+    local cells; cells="$(harness_cells "$1")" || { print -r -- "$cells"; return 1; }
+    local cells_file="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/vphone-methods-results.XXXXXX")" out="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/vphone-methods-catalog.XXXXXX")"
+    print -r -- "$cells" > "$cells_file"
+    /usr/bin/awk -F'\t' -v OFS='\t' -v cells="$cells_file" '
+        BEGIN { while ((getline line < cells) > 0) { split(line, field, "\t"); cell[field[1]] = field[2] } }
+        NF >= 5 && ($1 in cell) { $5 = cell[$1] }
+        { print }
+    ' "$2" > "$out"
+    /bin/cat "$out" > "$2"
+    /bin/rm -f "$cells_file" "$out"
 }
 
 # Runs this script on a mutated copy of the daemon sources and asserts it exits
@@ -284,11 +260,8 @@ mutation_case() {
     return 1
 }
 
-# Check 11 mutations run on a three-method fixture (spec file plus catalog) so they hold whatever the real specs
-# declare: $1 label, $2 expected text ("" = must pass), $3 swift|catalog, $4 sed -E program applied to that file.
-result_case() {
-    local label="$1" expect="$2" target="$3" program="$4"
-    local copy="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/vphone-results-selftest.XXXXXX")"
+# Writes the three-method fixture (spec file plus catalog.tsv) into dir $1.
+result_fixture() {
     print -r -- 'enum FixtureMethod: String, GuestMethod {
     case alpha = "fix.alpha"
     case beta = "fix.beta"
@@ -296,17 +269,25 @@ result_case() {
 
     var spec: MethodSpec {
         switch self {
-        case .alpha: MethodSpec(result: [.required("b", .string), .optional("a", .integer), .hidden("c", .any).open()])
-        case .beta: MethodSpec(force: .always, result: [])
-        case .gamma: MethodSpec(.required("y", .string), result: [.required("k", .object).open()])
+        case .alpha: MethodSpec(summary: "a", result: [.required("b", .string), .optional("a", .integer), .hidden("c", .any).open(), .required("n", .string).nullable()])
+        case .beta: MethodSpec(summary: "b", force: .always("do it"), result: [])
+        case .gamma: MethodSpec(.required("y", .string, "y"), summary: "g", result: [.required("k", .object).open()])
         }
     }
-}' > "$copy/GuestAPI+Fixture.swift"
-    print -r -- "fix.alpha	never	-	-	a:integer?,b:string,c:any~*	read
+}' > "$1/GuestAPIFixtureMethods.swift"
+    print -r -- "fix.alpha	never	-	-	a:integer?,b:string,c:any~*,n:string:null	read
 fix.beta	always	-	-	-	mutating
-fix.gamma	never	y:string!	-	k:object*	excluded:needs params" > "$copy/catalog.tsv"
+fix.gamma	never	y:string!	-	k:object*	excluded:needs params" > "$1/catalog.tsv"
+}
+
+# Check 11 mutations run on a three-method fixture (spec file plus catalog) so they hold whatever the real specs
+# declare: $1 label, $2 expected text ("" = must pass), $3 swift|catalog, $4 sed -E program applied to that file.
+result_case() {
+    local label="$1" expect="$2" target="$3" program="$4"
+    local copy="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/vphone-results-selftest.XXXXXX")"
+    result_fixture "$copy"
     local file="$copy/catalog.tsv"
-    [[ "$target" == swift ]] && file="$copy/GuestAPI+Fixture.swift"
+    [[ "$target" == swift ]] && file="$copy/GuestAPIFixtureMethods.swift"
     /usr/bin/sed -E "$program" "$file" > "$copy/mutated"
     /bin/mv "$copy/mutated" "$file"
     local output code=0
@@ -324,19 +305,36 @@ fix.gamma	never	y:string!	-	k:object*	excluded:needs params" > "$copy/catalog.ts
 self_test_results() {
     local bad=0
     result_case results-baseline "" catalog 's/x^//' || bad=1
-    result_case result-type-change "FAIL result: fix.alpha" swift 's/\.optional\("a", \.integer\)/.optional("a", .string)/' || bad=1
+    result_case result-type-change "FAIL result: fix.alpha differs from the catalog" swift 's/\.optional\("a", \.integer\)/.optional("a", .string)/' || bad=1
+    result_case catalog-result-edited "FAIL result: fix.alpha differs from the catalog: swift a:integer?,b:string,c:any~*,n:string:null catalog a:string?,b:string,c:any~*,n:string:null" catalog 's/a:integer\?/a:string?/' || bad=1
+    result_case nullable-dropped "FAIL result: fix.alpha differs from the catalog" swift 's/\.nullable\(\)//' || bad=1
+    result_case reordered-swift-keys "" swift 's/\.required\("b", \.string\), \.optional\("a", \.integer\)/.optional("a", .integer), .required("b", .string)/' || bad=1
+    result_case omitted-result "FAIL result: fix.beta differs from the catalog: swift missing catalog -" swift 's/, result: \[\]\)/)/' || bad=1
+    result_case catalog-row-deleted "FAIL result: fix.beta has a harness cell but no catalog row" catalog '/^fix\.beta/d' || bad=1
+    result_case catalog-row-bogus "FAIL result: fix.delta has no harness cell" catalog '/^fix\.gamma/{p;s/fix\.gamma/fix.delta/;}' || bad=1
     result_case live-read-forced "FAIL live: fix.beta is read but has force always" catalog '/^fix.beta/s/mutating$/read/' || bad=1
     result_case live-read-required-param "FAIL live: fix.gamma is read but has a required param" catalog 's/excluded:needs params$/read/' || bad=1
-    result_case repeated-key-swift "FAIL result: fix.alpha repeats key b" swift 's/\.optional\("a", \.integer\)/.optional("b", .integer)/' || bad=1
-    result_case repeated-key-catalog "FAIL result: fix.alpha catalog repeats key b" catalog 's/a:integer\?,b:string/b:integer?,b:string/' || bad=1
-    result_case malformed-suffix "FAIL result: fix.alpha catalog has malformed key \"c:any*~\"" catalog 's/c:any~\*/c:any*~/' || bad=1
-    result_case malformed-suffix-double "FAIL result: fix.alpha catalog has malformed key \"a:integer??\"" catalog 's/a:integer\?/a:integer??/' || bad=1
-    result_case unsorted-catalog "FAIL result: fix.alpha catalog keys are not sorted" catalog 's/a:integer\?,b:string/b:string,a:integer?/' || bad=1
-    result_case reordered-swift-keys "" swift 's/result: \[\.required\("b", \.string\), \.optional\("a", \.integer\)/result: [.optional("a", .integer), .required("b", .string)/' || bad=1
     result_case live-capitalised "FAIL live: fix.beta has invalid live value \"Read\"" catalog '/^fix.beta/s/mutating$/Read/' || bad=1
     result_case live-empty-reason "FAIL live: fix.gamma has invalid live value \"excluded:\"" catalog 's/excluded:needs params$/excluded:/' || bad=1
-    result_case non-literal-result "FAIL result: fix.gamma result: is not a literal list of ResultKey" swift 's/result: \[\.required\("k", \.object\)\.open\(\)\]/result: Self.shape/' || bad=1
-    result_case omitted-result "FAIL result: fix.beta result: missing" swift 's/force: \.always, result: \[\]/force: .always/' || bad=1
+    return $bad
+}
+
+# --write-results must change only column 5 of a stale catalog and be idempotent.
+self_test_write_results() {
+    local tmp="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/vphone-write-selftest.XXXXXX")" bad=0
+    result_fixture "$tmp"
+    /usr/bin/sed -E 's/a:integer\?/a:string?/' "$tmp/catalog.tsv" > "$tmp/stale.tsv"
+    /bin/cp "$tmp/stale.tsv" "$tmp/once.tsv"
+    write_results "$tmp" "$tmp/once.tsv" > /dev/null
+    /bin/cp "$tmp/once.tsv" "$tmp/twice.tsv"
+    write_results "$tmp" "$tmp/twice.tsv" > /dev/null
+    local other_stale other_once
+    other_stale="$(/usr/bin/cut -f1-4,6- "$tmp/stale.tsv")"
+    other_once="$(/usr/bin/cut -f1-4,6- "$tmp/once.tsv")"
+    if /usr/bin/cmp -s "$tmp/once.tsv" "$tmp/catalog.tsv" && [[ "$other_stale" == "$other_once" ]] && /usr/bin/cmp -s "$tmp/once.tsv" "$tmp/twice.tsv"; then
+        print "PASS self-test: write-results"
+    else print "FAIL self-test: write-results (column 5 not fixed alone, or second run differs)"; bad=1; fi
+    /bin/rm -rf "$tmp"
     return $bad
 }
 
@@ -358,9 +356,9 @@ self_test_docs() {
 
 self_test() {
     local source="${1:-$default_dir}" bad=0
-    mutation_case duplicate "FAIL duplicate: time.timezone" GuestAPI+Clock.swift \
+    mutation_case duplicate "FAIL duplicate: time.timezone" GuestAPIClockMethods.swift \
         '{ sub(/= "time.clock"/, "= \"time.timezone\"") } 1' "$source" || bad=1
-    mutation_case route "FAIL route: time.clock" GuestAPI+Clock.swift \
+    mutation_case route "FAIL route: time.clock" GuestAPIClockMethods.swift \
         '{ sub(/= "time.clock"/, "= \"time.clock2\"") } 1' "$source" || bad=1
     mutation_case legacy "FAIL legacy: GuestMethodSpec.swift:" GuestMethodSpec.swift \
         '{ print } END { print "func legacy() { try requireForce(params, \"x\") }" }' "$source" || bad=1
@@ -368,40 +366,41 @@ self_test() {
         '!done && /^ *\.make\(/ { sub(/\.make\(/, "GuestMethodArea(entries: { [] }, execute: x) // "); done = 1 } 1' "$source" || bad=1
     mutation_case capability 'FAIL capability: found 0 "methods"' GuestAPI.swift \
         'index($0, "\"methods\",") { next } 1' "$source" || bad=1
-    mutation_case force "FAIL force: processes.kill" GuestAPI+Process.swift \
+    mutation_case force "FAIL force: processes.kill" GuestAPIProcessMethods.swift \
         '/case \.processesKill/ { inKill = 1 } inKill && /force: \.always/ { sub(/force: \.always/, "force: .never"); inKill = 0 } 1' "$source" || bad=1
-    mutation_case params "FAIL params: processes.list" GuestAPI+Process.swift \
+    mutation_case params "FAIL params: processes.list" GuestAPIProcessMethods.swift \
         '{ sub(/\.optional\("filter", \.string/, ".required(\"filter\", .string") } 1' "$source" || bad=1
-    mutation_case undeclared-key "FAIL undeclared-key: GuestAPI+Log.swift process" GuestAPI+Log.swift \
+    mutation_case undeclared-key "FAIL undeclared-key: GuestAPI+Log.swift process" GuestAPILogMethods.swift \
         '{ sub(/\.optional\("process", \.string/, ".optional(\"unrelated\", .string") } 1' "$source" || bad=1
-    mutation_case message-text "FAIL message: system.shutdown" GuestAPI+AppDetail.swift \
+    mutation_case message-text "FAIL message: system.shutdown" GuestAPIAppDetailMethods.swift \
         '{ sub(/"shut down the guest"/, "\"shut the guest down\"") } 1' "$source" || bad=1
-    mutation_case message-validation "FAIL message: services.stop" GuestAPI+Service.swift \
+    mutation_case message-validation "FAIL message: services.stop" GuestAPIServiceMethods.swift \
         '/case \.servicesStop:/ { inStop = 1 } inStop && /force: \.always/ { sub(/\{ p in try "stop [^}]*\}/, "{ _ in \"stop it\" }"); inStop = 0 } 1' "$source" || bad=1
-    mutation_case empty-summary "FAIL description: time.clock summary is empty" GuestAPI+Clock.swift \
+    mutation_case empty-summary "FAIL description: time.clock summary is empty" GuestAPIClockMethods.swift \
         '/case \.timeClock/ { on = 1 } on && sub(/summary: "[^"]*"/, "summary: \"\"") { on = 0 } 1' "$source" || bad=1
-    mutation_case empty-param-description "FAIL description: time.clock.time param is empty" GuestAPI+Clock.swift \
+    mutation_case empty-param-description "FAIL description: time.clock.time param is empty" GuestAPIClockMethods.swift \
         '{ sub(/\.optional\("time", \.number, "[^"]*"/, ".optional(\"time\", .number, \"\"") } 1' "$source" || bad=1
-    mutation_case empty-force-text "FAIL description: processes.kill force is empty" GuestAPI+Process.swift \
+    mutation_case empty-force-text "FAIL description: processes.kill force is empty" GuestAPIProcessMethods.swift \
         '/case \.processesKill/ { on = 1 } on && sub(/force: \.always\("[^"]*"/, "force: .always(\"\"") { on = 0 } 1' "$source" || bad=1
-    mutation_case long-description "FAIL description: time.clock summary is over 120 characters (121)" GuestAPI+Clock.swift \
+    mutation_case long-description "FAIL description: time.clock summary is over 120 characters (121)" GuestAPIClockMethods.swift \
         'BEGIN { long = sprintf("%121s", ""); gsub(/ /, "x", long) }
          /case \.timeClock/ { on = 1 } on && sub(/summary: "[^"]*"/, "summary: \"" long "\"") { on = 0 } 1' "$source" || bad=1
-    mutation_case long-param-description "FAIL description: time.clock.time param is over 120 characters (121)" GuestAPI+Clock.swift \
+    mutation_case long-param-description "FAIL description: time.clock.time param is over 120 characters (121)" GuestAPIClockMethods.swift \
         'BEGIN { long = sprintf("%121s", ""); gsub(/ /, "x", long) }
          { sub(/\.optional\("time", \.number, "[^"]*"/, ".optional(\"time\", .number, \"" long "\"") } 1' "$source" || bad=1
-    mutation_case empty-when-force-text "FAIL description: services.kickstart force is empty" GuestAPI+Service.swift \
+    mutation_case empty-when-force-text "FAIL description: services.kickstart force is empty" GuestAPIServiceMethods.swift \
         '/case \.servicesKickstart/ { on = 1 } on && sub(/force: \.when\("kill", "[^"]*"/, "force: .when(\"kill\", \"\"") { on = 0 } 1' "$source" || bad=1
-    mutation_case newline-description "FAIL description: time.clock summary contains a newline" GuestAPI+Clock.swift \
+    mutation_case newline-description "FAIL description: time.clock summary contains a newline" GuestAPIClockMethods.swift \
         '/case \.timeClock/ { on = 1 } on && sub(/summary: "[^"]*"/, "summary: \"a\nb\"") { on = 0 } 1' "$source" || bad=1
-    mutation_case newline-param-description "FAIL description: time.clock.time param contains a newline" GuestAPI+Clock.swift \
+    mutation_case newline-param-description "FAIL description: time.clock.time param contains a newline" GuestAPIClockMethods.swift \
         '{ sub(/\.optional\("time", \.number, "[^"]*"/, ".optional(\"time\", .number, \"a\\nb\"") } 1' "$source" || bad=1
-    mutation_case long-force-text "FAIL description: processes.kill force is over 120 characters (121)" GuestAPI+Process.swift \
+    mutation_case long-force-text "FAIL description: processes.kill force is over 120 characters (121)" GuestAPIProcessMethods.swift \
         'BEGIN { long = sprintf("%121s", ""); gsub(/ /, "x", long) }
          /case \.processesKill/ { on = 1 } on && sub(/force: \.always\("[^"]*"/, "force: .always(\"" long "\"") { on = 0 } 1' "$source" || bad=1
-    mutation_case newline-force-text "FAIL description: processes.kill force contains a newline" GuestAPI+Process.swift \
+    mutation_case newline-force-text "FAIL description: processes.kill force contains a newline" GuestAPIProcessMethods.swift \
         '/case \.processesKill/ { on = 1 } on && sub(/force: \.always\("[^"]*"/, "force: .always(\"a\\nb\"") { on = 0 } 1' "$source" || bad=1
     self_test_results || bad=1
+    self_test_write_results || bad=1
     self_test_docs || bad=1
     return $bad
 }
@@ -409,6 +408,10 @@ self_test() {
 case "${1:-}" in
     --self-test)
         self_test "${2:-}"
+        exit $?
+        ;;
+    --write-results)
+        write_results "$default_dir" "${0:a:h}/methods-catalog.tsv"
         exit $?
         ;;
     --results)
@@ -485,10 +488,13 @@ else
     done
 fi
 
-# 3. undeclared-key: a key read from params that the file's specs do not declare
+# 3. undeclared-key: a key read from params that the specs of the file or of its GuestAPI<Area>Methods.swift pair
+# (GuestAPI+<Area>.swift reads, the pair declares) do not declare
 for file in $files; do
-    [[ -n "$(raw_values "$file")" ]] || continue
-    declared_keys="$(file_specs "$file" | /usr/bin/awk '$3 != "-" { n = split($3, p, ","); for (i = 1; i <= n; i++) { split(p[i], q, ":"); print q[1] } }' || true)"
+    pair="${file:h}/GuestAPI${${file:t:r}#GuestAPI+}Methods.swift"
+    [[ "${file:t}" == GuestAPI+* && -f "$pair" ]] || pair=""
+    [[ -n "$(raw_values "$file")" || -n "$pair" ]] || continue
+    declared_keys="$({ file_specs "$file"; [[ -z "$pair" ]] || file_specs "$pair" } | /usr/bin/awk '$3 != "-" { n = split($3, p, ","); for (i = 1; i <= n; i++) { split(p[i], q, ":"); print q[1] } }' || true)"
     for key in ${(f)"$(/usr/bin/env declared_keys="$declared_keys" /usr/bin/awk '
         BEGIN { n = split(ENVIRON["declared_keys"], d, "\n"); for (i = 1; i <= n; i++) have[d[i]] = 1 }
         /params(, "[^"]+"|\["[^"]+"\])/ {

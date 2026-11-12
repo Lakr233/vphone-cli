@@ -284,8 +284,8 @@ private final class GuestSocketProvider: @unchecked Sendable {
                             host.close(promise: nil)
                             return
                         }
-                        let guestRelay = ByteRelay(connection: connection)
-                        let hostRelay = ByteRelay(connection: connection)
+                        let guestRelay = ByteRelay(connection: connection, repliesWhenEmpty: true)
+                        let hostRelay = ByteRelay(connection: connection, repliesWhenEmpty: false)
                         ClientBootstrap(group: self.group)
                             .channelOption(ChannelOptions.autoRead, value: false)
                             .channelInitializer { guest in guest.pipeline.addHandler(guestRelay) }
@@ -333,6 +333,9 @@ private final class ByteRelay: ChannelInboundHandler, @unchecked Sendable {
     // Keeping this object alive also keeps Virtualization.framework's original
     // socket descriptor alive while NIO owns its duplicated descriptor.
     private let connection: VZVirtioSocketConnection
+    /// True on the guest side: a guest close before any relayed byte answers
+    /// the client with `guestClosedResponse` instead of a bare close.
+    private let repliesWhenEmpty: Bool
     private let lock = NSLock()
     private var _peer: Channel?
     private var lastWrite: EventLoopFuture<Void>?
@@ -350,8 +353,9 @@ private final class ByteRelay: ChannelInboundHandler, @unchecked Sendable {
         }
     }
 
-    init(connection: VZVirtioSocketConnection) {
+    init(connection: VZVirtioSocketConnection, repliesWhenEmpty: Bool) {
         self.connection = connection
+        self.repliesWhenEmpty = repliesWhenEmpty
     }
 
     func channelRead(context _: ChannelHandlerContext, data: NIOAny) {
@@ -387,6 +391,13 @@ private final class ByteRelay: ChannelInboundHandler, @unchecked Sendable {
                 }
                 lastWrite.whenComplete { _ in
                     timeout.cancel()
+                    other.close(promise: nil)
+                }
+            } else if repliesWhenEmpty {
+                // The guest closed before writing any reply byte: tell the client.
+                var reply = other.allocator.buffer(capacity: VPhoneAPIRequestGate.guestClosedResponse.count)
+                reply.writeBytes(VPhoneAPIRequestGate.guestClosedResponse)
+                other.writeAndFlush(reply).whenComplete { _ in
                     other.close(promise: nil)
                 }
             } else {

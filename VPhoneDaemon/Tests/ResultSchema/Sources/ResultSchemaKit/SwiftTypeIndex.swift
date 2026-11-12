@@ -25,8 +25,30 @@ struct TypeRef: Equatable, Sendable {
     var nominal: String?
     var element: Element?
     var tuple: Tuple?
+    /// The value type of a `[K: V]` dictionary (`key` is `object`).
+    var value: Element?
+    /// Declared or produced as an Optional (`T?`, a dictionary subscript); `.map` then maps the wrapped value.
+    var optional = false
+    /// The value can be nil/NSNull on some path (`x ?? NSNull()`, `x as Any?`); separate from `key`.
+    var nullable = false
+    /// Known to be `nil` (Optional.none), unlike an NSNull value: a `nil` literal or a parameter the call site
+    /// passes `nil` for. `none ?? x` is `x`.
+    var none = false
 
-    init(key: KeyType = .any, nominal: String? = nil, element: TypeRef? = nil, tuple: Tuple? = nil) {
+    /// `nil`: the JSON null that `??` replaces.
+    static let nilValue: TypeRef = {
+        var ref = TypeRef(key: .null)
+        ref.none = true
+        return ref
+    }()
+
+    init(
+        key: KeyType = .any, nominal: String? = nil, element: TypeRef? = nil, tuple: Tuple? = nil, nullable: Bool = false,
+        value: TypeRef? = nil, optional: Bool = false
+    ) {
+        self.value = value.map(Element.init)
+        self.optional = optional
+        self.nullable = nullable
         self.key = key
         self.nominal = nominal
         self.element = element.map(Element.init)
@@ -35,19 +57,28 @@ struct TypeRef: Equatable, Sendable {
 
     /// Two declarations of one name: what they agree on.
     func unified(with other: TypeRef) -> TypeRef {
-        var result = TypeRef(key: KeyMerge.unifiedType(key, other.key))
+        let unified = KeyMerge.unify(
+            ExtractedKey(name: "", type: key, presence: .required, nullable: nullable),
+            ExtractedKey(name: "", type: other.key, presence: .required, nullable: other.nullable))
+        var result = TypeRef(key: unified.type, nullable: unified.nullable)
         if nominal == other.nominal { result.nominal = nominal }
         if element == other.element { result.element = element }
         if tuple == other.tuple { result.tuple = tuple }
+        if value == other.value { result.value = value }
+        result.optional = optional || other.optional
         return result
     }
 
     /// The reference of a type annotation (optionality is not tracked).
     static func of(_ type: TypeSyntax) -> TypeRef {
-        if let optional = type.as(OptionalTypeSyntax.self) { return of(optional.wrappedType) }
+        if let optional = type.as(OptionalTypeSyntax.self) {
+            var inner = of(optional.wrappedType)
+            inner.optional = true
+            return inner
+        }
         if let optional = type.as(ImplicitlyUnwrappedOptionalTypeSyntax.self) { return of(optional.wrappedType) }
         if let array = type.as(ArrayTypeSyntax.self) { return TypeRef(key: .array, element: of(array.element)) }
-        if type.is(DictionaryTypeSyntax.self) { return TypeRef(key: .object) }
+        if let dictionary = type.as(DictionaryTypeSyntax.self) { return TypeRef(key: .object, value: of(dictionary.value)) }
         if let tuple = type.as(TupleTypeSyntax.self) {
             if tuple.elements.count == 1, let only = tuple.elements.first { return of(only.type) }
             return TypeRef(tuple: Tuple(labels: tuple.elements.map { $0.firstName?.text }, refs: tuple.elements.map { of($0.type) }))
@@ -65,7 +96,12 @@ struct TypeRef: Equatable, Sendable {
         if name == "Array", let argument = arguments?.arguments.first, case .type(let element) = argument.argument {
             return TypeRef(key: .array, element: of(element))
         }
-        if name == "Dictionary" { return TypeRef(key: .object) }
+        if name == "Dictionary" {
+            if arguments?.arguments.count == 2, let last = arguments?.arguments.last, case .type(let value) = last.argument {
+                return TypeRef(key: .object, value: of(value))
+            }
+            return TypeRef(key: .object)
+        }
         let key = TypeEnv.type(of: type)
         return key == .any ? TypeRef(nominal: name) : TypeRef(key: key)
     }
@@ -76,6 +112,8 @@ struct TypeIndex {
     struct Method {
         let parameters: [(label: String, optional: Bool)]
         let returns: TypeRef
+        /// The declaration, for call-site specialisation of an `Any`-returning function.
+        var decl: FunctionDeclSyntax?
     }
 
     var props: [String: [String: TypeRef]] = [:]
@@ -151,8 +189,17 @@ struct TypeIndex {
         "UIPasteboard": [
             "changeCount": TypeRef(key: .integer), "numberOfItems": TypeRef(key: .integer),
             "hasStrings": TypeRef(key: .boolean), "hasImages": TypeRef(key: .boolean),
-            "string": TypeRef(key: .string),
+            "string": TypeRef(key: .string), "types": TypeRef(key: .array, element: TypeRef(key: .string)),
         ],
+        "NSNumber": [
+            "intValue": TypeRef(key: .integer), "uintValue": TypeRef(key: .integer), "int64Value": TypeRef(key: .integer),
+            "int32Value": TypeRef(key: .integer), "doubleValue": TypeRef(key: .number), "floatValue": TypeRef(key: .number),
+            "boolValue": TypeRef(key: .boolean), "stringValue": TypeRef(key: .string),
+        ],
+        "FileHandle": [:], "FileManager": [:], "TimeZone": [:],
+        "CGImage": ["width": TypeRef(key: .integer), "height": TypeRef(key: .integer)],
+        "UIImage": ["cgImage": TypeRef(nominal: "CGImage", optional: true)],
+        "Bundle": ["executablePath": TypeRef(key: .string, optional: true)],
         "Date": [
             "timeIntervalSince1970": TypeRef(key: .number), "timeIntervalSinceReferenceDate": TypeRef(key: .number),
         ],
@@ -163,8 +210,21 @@ struct TypeIndex {
     ]
 
     /// Fixed SDK methods by receiver type.
-    static let builtinMethods: [String: [String: KeyType]] = [
-        "Date": ["timeIntervalSince": .number],
+    static let builtinMethods: [String: [String: TypeRef]] = [
+        "Date": ["timeIntervalSince": TypeRef(key: .number)],
+        "FileHandle": ["seekToEnd": TypeRef(key: .integer), "offset": TypeRef(key: .integer)],
+        "FileManager": [
+            "destinationOfSymbolicLink": TypeRef(key: .string),
+            "contentsOfDirectory": TypeRef(key: .array, element: TypeRef(key: .string)),
+        ],
+        // NSString path helpers always return a String (the URL ones are on URL).
+        "NSString": [
+            "appendingPathComponent": TypeRef(key: .string), "appendingPathExtension": TypeRef(key: .string),
+            "deletingLastPathComponent": TypeRef(key: .string), "deletingPathExtension": TypeRef(key: .string),
+            "expandingTildeInPath": TypeRef(key: .string), "abbreviatingWithTildeInPath": TypeRef(key: .string),
+        ],
+        "TimeZone": ["secondsFromGMT": TypeRef(key: .integer)],
+        "URL": ["appendingPathComponent": TypeRef(nominal: "URL"), "deletingLastPathComponent": TypeRef(nominal: "URL")],
     ]
 
     /// Static members that are an instance of their own type.
@@ -220,7 +280,7 @@ final class TypeIndexBuilder: SyntaxVisitor {
             (label: $0.firstName.text, optional: $0.defaultValue != nil || $0.ellipsis != nil)
         }
         let returns = node.signature.returnClause.map { TypeRef.of($0.type) } ?? TypeRef()
-        let method = TypeIndex.Method(parameters: parameters, returns: returns)
+        let method = TypeIndex.Method(parameters: parameters, returns: returns, decl: node)
         if let type = stack.last {
             index.methods[type, default: [:]][node.name.text, default: []].append(method)
         } else {

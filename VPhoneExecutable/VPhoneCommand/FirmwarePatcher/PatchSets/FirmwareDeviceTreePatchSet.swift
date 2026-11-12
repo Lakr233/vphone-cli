@@ -50,7 +50,7 @@ public enum FirmwareDeviceTreePatchSet {
             property(
                 "devicetree-cfw-home_button_type",
                 "Home button type",
-                "Declares a gesture-driven device with no home button.",
+                "Declares the virtual gesture interface, or preserves the iPhone SE board's Home button type.",
             ),
             property(
                 "devicetree-cfw-artwork_device_subtype",

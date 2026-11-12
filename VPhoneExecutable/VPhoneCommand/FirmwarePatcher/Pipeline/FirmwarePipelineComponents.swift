@@ -228,8 +228,8 @@ extension FirmwarePipeline {
             patcherFactories: patchesBootChain(.llb) ? [{ data, verbose in
                 let p = IBootPatcher(data: data, mode: .llb, verbose: verbose)
                 p.extraBootArgs = extraBootArgs
-                // The boot video word always says 3x, which is already right
-                // for an iPhone board.
+                // The boot video word always says 3x. SE and iPad boards
+                // need their own 2x display scale.
                 p.displayScale = hasGuestTree && guestDevice.screen.scale != 3 ? UInt16(guestDevice.screen.scale) : nil
                 p.gate = gate
                 return p

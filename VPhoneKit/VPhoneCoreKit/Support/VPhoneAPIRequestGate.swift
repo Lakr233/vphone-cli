@@ -41,6 +41,17 @@ public enum VPhoneAPIRequestGate {
         return Data((head + body).utf8)
     }()
 
+    /// Sent by the proxy when the guest closes an admitted connection before
+    /// any reply byte reached the client.
+    public static let guestClosedResponse: Data = {
+        let body = #"{"type":"response","id":null,"error":{"code":"guest_closed","message":"Guest closed the connection without a reply"}}"#
+        let head = "HTTP/1.1 502 Bad Gateway\r\n" +
+            "Content-Type: application/json; charset=utf-8\r\n" +
+            "Content-Length: \(body.utf8.count)\r\n" +
+            "Connection: close\r\n\r\n"
+        return Data((head + body).utf8)
+    }()
+
     // MARK: - Token
 
     /// A usable token is 16 to 256 URL-unreserved characters, so it needs no
