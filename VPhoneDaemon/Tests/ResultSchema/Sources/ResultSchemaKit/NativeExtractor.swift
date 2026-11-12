@@ -117,6 +117,39 @@ extension NativeExtractor {
         return (Array(KeyMerge.union(sets).values), open)
     }
 
+    /// Rule 11 for a bridge whose JSON is an envelope: the key set of the dictionaries added with
+    /// `[array addObject:x]` to the array stored under `key` of the `@{...}` literal `function` builds
+    /// (`icli_system_json(@{@"processes": rows})`).
+    public static func elements(
+        function: String, key: String, sources: [NativeSource], method: String = "",
+        lookup: @escaping (String) -> [NativeSource] = { _ in [] }
+    ) throws -> [ExtractedKey] {
+        let engine = Engine(method: method, lookup: lookup)
+        let fn = try single(engine, function, sources, method)
+        let src = fn.src
+        let t = src.toks
+        var arrays: Set<String> = []
+        for i in (fn.open + 1)..<fn.close where t[i].text == "@{" && src.match[i] > i {
+            let end = src.match[i]
+            var s = i + 1
+            while s < end {
+                let e = engine.topLevel(src, ",", s, end) ?? end
+                if t[s].kind == .objcString, t[s].text == key, s + 3 == e, t[s + 1].text == ":", t[s + 2].kind == .ident {
+                    arrays.insert(t[s + 2].text)
+                }
+                s = e + 1
+            }
+        }
+        var sets: [KeyMap] = []
+        for i in (fn.open + 1)..<fn.close where t[i].text == "[" && src.match[i] > i {
+            guard i + 3 < fn.close, t[i + 1].kind == .ident, arrays.contains(t[i + 1].text),
+                  t[i + 2].text == "addObject", t[i + 3].text == ":" else { continue }
+            sets.append(try engine.keys(fn, i + 4, src.match[i], use: i))
+        }
+        if sets.isEmpty { throw engine.fail(fn, fn.nameIdx) }
+        return Array(KeyMerge.union(sets).values)
+    }
+
     /// Rule 11 for a bridge: the key set of the dictionaries a native function adds with
     /// `[array addObject:x]` to the array it returns.
     public static func elements(
@@ -145,14 +178,14 @@ extension NativeExtractor {
 
 /// Calls whose block argument produces the result: the keys are those of the block's returns.
 private let blockWrappers: Set<String> = ["icli_archive_with_utf8_names"]
-private let wrappers: Set<String> = ["icli_json_or_empty", "icli_json", "icli_system_json", "strndup", "strdup","decodeBridgeJSON", "takeCString"]
+private let wrappers: Set<String> = ["icli_json_or_empty", "icli_json", "icli_system_json", "strndup", "strdup","decodeBridgeJSON", "takeCString", "launchJSON"]
 private let dictClasses: Set<String> = ["NSDictionary", "NSMutableDictionary"]
 let reserved: Set<String> = [
     "return", "else", "case", "goto", "sizeof", "new", "in", "typeof", "if", "while", "for", "do", "switch",
     "@throw", "@catch", "@try",
 ]
 let integerTypes: Set<String> = [
-    "int", "long", "short", "unsigned", "signed", "NSInteger", "NSUInteger", "size_t", "ssize_t", "pid_t", "uid_t",
+    "CFIndex", "CFOptionFlags", "CFTypeID", "int", "long", "short", "unsigned", "signed", "NSInteger", "NSUInteger", "size_t", "ssize_t", "pid_t", "uid_t",
     "gid_t", "off_t", "time_t", "int8_t", "int16_t", "int32_t", "int64_t", "uint8_t", "uint16_t", "uint32_t",
     "uint64_t", "uintptr_t", "intptr_t",
 ]
@@ -204,6 +237,10 @@ private final class Engine {
     /// Every parsed source whose functions are cached (see `fnCache`).
     var retained: [Src] = []
     var visiting: Set<String> = []
+    /// Variables whose `id` bindings are being typed (guards a binding that names itself).
+    var inferring: Set<String> = []
+    /// C structs found through `lookup` (field types of `state.x`).
+    lazy var ctypes = CTypes(sources: lookup)
 
     init(method: String, lookup: @escaping (String) -> [NativeSource]) {
         self.method = method
@@ -518,7 +555,8 @@ private final class Engine {
             while s < b - 1 {
                 let e = topLevel(src, ",", s, b - 1) ?? (b - 1)
                 guard t[s].kind == .objcString, s + 1 < e, t[s + 1].text == ":" else { throw fail(fn, s) }
-                KeyMerge.merge(&result, name: t[s].text, type: inferType(fn, s + 2, e), presence: .required)
+                let value = inferType(fn, s + 2, e)
+                KeyMerge.merge(&result, name: t[s].text, type: value.type, presence: .required, nullable: value.nullable)
                 s = e + 1
             }
             return result
@@ -562,27 +600,38 @@ private final class Engine {
         throw fail(fn, a)
     }
 
-    private func messageKeys(_ fn: Fn, _ a: Int, _ b: Int, use: Int) throws -> KeyMap {
-        let src = fn.src
+    /// The receiver start and selector index of the message send `[recv selector ...]` in a..<b.
+    func messageParts(_ src: Src, _ a: Int, _ b: Int) -> (recvStart: Int, selector: Int)? {
         let t = src.toks
         let e = b - 1
         var r = a + 1
-        guard r < e else { throw fail(fn, a) }
+        guard r < e else { return nil }
         let recvStart = r
         if t[r].text == "[" || t[r].text == "(" || t[r].text == "@{" {
-            guard src.match[r] > r else { throw fail(fn, a) }
+            guard src.match[r] > r else { return nil }
             r = src.match[r] + 1
         } else if t[r].kind == .ident {
             r += 1
             if r < e, t[r].text == "(", src.match[r] > r {
                 r = src.match[r] + 1
             } else {
-                while r + 1 < e, t[r].text == ".", t[r + 1].kind == .ident { r += 2 }
+                while r + 1 < e, t[r].text == "." || t[r].text == "->", t[r + 1].kind == .ident { r += 2 }
+                // `dict[key] selector`: subscripts belong to the receiver.
+                while r < e, t[r].text == "[", src.match[r] > r { r = src.match[r] + 1 }
             }
         } else {
-            throw fail(fn, a)
+            return nil
         }
-        guard r < e, t[r].kind == .ident else { throw fail(fn, a) }
+        guard r < e, t[r].kind == .ident else { return nil }
+        return (recvStart, r)
+    }
+
+    private func messageKeys(_ fn: Fn, _ a: Int, _ b: Int, use: Int) throws -> KeyMap {
+        let src = fn.src
+        let t = src.toks
+        let e = b - 1
+        guard let parts = messageParts(src, a, b) else { throw fail(fn, a) }
+        let (recvStart, r) = parts
         let selector = t[r].text
         let receiver = text(src, recvStart, r)
         let bare = r + 1 == e
@@ -673,8 +722,9 @@ private final class Engine {
             let assigns = try assignments(fn, name, from: d, to: use)
             let definite = definiteKeys(fn, declaration: d, use: use, assigns)
             for assign in assigns {
-                KeyMerge.merge(&result, name: assign.key, type: inferType(fn, assign.value.lowerBound, assign.value.upperBound),
-                               presence: definite.contains(assign.key) ? .required : .optional)
+                let value = inferType(fn, assign.value.lowerBound, assign.value.upperBound)
+                KeyMerge.merge(&result, name: assign.key, type: value.type,
+                               presence: definite.contains(assign.key) ? .required : .optional, nullable: value.nullable)
             }
             return result
         }
@@ -687,8 +737,8 @@ private final class Engine {
         }
         var result = KeyMerge.union(sets)
         for assign in try assignments(fn, name, from: d, to: use) {
-            KeyMerge.merge(&result, name: assign.key, type: inferType(fn, assign.value.lowerBound, assign.value.upperBound),
-                           presence: .optional)
+            let value = inferType(fn, assign.value.lowerBound, assign.value.upperBound)
+            KeyMerge.merge(&result, name: assign.key, type: value.type, presence: .optional, nullable: value.nullable)
         }
         return result
     }
@@ -792,19 +842,26 @@ private final class Engine {
 
     // MARK: type inference (REQ-RPC-007)
 
-    func inferType(_ fn: Fn, _ lo: Int, _ hi: Int) -> KeyType {
+    /// A value's type and whether it is `NSNull` on some path (null-only is `(.null, true)`).
+    typealias Inferred = (type: KeyType, nullable: Bool)
+
+    func inferType(_ fn: Fn, _ lo: Int, _ hi: Int) -> Inferred {
         let src = fn.src
         let t = src.toks
         var a = lo
         let b = hi
-        guard a < b else { return .any }
+        guard a < b else { return (.any, false) }
+        if let narrowed = narrowed(fn, lo, hi) { return (narrowed, false) }
         if let q = topLevel(src, "?", a, b) {
             let elvis = q + 1 < b && t[q + 1].text == ":"
-            if elvis { return merged(inferType(fn, a, q), inferType(fn, q + 2, b)) }
+            if elvis { return KeyMerge.unify(inferType(fn, a, q), inferType(fn, q + 2, b), integersAreNumbers: true) }
             if let colon = topLevel(src, ":", q + 1, b) {
-                return merged(inferType(fn, q + 1, colon), inferType(fn, colon + 1, b))
+                // `[v isKindOfClass:C.class] ? v : w`: the condition types the value.
+                let whenTrue = classGuard(src, a, q, value: text(src, q + 1, colon)).map { ($0, false) }
+                    ?? inferType(fn, q + 1, colon)
+                return KeyMerge.unify(whenTrue, inferType(fn, colon + 1, b), integersAreNumbers: true)
             }
-            return .any
+            return (.any, false)
         }
         while t[a].text == "(", src.match[a] > a {
             let m = src.match[a]
@@ -813,40 +870,118 @@ private final class Engine {
             if m + 1 < b, !inner.isEmpty, inner.allSatisfy({ $0.kind == .ident || $0.text == "*" }) { a = m + 1; continue }
             break
         }
+        // C comparisons and logic yield `int`, so a boxed one is an integer; arithmetic takes the operands' numeric type.
+        for op in ["&&", "||", "==", "!=", "<=", ">=", "<", ">"] where topLevel(src, op, a + 1, b) != nil {
+            return (.integer, false)
+        }
+        if t[a].text == "!", t[a].kind == .punct { return (.integer, false) }
+        if t[a].kind == .punct, t[a].text == "-" || t[a].text == "+", a + 1 < b { return inferType(fn, a + 1, b) }
+        var operands: [(Int, Int)] = []
+        var start = a
+        // The first token may open a group (`@(...)`, `[...]`, a cast): scan after it.
+        var k = t[a].kind == .punct && src.match[a] > a ? src.match[a] + 1 : a + 1
+        while k < b {
+            let tok = t[k]
+            if tok.kind == .punct {
+                if ["+", "-", "*", "/", "%"].contains(tok.text), k > start { operands.append((start, k)); start = k + 1 }
+                else if src.match[k] > k { k = src.match[k] }
+            }
+            k += 1
+        }
+        if !operands.isEmpty {
+            operands.append((start, b))
+            let types = operands.map { $0.0 < $0.1 ? inferType(fn, $0.0, $0.1).type : .any }
+            if types.allSatisfy({ $0 == .integer || $0 == .number }) {
+                return (types.contains(.number) ? .number : .integer, false)
+            }
+            return (.any, false)
+        }
+        // `NSNull.null` and `[NSNull null]`.
+        if b - a == 3, t[a].text == "NSNull", t[a + 1].text == ".", t[a + 2].text == "null" { return (.null, true) }
+        if b - a == 4, t[a].text == "[", t[a + 1].text == "NSNull", t[a + 2].text == "null", t[a + 3].text == "]" {
+            return (.null, true)
+        }
         let first = t[a]
         let single = b - a == 1
         switch first.kind {
-        case .objcString: return single ? .string : .any
-        case .boxed: return single ? numberType(first.text) : .any
-        case .number: return single ? numberType(first.text) : .any
+        case .objcString: return (single ? .string : .any, false)
+        case .boxed: return (single ? numberType(first.text) : .any, false)
+        case .number: return (single ? numberType(first.text) : .any, false)
         default: break
         }
         if first.kind == .ident, single {
             switch first.text {
-            case "@YES", "@NO", "@true", "@false", "YES", "NO", "true", "false": return .boolean
-            default: return declaredType(fn, first.text)
+            case "@YES", "@NO", "@true", "@false", "YES", "NO", "true", "false": return (.boolean, false)
+            default: return inferName(fn, first.text)
             }
         }
-        if first.text == "@{", src.match[a] == b - 1 { return .object }
-        if first.text == "@[", src.match[a] == b - 1 { return .array }
-        if first.text == "@(", src.match[a] == b - 1 { return boxedType(fn, a + 1, b - 1) }
-        if first.text == "[", src.match[a] == b - 1, a + 2 < b, t[a + 1].kind == .ident, t[a + 2].kind == .ident {
-            let receiver = t[a + 1].text
-            let selector = t[a + 2].text
-            if receiver == "NSString" || receiver == "NSMutableString" { return .string }
-            if receiver == "NSArray" || receiver == "NSMutableArray" { return .array }
-            if dictClasses.contains(receiver) { return .object }
-            if receiver == "NSNumber" {
-                if selector.hasPrefix("numberWithBool") { return .boolean }
-                if selector.hasPrefix("numberWithDouble") || selector.hasPrefix("numberWithFloat") { return .number }
-                if selector.hasPrefix("numberWithInt") || selector.hasPrefix("numberWithLong")
-                    || selector.hasPrefix("numberWithUnsigned") || selector.hasPrefix("numberWithShort") { return .integer }
+        // `base.member` and `base->member`: a declared member, a count or length, an exception's name.
+        if let chain = memberChain(src, a, b), let sdk = sdkChainType(fn, chain) { return (sdk, false) }
+        // `array.firstObject[@"k"]`: the value the dictionaries added to `array` carry under `k`.
+        if let element = elementValue(fn, a, b) { return element }
+        if let table = tableValue(fn, a, b) { return table }
+        if let chain = memberChain(src, a, b), chain.count > 2 {
+            // `base.a.count` and `base->a.b`: the last member decides.
+            let last = chain[chain.count - 1]
+            if last == "count" || last == "length" { return (.integer, false) }
+            if let known = foundationSelectors[last] { return (known, false) }
+        }
+        if b - a == 3, first.kind == .ident, t[a + 1].text == "." || t[a + 1].text == "->", t[a + 2].kind == .ident {
+            let member = t[a + 2].text
+            let declared = declarations(src, member, in: 0..<t.count, outside: functions(of: src)).map { typeFor($0.words, pointer: $0.pointer) }
+            if let known = declared.first, declared.allSatisfy({ $0 == known }) { return (known, false) }
+            if let words = declarations(src, first.text, in: (fn.nameIdx + 1)..<fn.close).first?.words, words.count == 1,
+               let field = ctypes.field(words[0], member), field.key != .any {
+                return (field.key, false)
+            }
+            if member == "count" || member == "length" { return (.integer, false) }
+            if let known = foundationSelectors[member] { return (known, false) }
+            if member == "name" || member == "reason",
+               declarations(src, first.text, in: (fn.nameIdx + 1)..<fn.close).contains(where: { $0.words.last == "NSException" }) {
+                return (.string, false)
+            }
+            return (.any, false)
+        }
+        // A call of a function whose declaration gives the return type.
+        if first.kind == .ident, !reserved.contains(first.text), a + 1 < b, t[a + 1].text == "(", t[a + 1].kind == .punct,
+           src.match[a + 1] == b - 1 {
+            if let callee = tryResolve(first.text, from: fn) { return (returnType(callee), false) }
+            if first.text == "MAX" || first.text == "MIN" { return extremum(fn, a + 1, b - 1) }
+            if let block = blockReturnType(fn, first.text) { return (block, false) }
+            return (.any, false)
+        }
+        if first.text == "@{", src.match[a] == b - 1 { return (.object, false) }
+        if first.text == "@[", src.match[a] == b - 1 { return (.array, false) }
+        if first.text == "@(", src.match[a] == b - 1 { return (boxedType(fn, a + 1, b - 1), false) }
+        if first.text == "[", src.match[a] == b - 1, a + 2 < b {
+            // `[[NSMutableArray alloc] init]`: the allocated class decides.
+            if t[a + 1].text == "[", src.match[a + 1] > a + 1, a + 3 < b {
+                let cls = t[a + 2].text
+                if t[a + 3].text == "alloc" {
+                    if let known = CTypes.objectiveC[cls] { return (known, false) }
+                }
+            }
+            if t[a + 1].kind == .ident, t[a + 2].kind == .ident {
+                let receiver = t[a + 1].text
+                let selector = t[a + 2].text
+                if let known = CTypes.objectiveC[receiver] { return (known, false) }
+                if receiver == "NSNumber" {
+                    if selector.hasPrefix("numberWithBool") { return (.boolean, false) }
+                    if selector.hasPrefix("numberWithDouble") || selector.hasPrefix("numberWithFloat") { return (.number, false) }
+                    if selector.hasPrefix("numberWithInt") || selector.hasPrefix("numberWithLong")
+                        || selector.hasPrefix("numberWithUnsigned") || selector.hasPrefix("numberWithShort") { return (.integer, false) }
+                }
+            }
+            // A selector declared in this file, or a Foundation selector with a fixed result type.
+            if let parts = messageParts(src, a, b) {
+                let selector = t[parts.selector].text
+                let declared = selectorTypes(src, selector)
+                if let known = declared.first, declared.allSatisfy({ $0 == known }) { return (known, false) }
+                if declared.isEmpty, let known = foundationSelectors[selector] { return (known, false) }
             }
         }
-        return .any
+        return (.any, false)
     }
-
-    private func merged(_ x: KeyType, _ y: KeyType) -> KeyType { x == y ? x : .any }
 
     private func numberType(_ text: String) -> KeyType {
         let lower = text.lowercased()
@@ -869,38 +1004,432 @@ private final class Engine {
             if t[lo].kind == .number { return numberType(t[lo].text) }
             if t[lo].kind == .ident { return declaredType(fn, t[lo].text) }
         }
-        return .any
+        let value = inferType(fn, lo, hi)
+        return value.type == .null ? .any : value.type
     }
 
     private func typeFor(_ idents: [String], pointer: Bool) -> KeyType {
         if pointer {
             let last = idents.last { !CTypes.qualifiers.contains($0) }
-            switch last {
-            case "NSString", "NSMutableString": return .string
-            case "NSArray", "NSMutableArray": return .array
-            case "NSDictionary", "NSMutableDictionary": return .object
-            default: return .any
-            }
+            if let last, let known = CTypes.objectiveC[last] { return known }
+            return last == "char" ? .string : .any  // `@(cString)` boxes to an NSString
         }
         return CTypes.key(idents, pointer: false)
     }
 
-    /// Type of a local or parameter by its declaration in the function (`any` when absent or ambiguous).
-    private func declaredType(_ fn: Fn, _ name: String) -> KeyType {
+    /// The type words of the declaration whose declarator list contains the comma at `comma`
+    /// (`NSMutableArray *a = [NSMutableArray array], *b = ...;`); nil when it is not a declaration.
+    private func declarationWords(_ src: Src, comma: Int) -> [String]? {
+        let t = src.toks
+        let level = src.enclosing[comma]
+        var k = comma - 1
+        while k >= 0, k != level {
+            if src.enclosing[k] == level, [";", "{", "}"].contains(t[k].text), t[k].kind == .punct { break }
+            k -= 1
+        }
+        var s = k + 1
+        var words: [String] = []
+        while s < comma, t[s].kind == .ident, !reserved.contains(t[s].text) { words.append(t[s].text); s += 1 }
+        guard s < comma, t[s].text == "*" || t[s].text == "=" || t[s].text == "," else { return nil }
+        if t[s].text != "*" { words = Array(words.dropLast()) }
+        return words.isEmpty ? nil : words
+    }
+
+    /// `a.b->c` as `[a, b, c]` when the tokens a..<b are exactly such a chain.
+    private func memberChain(_ src: Src, _ a: Int, _ b: Int) -> [String]? {
+        let t = src.toks
+        guard (b - a) % 2 == 1, b - a >= 3, t[a].kind == .ident, !reserved.contains(t[a].text) else { return nil }
+        var names = [t[a].text]
+        var k = a + 1
+        while k < b {
+            guard t[k].kind == .punct, t[k].text == "." || t[k].text == "->", t[k + 1].kind == .ident else { return nil }
+            names.append(t[k + 1].text)
+            k += 2
+        }
+        return names
+    }
+
+    /// The scalar type of an SDK property chain such as `location.coordinate.latitude` or
+    /// `NSProcessInfo.processInfo.systemUptime` (the head is a class name or a local of an SDK class).
+    private func sdkChainType(_ fn: Fn, _ chain: [String]) -> KeyType? {
+        var current: String
+        if sdkMembers[chain[0]] != nil {
+            current = chain[0]
+        } else if let words = declarations(fn.src, chain[0], in: (fn.nameIdx + 1)..<fn.close).first?.words,
+                  let last = words.last, sdkMembers[last] != nil {
+            current = last
+        } else {
+            return nil
+        }
+        for (i, member) in chain.dropFirst().enumerated() {
+            guard let next = sdkMembers[current]?[member] else { return nil }
+            if i == chain.count - 2 { return KeyType(rawValue: next) }
+            guard sdkMembers[next] != nil else { return nil }
+            current = next
+        }
+        return nil
+    }
+
+    /// `array.firstObject[@"k"]` and `[array lastObject][@"k"]`: the type of `k` in the dictionaries
+    /// that `[array addObject:@{...}]` adds. Nil when the array gets elements any other way.
+    private func elementValue(_ fn: Fn, _ a: Int, _ b: Int) -> Inferred? {
         let src = fn.src
         let t = src.toks
-        var found: [KeyType] = []
-        for i in (fn.nameIdx + 1)..<fn.close where t[i].kind == .ident && t[i].text == name && i > 0 && i + 1 < t.count {
-            guard [ "=", ";", ",", ")" ].contains(t[i + 1].text) else { continue }
+        let name: String, key: String
+        if b - a == 6, t[a].kind == .ident, t[a + 1].text == ".", ["firstObject", "lastObject"].contains(t[a + 2].text),
+           t[a + 3].text == "[", src.match[a + 3] == a + 5, t[a + 4].kind == .objcString {
+            name = t[a].text
+            key = t[a + 4].text
+        } else if b - a == 7, t[a].text == "[", src.match[a] == a + 3, t[a + 1].kind == .ident,
+                  ["firstObject", "lastObject"].contains(t[a + 2].text), t[a + 4].text == "[",
+                  src.match[a + 4] == a + 6, t[a + 5].kind == .objcString {
+            name = t[a + 1].text
+            key = t[a + 5].text
+        } else {
+            return nil
+        }
+        var result: Inferred?
+        for i in (fn.open + 1)..<fn.close where t[i].text == "[" && src.match[i] > i && i + 3 < fn.close
+            && t[i + 1].text == name && t[i + 2].text == "addObject" && t[i + 3].text == ":" {
+            guard let set = try? keys(fn, i + 4, src.match[i], use: i), let found = set[key] else { return nil }
+            let value: Inferred = (found.type, found.nullable)
+            result = result.map { KeyMerge.unify($0, value, integersAreNumbers: true) } ?? value
+        }
+        return result
+    }
+
+    /// `spec[@"id"]` where every dictionary `spec` can hold comes from the elements of a function's
+    /// `@[...]` table (a `for (T spec in table())` variable, an assignment of one, or a parameter every
+    /// call site passes one to): the type the table's entries give the key.
+    private func tableValue(_ fn: Fn, _ a: Int, _ b: Int) -> Inferred? {
+        let t = fn.src.toks
+        guard b - a == 4, t[a].kind == .ident, t[a + 1].text == "[", fn.src.match[a + 1] == a + 3,
+              t[a + 2].kind == .objcString, let sets = tableProducers(fn, t[a].text, depth: 0), !sets.isEmpty else { return nil }
+        var result: Inferred?
+        for set in sets {
+            guard let found = set[t[a + 2].text] else { return nil }
+            let value: Inferred = (found.type, found.nullable)
+            result = result.map { KeyMerge.unify($0, value, integersAreNumbers: true) } ?? value
+        }
+        return result
+    }
+
+    private func tableProducers(_ fn: Fn, _ name: String, depth: Int) -> [KeyMap]? {
+        guard depth < 4 else { return nil }
+        let src = fn.src
+        let t = src.toks
+        var sets: [KeyMap] = []
+        var bound = false
+        for i in (fn.open + 1)..<fn.close where t[i].kind == .ident && t[i].text == name && i + 1 < fn.close {
+            if t[i + 1].text == "in", i + 4 < fn.close, t[i + 2].kind == .ident, t[i + 3].text == "(", t[i + 4].text == ")" {
+                guard let table = tableEntries(fn, t[i + 2].text) else { return nil }
+                sets += table
+                bound = true
+            } else if t[i + 1].text == "=", t[i - 1].text != ".", t[i - 1].text != "->" {
+                let end = endOfStatement(src, i + 2, limit: fn.close)
+                if isNil(src, i + 2, end) { continue }
+                guard end == i + 3, t[i + 2].kind == .ident, let inner = tableProducers(fn, t[i + 2].text, depth: depth + 1)
+                else { return nil }
+                sets += inner
+                bound = true
+            }
+        }
+        if bound { return sets }
+        // A parameter: the argument of every call in this source.
+        guard t[fn.nameIdx + 1].text == "(", fn.nameIdx + 1 < src.match.count else { return nil }
+        let close = src.match[fn.nameIdx + 1]
+        var index = 0
+        var position: Int?
+        var s = fn.nameIdx + 2
+        while s < close {
+            let e = topLevel(src, ",", s, close) ?? close
+            if (s..<e).contains(where: { t[$0].kind == .ident && t[$0].text == name }), t[e - 1].text == name { position = index }
+            index += 1
+            s = e + 1
+        }
+        guard let position else { return nil }
+        var calls = 0
+        for i in t.indices where t[i].kind == .ident && t[i].text == fn.name && i + 1 < t.count && t[i + 1].text == "("
+            && src.match[i + 1] > i && !(fn.nameIdx == i) {
+            guard let caller = function(containing: i, in: src) else { return nil }
+            var from = i + 2
+            var arg = 0
+            let end = src.match[i + 1]
+            var range: Range<Int>?
+            while from <= end {
+                let e = topLevel(src, ",", from, end) ?? end
+                if arg == position { range = from..<e; break }
+                arg += 1
+                from = e + 1
+            }
+            guard let range, range.count == 1, t[range.lowerBound].kind == .ident,
+                  let inner = tableProducers(caller, t[range.lowerBound].text, depth: depth + 1) else { return nil }
+            sets += inner
+            calls += 1
+        }
+        return calls > 0 ? sets : nil
+    }
+
+    /// The key sets of the entries of the `@[...]` a function stores in the array it returns.
+    private func tableEntries(_ fn: Fn, _ function: String) -> [KeyMap]? {
+        guard let table = tryResolve(function, from: fn) else { return nil }
+        let src = table.src
+        let t = src.toks
+        var names: Set<String> = []
+        for i in (table.open + 1)..<table.close where t[i].text == "return" && t[i].kind == .ident
+            && i + 2 < table.close && t[i + 1].kind == .ident && t[i + 2].text == ";" {
+            names.insert(t[i + 1].text)
+        }
+        var sets: [KeyMap] = []
+        for i in (table.open + 1)..<table.close where t[i].kind == .ident && names.contains(t[i].text)
+            && i + 2 < table.close && t[i + 1].text == "=" && t[i + 2].text == "@[" {
+            let end = src.match[i + 2]
+            var s = i + 3
+            while s < end {
+                let e = topLevel(src, ",", s, end) ?? end
+                if s < e {
+                    guard let set = try? keys(table, s, e, use: i) else { return nil }
+                    sets.append(set)
+                }
+                s = e + 1
+            }
+        }
+        return sets.isEmpty ? nil : sets
+    }
+
+    /// An `NSNumber` local that only ever holds a CFBoolean: each binding is `CFGetTypeID(v) == CFBooleanGetTypeID() ? x : nil`
+    /// (the other branch nil, the check not under `||`) or a call to a function returning such a local.
+    private func isCFBoolean(_ fn: Fn, _ name: String, depth: Int) -> Bool {
+        guard depth < 3 else { return false }
+        let src = fn.src
+        let t = src.toks
+        var bindings = 0
+        for i in (fn.open + 1)..<fn.close where t[i].kind == .ident && t[i].text == name && i + 1 < fn.close
+            && t[i + 1].text == "=" && t[i - 1].text != "." && t[i - 1].text != "->" {
+            let a = i + 2
+            let end = endOfStatement(src, a, limit: fn.close)
+            guard a < end else { return false }
+            bindings += 1
+            if isNil(src, a, end) { continue }
+            if t[a].kind == .ident, a + 1 < end, t[a + 1].text == "(", src.match[a + 1] == end - 1,
+               let callee = tryResolve(t[a].text, from: fn) {
+                let names = (callee.open + 1..<callee.close).compactMap { r -> String? in
+                    guard callee.src.toks[r].text == "return", r + 2 < callee.close,
+                          callee.src.toks[r + 2].text == ";", callee.src.toks[r + 1].kind == .ident else { return nil }
+                    return callee.src.toks[r + 1].text
+                }
+                guard !names.isEmpty, names.allSatisfy({ isCFBoolean(callee, $0, depth: depth + 1) }) else { return false }
+                continue
+            }
+            guard let q = topLevel(src, "?", a, end), let colon = topLevel(src, ":", q + 1, end),
+                  topLevel(src, "||", a, q) == nil, isNil(src, colon + 1, end) else { return false }
+            let cond = (a..<q).map { t[$0].text }
+            guard let g = cond.firstIndex(of: "CFGetTypeID"), g + 4 < cond.count, cond[g + 1] == "(",
+                  let close = cond[(g + 1)...].firstIndex(of: ")"), close + 3 < cond.count, cond[close + 1] == "==",
+                  cond[close + 2] == "CFBooleanGetTypeID" else { return false }
+        }
+        return bindings > 0
+    }
+
+    /// The return type of a call through a block variable declared `T (^name)(...)`.
+    private func blockReturnType(_ fn: Fn, _ name: String) -> KeyType? {
+        let src = fn.src
+        let t = src.toks
+        for p in (fn.open + 1)..<fn.close where t[p].text == name && p >= 3 && t[p - 1].text == "^" && t[p - 2].text == "(" {
+            var words: [String] = []
+            var j = p - 3
+            while j >= 0, t[j].kind == .ident, !reserved.contains(t[j].text) { words.insert(t[j].text, at: 0); j -= 1 }
+            if !words.isEmpty { return typeFor(words, pointer: false) }
+        }
+        return nil
+    }
+
+    /// `MAX(a, b)` / `MIN(a, b)`: numeric when every argument is.
+    private func extremum(_ fn: Fn, _ open: Int, _ close: Int) -> Inferred {
+        let src = fn.src
+        var types: [KeyType] = []
+        var start = open + 1
+        while start <= close {
+            let end = topLevel(src, ",", start, close) ?? close
+            types.append(inferType(fn, start, end).type)
+            start = end + 1
+        }
+        guard !types.isEmpty, types.allSatisfy({ $0 == .integer || $0 == .number }) else { return (.any, false) }
+        return (types.contains(.number) ? .number : .integer, false)
+    }
+
+    /// The declarations of `name` in `range`: `T x`, `T *x`, `T a, *x;` and parameters. Occurrences
+    /// inside `fns` (their signatures and bodies) are skipped, which leaves file-scope declarations.
+    func declarations(_ src: Src, _ name: String, in range: Range<Int>, outside fns: [Fn] = []) -> [(words: [String], pointer: Bool)] {
+        let t = src.toks
+        var found: [(words: [String], pointer: Bool)] = []
+        for i in range where t[i].kind == .ident && t[i].text == name && i > 0 && i + 1 < t.count {
+            guard ["=", ";", ",", ")"].contains(t[i + 1].text) else { continue }
+            if fns.contains(where: { $0.nameIdx <= i && i <= $0.close }) { continue }
             var j = i - 1
             var pointer = false
+            // `NSString *const x`: a qualifier between the star and the name.
+            while j >= 0, t[j].text == "const" || t[j].text == "volatile" || t[j].text == "__strong" { j -= 1 }
             while j >= 0, t[j].text == "*" { pointer = true; j -= 1 }
+            if j >= 0, t[j].text == "," {
+                // `T a = e, *x;`: the type words open the declaration the comma belongs to.
+                guard let head = declarationWords(src, comma: j) else { continue }
+                found.append((head, pointer))
+                continue
+            }
             guard j >= 0, t[j].kind == .ident, !reserved.contains(t[j].text) else { continue }
             var words: [String] = []
             while j >= 0, t[j].kind == .ident, !reserved.contains(t[j].text) { words.insert(t[j].text, at: 0); j -= 1 }
-            found.append(typeFor(words, pointer: pointer))
+            found.append((words, pointer))
         }
-        guard let first = found.first, found.allSatisfy({ $0 == first }) else { return .any }
+        return found
+    }
+
+    /// Type of a local or parameter by its declaration in the function, else of a file-scope
+    /// variable (`any` when absent or ambiguous).
+    private func declaredType(_ fn: Fn, _ name: String) -> KeyType {
+        let src = fn.src
+        let t = src.toks
+        var found = declarations(src, name, in: (fn.nameIdx + 1)..<fn.close)
+        if found.isEmpty { found = declarations(src, name, in: 0..<t.count, outside: functions(of: src)) }
+        let types = found.map { typeFor($0.words, pointer: $0.pointer) }
+        guard let first = types.first, types.allSatisfy({ $0 == first }) else { return .any }
+        // An `id` local that receives `[name addObject:x]` is an array.
+        if first == .any, t.indices.contains(where: {
+            $0 > 0 && $0 + 2 < t.count && t[$0].text == name && t[$0 - 1].text == "["
+                && t[$0 + 1].text == "addObject" && t[$0 + 2].text == ":"
+        }) { return .array }
         return first
     }
+
+    /// A variable's type; an `id` local takes the merged type of the values assigned to it
+    /// (`id v = c ? @(x) : NSNull.null;` is a nullable number).
+    private func inferName(_ fn: Fn, _ name: String) -> Inferred {
+        let type = declaredType(fn, name)
+        if type == .any, isCFBoolean(fn, name, depth: 0) { return (.boolean, false) }
+        if type != .any { return (type, false) }
+        let src = fn.src
+        let t = src.toks
+        let local = declarations(src, name, in: (fn.nameIdx + 1)..<fn.close)
+        guard !local.isEmpty, local.allSatisfy({ $0.words.last == "id" && !$0.pointer }) else { return (.any, false) }
+        let guardKey = src.file + "#" + fn.name + "." + name
+        guard inferring.insert(guardKey).inserted else { return (.any, false) }
+        defer { inferring.remove(guardKey) }
+        var result: Inferred?
+        for p in (fn.open + 1)..<fn.close where t[p].kind == .ident && t[p].text == name
+            && p + 1 < fn.close && t[p + 1].text == "=" && t[p - 1].text != "." && t[p - 1].text != "->" {
+            let end = endOfStatement(src, p + 2, limit: fn.close)
+            if isNil(src, p + 2, end) { continue }
+            let value = inferType(fn, p + 2, end)
+            result = result.map { KeyMerge.unify($0, value, integersAreNumbers: true) } ?? value
+        }
+        return result ?? (.any, false)
+    }
+
+    /// The type a class check gives `value` in condition tokens a..<b: `[value isKindOfClass:NSString.class]`
+    /// in a conjunction (not negated, no `||`).
+    private func classGuard(_ src: Src, _ a: Int, _ b: Int, value: String) -> KeyType? {
+        let t = src.toks
+        if topLevel(src, "||", a, b) != nil { return nil }
+        for k in a..<b where t[k].text == "[" && t[k].kind == .punct && src.match[k] > k && src.match[k] <= b {
+            if k > a, t[k - 1].text == "!" { continue }
+            let close = src.match[k]
+            guard let sel = (k + 1..<close).first(where: {
+                t[$0].text == "isKindOfClass" && t[$0 + 1].text == ":" && src.enclosing[$0] == k
+            }), sel + 2 < close, text(src, k + 1, sel) == value else { continue }
+            if let known = CTypes.objectiveC[t[sel + 2].text] { return known }
+        }
+        return nil
+    }
+
+    /// The type an enclosing `if (... [value isKindOfClass:C.class] ...)` gives the value at lo..<hi.
+    private func narrowed(_ fn: Fn, _ lo: Int, _ hi: Int) -> KeyType? {
+        let src = fn.src
+        let t = src.toks
+        let value = text(src, lo, hi)
+        func walk(_ nodes: [Node]) -> KeyType? {
+            for node in nodes where node.range.contains(lo) {
+                if node.kind == .ifelse, let then = node.children.first, then.range.contains(lo) {
+                    let head = node.range.lowerBound + 1
+                    if head < t.count, t[head].text == "(", src.match[head] > head,
+                       let kind = classGuard(src, head + 1, src.match[head], value: value) { return kind }
+                }
+                if let deeper = walk(node.children) { return deeper }
+            }
+            return nil
+        }
+        return walk(fn.tree)
+    }
+
+    /// The type a function declares for its result (`any` when it is not a scalar or Foundation class).
+    private func returnType(_ callee: Fn) -> KeyType {
+        let t = callee.src.toks
+        var j = callee.nameIdx - 1
+        var pointer = false
+        while j >= 0, t[j].text == "*" { pointer = true; j -= 1 }
+        var words: [String] = []
+        while j >= 0, t[j].kind == .ident, !reserved.contains(t[j].text) { words.insert(t[j].text, at: 0); j -= 1 }
+        return words.isEmpty ? .any : typeFor(words, pointer: pointer)
+    }
+
+    /// Result types of the declarations `- (T)selector` and `@property T selector;` in this source.
+    private func selectorTypes(_ src: Src, _ selector: String) -> [KeyType] {
+        let t = src.toks
+        var result: [KeyType] = []
+        for i in t.indices where t[i].kind == .ident && t[i].text == selector && i > 2 && i + 1 < t.count {
+            func words(_ close: Int) -> (words: [String], pointer: Bool) {
+                var j = close - 1
+                var pointer = false
+                while j >= 0, t[j].text == "*" { pointer = true; j -= 1 }
+                var out: [String] = []
+                while j >= 0, t[j].kind == .ident, !reserved.contains(t[j].text) { out.insert(t[j].text, at: 0); j -= 1 }
+                return (out, pointer)
+            }
+            if t[i - 1].text == ")", src.open[i - 1] > 0, t[src.open[i - 1] - 1].text == "-", [";", "{", ":"].contains(t[i + 1].text) {
+                let w = words(i - 1)
+                if !w.words.isEmpty { result.append(typeFor(w.words, pointer: w.pointer)) }
+            } else if t[i + 1].text == ";" {
+                // `@property (attrs) T name;`
+                var j = i - 1
+                while j >= 0, t[j].text == "*" || (t[j].kind == .ident && !reserved.contains(t[j].text)) { j -= 1 }
+                if j >= 0, t[j].text == ")", src.open[j] > 0, t[src.open[j] - 1].text == "@property" {
+                    let w = words(i)
+                    if !w.words.isEmpty { result.append(typeFor(w.words, pointer: w.pointer)) }
+                }
+            }
+        }
+        return result
+    }
 }
+
+/// Foundation selectors whose result type does not depend on the receiver's class.
+private let foundationSelectors: [String: KeyType] = [
+    "boolValue": .boolean, "isEqual": .boolean, "isEqualToString": .boolean, "isKindOfClass": .boolean,
+    "respondsToSelector": .boolean, "hasPrefix": .boolean, "hasSuffix": .boolean, "containsObject": .boolean,
+    "intValue": .integer, "integerValue": .integer, "longValue": .integer, "longLongValue": .integer,
+    "unsignedIntValue": .integer, "unsignedIntegerValue": .integer, "unsignedLongValue": .integer,
+    "unsignedLongLongValue": .integer, "count": .integer, "length": .integer,
+    "doubleValue": .number, "floatValue": .number, "timeIntervalSince1970": .number, "timeIntervalSinceDate": .number,
+    "stringValue": .string, "description": .string, "lowercaseString": .string, "uppercaseString": .string,
+    "absoluteString": .string, "stringFromDate": .string,
+    "timeIntervalSinceNow": .number, "timeIntervalSinceReferenceDate": .number,
+    "allObjects": .array, "allKeys": .array, "allValues": .array, "componentsSeparatedByString": .array,
+    "sortedArrayUsingSelector": .array, "filteredArrayUsingPredicate": .array, "sortedArrayUsingComparator": .array, "subarrayWithRange": .array,
+]
+
+/// SDK classes and structs whose property types the sources do not declare (CoreLocation, Foundation):
+/// member -> a JSON scalar type name, or the SDK type the member has.
+private let sdkMembers: [String: [String: String]] = [
+    "CLLocation": [
+        "coordinate": "CLLocationCoordinate2D", "altitude": "number", "horizontalAccuracy": "number",
+        "verticalAccuracy": "number", "speed": "number", "course": "number", "timestamp": "NSDate",
+        "sourceInformation": "CLLocationSourceInformation",
+    ],
+    "CLLocationCoordinate2D": ["latitude": "number", "longitude": "number"],
+    "CLLocationSourceInformation": ["isSimulatedBySoftware": "boolean", "isProducedByAccessory": "boolean"],
+    "NSDate": [
+        "date": "NSDate", "timeIntervalSince1970": "number", "timeIntervalSinceNow": "number",
+        "timeIntervalSinceReferenceDate": "number",
+    ],
+    "NSProcessInfo": ["processInfo": "NSProcessInfo", "systemUptime": "number"],
+]

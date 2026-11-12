@@ -32,7 +32,7 @@ enum GuestAPIError: Error, CustomStringConvertible {
     }
 }
 
-enum ParamType: String { case string, integer, number, boolean, array, object, any }
+enum ParamType: String { case string, integer, number, boolean, array, object, any, null }
 
 struct MethodParam {
     let name: String
@@ -67,10 +67,13 @@ struct ResultKey {
     let type: ParamType
     let presence: Presence
     let isOpen: Bool
+    /// Emitted on every path but null on some; the type stays the base type.
+    var isNullable: Bool = false
     static func required(_ name: String, _ type: ParamType) -> ResultKey { .init(name: name, type: type, presence: .required, isOpen: false) }
     static func optional(_ name: String, _ type: ParamType) -> ResultKey { .init(name: name, type: type, presence: .optional, isOpen: false) }
     static func hidden(_ name: String, _ type: ParamType) -> ResultKey { .init(name: name, type: type, presence: .hidden, isOpen: false) }
-    func `open`() -> ResultKey { .init(name: name, type: type, presence: presence, isOpen: true) }
+    func `open`() -> ResultKey { .init(name: name, type: type, presence: presence, isOpen: true, isNullable: isNullable) }
+    func nullable() -> ResultKey { .init(name: name, type: type, presence: presence, isOpen: isOpen, isNullable: true) }
 }
 
 /// The action text completes "Pass force: true to <action>". It is computed from the admitted
@@ -175,7 +178,7 @@ struct GuestMethodArea {
             if let text = spec.force.text { entry["force_action"] = text }
             if let result = spec.result {
                 entry["result"] = result.filter { $0.presence != .hidden }.sorted { $0.name < $1.name }.map {
-                    ["name": $0.name, "type": $0.type.rawValue, "required": $0.presence == .required, "open": $0.isOpen] as [String: Any]
+                    ["name": $0.name, "type": $0.type.rawValue, "required": $0.presence == .required, "open": $0.isOpen, "nullable": $0.isNullable] as [String: Any]
                 }
             }
             return entry

@@ -945,7 +945,9 @@ keeps its own validation and error messages.
 
 Each object also carries `result`, a list of `{name, type, required, open}`
 for the keys the method's reply holds, sorted by name; hidden keys are
-omitted, and `open: true` marks an open key. `methods.list` is the authority for result shapes, and the
+omitted, and `open: true` marks an open key. The `result` column of
+`VPhoneDaemon/Tests/methods-catalog.tsv` is written by
+`run-methods-tests.sh --write-results`, not by hand. `methods.list` is the authority for result shapes, and the
 rest of this document does not restate them.
 
 `force` is `"never"`, `"always"`, or `"when:<key>"` (`"when:kill"`), meaning
@@ -968,7 +970,10 @@ listed keys.
 To add a method, add a case to its area's `<Area>Method` enum
 (`GuestAPI+<Area>.swift`) with its `spec`, handle it in that area's switch, and
 add its row to `VPhoneDaemon/Tests/methods-catalog.tsv`;
-`zsh VPhoneDaemon/Tests/run-methods-tests.sh` fails until all three agree.
+`zsh VPhoneDaemon/Tests/run-methods-tests.sh` fails until all three agree. The
+`result` column is generated: after declaring `result:`, run
+`zsh VPhoneDaemon/Tests/run-methods-tests.sh --write-results`, which compiles
+`MethodsHarness.swift` over the method enums and rewrites only that column.
 
 ## Removable system apps and APFS snapshots
 

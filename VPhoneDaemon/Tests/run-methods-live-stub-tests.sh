@@ -93,6 +93,15 @@ catalog_one m 'a:number'
 case_run number-key-1 '{"m":{"result":{"a":1}}}'; has 'PASS m'; rc_is 0
 catalog_one m 'a:string'
 case_run string-null '{"m":{"result":{"a":null}}}'; has 'FAIL m: a expected string got null'
+catalog_one m 'a:string:null,b:integer:null?'
+case_run nullable-accepts-null '{"m":{"result":{"a":null,"b":null}}}'; has 'PASS m'; rc_is 0
+case_run nullable-accepts-type '{"m":{"result":{"a":"x","b":2}}}'; has 'PASS m'; rc_is 0
+case_run nullable-wrong-type '{"m":{"result":{"a":1}}}'; has 'FAIL m: a expected string got integer'
+catalog_one m 'a:string,b:integer?'
+case_run non-nullable-rejects-null '{"m":{"result":{"a":null}}}'; has 'FAIL m: a expected string got null'
+catalog_one m 'a:null'
+case_run null-only-accepts-null '{"m":{"result":{"a":null}}}'; has 'PASS m'
+case_run null-only-rejects-value '{"m":{"result":{"a":"x"}}}'; has 'FAIL m: a expected null got string'
 catalog_one m 'a:any'
 case_run any-null '{"m":{"result":{"a":null}}}'; has 'PASS m'
 catalog_one m '-'
