@@ -861,6 +861,7 @@ extension GuestAPI {
         guard resolved.status == 0 else {
             reply["status"] = "error"
             reply["message"] = String(cString: gai_strerror(resolved.status))
+            reply["error"] = reply["message"]
             return reply
         }
         reply["status"] = "resolved"

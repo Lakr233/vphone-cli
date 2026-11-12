@@ -49,6 +49,10 @@ extension GuestAPI {
             "polls": samples.count,
             "timeout_ms": timeout * 1000,
             "poll_ms": poll * 1000,
+            // The names in seconds before the millisecond ones, for older clients.
+            "elapsed_s": (Date().timeIntervalSince(start) * 10).rounded() / 10,
+            "timeout_s": timeout,
+            "poll_s": poll,
             "stable_polls": stablePolls,
             "reasons": verdict.reasons,
             "signals": [

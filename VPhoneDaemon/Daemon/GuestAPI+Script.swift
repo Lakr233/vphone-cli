@@ -64,7 +64,8 @@ extension GuestAPI {
         else {
             // The session died before it could answer: how it ended is all
             // there is to report, and it is what a crash looks like here.
-            return ["ok": false, "crashed": true, "output": "", "message": describe(sessionStatus: status)]
+            let message = describe(sessionStatus: status)
+            return ["ok": false, "crashed": true, "output": "", "message": message, "error": message]
         }
         var result = answer
         result["crashed"] = false

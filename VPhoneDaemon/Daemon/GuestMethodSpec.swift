@@ -127,12 +127,13 @@ struct GuestMethodArea {
     ) -> GuestMethodArea {
         GuestMethodArea(entries: { M.allCases.map { ($0.rawValue, $0.spec) } }) { method, params in
             guard let m = M(rawValue: method) else { return nil }
-            return try handle(m, admit(m.spec, params))
+            return try handle(m, admit(m.spec, GuestLegacyNames.params(of: method, params)))
         }
     }
 
     /// The first area that answers `method` runs it; no area answering is an unknown method.
     static func dispatch(_ areas: [GuestMethodArea], method: String, params: [String: Any]) throws -> [String: Any] {
+        let method = GuestLegacyNames.methods[method] ?? method
         for area in areas {
             if let result = try area.execute(method, params) { return result }
         }
@@ -184,5 +185,44 @@ struct GuestMethodArea {
             return entry
         }
         return ["methods": methods]
+    }
+}
+
+// MARK: - Names Before the Renames
+
+/// The names guest methods and their params had before they followed one set
+/// of rules (`processes.spawn`, `timeout_ms`, `input.swipe` `from`/`to`).
+/// Older clients still send them, so they are translated to today's before a
+/// request is admitted; `methods.list` and the docs name only today's.
+enum GuestLegacyNames {
+    static let methods = ["process.spawn": "processes.spawn"]
+
+    /// Per method, a param in seconds and the millisecond param it became.
+    static let seconds: [String: [(old: String, new: String)]] = [
+        "location.current": [("timeout", "timeout_ms")],
+        "processes.spawn": [("timeout_seconds", "timeout_ms")],
+        "screen.unlock": [("timeout", "timeout_ms")],
+        "script.eval": [("timeout", "timeout_ms")],
+        "setup.settle": [("timeout_s", "timeout_ms"), ("poll_s", "poll_ms")],
+        "ui.wait": [("timeout", "timeout_ms")],
+        "ui.wait_gone": [("timeout", "timeout_ms")],
+    ]
+
+    /// `params` with the old names of `method` turned into today's. A new
+    /// name the request also carries wins; a value that is not a number is
+    /// passed on as it is, so it fails the way the new param would.
+    static func params(of method: String, _ params: [String: Any]) -> [String: Any] {
+        var params = params
+        for (old, new) in seconds[method] ?? [] where params[new] == nil {
+            guard let value = params.removeValue(forKey: old) else { continue }
+            params[new] = (value as? NSNumber).map { NSNumber(value: $0.doubleValue * 1000) } ?? value
+        }
+        if method == "input.swipe", params["from"] == nil, params["to"] == nil,
+           let x1 = params["x1"], let y1 = params["y1"], let x2 = params["x2"], let y2 = params["y2"]
+        {
+            params["from"] = [x1, y1]
+            params["to"] = [x2, y2]
+        }
+        return params
     }
 }
