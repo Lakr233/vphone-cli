@@ -58,6 +58,9 @@ public protocol VPhoneTemplateSetupMachine: AnyObject {
     /// Why the VM can no longer serve the setup boot (its process exited, the
     /// guest panicked), or nil while it runs.
     func failure() -> String?
+    /// Whether the VM process has exited with status 0 and no guest panic,
+    /// as vphone-vm does when the guest powers the virtual machine off.
+    func exitedCleanly() -> Bool
     /// Whether vphoned answers through the VM's control socket.
     func ping() -> Bool
     /// One vphoned method. Throws ``VPhoneGuestCallError``.
@@ -967,7 +970,16 @@ public final class VPhoneTemplateSetupBoot {
         } catch let error as VPhoneGuestCallError where error.kind == .transport {
             // The guest can go down before it answers.
         }
+
+        // A guest that powers off instead of restarting stops the virtual
+        // machine, and vphone-vm exits with status 0 (guestDidStop). Start it
+        // again once for the second boot; any other exit still fails the step.
+        var relaunched = false
         while true {
+            if !relaunched, machine.exitedCleanly() {
+                relaunched = true
+                try machine.start()
+            }
             try checkMachine()
             if machine.ping(), let after = try? machine.call("processes.list", params: [:], timeout: timeouts.rebootPoll),
                let marker = Self.bootMarker(after), marker != before
