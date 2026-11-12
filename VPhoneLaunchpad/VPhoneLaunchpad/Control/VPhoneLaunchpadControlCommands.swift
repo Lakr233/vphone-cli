@@ -721,8 +721,9 @@ struct VPhoneLaunchpadControlCommands {
     }
 
     /// The template switches, refused where `vphone-cli vm create` refuses
-    /// them: with `--no-template`, after `--slim off`, `--accounts-off`
-    /// without the trimmed profile, an app outside the removable list.
+    /// them: with `--no-template` (all but `--slim`), after `--slim off`,
+    /// `--accounts-off` without the trimmed profile, an app outside the
+    /// removable list.
     private static func slimming(_ request: VPhoneLaunchpadControlRequest, usesTemplate: Bool) throws -> VPhoneLaunchpadSlimming {
         func onOff(_ option: String) throws -> Bool? {
             guard let value = request.option(option) else {
@@ -735,8 +736,12 @@ struct VPhoneLaunchpadControlCommands {
             }
         }
         let parts = slimmingSwitches(request).filter { $0 != "slim" }
-        if !usesTemplate, !parts.isEmpty || request.option("slim") != nil {
-            throw VPhoneLaunchpadError("The slimming switches shape a template; --no-template creates the machine without one.")
+        // Without a template, --slim alone chooses, as New Machine's Slim
+        // System does, whether the machine gets a setup boot of its own (on,
+        // the default, which skips Setup Assistant) or starts at Setup
+        // Assistant (off).
+        if !usesTemplate, !parts.isEmpty {
+            throw VPhoneLaunchpadError("The slimming switches other than --slim shape a template; --no-template creates the machine without one.")
         }
         var slimming = VPhoneLaunchpadSlimming()
         slimming.slim = try onOff("slim") ?? true
