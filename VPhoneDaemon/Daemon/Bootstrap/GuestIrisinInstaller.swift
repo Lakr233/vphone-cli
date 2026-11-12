@@ -40,7 +40,7 @@ enum GuestIrisinInstaller {
                          "version": result["version"] ?? "", "jbroot": result["jbroot"] ?? ""])
             return result
         } catch {
-            setProgress(["phase": "failed", "layout": layout, "error": String(describing: error)])
+            setProgress(["phase": "failed", "layout": layout, "message": String(describing: error)])
             throw error
         }
     }

@@ -50,7 +50,7 @@ exits at once on a VM ("Failed to register expert session"), and with its
 panic-on-crash policy intact every freshly created guest panicked at its first
 boot (2.16.0 candidate, macOS 27.2 host, 2026-11-09). With it on, the same guest
 booted with no panic and vphoned answered `methods.list`, `apps.list`,
-`setup.status` and `process.spawn`; `device.info`, `device.screen` and
+`setup.status` and `processes.spawn`; `device.info`, `device.screen` and
 `screen.screenshot` did not answer within 60 s with every UI adapter off.
 `vm create` builds a visionOS guest without a template, as Launchpad already
 did: a template's setup boot waits for data migration, which the headless guest

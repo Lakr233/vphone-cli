@@ -542,7 +542,7 @@ setup boot is the guest's first boot). It talks to vphoned through
 | connect | `ping` every second | 300 s | vphoned answers |
 | 0 snapshot | `apfs.snapshot.delete {force}` | 120 s | no `orig-fs.disabled.rn-*` in `remaining`/`after` (none to begin with is fine) |
 | a skip | `setup.skip {force}`, any refusal retried | 600 s | `setup_done` |
-| b settle | `setup.settle {timeout_s ≤ 30}` repeated, a progress line after each; after 180 s without progress, a capture and one reboot | 600 s overall, again from that reboot | `settled` (system apps expanded and data migration finished) |
+| b settle | `setup.settle {timeout_ms ≤ 30000}` repeated, a progress line after each; after 180 s without progress, a capture and one reboot | 600 s overall, again from that reboot | `settled` (system apps expanded and data migration finished) |
 | c apps | `apps.remove_system {bundle_ids, force}` | 300 s | every app `removed`, `absent` or `unregistered_stale` |
 | d/e profile | `services.profile.apply {profile, groups, force}`, `services.profile` | 180 s | no `failed`; the record holds `signin_followup` and the extra groups; followupd and appleidsetupd disabled |
 | f reboot | `processes.list` (launchd's `start_time`), `system.reboot {force}`, then `ping` and `processes.list` (10 s timeout) every 3 s | 300 s | vphoned answers with another launchd start time |

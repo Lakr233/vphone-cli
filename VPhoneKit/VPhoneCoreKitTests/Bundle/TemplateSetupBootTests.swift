@@ -203,24 +203,25 @@ private final class FakeGuest: VPhoneTemplateSetupMachine {
                 : ["restarted": true, "method": "frontboard_relaunch", "previous_pid": 36, "pid": 551]
             return ["setup_done": true, "setup_version": 11, "respring": respring]
         case "setup.settle":
-            let wait = params["timeout_s"] as? Int ?? 90
-            #expect(wait <= 30)
+            let timeoutMs = params["timeout_ms"] as? Int ?? 90000
+            #expect((1000 ... 30000).contains(timeoutMs))
+            let wait = timeoutMs / 1000
             if stalledBoot {
                 clock.sleep(TimeInterval(wait))
                 if stallProgresses, let staged = stallSignals["staged_system_apps"] as? Int {
                     stallSignals["staged_system_apps"] = max(staged - 1, 1)
                 }
                 return [
-                    "settled": false, "elapsed_s": wait, "signals": stallSignals,
+                    "settled": false, "elapsed_ms": wait * 1000, "signals": stallSignals,
                     "reasons": ["staged_system_apps has 46 entries", "data migration has not finished"],
                 ]
             }
             if unsettledAnswers > 0 {
                 unsettledAnswers -= 1
                 clock.sleep(TimeInterval(wait))
-                return ["settled": false, "reasons": unsettledReasons, "elapsed_s": wait]
+                return ["settled": false, "reasons": unsettledReasons, "elapsed_ms": wait * 1000]
             }
-            return ["settled": true, "elapsed_s": 10.2, "reasons": [String]()]
+            return ["settled": true, "elapsed_ms": 10200, "reasons": [String]()]
         case "apps.remove_system":
             let ids = params["bundle_ids"] as? [String] ?? []
             var results: [[String: Any]] = []

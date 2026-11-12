@@ -679,10 +679,10 @@ final class VPhoneGuestControl {
     /// enforces the executable and argument limits; this wrapper keeps the
     /// response typed enough for process discovery without hiding raw output.
     func spawnDiagnostic(executable: String, arguments: [String] = [], timeout: Double = 3) async throws -> [String: Any] {
-        try await call("process.spawn", params: [
+        try await call("processes.spawn", params: [
             "executable": executable,
             "arguments": arguments,
-            "timeout_seconds": timeout,
+            "timeout_ms": Int(timeout * 1000),
         ])
     }
 

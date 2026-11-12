@@ -524,7 +524,7 @@ public final class VPhoneTemplateSetupBoot {
                     + (reasons.isEmpty ? "" : ": \(reasons.joined(separator: "; "))"))
             }
             let wait = Int(min(Double(Self.settleCallLimit), max(10, remaining.rounded(.up))))
-            let result = try call("setup.settle", ["timeout_s": wait], deadline: end, timeout: Double(wait) + 20)
+            let result = try call("setup.settle", ["timeout_ms": wait * 1000], deadline: end, timeout: Double(wait) + 20)
             let elapsed = Int(clock.now().timeIntervalSince(start))
             if result["settled"] as? Bool == true {
                 outcome.settled = true

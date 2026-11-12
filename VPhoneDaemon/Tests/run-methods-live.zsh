@@ -389,6 +389,53 @@ done <<< "$fa"
 floor=$((n_forces-4))
 [ $verified -ge $floor ] && chk "8 force text verified >= $floor" ok || chk "8 force text verified >= $floor" bad ">= $floor of $n_forces" "$verified"
 
+# --- rpc-method-contracts: renamed method, ms timeouts, swipe/drag shapes, message not error --------------------
+# The handlers' clamps and mappings are private to the guest daemon, so they are checked here on the real dispatch.
+# q <method> <params> <jq filter>: the filter's output for the reply, e.g. `.result.count` or `.error.message`.
+q() { rpc "{\"method\":\"$1\",\"params\":$2}" | J -r "$3"; }
+# qc <label> <method> <params> <jq filter> <expected>
+qc() { local g; g=$(q "$2" "$3" "$4"); [ "$g" = "$5" ] && chk "$1" ok || chk "$1" bad "$5" "$g"; }
+# processes.spawn is dispatched and process.spawn is not.
+qc "processes.spawn dispatched" processes.spawn '{"executable":"ps"}' '.result.executable' /bin/ps
+qc "process.spawn unknown" process.spawn '{"executable":"ps"}' '.error.message' 'Unknown method: process.spawn'
+# timeout_ms is milliseconds, 100..10000 for processes.spawn; the old names are dropped, not read.
+for t in 100 10000; do qc "processes.spawn timeout_ms $t accepted" processes.spawn "{\"executable\":\"ps\",\"timeout_ms\":$t}" '.result.pid | type' number; done
+for t in 99 10001; do qc "processes.spawn timeout_ms $t refused" processes.spawn "{\"executable\":\"ps\",\"timeout_ms\":$t}" '.error.message' 'invalid timeout'; done
+for k in timeout_seconds timeout timeout_s; do qc "processes.spawn $k not the timeout" processes.spawn "{\"executable\":\"ps\",\"$k\":99999}" '.result.pid | type' number; done
+# script.eval clamps to 1000..600000 ms: 1 ms becomes 1 s (the upper clamp would need a 10 minute script).
+qc "script.eval timeout_ms 1 clamps to 1 s" script.eval '{"source":"while(true){}","timeout_ms":1}' '.error.message' 'The script did not finish within 1 seconds and was stopped'
+# setup.settle clamps to 0..110000 ms and echoes timeout_ms (the upper clamp would need a 110 s wait).
+qc "setup.settle timeout_ms 1000 echoes 1000, not timeout_s" setup.settle '{"timeout_ms":1000}' '.result | [.timeout_ms, has("timeout_s")] | tojson' '[1000,false]'
+# poll_ms is milliseconds, 1000..30000 (fractions kept); the reply names elapsed_ms and poll_ms, not the _s keys.
+# elapsed_ms is whole milliseconds. The loop sleeps only when the next poll fits the 2000 ms timeout, so a first
+# sample slower than 500 ms answers after 1 poll; either way the bound below holds only in milliseconds.
+qc "setup.settle poll_ms 1500 echoes 1500 with elapsed_ms" setup.settle '{"timeout_ms":2000,"poll_ms":1500}' '.result | [.poll_ms, (.elapsed_ms == (.elapsed_ms | floor)), (.elapsed_ms >= (if .polls > 1 then 1500 else 500 end)), has("poll_s"), has("elapsed_s")] | tojson' '[1500,true,true,false,false]'
+for p in '1|1000' '99999|30000'; do qc "setup.settle poll_ms ${p%|*} clamps to ${p#*|}" setup.settle "{\"timeout_ms\":0,\"poll_ms\":${p%|*}}" '.result.poll_ms' "${p#*|}"; done
+qc "setup.settle poll_s not the interval" setup.settle '{"timeout_ms":0,"poll_s":30}' '.result | [.poll_ms, has("poll_s")] | tojson' '[5000,false]'
+# the HTTP route follows the rename.
+[ "$(cu -o /dev/null -w '%{http_code}' -H "Content-Type: application/json" -d '{"executable":"ps"}' http://$addr/v1/processes/spawn)" = 200 ] && chk "POST /v1/processes/spawn answers" ok || chk "POST /v1/processes/spawn answers" bad 200 "not 200"
+cu -H "Content-Type: application/json" -d '{"executable":"ps"}' http://$addr/v1/process/spawn | jq -r '.error.message' | grep -q 'No route for POST /v1/process/spawn' &&chk "POST /v1/process/spawn gone" ok || chk "POST /v1/process/spawn gone" bad "No route for POST /v1/process/spawn" "other reply"
+# input.swipe takes from/to, not x1..y2; input.drag answers count, not points.
+qc "input.swipe x1..y2 refused" input.swipe '{"x1":1,"y1":1,"x2":2,"y2":2}' '.error.message' 'from and to must be [x, y] pairs'
+qc "input.swipe one-number from refused" input.swipe '{"from":[1],"to":[2,2]}' '.error.message' 'from and to must be [x, y] pairs'
+qc "input.swipe from/to" input.swipe '{"from":[100,300],"to":[100,100]}' '.result | [.from, .to] | tojson' '[[100,300],[100,100]]'
+qc "input.drag one point refused" input.drag '{"points":[[1,1]]}' '.error.message' 'points must be at least two [x, y] pairs'
+qc "input.drag answers count" input.drag '{"points":[[100,300],[100,100]]}' '.result | tojson' '{"count":2}'
+# location.current honours timeout_ms (the 10 s default would outlast the 5 s bound). ui.wait is judged by its reply: one accessibility poll can take longer than any bound, and an unconverted 300 would be refused as over 60 s.
+t0=$SECONDS; lr=$(rpc '{"method":"location.current","params":{"timeout_ms":300}}')
+# An immediate location_services_off refusal never reaches the wait.
+if print -r -- "$lr" | grep -q location_services_off; then echo "SKIP location.current timeout_ms: Location Services off"
+else [ $((SECONDS - t0)) -lt 5 ] && chk "location.current timeout_ms honoured" ok || chk "location.current timeout_ms honoured" bad "under 5 s" "$((SECONDS - t0)) s"; fi
+# screen.unlock checks timeout_ms (1000..60000) before it presses anything: 999 is refused, so the value is not read as seconds.
+qc "screen.unlock timeout_ms 999 refused" screen.unlock '{"timeout_ms":999}' '.error.message' 'timeout_ms must be 1000–60000'
+qc "ui.wait timeout_ms 300 is milliseconds" ui.wait '{"text":"__no_such_element__","timeout_ms":300}' '(.error.message // "") | contains("must be")' false
+# ui.wait and ui.wait_gone refuse timeout_ms outside 0..60000 in milliseconds; location.current refuses over 300000.
+for m in ui.wait ui.wait_gone; do for t in -1 60001; do qc "$m timeout_ms $t refused" $m "{\"text\":\"__no_such_element__\",\"timeout_ms\":$t}" '.error.message' 'timeout_ms must be 0–60000'; done; done
+qc "location.current timeout_ms 300001 refused" location.current '{"timeout_ms":300001}' '.error.message' 'timeout_ms must be more than 0 and at most 300000'
+# a failed status read carries `message`, never `error`.
+qc "network.resolve failure message not error" network.resolve '{"host":"no-such-host.invalid"}' '.result | [has("message"), has("error")] | tojson' '[true,false]'
+qc "script.eval failure has message, not error" script.eval '{"source":"("}' '.result | [has("message"), has("error")] | tojson' '[true,false]'
+
 # --- schema comparison of every read-class method ---------------------------
 schema_section
 [ $stop_unresponsive = 0 ] || { finish || true; exit 1; }

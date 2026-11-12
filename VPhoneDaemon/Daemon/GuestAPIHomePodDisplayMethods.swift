@@ -10,7 +10,7 @@ enum HomePodDisplayMethod: String, GuestMethod {
                                                        .required("configured", .boolean),
                                                        .required("display_count", .integer),
                                                        .required("displays", .array),
-                                                       .required("error", .string).nullable(),
+                                                       .required("message", .string).nullable(),
                                                        .optional("frame_timestamp", .integer),
                                                        .required("frames_received", .integer),
                                                        .required("generation", .integer),

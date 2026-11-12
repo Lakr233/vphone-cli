@@ -134,7 +134,7 @@ for why it moved and what happens to a VM that opted in under the old name.
 ## Results
 
 Test guest: `hz120-ipadpro`, an iPad Pro 13-inch (iPad17,x, 2064×2752) created
-with the patch on, 8 vCPUs. Load was driven with vphoned's `input.swipe`; the
+with the patch on, 8 vCPUs. Load was driven with vphoned's `input.swipe` (`from`/`to`); the
 host side was read from the GPU accounting in the IORegistry
 (`AGXDeviceUserClient` → `AppUsage`), where the VM service's client submits
 once per frame it scans out.

@@ -64,7 +64,7 @@ invalid-request error, read the source named there instead of guessing keys.
 | `audio.host_latency` | `seconds?` (0-1) | The Mac output latency the guest speaker adds; omit to read. The VM sends it on every connect and output change |
 | `display.rotation`, `display.orientation` | `orientation?` | |
 | `display.auto_lock` | none | Auto-Lock in seconds (`never` when it is Never) and the Lock Screen timeout vphoned sets to match |
-| `screen.unlock` | `passcode?`, `timeout?` (10) | Display on and Lock Screen passed, from any state; `guest unlock <machine>` calls it. `passcode` only for a guest that has one, entered once |
+| `screen.unlock` | `passcode?`, `timeout_ms?` (10000) | Display on and Lock Screen passed, from any state; `guest unlock <machine>` calls it. `passcode` only for a guest that has one, entered once |
 | `device.ioreg` | `plane` | e.g. `IODeviceTree` |
 
 ## Input
@@ -74,8 +74,8 @@ invalid-request error, read the source named there instead of guessing keys.
 | `input.tap` | `x`, `y` |
 | `input.double_tap` | `x`, `y`, `interval?` (0.1) |
 | `input.long_press` | `x`, `y`, `seconds?` (1) |
-| `input.swipe` | `x1`, `y1`, `x2`, `y2`, `seconds?` (0.3), `steps?` (20) |
-| `input.drag` | `points` (≥2 `[x,y]` pairs), `seconds?`, `hold?`, `steps?` |
+| `input.swipe` | `from` (`[x,y]`), `to` (`[x,y]`), `seconds?` (0.3), `steps?` (20) |
+| `input.drag` | `points` (≥2 `[x,y]` pairs), `seconds?`, `hold?`, `steps?`; answers `{count}` |
 | `input.touch_sequence` | `events` (`{phase,x,y,delay_ms}`), `normalized?` (true) |
 | `input.button` | `name` (hardware button) |
 | `input.key` | `name` (`return`, `cmd+v`, …) |
@@ -94,7 +94,7 @@ Prefer these to coordinates.
 | `ui.tree` | `max_elements?` (500), `visible_only?` (true), `clickable_only?`, `limit?` | Accessibility elements with positions |
 | `ui.element_at` | `x`, `y` | |
 | `ui.tap_element` | selector | Taps the match |
-| `ui.wait`, `ui.wait_gone` | selector, `timeout?` (10 s) | Wait for an element to appear or go |
+| `ui.wait`, `ui.wait_gone` | selector, `timeout_ms?` (10000; 0–60000) | Wait for an element to appear or go |
 | `ui.ocr` | `languages?` (`["en-US"]`), `min_confidence?` (0.3) | Text with boxes; use for non-accessible UI |
 
 Selector keys: `text`, `identifier`, `role`, `match` (`contains` by default),
@@ -172,6 +172,7 @@ are the usual way to hit the reply size problem.
 | --- | --- | --- |
 | `processes.list` | `filter?` | a stuck SpringBoard shows ~0 CPU |
 | `processes.kill` (force) | `pid`, `signal?` | |
+| `processes.spawn` | `executable` (`ps`, `launchctl`, `log`), `arguments?`, `timeout_ms?` (3000, 100–10000) | Bounded diagnostics, no shell |
 | `memory.jetsam`, `memory.pressure` | none | |
 | `logs.syslog` | `seconds?` (2, max 60), `process?`, `level?` (`all`), `max_lines?` (500) | A bounded capture |
 | `logs.crashes` | `bundle_id?` | Lists reports |
@@ -196,7 +197,7 @@ are the usual way to hit the reply size problem.
 | `settings.set` | `domain`, `key`, `value`, `type?` |
 | `settings.delete` | `domain`, `key` |
 | `clipboard.get` / `set` / `clear` | `set` takes `text` |
-| `location.set` / `clear` / `current` / `services` | `set` takes latitude/longitude; `set` and `current` fail with `location_services_off` while the guest's Location Services switch is off; `location.services` reads `{enabled}`, and `enabled: true/false` sets the switch and returns the state read back (fails with `operation_failed` if it did not change; idempotent, so re-read with `location.services` before retrying); read-back can fail on some guests |
+| `location.set` / `clear` / `current` / `services` | `set` takes latitude/longitude; `current` takes `timeout_ms?` (10000); `set` and `current` fail with `location_services_off` while the guest's Location Services switch is off; `location.services` reads `{enabled}`, and `enabled: true/false` sets the switch and returns the state read back (fails with `operation_failed` if it did not change; idempotent, so re-read with `location.services` before retrying); read-back can fail on some guests |
 | `time.timezone` | none reads `{identifier, automatic, seconds_from_gmt}`; `identifier` (Olson name) pins the zone and turns automatic off; `automatic: true` hands it back to timed. The VM sends the Mac's zone on every connect |
 | `time.clock` | none reads `{time, automatic}` (seconds since 1970; `automatic` is timed's automatic time); `time` (the Mac's time) moves a guest more than a second away onto it unless `automatic` is off, and adds `offset` and `changed`; `automatic` turns automatic time on or off. The VM sends the Mac's time on every connect and every minute, so a time set this way lasts only with `automatic: false` |
 | `notify.post` / `notify.state` | `name`, `state?` |
@@ -204,21 +205,21 @@ are the usual way to hit the reply size problem.
 
 ## Bootstrap
 
-`bootstrap.install {layout, package_path?}`, `bootstrap.status`,
+`bootstrap.install {layout, package_path?}`, `bootstrap.status` (a failed install answers `phase: failed` with `message`),
 `bootstrap.inspect`, `bootstrap.uninstall {roots, force, reboot?}`,
 `bootstrap.firmware`. Behavior and the install flow: [guest-layout](guest-layout.md).
 
 ## Running a script in the guest
 
-`script.eval {source, timeout?}` evaluates JavaScript with vphoned's own
-identity and answers `{ok, result, output, crashed}`. It is the way to reach
+`script.eval {source, timeout_ms?}` evaluates JavaScript with vphoned's own
+identity and answers `{ok, result, output, crashed}` (`message` replaces `result` when the script throws). It is the way to reach
 something no method covers, and on an Apple TV guest it is the only
 debugging environment there is: no shell, no package manager, no debugserver.
 `script.info` reports whether this guest has it (capability `script_js`;
 watchOS does not ship JavaScriptCore).
 
 The script runs in a session process of its own, so a crash or a runaway loop
-costs the session and nothing else; `timeout` defaults to 30 seconds. Inside
+costs the session and nothing else; `timeout_ms` defaults to 30000. Inside
 it, `api('method', {...})` calls any method in this file, `ObjC.use('NSFoo')`
 and `ObjC.classes.NSFoo` call ObjC methods by name — an underscore stands for
 a colon, `setValue_forKey_(v, k)` — and `fs`, `proc`, `console` and `print`

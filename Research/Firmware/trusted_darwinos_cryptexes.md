@@ -362,7 +362,7 @@ iPhone17,3 26.5 (23F77) / cloudOS 26.5 (23F75), `minimal` with
 | `cryptex.install` of a `.cxbd` from `cryptexctl.research create` (one shell script) | personalized by Apple's TSS (`<name>.personalized/<name>.cxbd.signed`), installed: `device = /dev/disk4s1`, `mount point = /private/var/PrivateCloudSupportInternalAdditions` |
 | `files.read` of the cryptex's `bin/hello` at the mount point | the script's bytes |
 
-Not checked yet: running a Mach-O from a cryptex (vphoned's `process.spawn`
+Not checked yet: running a Mach-O from a cryptex (vphoned's `processes.spawn`
 runs only `ps`, `launchctl` and `log`), the VM
 window's Install Cryptex…, and a cloudOS with vphone600 components (research
 AMFI, so Developer Mode should be on).
