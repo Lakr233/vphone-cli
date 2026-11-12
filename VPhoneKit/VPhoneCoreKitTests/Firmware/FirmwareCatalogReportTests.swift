@@ -244,6 +244,7 @@ struct FirmwareCatalogReportTests {
         for guest in VPhoneGuestDevice.known where guest.family == .iPhone && guest.presentsBoard && guest != .iPhone17_3 && !Self.offCatalog.contains(guest) {
             let pairings = VPhoneFirmwareCatalog.pairings(for: guest.productType)
             let firstRelease = switch guest.productType {
+            case "iPhone14,6": "iOS 18.6.2"
             case "iPhone18,5": "iOS 26.3.1"
             case "iPhone19,2": "iOS 27.0.1"
             case "iPhone19,4": "iOS 27.1"
