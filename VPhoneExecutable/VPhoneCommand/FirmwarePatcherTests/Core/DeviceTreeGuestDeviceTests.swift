@@ -126,6 +126,7 @@ struct DeviceTreeGuestDeviceTests {
         idiom: String = "pad",
         scale: UInt32 = 2,
         appArchitecture: Property? = nil,
+        homeButton: Property? = nil,
     ) -> Node {
         var product: [Property] = [
             .string("name", "product"),
@@ -160,7 +161,7 @@ struct DeviceTreeGuestDeviceTests {
             ],
             children: [
                 Node(properties: product, children: []),
-                Node(properties: [.string("name", "buttons"), .string("button-names", "volup")], children: []),
+                Node(properties: [.string("name", "buttons"), .string("button-names", "volup")] + (homeButton.map { [$0] } ?? []), children: []),
             ],
         )
     }
@@ -546,6 +547,18 @@ struct DeviceTreeGuestDeviceTests {
         #expect(Self.string(installed["device-tree"]?["model"]) == "iPhone17,3")
         #expect(Self.string(installed["device-tree"]?["target-type"]) == "D47")
         #expect(Self.integer(installed["device-tree/product"]?["artwork-device-subtype"]) == 2556)
+    }
+
+    @Test func `SE 3 copies its Home button type only into the installed tree`() throws {
+        let board = Self.board(model: "iPhone14,6", unique: "D49AP", subtype: 569,
+                               disablesStageManager: false, idiom: "phone", scale: 2, homeButton: .integer("home-button-type", 1))
+        let installed = try Self.patch(device: .iPhone14_6, role: .installed, board: board)
+        #expect(Self.integer(installed["device-tree/buttons"]?["home-button-type"]) == 1)
+        #expect(Self.integer(installed["device-tree/product"]?["artwork-scale-factor"]) == 2)
+        #expect(Self.integer(installed["device-tree/product"]?["artwork-device-subtype"]) == 569)
+        let restore = try Self.patch(device: .iPhone14_6, role: .restore, board: board)
+        #expect(Self.integer(restore["device-tree/buttons"]?["home-button-type"]) == 2)
+        #expect(Self.string(restore["device-tree"]?["model"]) == "iPhone99,11")
     }
 
     @Test func `an iPhone XS Max keeps the iPhone17,3 presentation with its own artwork and no island`() throws {
