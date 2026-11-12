@@ -39,7 +39,7 @@ enum GuestCryptex {
 extension GuestAPI {
     static func executeCryptex(_ m: CryptexMethod, _ params: [String: Any]) throws -> [String: Any] {
         guard GuestCryptex.available else {
-            throw GuestAPIError.operationFailed("This guest has no \(GuestCryptex.cryptexctl): restore it with the Trusted darwinOS environment (filesystem-exp-trusted_darwinos) on.")
+            throw GuestAPIError.unavailable("This guest has no \(GuestCryptex.cryptexctl): restore it with the Trusted darwinOS environment (filesystem-exp-trusted_darwinos) on.")
         }
         switch m {
         case .cryptexList:

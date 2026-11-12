@@ -53,7 +53,7 @@ enum APIWire {
                     }
                 }
             } else if let error = error as? GuestAPIError {
-                body = ["code": error.code, "message": error.description]
+                body = error.wireBody
             } else {
                 body = ["code": "operation_failed", "message": String(describing: error)]
             }

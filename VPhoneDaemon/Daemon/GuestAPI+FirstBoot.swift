@@ -24,7 +24,7 @@ extension GuestAPI {
 
     private static func waitForFirstBootSettle(_ params: [String: Any]) throws -> [String: Any] {
         for key in ["timeout_ms", "poll_ms", "stable_polls"] where params[key] != nil && !(params[key] is NSNumber) {
-            throw GuestAPIError.invalidRequest("\(key) must be a number")
+            throw GuestAPIError.invalidRequest("\(key) must be a number", hint: "Pass \(key) as a JSON number, not a string")
         }
         let timeout = min(max(number(params, "timeout_ms", default: 90000) / 1000, 0), settleMaximumTimeout)
         let poll = min(max(number(params, "poll_ms", default: 5000), 1000), 30000) / 1000

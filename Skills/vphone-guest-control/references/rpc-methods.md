@@ -44,13 +44,28 @@ invalid-request error, read the source named there instead of guessing keys.
   `methods.list` (no params) lists every method with its params and its
   `force` value (`always`, `never` or `when:<key>`, as for `services.kickstart`
   with `kill`); this list is the authority. The flag is the confirmation: use it
-  only for what the user asked.
+  only for what the user asked. Without it the call fails with `force_required`
+  and the hint `Confirm with the user, then repeat the call with force: true`.
+- **Errors** are `{code, message, hint?}`. BREAKING: codes changed, and a param
+  the method does not list now fails with `invalid_param` (it was dropped before).
+  Read `hint`: it names the fix (the closest param or method, valid values).
+  It is absent when there is none.
+
+  | Code | Meaning |
+  | --- | --- |
+  | `invalid_param` | Missing, malformed, out-of-range or undeclared param |
+  | `not_found` | Target or method does not exist (hint may name the closest method) |
+  | `unavailable` | Platform, OS or component cannot do it |
+  | `force_required` | Repeat with `"force":true` after the user confirms |
+  | `permission` | The OS refused for lack of entitlement or access |
+  | `invalid_operation` | Any other operation failure |
+  | `already_done`, `location_services_off` | Existing codes, unchanged |
 - Results can be large. Methods that read data take `limit`, `max_lines`,
   `max_elements` or a `filter`; use them. A reply in the 8–16 KiB band can be
   lost on close (see [troubleshooting](troubleshooting.md)).
 - Capability flags in `/v1/health` tell which areas this vphoned supports (`methods`
   means it answers `methods.list`). An
-  `unknown method` error against an older guest means update its environment
+  `not_found` "Unknown method" error against an older guest means update its environment
   ([machines](machines.md)).
 
 ## Device and screen
@@ -59,7 +74,7 @@ invalid-request error, read the source named there instead of guessing keys.
 | --- | --- | --- |
 | `device.info` | none | Snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode. Start here |
 | `device.snapshot`, `device.screen`, `device.network` | none | Smaller views of the same |
-| `screen.screenshot` | `max_dimension?` (integer, 1 or more), `quality?` (0.1-1.0), `region?` `{x, y, width, height}` in points | Base64 JPEG at the panel's pixel size (1179×2556 on a new iPhone17,3); `max_dimension` scales the longer side down, `region` crops first. Reply adds `point_width`, `point_height`, `region`; pixel `(px, py)` is point `(region.x + px / coordinate_scale, region.y + py / coordinate_scale)`. Bad values fail with `invalid_operation` |
+| `screen.screenshot` | `max_dimension?` (integer, 1 or more), `quality?` (0.1-1.0), `region?` `{x, y, width, height}` in points | Base64 JPEG at the panel's pixel size (1179×2556 on a new iPhone17,3); `max_dimension` scales the longer side down, `region` crops first. Reply adds `point_width`, `point_height`, `region`; pixel `(px, py)` is point `(region.x + px / coordinate_scale, region.y + py / coordinate_scale)`. Bad values fail with `invalid_param` |
 | `display.brightness`, `audio.volume` | `value?` | Omit `value` to read |
 | `audio.host_latency` | `seconds?` (0-1) | The Mac output latency the guest speaker adds; omit to read. The VM sends it on every connect and output change |
 | `display.rotation`, `display.orientation` | `orientation?` | |

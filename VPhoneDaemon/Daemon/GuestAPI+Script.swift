@@ -41,7 +41,7 @@ extension GuestAPI {
 
     private static func evaluateScript(source: String, timeout: Double) throws -> [String: Any] {
         guard probeAvailable() else {
-            throw GuestAPIError.operationFailed("This guest has no JavaScriptCore, so it cannot run a script")
+            throw GuestAPIError.unavailable("This guest has no JavaScriptCore, so it cannot run a script")
         }
         guard GuestSessionLimit.evaluations.acquire() else {
             throw GuestAPIError.operationFailed(GuestSessionLimit.evaluations.refusal)

@@ -9,7 +9,7 @@ enum GuestFileTransfer {
         let components = URLComponents(string: "http://vphoned\(uri)")
         guard let path = components?.queryItems?.first(where: { $0.name == "path" })?.value,
               path.hasPrefix("/"), !path.contains("\0")
-        else { throw GuestAPIError.invalidRequest("An absolute path query parameter is required") }
+        else { throw GuestAPIError.invalidRequest("An absolute path query parameter is required", hint: "Pass ?path=/absolute/path without NUL characters") }
         return path
     }
 
@@ -23,7 +23,7 @@ enum GuestFileTransfer {
         do {
             var statBuffer = stat()
             guard fstat(fd, &statBuffer) == 0, (statBuffer.st_mode & S_IFMT) == S_IFREG else {
-                throw GuestAPIError.invalidRequest("Path is not a regular file")
+                throw GuestAPIError.invalidRequest("Path is not a regular file", hint: "Pass a regular file, not a directory, symlink or device")
             }
             let region = try FileRegion(fileHandle: handle)
             var headers = HTTPHeaders()

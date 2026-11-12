@@ -141,7 +141,7 @@ pixel `(px, py)` is the point `(region.x + px / coordinate_scale,
 region.y + py / coordinate_scale)`, within one pixel. A bad region (missing or
 non-numeric field, width or height of 0 or less, negative x or y, outside the
 screen, under one pixel), `quality` or `max_dimension` fails with
-`invalid_operation` naming the param, the value and the valid range; nothing
+`invalid_param` naming the param, the value and the valid range; nothing
 is clamped.
 
 `display.capture_active {}` returns a raw PNG in `base64`, with `source` and
@@ -772,9 +772,9 @@ own reinstalls at boot run in parallel and can panic TXM. All cryptexctl runs
 take turns. `cryptex.list` is `cryptexctl list`, with `persisted` the
 identifiers vphoned keeps; `cryptex.uninstall {identifier}` is `cryptexctl
 uninstall` and forgets a kept cryptex.
-Each refuses with `operation_failed` on a guest without `/usr/bin/cryptexctl`,
-which only `filesystem-exp-trusted_darwinos` adds; cryptexctl's own output is
-in the message when it fails. The VM window's Apps › Install Cryptex… builds
+Each refuses with `unavailable` on a guest without `/usr/bin/cryptexctl`,
+which only `filesystem-exp-trusted_darwinos` adds; when cryptexctl fails the
+error is `invalid_operation` with cryptexctl's own output in the message. The VM window's Apps › Install Cryptex… builds
 the cryptex from a folder, uploads and installs it; see
 [the trusted darwinOS note](Firmware/trusted_darwinos_cryptexes.md).
 
@@ -1010,7 +1010,7 @@ rest of this document does not restate them.
 `force` is `"never"`, `"always"`, or `"when:<key>"` (`"when:kill"`), meaning
 the method needs `"force": true` only when that param is true. `force` itself
 is never listed as a param. The dispatcher enforces it before the method runs
-and refuses with the same `Pass force: true to ...` message as before.
+and refuses with `force_required` and the same `Pass force: true to ...` message as before.
 
 `description` (method and param) is one-line prose. `force_action` is the
 phrase that completes "Pass force: true to ...", with `<...>` placeholders for
@@ -1020,9 +1020,37 @@ declares it; `minimum` and `maximum` are metadata and are not enforced.
 `methods.list` is the authority for per-param prose, and this document does not
 restate it.
 
-From this version vphoned drops every `params` key a method does not list
-before the method runs. A client that relied on an extra key must send only
-listed keys.
+**BREAKING:** a request with a param the method does not list now fails with
+`invalid_param` (earlier versions dropped it silently). A client that sent extra
+keys must send only listed keys. `force` is always admitted.
+
+### Error object
+
+`error` is `{code, message, hint?}`. BREAKING: `code` strings changed; callers
+that matched `invalid_operation` or `invalid_request` must match the codes below.
+
+| Code | Meaning |
+| --- | --- |
+| `invalid_param` | A param is missing, malformed, out of range, or not declared by the method. |
+| `not_found` | The named target (file, app, process, service) or the method does not exist. |
+| `unavailable` | The platform, OS or a component cannot do this. |
+| `force_required` | A destructive call came without `"force": true`. |
+| `permission` | The OS refused for lack of entitlement or access. |
+| `invalid_operation` | Any other operation failure. |
+| `already_done`, `location_services_off` | Existing codes, unchanged. |
+
+`hint` is one line naming the fix, present only when the error has one (the key
+is absent, never null). An unknown param fails with message `Unknown param: a, b`
+(at most five names, then ` and N more`) and a hint such as
+``Did you mean `x`? Valid params: p, q``; a method with no params says
+`This method takes no params`. A missing `force: true` fails with `force_required`,
+the usual `Pass force: true to ...` message, and hint
+`Confirm with the user, then repeat the call with force: true`. An unknown method
+fails with `not_found`, and its hint names the closest method when one is near.
+Out-of-range and missing params are `invalid_param` and name the valid values or
+range in the message or hint. A handler that used to answer success with a
+whole-call `error` key (`device.ioreg`, `display.external.diagnostics`,
+`display.external.status`) now throws a coded error.
 
 To add a method, add a case to its area's `<Area>Method` enum
 (`GuestAPI+<Area>.swift`) with its `spec`, handle it in that area's switch, and

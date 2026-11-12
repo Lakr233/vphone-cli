@@ -35,7 +35,7 @@ extension GuestAPI {
         case .homepodDebugCall:
             let operation = try string(params, "operation")
             guard let arguments = params["arguments"] as? [String: Any] else {
-                throw GuestAPIError.invalidRequest("arguments must be an object")
+                throw GuestAPIError.invalidRequest("arguments must be an object", hint: "Pass arguments as a JSON object, {} for none")
             }
             return try GuestHomePodDebug.call(operation, arguments: arguments)
         }

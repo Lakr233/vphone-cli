@@ -20,7 +20,7 @@ enum InputMethod: String, GuestMethod {
                                                .optional("active_volume", .number),
                                                .optional("before", .object),
                                                .optional("button", .string),
-                                               .optional("error", .string),
+                                               .hidden("error", .string),
                                                .optional("locked", .boolean),
                                                .optional("method", .string),
                                                .optional("screen_off", .boolean)])
@@ -89,7 +89,7 @@ enum InterfaceMethod: String, GuestMethod {
                                 .required("count", .integer),
                                 .optional("elapsed_ms", .number),
                                 .optional("elements", .array),
-                                .optional("error", .string),
+                                .hidden("error", .string),
                                 .optional("filtering_applied", .boolean),
                                 .optional("foreground_after", .object),
                                 .optional("foreground_before", .object),
@@ -112,7 +112,7 @@ enum InterfaceMethod: String, GuestMethod {
                                 .optional("truncation_reasons", .array)])
         case .uiElementAt: MethodSpec(.required("x", .number, "Screen x in points, inside the screen", min: 0), .required("y", .number, "Screen y in points, inside the screen", min: 0),
                                            summary: "Return the accessibility element at a screen point.", result: [.optional("element", .object),
-                                               .optional("error", .string),
+                                               .hidden("error", .string),
                                                .optional("source", .string),
                                                .optional("x", .number),
                                                .optional("y", .number)])

@@ -127,7 +127,7 @@ extension GuestAPI {
     /// says so.
     private static func skipSetupAssistant() throws -> [String: Any] {
         guard let current = setupAssistantCurrentVersion else {
-            throw GuestAPIError.operationFailed("SetupAssistant.framework does not export BYBuddyIOSCurrentVersion")
+            throw GuestAPIError.unavailable("SetupAssistant.framework does not export BYBuddyIOSCurrentVersion")
         }
         let version = max(buddySetupVersion ?? 0, current)
         _ = try writePreference(domain: buddyDomain, key: "SetupDone", value: .bool(true))

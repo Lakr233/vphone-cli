@@ -18,7 +18,7 @@ extension GuestAPI {
             if m == .motionGyroscopeSet {
                 if let flag = params["enabled"] {
                     guard let value = flag as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() else {
-                        throw GuestAPIError.invalidRequest("enabled must be a boolean")
+                        throw GuestAPIError.invalidRequest("enabled must be a boolean", hint: "true or false")
                     }
                     enabled = value.boolValue
                 }

@@ -18,6 +18,8 @@
 #   VPHONE_LIVE_TIMEOUT positive integer seconds per schema-comparison call (default 30); anything else -> exit 2
 # Schema comparison: every catalog row classed `read` is called serially with no params (no retry, 1048576-byte
 #   reply cap) and its reply's top-level keys and JSON types are compared to the row's result column.
+#   display.external.diagnostics and display.external.status also pass on a well-formed error with code
+#   invalid_operation and unavailable respectively (a guest with no external display).
 #   `mutating` and `excluded:<reason>` rows are never called. Prints `PASS <method>` or `FAIL <method>: <reason>`;
 #   only keys, types and escaped error codes are printed, never reply values, and no reply is written to a file.
 #   Three consecutive timeout/transport/unparsable failures print `FAIL guest unresponsive` and stop the run.
@@ -113,6 +115,10 @@ schema_section() {
       case $out in
         PASS) echo "PASS $m"; sp=$((sp+1)); consec=0 ;;
         FAIL\ *) schema_fail "$m" "${out#FAIL }" 0 ;;
+        "ERR invalid_operation") if [ "$m" = display.external.diagnostics ]; then echo "PASS $m"; sp=$((sp+1)); consec=0
+          else schema_fail "$m" "error invalid_operation" 0; fi ;;
+        "ERR unavailable") if [ "$m" = display.external.status ]; then echo "PASS $m"; sp=$((sp+1)); consec=0
+          else schema_fail "$m" "error unavailable" 0; fi ;;
         ERR\ *) schema_fail "$m" "error ${out#ERR }" 0 ;;
         *) schema_fail "$m" "unparsable reply" 1 ;;
       esac
@@ -248,7 +254,8 @@ k=$(print -r -- "$r1" | J -r "$L | map(select(.name==\"services.kickstart\")) | 
 [ "$f" = "$n_forces" ] && chk "2 $n_forces force methods" ok || chk "2 $n_forces force methods" bad "$n_forces" "$f"
 [ "$k" = when:kill ] && chk "2 kickstart when:kill" ok || chk "2 kickstart when:kill" bad when:kill "$k"
 r2=$(rpc '{"method":"methods.list","params":{"x":1}}')
-[ -n "$r1" ] && [ "$r1" = "$r2" ] && chk "2 params ignored (byte-identical)" ok || chk "2 params ignored (byte-identical)" bad "identical non-empty replies" "differ or empty"
+{ print -r -- "$r2" | grep -qF '"invalid_param"' && strs "$r2" | grep -qxF 'Unknown param: x' && strs "$r2" | grep -qxF 'This method takes no params'; } \
+  && chk "2 undeclared param rejected" ok || chk "2 undeclared param rejected" bad "invalid_param, Unknown param: x, This method takes no params" "$r2"
 r3=$(rpc '{"method":"methods.list"}')
 [ -n "$r1" ] && [ "$r1" = "$r3" ] && chk "2 twice byte-identical" ok || chk "2 twice byte-identical" bad "identical non-empty replies" "differ or empty"
 
@@ -269,13 +276,10 @@ else chk "4 auth parity (4xx refusal equal to processes.list's)" bad "401/403 eq
 if ps -ww -axo args | VPHONE_API_TOKEN=$token awk 'index($0, ENVIRON["VPHONE_API_TOKEN"]) { f = 1 } END { exit f }'; then chk "5 token not in argv" ok
 else chk "5 token not in argv" bad "token absent from ps args" "token found"; fi
 
-# --- undeclared keys are dropped on a real method ---------------------------
-# The filter is a substring match, so transient launchd-named helpers come and go between the two calls; compare launchd itself.
-pn() { print -r -- "$1" | J -c '[.. | objects | select(has("processes")) | .processes[] | .name? | select(. == "launchd")] | sort'; }
-p1=$(pn "$(rpc '{"method":"processes.list","params":{"filter":"launchd"}}')")
-p2=$(pn "$(rpc '{"method":"processes.list","params":{"filter":"launchd","extra":1}}')")
-if [ -n "$p1" ] && [ "$p1" != "[]" ] && [ "$p1" = "$p2" ]; then chk "6 processes.list extra key dropped" ok
-else chk "6 processes.list extra key dropped" bad "same non-empty names" "plain=$p1 extra=$p2"; fi
+# --- an undeclared key fails a real method ----------------------------------
+r=$(rpc '{"method":"processes.list","params":{"filter":"launchd","extra":1}}')
+{ print -r -- "$r" | grep -qF '"invalid_param"' && strs "$r" | grep -qxF 'Unknown param: extra' && strs "$r" | grep -qF 'Valid params:'; } \
+  && chk "6 processes.list extra key rejected" ok || chk "6 processes.list extra key rejected" bad "invalid_param, Unknown param: extra, Valid params" "$r"
 
 # --- the 20 force methods: refused unforced (e, above), a required param is validated before the force refusal
 e processes.kill '{"pid":4242}' 'Pass force: true to send SIGTERM to 4242'
@@ -398,10 +402,10 @@ qc() { local g; g=$(q "$2" "$3" "$4"); [ "$g" = "$5" ] && chk "$1" ok || chk "$1
 # processes.spawn is dispatched and process.spawn is not.
 qc "processes.spawn dispatched" processes.spawn '{"executable":"ps"}' '.result.executable' /bin/ps
 qc "process.spawn unknown" process.spawn '{"executable":"ps"}' '.error.message' 'Unknown method: process.spawn'
-# timeout_ms is milliseconds, 100..10000 for processes.spawn; the old names are dropped, not read.
+# timeout_ms is milliseconds, 100..10000 for processes.spawn; the old names are refused as unknown params, not read.
 for t in 100 10000; do qc "processes.spawn timeout_ms $t accepted" processes.spawn "{\"executable\":\"ps\",\"timeout_ms\":$t}" '.result.pid | type' number; done
-for t in 99 10001; do qc "processes.spawn timeout_ms $t refused" processes.spawn "{\"executable\":\"ps\",\"timeout_ms\":$t}" '.error.message' 'invalid timeout'; done
-for k in timeout_seconds timeout timeout_s; do qc "processes.spawn $k not the timeout" processes.spawn "{\"executable\":\"ps\",\"$k\":99999}" '.result.pid | type' number; done
+for t in 99 10001; do qc "processes.spawn timeout_ms $t refused" processes.spawn "{\"executable\":\"ps\",\"timeout_ms\":$t}" '.error | [.code, .message, has("hint")] | tojson' '["invalid_param","timeout_ms must be 100–10000",false]'; done
+for k in timeout_seconds timeout timeout_s; do qc "processes.spawn $k refused as unknown" processes.spawn "{\"executable\":\"ps\",\"$k\":99999}" '.error.message' "Unknown param: $k"; done
 # script.eval clamps to 1000..600000 ms: 1 ms becomes 1 s (the upper clamp would need a 10 minute script).
 qc "script.eval timeout_ms 1 clamps to 1 s" script.eval '{"source":"while(true){}","timeout_ms":1}' '.error.message' 'The script did not finish within 1 seconds and was stopped'
 # setup.settle clamps to 0..110000 ms and echoes timeout_ms (the upper clamp would need a 110 s wait).
@@ -411,12 +415,13 @@ qc "setup.settle timeout_ms 1000 echoes 1000, not timeout_s" setup.settle '{"tim
 # sample slower than 500 ms answers after 1 poll; either way the bound below holds only in milliseconds.
 qc "setup.settle poll_ms 1500 echoes 1500 with elapsed_ms" setup.settle '{"timeout_ms":2000,"poll_ms":1500}' '.result | [.poll_ms, (.elapsed_ms == (.elapsed_ms | floor)), (.elapsed_ms >= (if .polls > 1 then 1500 else 500 end)), has("poll_s"), has("elapsed_s")] | tojson' '[1500,true,true,false,false]'
 for p in '1|1000' '99999|30000'; do qc "setup.settle poll_ms ${p%|*} clamps to ${p#*|}" setup.settle "{\"timeout_ms\":0,\"poll_ms\":${p%|*}}" '.result.poll_ms' "${p#*|}"; done
-qc "setup.settle poll_s not the interval" setup.settle '{"timeout_ms":0,"poll_s":30}' '.result | [.poll_ms, has("poll_s")] | tojson' '[5000,false]'
+qc "setup.settle poll_s refused as unknown" setup.settle '{"timeout_ms":0,"poll_s":30}' '.error.message' 'Unknown param: poll_s'
+qc "setup.settle poll_ms string refused" setup.settle '{"poll_ms":"5000"}' '.error | [.code, .message, .hint] | tojson' '["invalid_param","poll_ms must be a number","Pass poll_ms as a JSON number, not a string"]'
 # the HTTP route follows the rename.
 [ "$(cu -o /dev/null -w '%{http_code}' -H "Content-Type: application/json" -d '{"executable":"ps"}' http://$addr/v1/processes/spawn)" = 200 ] && chk "POST /v1/processes/spawn answers" ok || chk "POST /v1/processes/spawn answers" bad 200 "not 200"
 cu -H "Content-Type: application/json" -d '{"executable":"ps"}' http://$addr/v1/process/spawn | jq -r '.error.message' | grep -q 'No route for POST /v1/process/spawn' &&chk "POST /v1/process/spawn gone" ok || chk "POST /v1/process/spawn gone" bad "No route for POST /v1/process/spawn" "other reply"
 # input.swipe takes from/to, not x1..y2; input.drag answers count, not points.
-qc "input.swipe x1..y2 refused" input.swipe '{"x1":1,"y1":1,"x2":2,"y2":2}' '.error.message' 'from and to must be [x, y] pairs'
+qc "input.swipe x1..y2 refused" input.swipe '{"x1":1,"y1":1,"x2":2,"y2":2}' '.error.message' 'Unknown param: x1, x2, y1, y2'
 qc "input.swipe one-number from refused" input.swipe '{"from":[1],"to":[2,2]}' '.error.message' 'from and to must be [x, y] pairs'
 qc "input.swipe from/to" input.swipe '{"from":[100,300],"to":[100,100]}' '.result | [.from, .to] | tojson' '[[100,300],[100,100]]'
 qc "input.drag one point refused" input.drag '{"points":[[1,1]]}' '.error.message' 'points must be at least two [x, y] pairs'
@@ -427,11 +432,12 @@ t0=$SECONDS; lr=$(rpc '{"method":"location.current","params":{"timeout_ms":300}}
 if print -r -- "$lr" | grep -q location_services_off; then echo "SKIP location.current timeout_ms: Location Services off"
 else [ $((SECONDS - t0)) -lt 5 ] && chk "location.current timeout_ms honoured" ok || chk "location.current timeout_ms honoured" bad "under 5 s" "$((SECONDS - t0)) s"; fi
 # screen.unlock checks timeout_ms (1000..60000) before it presses anything: 999 is refused, so the value is not read as seconds.
-qc "screen.unlock timeout_ms 999 refused" screen.unlock '{"timeout_ms":999}' '.error.message' 'timeout_ms must be 1000–60000'
+qc "screen.unlock timeout_ms 999 refused" screen.unlock '{"timeout_ms":999}' '.error | [.code, .message] | tojson' '["invalid_param","timeout_ms must be 1000–60000"]'
 qc "ui.wait timeout_ms 300 is milliseconds" ui.wait '{"text":"__no_such_element__","timeout_ms":300}' '(.error.message // "") | contains("must be")' false
 # ui.wait and ui.wait_gone refuse timeout_ms outside 0..60000 in milliseconds; location.current refuses over 300000.
-for m in ui.wait ui.wait_gone; do for t in -1 60001; do qc "$m timeout_ms $t refused" $m "{\"text\":\"__no_such_element__\",\"timeout_ms\":$t}" '.error.message' 'timeout_ms must be 0–60000'; done; done
-qc "location.current timeout_ms 300001 refused" location.current '{"timeout_ms":300001}' '.error.message' 'timeout_ms must be more than 0 and at most 300000'
+# Each refusal is a coded invalid_param whose message names the range, so it carries no hint.
+for m in ui.wait ui.wait_gone; do for t in -1 60001; do qc "$m timeout_ms $t refused" $m "{\"text\":\"__no_such_element__\",\"timeout_ms\":$t}" '.error | [.code, .message, has("hint")] | tojson' '["invalid_param","timeout_ms must be 0–60000",false]'; done; done
+qc "location.current timeout_ms 300001 refused" location.current '{"timeout_ms":300001}' '.error | [.code, .message, has("hint")] | tojson' '["invalid_param","timeout_ms must be more than 0 and at most 300000",false]'
 # a failed status read carries `message`, never `error`.
 qc "network.resolve failure message not error" network.resolve '{"host":"no-such-host.invalid"}' '.result | [has("message"), has("error")] | tojson' '[true,false]'
 qc "script.eval failure has message, not error" script.eval '{"source":"("}' '.result | [has("message"), has("error")] | tojson' '[true,false]'

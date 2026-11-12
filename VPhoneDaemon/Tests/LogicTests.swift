@@ -142,8 +142,13 @@ enum LogicTests {
         expect(GuestProcessSpawnPolicy.validate(executable: "ps", arguments: Array(repeating: "x", count: 17), timeout: 3) != nil, "argument count is bounded")
         expect(GuestProcessSpawnPolicy.validate(executable: "ps", arguments: [String(repeating: "x", count: 257)], timeout: 3) != nil, "argument length is bounded")
         expect(GuestProcessSpawnPolicy.validate(executable: "ps", arguments: ["x\n"], timeout: 3) != nil, "control characters are refused")
-        expect(GuestProcessSpawnPolicy.validate(executable: "ps", arguments: [], timeout: 0.09) != nil, "short timeout is refused")
-        expect(GuestProcessSpawnPolicy.validate(executable: "ps", arguments: [], timeout: 10.01) != nil, "long timeout is refused")
+        expect(GuestProcessSpawnPolicy.validate(executable: "ps", arguments: [], timeout: 0.09) == "timeout_ms must be 100–10000", "short timeout is refused with the range")
+        expect(GuestProcessSpawnPolicy.validate(executable: "ps", arguments: [], timeout: 10.01) == "timeout_ms must be 100–10000", "long timeout is refused with the range")
+        expect(GuestProcessSpawnPolicy.validate(executable: "ps", arguments: [], timeout: 0.1) == nil, "100 ms timeout is accepted")
+        expect(GuestProcessSpawnPolicy.validate(executable: "ps", arguments: [], timeout: 10) == nil, "10000 ms timeout is accepted")
+        let refusal = GuestAPIError.invalidRequest(GuestProcessSpawnPolicy.validate(executable: "ps", arguments: [], timeout: 10.001) ?? "").wireBody
+        expect(refusal["code"] as? String == "invalid_param" && refusal["message"] as? String == "timeout_ms must be 100–10000" && refusal["hint"] == nil,
+               "timeout refusal is a hintless invalid_param naming the range")
     }
 
     // MARK: - Setup Assistant
@@ -660,7 +665,7 @@ enum LogicTests {
         // one-past-bound rejections: the code, and a message naming param, value and range
         func rejected(_ error: GuestAPIError?, _ parts: [String], _ label: String, line: Int = #line) {
             guard let error else { expect(false, "\(label) is rejected", line: line); return }
-            expectEqual(error.code, "invalid_operation", label, line: line)
+            expectEqual(error.code, "invalid_param", label, line: line)
             guard case .invalidRequest = error else { expect(false, "\(label) is invalidRequest", line: line); return }
             for part in parts {
                 expect(error.description.contains(part), "\(label): \"\(error.description)\" names \(part)", line: line)
@@ -811,21 +816,33 @@ enum LogicTests {
     }
 
     static func methodDispatch() {
+        methodDispatchBody()
+        rpcErrorEnvelope()
+        inBandFailures()
+    }
+
+    static func methodDispatchBody() {
         let area = GuestMethodArea.make(FixtureMethod.self) { _, params in params }
-        func run(_ method: String, _ params: [String: Any]) -> (result: [String: Any]?, error: String?, code: String?) {
-            do { return (try area.execute(method, params), nil, nil) } catch let error as GuestAPIError {
-                return (nil, String(describing: error), error.code)
-            } catch { return (nil, "\(error)", nil) }
+        func run(_ method: String, _ params: [String: Any]) -> (result: [String: Any]?, error: String?, code: String?, hint: String?) {
+            do { return (try area.execute(method, params), nil, nil, nil) } catch let error as GuestAPIError {
+                return (nil, String(describing: error), error.code, error.hint)
+            } catch { return (nil, "\(error)", nil, nil) }
         }
 
         expect(run("other", [:]).result == nil && run("other", [:]).error == nil, "an unknown name is not this area's")
-        expectEqual(json(run("fixture.echo", ["a": "x", "b": 1, "z": 9]).result), json(["a": "x", "b": 1]), "undeclared keys are dropped")
-        expectEqual(json(run("fixture.echo", ["z": 9]).result), "{}", "no declared key leaves nothing")
+        let extra = run("fixture.echo", ["a": "x", "b": 1, "z": 9])
+        expectEqual(extra.result == nil, true, "an undeclared key fails the call")
+        expectEqual(extra.code ?? "", "invalid_param")
+        expectEqual(extra.error ?? "", "Unknown param: z")
+        expectEqual(extra.hint ?? "", "Did you mean `a`? Valid params: a, b")
+        expectEqual(json(run("fixture.echo", ["a": "x", "b": 1]).result), json(["a": "x", "b": 1]), "declared keys pass")
+        expectEqual(run("fixture.echo", ["z": 9]).error ?? "", "Unknown param: z", "no declared key still fails on the extra")
 
         let refusal = "Pass force: true to act on x"
         let refused = run("fixture.always", ["a": "x"])
         expectEqual(refused.error ?? "", refusal)
-        expectEqual(refused.code ?? "", "invalid_operation")
+        expectEqual(refused.code ?? "", "force_required")
+        expectEqual(refused.hint ?? "", "Confirm with the user, then repeat the call with force: true")
         expectEqual(run("fixture.always", ["a": "x", "force": false]).error ?? "", refusal)
         expectEqual(run("fixture.always", ["a": "x", "force": "yes"]).error ?? "", refusal)
         expectEqual(json(run("fixture.always", ["a": "x", "force": true]).result), json(["a": "x"]), "force: true admits")
@@ -865,7 +882,11 @@ enum LogicTests {
 
         // catalog and dispatcher agree
         let listed = (catalog["methods"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
-        let dispatched = FixtureMethod.allCases.map(\.rawValue).filter { (try? area.execute($0, ["a": "x", "force": true])) != nil }
+        let dispatched = FixtureMethod.allCases.map(\.rawValue).filter { name in
+            var params: [String: Any] = ["force": true]
+            for declared in FixtureMethod(rawValue: name)?.spec.params ?? [] { params[declared.name] = "x" }
+            return (try? area.execute(name, params)) != nil
+        }
         expectEqual(listed, dispatched, "catalog names equal dispatched names")
         expectEqual(Set(listed).count, listed.count, "catalog names are unique")
 
@@ -895,11 +916,151 @@ enum LogicTests {
         let answer = call([:])
         let names = (answer?["methods"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
         expect(names.contains("methods.list") && names.contains("fixture.echo"), "methods.list lists itself and the other areas")
-        expectEqual(json(call(["x": 1])), json(answer), "methods.list ignores params")
+        expectEqual(call(["x": 1]) == nil, true, "methods.list takes no params")
         expectEqual(json(call([:])), json(answer), "two calls are byte-identical")
         expect(json(answer).utf8.count < 1 << 20, "the answer is far below the 1 MiB body limit")
+        // every param methods.list describes is admitted by the unknown-param check
+        for entry in answer?["methods"] as? [[String: Any]] ?? [] {
+            guard let name = entry["name"] as? String, name.hasPrefix("fixture.") else { continue }
+            var all: [String: Any] = ["force": true]
+            for param in entry["params"] as? [[String: Any]] ?? [] { all[param["name"] as? String ?? ""] = "x" }
+            var rejected = false
+            do { _ = try GuestMethodArea.dispatch(table, method: name, params: all) } catch { rejected = String(describing: error).hasPrefix("Unknown param") }
+            expect(!rejected, "\(name): every listed param is admitted")
+        }
         var unknown = ""
         do { _ = try GuestMethodArea.dispatch(table, method: "nope.nothing", params: [:]) } catch { unknown = String(describing: error) }
         expectEqual(unknown, "Unknown method: nope.nothing", "no area answering is an unknown method")
+    }
+
+    // MARK: RPC error envelope
+
+    /// The wire body of one failure as JSON text, as APIWire.execute sends it (it uses `GuestAPIError.wireBody`).
+    static func wire(_ error: GuestAPIError) -> [String: Any] {
+        let data = try! JSONSerialization.data(withJSONObject: error.wireBody, options: [.sortedKeys])
+        return try! JSONSerialization.jsonObject(with: data) as! [String: Any]
+    }
+
+    /// inBandFailure turns a producer's error map into the thrown error the caller's closure builds, and passes a clean result through.
+    /// Which code each of the three handlers picks is not asserted here: they need a guest.
+    static func inBandFailures() {
+        var thrown: GuestAPIError?
+        var returned: [String: Any]?
+        do { returned = try GuestAPIError.inBandFailure(["entries": [Any](), "error": "no io registry"], as: { .operationFailed($0) }) }
+        catch let error as GuestAPIError { thrown = error } catch {}
+        expect(returned == nil, "no success body")
+        let body = thrown.map(wire) ?? [:]
+        expectEqual(body["code"] as? String ?? "", "invalid_operation")
+        expectEqual(body["message"] as? String ?? "", "no io registry")
+        expect(body["hint"] == nil, "no hint key")
+        let ok = try? GuestAPIError.inBandFailure(["enabled": true, "ok": true], as: { .operationFailed($0) })
+        expect(ok?["enabled"] as? Bool == true, "a result without an error key passes through")
+    }
+
+    static func rpcErrorEnvelope() {
+        // Wire: code, message, hint; the hint key is absent (not null) without one.
+        let withHint = wire(.notFound("No such file", hint: "List the directory first"))
+        expectEqual(withHint["code"] as? String ?? "", "not_found")
+        expectEqual(withHint["message"] as? String ?? "", "No such file")
+        expectEqual(withHint["hint"] as? String ?? "", "List the directory first")
+        // Each constructor maps to one code; none carries a hint key without one.
+        let codes: [(GuestAPIError, String)] = [
+            (.notFound("x"), "not_found"), (.unavailable("x"), "unavailable"), (.permission("x"), "permission"),
+            (.forceRequired("x"), "force_required"), (.invalidRequest("x"), "invalid_param"),
+            (.operationFailed("x"), "invalid_operation"), (.unsupportedMethod("x"), "not_found"),
+            (.locationServicesOff, "location_services_off"), (.alreadyDone(code: "already_done", message: "x"), "already_done"),
+        ]
+        for (error, code) in codes {
+            let body = wire(error)
+            expectEqual(body["code"] as? String ?? "", code, "code of \(error.code)")
+            expect(body["hint"] == nil, "no hint key on \(error.code)")
+            expect(!json(body).contains("hint"), "no hint text on \(error.code)")
+        }
+
+        enum Wide: String, GuestMethod {
+            case wide = "wide.call"
+            case none = "wide.none"
+            var spec: MethodSpec {
+                switch self {
+                case .wide: MethodSpec(.optional("alpha", .string, "alpha"), .optional("beta", .string, "beta"), .optional("gamma", .string, "gamma"), summary: "fixture")
+                case .none: MethodSpec(summary: "fixture")
+                }
+            }
+        }
+        let area = GuestMethodArea.make(Wide.self) { _, params in params }
+        func failure(_ method: String, _ params: [String: Any]) -> [String: Any] {
+            do { _ = try area.execute(method, params) } catch let error as GuestAPIError { return wire(error) } catch {}
+            return [:]
+        }
+
+        // Unknown params
+        var body = failure("wide.call", ["alpa": 1])
+        expectEqual(body["code"] as? String ?? "", "invalid_param")
+        expectEqual(body["message"] as? String ?? "", "Unknown param: alpa")
+        expectEqual(body["hint"] as? String ?? "", "Did you mean `alpha`? Valid params: alpha, beta, gamma")
+        body = failure("wide.call", ["zzzzzzzz": 1])
+        expectEqual(body["hint"] as? String ?? "", "Valid params: alpha, beta, gamma", "no near param, no suggestion")
+        body = failure("wide.call", ["zeta": 1, "alpa": 1])
+        expectEqual(body["message"] as? String ?? "", "Unknown param: alpa, zeta", "two extras are sorted")
+        expectEqual(body["hint"] as? String ?? "", "Did you mean `alpha`? Valid params: alpha, beta, gamma", "the first sorted extra drives the suggestion")
+        body = failure("wide.none", ["a": 1])
+        expectEqual(body["message"] as? String ?? "", "Unknown param: a")
+        expectEqual(body["hint"] as? String ?? "", "This method takes no params")
+        expectEqual(failure("wide.call", ["alpha": 1, "force": true]).isEmpty, true, "force is always admitted")
+
+        // 5 extras list all, 6 add " and 1 more"; 1000 extras stay bounded
+        func extras(_ n: Int) -> [String: Any] { Dictionary(uniqueKeysWithValues: (0 ..< n).map { (String(format: "k%04d", $0), 1) }) }
+        expectEqual(failure("wide.call", extras(5))["message"] as? String ?? "", "Unknown param: k0000, k0001, k0002, k0003, k0004")
+        expectEqual(failure("wide.call", extras(6))["message"] as? String ?? "", "Unknown param: k0000, k0001, k0002, k0003, k0004 and 1 more")
+        body = failure("wide.call", extras(1000))
+        expectEqual(body["message"] as? String ?? "", "Unknown param: k0000, k0001, k0002, k0003, k0004 and 995 more")
+        expect((body["message"] as? String ?? "").count < 500, "1000 extras: bounded message")
+
+        // closest: bounds and ties
+        let sixtyFour = String(repeating: "a", count: 64)
+        let sixtyFive = String(repeating: "a", count: 65)
+        expectEqual(GuestAPIError.closest(sixtyFour, [sixtyFour + "bb"]) ?? "", sixtyFour + "bb", "a 64-character name is matched")
+        expect(GuestAPIError.closest(sixtyFive, [sixtyFive]) == nil, "a 65-character name is not")
+        expect(GuestAPIError.closest(String(repeating: "a", count: 10_000), ["a"]) == nil, "a 10,000-character name is not")
+        expectEqual(GuestAPIError.closest("cat", ["cap", "car"]) ?? "", "cap", "equidistant: the first candidate wins")
+        expectEqual(GuestAPIError.closest("cat", ["car", "cap"]) ?? "", "car", "equidistant: order decides")
+        expectEqual(GuestAPIError.closest("abcdef", ["abcdxx"]) ?? "", "abcdxx", "distance 2 is within the bound")
+        expect(GuestAPIError.closest("abcdef", ["abcxxx"]) == nil, "distance 3 over a 6-character name is out")
+        expectEqual(GuestAPIError.closest("abcdefghi", ["abcdefxxx"]) ?? "", "abcdefxxx", "9 characters allow distance 3")
+        expect(GuestAPIError.closest("x", ["abc"]) == nil, "nothing near")
+
+        // Unknown method: hint only with a near method
+        func unknownMethod(_ name: String) -> [String: Any] {
+            do { _ = try GuestMethodArea.dispatch([area], method: name, params: [:]) } catch let error as GuestAPIError { return wire(error) } catch {}
+            return [:]
+        }
+        body = unknownMethod("wide.cal")
+        expectEqual(body["code"] as? String ?? "", "not_found")
+        expectEqual(body["message"] as? String ?? "", "Unknown method: wide.cal")
+        expectEqual(body["hint"] as? String ?? "", "Did you mean `wide.call`?")
+        expect(unknownMethod("nothing.like.it")["hint"] == nil, "no near method: no hint key")
+        body = unknownMethod(String(repeating: "m", count: 10_000))
+        expect(body["hint"] == nil, "no Did you mean for a 10,000-character name")
+        expect((body["message"] as? String ?? "").count < 500, "a 10,000-character name keeps the message under 500 characters")
+        expectEqual(body["message"] as? String ?? "", "Unknown method: " + String(repeating: "m", count: 64) + "…", "the name is cut at 64 characters")
+        expectEqual(unknownMethod(String(repeating: "m", count: 64))["message"] as? String ?? "", "Unknown method: " + String(repeating: "m", count: 64), "a 64-character name is shown whole")
+        expectEqual(unknownMethod("wide.nonf")["hint"] as? String ?? "", "Did you mean `wide.none`?")
+
+        errnoClassification()
+    }
+
+    /// `fromErrno` is the one reclassification helper the handlers share (kill, posix_spawn, shutdown);
+    /// the handlers themselves need a guest, so the mapping is proven here.
+    static func errnoClassification() {
+        let cases: [(errno: Int32, code: String)] = [
+            (ENOENT, "not_found"), (ESRCH, "not_found"), (EACCES, "permission"), (EPERM, "permission"),
+            (EIO, "invalid_operation"), (EINVAL, "invalid_operation"), (0, "invalid_operation"),
+        ]
+        for c in cases {
+            let body = wire(GuestAPIError.fromErrno(c.errno, "boom \(c.errno)"))
+            expectEqual(body["code"] as? String ?? "", c.code, "errno \(c.errno)")
+            expectEqual(body["message"] as? String ?? "", "boom \(c.errno)", "errno \(c.errno) keeps the message")
+            expect(body["hint"] == nil, "errno \(c.errno): no hint key")
+        }
     }
 }
