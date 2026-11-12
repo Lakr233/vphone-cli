@@ -1,5 +1,11 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **iPhone SE 3 (2026-11-12).** `iPhone14,6` / D49AP uses its own
+> 750×1334 panel at 2x and existing board-presentation and LLB scale patches.
+> `devicetree-cfw-home_button_type` copies the concrete D49AP Home button
+> value into the installed SE tree only; restore trees and other devices keep
+> their existing bytes. No new patch identifier or preset.
+
 > **TXM missing-profile compatibility (2026-11-10).**
 > `txm-cfw-executable_remap` includes `.missing_profile` whenever
 > `kernel-boot-amfi_trustcache` is enabled, as in standard. The correction
