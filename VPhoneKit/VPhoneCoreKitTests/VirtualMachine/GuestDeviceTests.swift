@@ -6,6 +6,16 @@ import Testing
 /// VM's `config.plist` keeps it.
 @Suite("Guest device")
 struct GuestDeviceTests {
+    @Test func `iPhone SE 3 preserves its 2x panel and board through manifest encoding`() throws {
+        let device = try #require(VPhoneGuestDevice.detect(buildManifest: ["SupportedProductTypes": ["iPhone14,6"]]))
+        #expect(device == .iPhone14_6 && device.presentsBoard)
+        #expect(device.deviceClass == "d49ap")
+        #expect(device.screen == .init(width: 750, height: 1334, pixelsPerInch: 326, scale: 2.0))
+        let manifest = VPhoneVirtualMachineManifest.newVM().updating(guestDevice: device)
+        let decoded = try PropertyListDecoder().decode(VPhoneVirtualMachineManifest.self, from: PropertyListEncoder().encode(manifest))
+        #expect(decoded.guestDevice == device && decoded.screenConfig == device.screen)
+    }
+
     @Test func `Vision Pro keeps its board identity and uses native visionOS resources`() {
         let device = VPhoneGuestDevice.realityDevice14_1
         #expect(VPhoneGuestDevice.detect(buildManifest: ["SupportedProductTypes": ["RealityDevice14,1"]]) == device)
