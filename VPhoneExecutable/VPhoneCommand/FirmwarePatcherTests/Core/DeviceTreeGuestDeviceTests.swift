@@ -575,6 +575,20 @@ struct DeviceTreeGuestDeviceTests {
         }
     }
 
+    @Test func `SE 3 Home button selection leaves the original slot untouched when disabled`() throws {
+        // No donor Home value: a disabled patch must not even require one.
+        let board = Self.board(model: "iPhone14,6", unique: "D49AP", subtype: 569,
+                               disablesStageManager: false, idiom: "phone")
+        let patcher = DeviceTreePatcher(data: Self.tree.serialized(), verbose: false,
+                                       device: .iPhone14_6, role: .installed, sourceTree: board.serialized())
+        let declared = Set(FirmwareDeviceTreePatchSet.manifest.patches.map(\.identifier))
+        patcher.gate = VPhonePatchGate(declared: declared, enabled: declared.subtracting(["devicetree-cfw-home_button_type"]))
+        let records = try patcher.findAll()
+        let buttons = try #require(Self.read(patcher.patchedData)["device-tree/buttons"])
+        #expect(buttons["home-button-type"]?.0 == 0x8000)
+        #expect(!records.contains { $0.patchID == "devicetree-cfw-home_button_type" })
+    }
+
     @Test func `an iPhone XS Max keeps the iPhone17,3 presentation with its own artwork and no island`() throws {
         #expect(!VPhoneGuestDevice.iPhone11_6.presentsBoard)
         #expect(VPhoneGuestDevice.named("iPhone11,4") == .iPhone11_6)
