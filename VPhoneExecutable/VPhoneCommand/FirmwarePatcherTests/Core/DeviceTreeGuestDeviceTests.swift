@@ -561,6 +561,20 @@ struct DeviceTreeGuestDeviceTests {
         #expect(Self.string(restore["device-tree"]?["model"]) == "iPhone99,11")
     }
 
+    @Test(arguments: ["missing", "placeholder", "truncated"])
+    func `SE 3 refuses an invalid board Home button value`(kind: String) {
+        let home: Property? = switch kind {
+        case "placeholder": .placeholder("home-button-type", "home")
+        case "truncated": Property(name: "home-button-type", flags: 0, value: Data([1, 0, 0]))
+        default: nil
+        }
+        let board = Self.board(model: "iPhone14,6", unique: "D49AP", subtype: 569,
+                               disablesStageManager: false, idiom: "phone", homeButton: home)
+        #expect(throws: (any Error).self) {
+            try Self.patch(device: .iPhone14_6, role: .installed, board: board)
+        }
+    }
+
     @Test func `an iPhone XS Max keeps the iPhone17,3 presentation with its own artwork and no island`() throws {
         #expect(!VPhoneGuestDevice.iPhone11_6.presentsBoard)
         #expect(VPhoneGuestDevice.named("iPhone11,4") == .iPhone11_6)
