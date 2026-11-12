@@ -53,7 +53,9 @@ proxy removes the `Authorization` header and the `token` query item, so
 `/v1/events?token=…` reaches vphoned as `/v1/events`. It forwards every other
 byte unchanged. The token covers the whole TCP connection. vphoned closes
 each HTTP connection after one reply, and a WebSocket stays on the connection
-it was admitted on. A listen address other than loopback prints a warning.
+it was admitted on. If the guest closes the connection before sending any
+reply byte, the proxy answers `502 Bad Gateway` with error code
+`guest_closed` and closes; a reply already under way is never altered. A listen address other than loopback prints a warning.
 The proxy then sends `Host: localhost` in place of the client's value, so
 vphoned's Host check still passes. `VPhoneAPIClient` sends the token as a
 bearer header on HTTP and as the `token` query item on WebSocket. It takes

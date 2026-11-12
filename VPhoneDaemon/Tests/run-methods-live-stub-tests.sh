@@ -19,6 +19,7 @@ cat > "$stubdir/stub.py" <<'PY'
 import json, sys, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 scn = json.load(open(sys.argv[1])); logp, portp, token = sys.argv[2], sys.argv[3], sys.argv[4]
+seen = {}
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def send(self, status, body):
@@ -31,10 +32,14 @@ class H(BaseHTTPRequestHandler):
         with open(logp, "a") as f: f.write(m + "\n")
         s = scn.get(m)
         if s is None: return self.send(400, json.dumps({"type": "response", "error": {"code": "unknown_method", "message": "Unknown method"}}).encode())
+        if isinstance(s, list):
+            n = seen.get(m, 0); seen[m] = n + 1; s = s[min(n, len(s) - 1)]
+        if "drop" in s:
+            self.close_connection = True; return
         if "stall" in s:
             time.sleep(s["stall"]); return
         if "raw" in s: return self.send(200, s["raw"].encode())
-        if "json" in s: return self.send(200, json.dumps(s["json"]).encode())
+        if "json" in s: return self.send(s.get("status", 200), json.dumps(s["json"]).encode())
         if "error" in s: return self.send(400, json.dumps({"type": "response", "error": s["error"]}).encode())
         if "pad" in s:
             base = '{"type":"response","result":{"a":"%s"}}'
@@ -158,6 +163,25 @@ hasnt unresponsive; calls_are 'm1 m2 m3 m4 m5 '
 rows m1=read m2=mutating m3=excluded:needs-network m4=read
 case_run call-log "{\"m1\":$G,\"m4\":$G}"
 calls_are 'm1 m4 '; has 'PASS m1'; has 'PASS m4'; last_is '2 passed, 0 failed'; rc_is 0
+
+# --- unforced force-gated call: a guest-closed reply is retried once -------------
+U=VPHONE_LIVE_UNFORCED_CHECK=1
+REF='{"error":{"code":"force_required","message":"Pass force: true to reboot the guest"}}'
+DROP='{"drop":true}'
+GC='{"status":502,"json":{"type":"response","id":null,"error":{"code":"guest_closed","message":"Guest closed the connection without a reply"}}}'
+RT='RETRY system.reboot {}: guest closed without a reply'; LK='LEAK: system.reboot was not refused unforced; stopping'
+case_run refusal-first "{\"system.reboot\":$REF}" $U
+has 'PASS system.reboot {}'; hasnt RETRY; hasnt LEAK; rc_is 0; calls_are 'system.reboot '
+case_run drop-then-refusal "{\"system.reboot\":[$DROP,$REF]}" $U
+has "$RT"; has 'PASS system.reboot {}'; hasnt LEAK; rc_is 0; calls_are 'system.reboot system.reboot '
+case_run 502-then-refusal "{\"system.reboot\":[$GC,$REF]}" $U
+has "$RT"; has 'PASS system.reboot {}'; hasnt LEAK; rc_is 0; calls_are 'system.reboot system.reboot '
+case_run drop-twice "{\"system.reboot\":[$DROP,$DROP,$REF]}" $U
+has "$RT"; has "$LK"; rc_is 1; calls_are 'system.reboot system.reboot '
+case_run result-first "{\"system.reboot\":{\"result\":{}}}" $U
+hasnt RETRY; has "$LK"; rc_is 1; calls_are 'system.reboot '
+case_run 502-other "{\"system.reboot\":{\"status\":502,\"json\":{\"type\":\"response\",\"error\":{\"code\":\"internal\",\"message\":\"x\"}}}}" $U
+hasnt RETRY; has "$LK"; rc_is 1; calls_are 'system.reboot '
 
 # --- usage -------------------------------------------------------------------------
 rows m1=read
