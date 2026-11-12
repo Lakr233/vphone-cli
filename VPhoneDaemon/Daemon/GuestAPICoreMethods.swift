@@ -85,7 +85,7 @@ enum CoreMethod: String, GuestMethod {
                                                     .required("region", .object),
                                                     .required("width", .integer)])
         case .appsList: MethodSpec(.optional("filter", .string, "Which apps to list", values: ["all", "running", "user", "system"], default: "all"),
-                                    summary: "List installed apps with bundle id, name, version, type, and running state.", result: [.required("apps", .array)])
+                                    summary: "List installed apps with bundle id, name, version, type, and running state.", result: [.required("apps", .array)], paged: MethodSpec.Paged(key: "apps", order: .keys(["bundle_id", "path"])))
         case .appsSearch: MethodSpec(.required("query", .string, "Text to match against app names and bundle ids"),
                                       summary: "Search installed apps by name or bundle id.", result: [.required("apps", .array), .required("query", .string)])
         case .appsRefresh: MethodSpec(.optional("directory", .string, "App directory to rescan; the installed bootstrap Applications directory when omitted"),
@@ -295,7 +295,7 @@ enum CoreMethod: String, GuestMethod {
                 .required("text", .string),
                 .required("types", .array)])
         case .filesList: MethodSpec(.required("path", .string, "Guest directory path to list"),
-                                     summary: "List the entries of a guest directory.", result: [.required("entries", .array), .required("path", .string)])
+                                     summary: "List the entries of a guest directory.", result: [.required("entries", .array), .required("path", .string)], paged: MethodSpec.Paged(key: "entries", order: .keep))
         case .filesMkdir: MethodSpec(.required("path", .string, "Guest directory path to create"),
                                       summary: "Create a guest directory, including any missing parent directories.", result: [.required("created", .boolean), .required("path", .string)])
         case .filesRemove: MethodSpec(.required("path", .string, "Guest file or directory path to delete"),

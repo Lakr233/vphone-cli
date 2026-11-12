@@ -21,17 +21,19 @@ enum FileToolMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .filesRead: MethodSpec(.required("path", .string, "Absolute guest file path"), .optional("binary", .boolean, "Force base64; non-UTF-8 or binary content is returned as base64 regardless", default: false), .optional("limit", .integer, "Maximum bytes to return; 512 KiB when omitted", default: 524288, min: 0, max: 67108864), summary: "Read a guest file as UTF-8 text or base64, up to a byte limit, with a truncated flag", result: [
+        case .filesRead: MethodSpec(.required("path", .string, "Absolute guest file path"), .optional("binary", .boolean, "Force base64; non-UTF-8 or binary content is returned as base64 regardless", default: false), .optional("limit", .integer, "Maximum bytes to return; 512 KiB when omitted", default: 524288, min: 0, max: 67108864), .optional("offset", .integer, "Byte position to start reading at; past the end returns empty content", default: 0, min: 0, max: 1099511627776), summary: "Read a guest file as UTF-8 text or base64 from a byte offset up to a byte limit; next_offset continues where it ended", result: [
                                         .required("content", .string),
                                         .required("encoding", .string),
+                                        .optional("next_offset", .integer),
                                         .required("path", .string),
                                         .required("size", .integer),
+                                        .optional("total", .integer),
                                         .required("truncated", .boolean)])
         case .filesWrite: MethodSpec(.required("path", .string, "Absolute guest file path"), .required("content", .string, "File content, encoded per encoding"), .optional("encoding", .string, "How content is encoded; the file gets the decoded bytes", values: ["utf8", "base64"], default: "utf8"), summary: "Write content to a guest file atomically, creating parent directories and replacing any existing file", result: [.required("bytes", .integer), .required("path", .string)])
         case .filesFind: MethodSpec(.required("root", .string, "Absolute directory to search"), .required("pattern", .string, "Text to look for, ignoring case, anywhere in the path relative to root; not a glob"), summary: "Find paths under a root directory containing a text, ignoring case; returns at most 500 matches", result: [
                                         .required("matches", .array),
                                         .required("pattern", .string),
-                                        .required("root", .string)])
+                                        .required("root", .string)], paged: MethodSpec.Paged(key: "matches", order: .strings))
         case .filesCopy: MethodSpec(.required("from", .string, "Absolute source path"), .required("to", .string, "Absolute destination path; must not exist"), summary: "Copy a guest file or directory to a new path; fails if the destination exists", result: [.required("destination", .string), .required("source", .string)])
         case .filesSymlink: MethodSpec(.required("target", .string, "Path the link points to"), .required("link", .string, "Absolute path of the link to create"), .optional("replace", .boolean, "Replace an existing symbolic link at that path; other existing files are never replaced", default: false), summary: "Create a symbolic link on the guest", result: [
                                            .required("link", .string),

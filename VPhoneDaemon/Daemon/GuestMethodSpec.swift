@@ -162,16 +162,32 @@ enum MethodForce {
 }
 
 struct MethodSpec {
+    /// A list method whose reply array `key` is sorted per `order` and paged by dispatch.
+    /// `keep` = executor order; `strings` = string rows sorted ascending; `keys` = dict rows
+    /// sorted ascending by each key in turn.
+    struct Paged {
+        let key: String
+        let order: PageOrder
+    }
+
+    enum PageOrder {
+        case keep
+        case strings
+        case keys([String])
+    }
+
     let summary: String
     let params: [MethodParam]
     let force: MethodForce
     /// nil = result undeclared; [] = declared to return no keys.
     let result: [ResultKey]?
-    init(_ params: MethodParam..., summary: String, force: MethodForce = .never, result: [ResultKey]? = nil) {
+    let paged: Paged?
+    init(_ params: MethodParam..., summary: String, force: MethodForce = .never, result: [ResultKey]? = nil, paged: Paged? = nil) {
         self.summary = summary
         self.params = params
         self.force = force
         self.result = result
+        self.paged = paged
     }
 }
 
@@ -189,7 +205,11 @@ struct GuestMethodArea {
     ) -> GuestMethodArea {
         GuestMethodArea(entries: { M.allCases.map { ($0.rawValue, $0.spec) } }) { method, params in
             guard let m = M(rawValue: method) else { return nil }
-            return try handle(m, admit(m.spec, params))
+            let spec = m.spec
+            let admitted = try admit(spec, params)
+            let result = try handle(m, admitted)
+            guard let paged = spec.paged else { return result }
+            return try GuestPaging.apply(result, paged, admitted)
         }
     }
 
@@ -209,7 +229,7 @@ struct GuestMethodArea {
     }
 
     static func admit(_ spec: MethodSpec, _ params: [String: Any]) throws -> [String: Any] {
-        let names = spec.params.map(\.name)
+        let names = spec.params.map(\.name) + (spec.paged == nil ? [] : ["limit", "cursor"])
         let declared = Set(names)
         let unknown = params.keys.filter { !declared.contains($0) && $0 != "force" }.sorted()
         if !unknown.isEmpty {
@@ -238,6 +258,15 @@ struct GuestMethodArea {
         return admitted
     }
 
+    /// Params every paged method accepts, added by `admit` and reported by `catalog`.
+    static var pagingParams: [MethodParam] { [
+        .optional("limit", .integer, "Maximum rows in one reply", default: GuestPaging.defaultLimit, min: 1, max: Double(GuestPaging.maxLimit)),
+        .optional("cursor", .string, "Opaque next_cursor from the previous reply, to continue where it ended"),
+    ] }
+
+    /// Result keys every paged method returns, added by dispatch and reported by `catalog`.
+    static let pagingResult: [ResultKey] = [.required("truncated", .boolean), .required("total", .integer), .optional("next_cursor", .string)]
+
     static func catalog(_ areas: [GuestMethodArea]) -> [String: Any] {
         let methods: [[String: Any]] = areas.flatMap { $0.entries() }.map { name, spec in
             let force = switch spec.force {
@@ -245,7 +274,8 @@ struct GuestMethodArea {
             case .always: "always"
             case let .when(key, _, _): "when:" + key
             }
-            let params = spec.params.map { param -> [String: Any] in
+            let declaredParams = spec.params + (spec.paged == nil ? [] : Self.pagingParams)
+            let params = declaredParams.map { param -> [String: Any] in
                 var entry: [String: Any] = [
                     "name": param.name, "type": param.type.rawValue, "required": param.required, "description": param.description,
                 ]
@@ -257,7 +287,8 @@ struct GuestMethodArea {
             }
             var entry: [String: Any] = ["name": name, "description": spec.summary, "params": params, "force": force]
             if let text = spec.force.text { entry["force_action"] = text }
-            if let result = spec.result {
+            if let declared = spec.result {
+                let result = declared + (spec.paged == nil ? [] : Self.pagingResult)
                 entry["result"] = result.filter { $0.presence != .hidden }.sorted { $0.name < $1.name }.map {
                     ["name": $0.name, "type": $0.type.rawValue, "required": $0.presence == .required, "open": $0.isOpen, "nullable": $0.isNullable] as [String: Any]
                 }

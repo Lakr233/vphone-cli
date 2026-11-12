@@ -281,6 +281,156 @@ r=$(rpc '{"method":"processes.list","params":{"filter":"launchd","extra":1}}')
 { print -r -- "$r" | grep -qF '"invalid_param"' && strs "$r" | grep -qxF 'Unknown param: extra' && strs "$r" | grep -qF 'Valid params:'; } \
   && chk "6 processes.list extra key rejected" ok || chk "6 processes.list extra key rejected" bad "invalid_param, Unknown param: extra, Valid params" "$r"
 
+# --- bounded replies: processes.list pages (sorted by pid), processes.spawn cuts its output ---------
+pg1=$(rpc '{"method":"processes.list","params":{"limit":5}}')
+cur=$(print -r -- "$pg1" | J -r '[.. | objects | select(has("next_cursor")) | .next_cursor][0] // empty')
+pg2=$(rpc "{\"method\":\"processes.list\",\"params\":{\"limit\":5,\"cursor\":\"$cur\"}}")
+first=$(print -r -- "$pg1" | J -c '[.. | objects | select(has("processes")) | {n: (.processes | length), t: .truncated, hi: ([.processes[].pid] | max)}][0]')
+second=$(print -r -- "$pg2" | J -c '[.. | objects | select(has("processes")) | {n: (.processes | length), lo: ([.processes[].pid] | min)}][0]')
+if [ -n "$cur" ] && [ "$(print -r -- "$first" | J '.n == 5 and .t == true')" = true ] && [ "$(print -r -- "$second" | J '.n == 5')" = true ] \
+   && [ "$(jq -n --argjson a "${first:-null}" --argjson b "${second:-null}" '$b.lo > $a.hi' 2>/dev/null || true)" = true ]; then chk "7 processes.list pages by pid" ok
+else chk "7 processes.list pages by pid" bad "two pages of 5, the second after the first" "cursor='$cur' first=$first second=$second"; fi
+# rf <reply> <jq path in the result object>: one field of the first reply object holding stdout_total.
+rf() { print -r -- "$1" | J -r "[.. | objects | select(has(\"stdout_total\"))][0] | $2"; }
+# The guest has no launchctl or log binary; ps is the allowlisted command that runs there. Its 25 repeated
+# command columns are about 100 KiB. bigspawn [extra params json] repeats the spawn up to 4 times while the
+# guest's ps outruns the 10 s timeout.
+pscols=$(printf 'command,%.0s' {1..24})command
+bigspawn() {
+  local r i
+  for i in 1 2 3 4; do
+    r=$(rpc "{\"method\":\"processes.spawn\",\"params\":{\"executable\":\"ps\",\"arguments\":[\"-axwwo\",\"$pscols\"],\"timeout_ms\":10000${1-}}}")
+    [ "$(rf "$r" '.timed_out')" = true ] || break
+  done
+  print -r -- "$r"
+}
+sps=$(bigspawn ',"max_output_bytes":100')
+spawned=$(print -r -- "$sps" | J -c '[.. | objects | select(has("stdout_truncated")) | {b: (.stdout | utf8bytelength), t: .stdout_truncated, n: .stdout_total, i: (.output_id | type), d: (.output_dir | type)}][0]')
+if [ "$(print -r -- "$spawned" | J '.t == true and .b <= 100 and .b > 0 and .n > 100 and .i == "string" and .d == "string"')" = true ]; then chk "8 processes.spawn ps output cut at 100 bytes" ok
+else chk "8 processes.spawn ps output cut at 100 bytes" bad "stdout_truncated true, 1 to 100 bytes, stdout_total above 100, output_id and output_dir" "$spawned"; fi
+ap=$(rpc '{"method":"apps.list","params":{"limit":50}}')
+if [ "$(print -r -- "$ap" | J '[.. | objects | select(has("apps")) | .apps][0] | (length > 1) and (. == sort_by([(.bundle_id // ""), (.path // "")]))')" = true ]; then chk "10 apps.list sorted by bundle_id then path" ok
+else chk "10 apps.list sorted by bundle_id then path" bad "at least two apps in bundle_id, path order" "$(print -r -- "$ap" | head -c 300)"; fi
+# pages <method> <key> <row id jq> <keep|strings> [params prefix]: a limit-2 page (truncated, with next_cursor) and the
+# page its cursor names continue one limit-1000 listing in order, with no gap, repeat or overlap; `strings` is sorted.
+pages() {
+  local sel="[.. | objects | select(has(\"$2\"))][0]" full q1 q2 c
+  full=$(rpc "{\"method\":\"$1\",\"params\":{${5-}\"limit\":1000}}" | J -c "$sel | {t: .truncated, ids: [.$2[] | $3]}")
+  q1=$(rpc "{\"method\":\"$1\",\"params\":{${5-}\"limit\":2}}" | J -c "$sel | {t: .truncated, c: .next_cursor, ids: [.$2[] | $3]}")
+  c=$(print -r -- "$q1" | J -r '.c // empty')
+  q2=$(rpc "{\"method\":\"$1\",\"params\":{${5-}\"limit\":2,\"cursor\":\"$c\"}}" | J -c "$sel | {ids: [.$2[] | $3]}")
+  if [ "$(jq -n --argjson f "${full:-null}" --argjson a "${q1:-null}" --argjson b "${q2:-null}" --arg o "$4" '
+      ($a.ids | length) as $n | ($b.ids | length) as $m
+      | $f.t == false and ($f.ids | length) > 4 and $a.t == true and ($a.c | type) == "string" and $n == 2 and $m >= 1 and $m <= 2
+        and $a.ids + $b.ids == $f.ids[0:$n + $m] and ($a.ids + $b.ids | unique | length) == $n + $m
+        and ($o == "keep" or $f.ids == ($f.ids | sort))' 2>/dev/null || true)" = true ]; then chk "14 $1 pages in $4 order" ok
+  else chk "14 $1 pages in $4 order" bad "two limit-2 pages continuing one untruncated listing of 5+ in $4 order" "full=$(print -r -- "$full" | head -c 200) first=$q1 second=$q2"; fi
+}
+pages services.list services .label keep
+pages files.find matches . strings '"root":"/System/Library/LaunchDaemons","pattern":"com.apple.mobile",'
+for bad in 0 65537 100.7 18446744073709551621 true; do
+  r=$(rpc "{\"method\":\"processes.spawn\",\"params\":{\"executable\":\"ps\",\"max_output_bytes\":$bad}}"); s=$(strs "$r"); c=$(cat "$hdr.code" 2>/dev/null || true)
+  if daemon_status "$c" && print -r -- "$r" | grep -qF '"invalid_param"' && print -r -- "$s" | grep -qF 'max_output_bytes must be an integer from 1 to 65536'; then chk "9 processes.spawn max_output_bytes $bad rejected" ok
+  else chk "9 processes.spawn max_output_bytes $bad rejected" bad "invalid_param naming max_output_bytes" "status=$c '$s'"; fi
+done
+for bad in 0 16777217 10.5 18446744073709551621 true; do
+  r=$(rpc "{\"method\":\"processes.spawn\",\"params\":{\"executable\":\"ps\",\"max_capture_bytes\":$bad}}"); s=$(strs "$r"); c=$(cat "$hdr.code" 2>/dev/null || true)
+  if daemon_status "$c" && print -r -- "$r" | grep -qF '"invalid_param"' && print -r -- "$s" | grep -qF 'max_capture_bytes must be an integer from 1 to 16777216'; then chk "9 processes.spawn max_capture_bytes $bad rejected" ok
+  else chk "9 processes.spawn max_capture_bytes $bad rejected" bad "invalid_param naming max_capture_bytes" "status=$c '$s'"; fi
+done
+for bad in 9223372036854775808 1e300; do
+  for call in "processes.output|\"output_id\":\"$(uuidgen)\",\"stream\":\"stdout\"" "files.read|\"path\":\"/etc/hosts\""; do
+    r=$(rpc "{\"method\":\"${call%%|*}\",\"params\":{${call#*|},\"offset\":$bad}}"); s=$(strs "$r"); c=$(cat "$hdr.code" 2>/dev/null || true)
+    if daemon_status "$c" && print -r -- "$r" | grep -qF '"invalid_param"' && print -r -- "$s" | grep -qF 'offset must be an integer from 0 to 1099511627776'; then chk "9 ${call%%|*} offset $bad rejected" ok
+    else chk "9 ${call%%|*} offset $bad rejected" bad "invalid_param naming offset" "status=$c '$s'"; fi
+  done
+done
+
+# --- spooled spawn output: ps with 25 repeated command columns is about 100 KiB, over one 64 KiB page ----
+gone='is released, expired or evicted'
+bs=$(bigspawn)
+id=$(rf "$bs" '.output_id // empty'); dir=$(rf "$bs" '.output_dir // empty'); tot=$(rf "$bs" '.stdout_total')
+if [ "$(rf "$bs" '.stdout_truncated')" = true ] && [ "$(rf "$bs" '.timed_out')" = false ] && [ "$(rf "$bs" '.exit_code')" = 0 ] && [ -n "$id" ] && [ -n "$dir" ] && [ "${tot:-0}" -gt 65536 ]; then chk "11 ps repeated-column spawn truncated with output_id" ok
+else chk "11 ps repeated-column spawn truncated with output_id" bad "stdout_truncated true, timed_out false, exit_code 0, output_id, output_dir, stdout_total above 65536" "id=$id dir=$dir total=$tot $(rf "$bs" '[.timed_out, .exit_code] | @json')"; fi
+# processes.output pages joined by next_offset
+: > $sdir/po.bin; off=0; guard=0
+while [ -n "$id" ] && [ $guard -lt 300 ]; do
+  guard=$((guard+1))
+  r=$(rpc "{\"method\":\"processes.output\",\"params\":{\"output_id\":\"$id\",\"stream\":\"stdout\",\"offset\":$off,\"binary\":true}}")
+  print -r -- "$r" | J -r '[.. | objects | select(has("data"))][0].data // empty' | base64 -D >> $sdir/po.bin 2>/dev/null || true
+  nx=$(print -r -- "$r" | J -r '[.. | objects | select(has("data"))][0].next_offset // empty')
+  [ -n "$nx" ] || break
+  off=$nx
+done
+po=$(wc -c < $sdir/po.bin | tr -d ' ')
+[ -n "$id" ] && [ "$po" = "$tot" ] && chk "11 processes.output pages join to stdout_total bytes" ok || chk "11 processes.output pages join to stdout_total bytes" bad "$tot bytes" "$po"
+# files.read offset pages on <output_dir>/stdout, joined by next_offset; each page reports total, the last no next_offset
+: > $sdir/fr.bin; off=0; guard=0; frok=1; page=
+while [ -n "$dir" ] && [ $guard -lt 300 ]; do
+  guard=$((guard+1))
+  r=$(rpc "{\"method\":\"files.read\",\"params\":{\"path\":\"$dir/stdout\",\"offset\":$off,\"limit\":65536,\"binary\":true}}")
+  print -r -- "$r" | J -r '[.. | objects | select(has("content"))][0].content // empty' | base64 -D > $sdir/chunk.bin 2>/dev/null || true
+  cat $sdir/chunk.bin >> $sdir/fr.bin
+  got=$(wc -c < $sdir/chunk.bin | tr -d ' ')
+  page=$(print -r -- "$r" | J -c '[.. | objects | select(has("content"))][0] | {t: .truncated, n: .next_offset, total}')
+  nx=$(print -r -- "$page" | J -r '.n // empty')
+  [ "$(print -r -- "$page" | J -r '.total')" = "$tot" ] || frok=0
+  if [ "$(print -r -- "$page" | J -r '.t')" = true ]; then [ "$nx" = $((off+got)) ] || frok=0; else [ -z "$nx" ] || frok=0; fi
+  [ -n "$nx" ] && [ "$got" -gt 0 ] || break
+  off=$nx
+done
+fr=$(wc -c < $sdir/fr.bin | tr -d ' ')
+if [ -n "$dir" ] && [ "$fr" = "$tot" ] && cmp -s $sdir/po.bin $sdir/fr.bin; then chk "11 files.read offset pages equal processes.output pages" ok
+else chk "11 files.read offset pages equal processes.output pages" bad "$tot identical bytes" "po=$po fr=$fr"; fi
+if [ -n "$dir" ] && [ $frok = 1 ]; then chk "11 files.read pages report total and next_offset" ok
+else chk "11 files.read pages report total and next_offset" bad "total $tot on each page, next_offset = offset + bytes while truncated, none on the last" "page $page"; fi
+# files.read offset without limit: at most 512 KiB from the offset, truncated exactly when more remains
+r=$(rpc "{\"method\":\"files.read\",\"params\":{\"path\":\"$dir/stdout\",\"offset\":1000,\"binary\":true}}")
+print -r -- "$r" | J -r '[.. | objects | select(has("content"))][0].content // empty' | base64 -D > $sdir/chunk.bin 2>/dev/null || true
+got=$(wc -c < $sdir/chunk.bin | tr -d ' '); more=$(print -r -- "$r" | J -r '[.. | objects | select(has("content"))][0].truncated')
+want=$((${tot:-0}-1000)); [ $want -gt 524288 ] && { want=524288; wantmore=true; } || wantmore=false
+if [ -n "$dir" ] && [ "$got" = "$want" ] && [ "$more" = "$wantmore" ] && tail -c +1001 $sdir/po.bin | head -c $want | cmp -s - $sdir/chunk.bin; then chk "11 files.read offset without limit is capped at 512 KiB" ok
+else chk "11 files.read offset without limit is capped at 512 KiB" bad "$want bytes from 1000, truncated=$wantmore" "got=$got truncated=$more"; fi
+# files.read without offset or limit pages nothing: no total or next_offset
+r=$(rpc '{"method":"files.read","params":{"path":"/etc/hosts"}}')
+if [ "$(print -r -- "$r" | J '[.. | objects | select(has("content"))][0] | (has("total") or has("next_offset")) == false')" = true ]; then chk "11 files.read without offset or limit has no total or next_offset" ok
+else chk "11 files.read without offset or limit has no total or next_offset" bad "no total, no next_offset" "$(print -r -- "$r" | J -c '[.. | objects | select(has("content"))][0] | keys')"; fi
+# release
+r=$(rpc "{\"method\":\"processes.output_release\",\"params\":{\"output_id\":\"$id\"}}")
+rel=$(print -r -- "$r" | J -r '[.. | objects | select(has("released"))][0].released')
+r=$(rpc "{\"method\":\"processes.output\",\"params\":{\"output_id\":\"$id\",\"stream\":\"stdout\"}}"); s=$(strs "$r"); c=$(cat "$hdr.code" 2>/dev/null || true)
+if [ "$rel" = true ] && daemon_status "$c" && print -r -- "$r" | grep -qF '"not_found"' && print -r -- "$s" | grep -qF "$gone"; then chk "11 processes.output_release then processes.output fails" ok
+else chk "11 processes.output_release then processes.output fails" bad "released true, then not_found $gone" "released=$rel status=$c '$s'"; fi
+# capture ceiling: the child is drained and discarded, so it finishes before the timeout
+cs=$(bigspawn ',"max_capture_bytes":1000')
+if [ "$(rf "$cs" '.capture_truncated')" = true ] && [ "$(rf "$cs" '.stdout_total')" = 1000 ] && [ "$(rf "$cs" '.timed_out')" = false ] && [ "$(rf "$cs" '.exit_code')" = 0 ]; then chk "12 max_capture_bytes 1000 caps the capture before the timeout" ok
+else chk "12 max_capture_bytes 1000 caps the capture before the timeout" bad "capture_truncated true, stdout_total 1000, timed_out false" "$(rf "$cs" '[.capture_truncated, .stdout_total, .timed_out] | @json')"; fi
+# short output: nothing truncated, no spool handle
+ss=$(rpc '{"method":"processes.spawn","params":{"executable":"ps","arguments":["-p","1","-o","pid="]}}')
+sl=$(rf "$ss" '.stdout | utf8bytelength')
+if [ "$(rf "$ss" '.stdout_truncated')" = false ] && [ "$(rf "$ss" '.stdout_total')" = "$sl" ] && [ "$(rf "$ss" '.capture_truncated')" = false ] \
+   && [ "$(rf "$ss" '(.output_id // empty), (.output_dir // empty)')" = "" ]; then chk "13 short ps spawn: not truncated, no output_id or output_dir" ok
+else chk "13 short ps spawn: not truncated, no output_id or output_dir" bad "flags false, stdout_total $sl, no output_id/output_dir" "$(rf "$ss" '@json')"; fi
+# timed out: the spool is dropped, so no output_id or output_dir
+ts=$(rpc "{\"method\":\"processes.spawn\",\"params\":{\"executable\":\"ps\",\"arguments\":[\"-axwwo\",\"$pscols\"],\"timeout_ms\":100}}")
+if [ "$(rf "$ts" '.timed_out')" = true ] && [ "$(rf "$ts" '(.output_id // empty), (.output_dir // empty)')" = "" ]; then chk "13 timed-out spawn has no output_id or output_dir" ok
+else chk "13 timed-out spawn has no output_id or output_dir" bad "timed_out true, no output_id/output_dir" "$(rf "$ts" '[.timed_out, .output_id, .output_dir] | @json')"; fi
+# default capture with a small max_output_bytes: the cut is not a capture truncation
+ds=$(bigspawn ',"max_output_bytes":100')
+if [ "$(rf "$ds" '.capture_truncated')" = false ] && [ "$(rf "$ds" '.stdout_truncated')" = true ]; then chk "13 max_output_bytes 100 at default capture: capture_truncated false" ok
+else chk "13 max_output_bytes 100 at default capture: capture_truncated false" bad "capture_truncated false, stdout_truncated true" "$(rf "$ds" '[.capture_truncated, .stdout_truncated] | @json')"; fi
+# restart: spool dirs are removed when the daemon starts
+rs=$(bigspawn); rid=$(rf "$rs" '.output_id // empty')
+rpc '{"method":"services.kickstart","params":{"label":"com.vphone.vphoned","kill":true,"force":true}}' > /dev/null || true
+back=0; end=$((SECONDS+30))
+while [ $SECONDS -lt $end ]; do
+  sleep 2
+  [ "$(rpc '{"method":"time.clock"}' | J '[.. | objects | select(has("time") or has("unix") or has("epoch"))] | length > 0')" = true ] && { back=1; break; }
+done
+r=$(rpc "{\"method\":\"processes.output\",\"params\":{\"output_id\":\"$rid\",\"stream\":\"stdout\"}}"); s=$(strs "$r"); c=$(cat "$hdr.code" 2>/dev/null || true)
+if [ -n "$rid" ] && [ $back = 1 ] && daemon_status "$c" && print -r -- "$r" | grep -qF '"not_found"' && print -r -- "$s" | grep -qF "$gone"; then chk "13 spool is gone after a vphoned restart" ok
+else chk "13 spool is gone after a vphoned restart" bad "reconnect within 30 s, then not_found $gone" "id=$rid back=$back status=$c '$s'"; fi
+
 # --- the 20 force methods: refused unforced (e, above), a required param is validated before the force refusal
 e processes.kill '{"pid":4242}' 'Pass force: true to send SIGTERM to 4242'
 e processes.kill '{"pid":1}' 'pid 1 cannot be signalled'

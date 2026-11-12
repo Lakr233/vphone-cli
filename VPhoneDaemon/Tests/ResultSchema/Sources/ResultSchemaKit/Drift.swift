@@ -183,6 +183,25 @@ public enum DriftCheck {
         return matches.count == 1 ? matches[0] : nil
     }
 
+    /// True when the spec arm `case .<caseName>:` in `GuestAPI*.swift` declares `paged:`; dispatch adds
+    /// `total`, `truncated` and `next_cursor`, so no executor produces them.
+    static func isPaged(caseName: String, daemon: URL) -> Bool {
+        let names = ((try? FileManager.default.contentsOfDirectory(atPath: daemon.path)) ?? [])
+            .filter { $0.hasPrefix("GuestAPI") && $0.hasSuffix(".swift") }
+        let marker = "case .\(caseName):"
+        for name in names {
+            guard let text = try? String(contentsOf: daemon.appendingPathComponent(name), encoding: .utf8) else { continue }
+            var from = text.startIndex
+            while let found = text.range(of: marker, range: from ..< text.endIndex) {
+                let rest = text[found.upperBound...]
+                let end = ["\n        case ", "\n        }\n"].compactMap { rest.range(of: $0)?.lowerBound }.min() ?? rest.endIndex
+                if rest[..<end].contains("paged:") { return true }
+                from = found.upperBound
+            }
+        }
+        return false
+    }
+
     /// Runs every producer of the selected methods and compares it to the catalog.
     public static func run(repo: URL, icli: URL, method prefix: String?) -> DriftReport {
         var report = DriftReport()
@@ -227,13 +246,16 @@ public enum DriftCheck {
 
         for method in methods {
             let entries = map.producers[method] ?? []
-            let declared = cells[method]!.cell.flatMap(parseCell)
+            var declared = cells[method]!.cell.flatMap(parseCell)
             if declared == nil {
                 diagnose("unresolvable declaration: \(method) methods-catalog.tsv line \(cells[method]!.line)")
             }
             guard let target = enumCase(method: method, daemon: daemon) else {
                 diagnose("no enum case: \(method); add case x = \"\(method)\" in GuestAPI*.swift")
                 continue
+            }
+            if isPaged(caseName: target.caseName, daemon: daemon) {
+                for key in ["total", "truncated", "next_cursor"] { declared?.removeValue(forKey: key) }
             }
             var perProducer: [(entry: ProducerEntry, keys: KeyMap)] = []
             var complete = true

@@ -11,6 +11,10 @@ extension GuestAPI {
         switch m {
         case .processesSpawn:
             return try spawnProcess(params)
+        case .processesOutput:
+            return try processesOutput(params)
+        case .processesOutputRelease:
+            return try processesOutputRelease(params)
         case .posterInspect:
             return try inspectPoster(params)
         case .processesList:
@@ -64,13 +68,65 @@ extension GuestAPI {
         let arguments = params["arguments"] as? [String] ?? []
         let timeout = (params["timeout_ms"] as? NSNumber).map { $0.doubleValue / 1000 } ?? 3.0
         if let error = GuestProcessSpawnPolicy.validate(executable: name, arguments: arguments, timeout: timeout) { throw GuestAPIError.invalidRequest(error) }
-        let run = try runProgram(executable, arguments, timeout: timeout)
-        return [
+        let outputCap = try GuestPaging.strictInt(params["max_output_bytes"], name: "max_output_bytes", range: 1 ... GuestProcessSpawnPolicy.outputLimit) ?? GuestProcessSpawnPolicy.outputLimit
+        let captureCap = try GuestPaging.strictInt(params["max_capture_bytes"], name: "max_capture_bytes", range: 1 ... 16_777_216) ?? 2_097_152
+
+        let spool = GuestProcessSpool.shared
+        let reservation = try spool.reserve(maxCaptureBytes: captureCap)
+        var keep = false
+        defer { spool.finish(reservation, keep: keep) }
+        let stdoutFile = try spool.writer(reservation, stream: "stdout")
+        let stderrFile = try spool.writer(reservation, stream: "stderr")
+
+        // A write error is kept and the pipes keep draining (ceiling 0 discards), so the child never blocks.
+        var captured = [0, 0]
+        var capturedAll = true
+        var writeError: Error?
+        let run = try runProgram(executable, arguments, timeout: timeout) { stdout, stderr in
+            for (index, (descriptor, file)) in [(stdout, stdoutFile), (stderr, stderrFile)].enumerated() {
+                do {
+                    let counts = try GuestProcessOutput.drain(descriptor, to: file, ceiling: writeError == nil ? captureCap - captured[index] : 0)
+                    captured[index] += counts.written
+                    if counts.written < counts.total { capturedAll = false }
+                } catch {
+                    writeError = writeError ?? error
+                }
+            }
+        }
+        if let writeError { throw GuestAPIError.operationFailed("spool write failed: \(writeError.localizedDescription); repeat the command") }
+        let pages = try ["stdout", "stderr"].map { try spool.firstPage(outputID: reservation.outputID, stream: $0, cap: outputCap) }
+        // The String/Int/Bool wrappers let the result-schema drift check infer each key's type.
+        var reply: [String: Any] = [
             "executable": executable, "arguments": arguments, "pid": Int(run.pid),
             "timed_out": run.timedOut, "exit_code": run.exitCode.map { $0 as Any } ?? NSNull(),
             "signal": run.signal.map { $0 as Any } ?? NSNull(),
-            "stdout": run.stdout, "stderr": run.stderr,
+            "stdout": String(pages[0].text), "stderr": String(pages[1].text),
+            "stdout_total": Int(captured[0]), "stderr_total": Int(captured[1]),
+            "stdout_truncated": Bool(pages[0].truncated), "stderr_truncated": Bool(pages[1].truncated),
+            "capture_truncated": !capturedAll,
         ]
+        // A timed-out spawn drops its spool, so it has no output_id to page.
+        if !run.timedOut, pages[0].truncated || pages[1].truncated {
+            reply["output_id"] = reservation.outputID
+            reply["output_dir"] = reservation.outputDir.path
+            keep = true
+        }
+        return reply
+    }
+
+    private static func processesOutput(_ params: [String: Any]) throws -> [String: Any] {
+        let offset = try GuestPaging.strictInt(params["offset"], name: "offset", range: 0 ... 1_099_511_627_776) ?? 0
+        let limit = try GuestPaging.strictInt(params["limit"], name: "limit", range: 1 ... 65536) ?? 65536
+        let slice = try GuestProcessSpool.shared.slice(outputID: string(params, "output_id"), stream: string(params, "stream"),
+                                                       offset: offset, limit: limit, binary: bool(params, "binary"))
+        var reply: [String: Any] = ["data": slice.data, "total": slice.total]
+        if let next = slice.nextOffset { reply["next_offset"] = next }
+        return reply
+    }
+
+    private static func processesOutputRelease(_ params: [String: Any]) throws -> [String: Any] {
+        try GuestProcessSpool.shared.release(outputID: string(params, "output_id"))
+        return ["released": true]
     }
 
     struct ProgramRun {
@@ -79,13 +135,17 @@ extension GuestAPI {
         /// Nil when the program was killed by a signal or did not exit.
         let exitCode: Int?
         let signal: Int?
+        /// Empty when the caller passed its own `drain`.
         let stdout: String
         let stderr: String
     }
 
-    /// Run a program at a fixed path with no shell, capture both outputs up to
-    /// GuestProcessSpawnPolicy.outputLimit, and kill it at `timeout`.
-    static func runProgram(_ executable: String, _ arguments: [String], timeout: Double) throws -> ProgramRun {
+    /// Run a program at a fixed path with no shell and kill it at `timeout`. `drain` is
+    /// called with the nonblocking stdout and stderr read ends while the program runs and
+    /// once after it ends; without one, both outputs are captured in memory up to
+    /// GuestProcessSpawnPolicy.outputLimit.
+    static func runProgram(_ executable: String, _ arguments: [String], timeout: Double,
+                           drain: ((_ stdout: Int32, _ stderr: Int32) -> Void)? = nil) throws -> ProgramRun {
         let stdoutPipe: GuestProcessPipe
         let stderrPipe: GuestProcessPipe
         do {
@@ -115,11 +175,13 @@ extension GuestAPI {
         fcntl(stdoutPipe.readEnd, F_SETFL, O_NONBLOCK)
         fcntl(stderrPipe.readEnd, F_SETFL, O_NONBLOCK)
         var output = Data(); var errorOutput = Data(); var status: Int32 = 0
+        let drainBoth = drain ?? { stdout, stderr in
+            drainSpawnPipe(stdout, into: &output); drainSpawnPipe(stderr, into: &errorOutput)
+        }
         let deadline = Date().addingTimeInterval(timeout)
         var exited = false
         while Date() < deadline {
-            drainSpawnPipe(stdoutPipe.readEnd, into: &output)
-            drainSpawnPipe(stderrPipe.readEnd, into: &errorOutput)
+            drainBoth(stdoutPipe.readEnd, stderrPipe.readEnd)
             if waitpid(pid, &status, WNOHANG) == pid { exited = true; break }
             usleep(10_000)
         }
@@ -127,7 +189,7 @@ extension GuestAPI {
             kill(pid, SIGKILL)
             _ = waitpid(pid, &status, 0)
         }
-        drainSpawnPipe(stdoutPipe.readEnd, into: &output); drainSpawnPipe(stderrPipe.readEnd, into: &errorOutput)
+        drainBoth(stdoutPipe.readEnd, stderrPipe.readEnd)
         return ProgramRun(
             pid: pid, timedOut: !exited,
             exitCode: exited && (status & 0x7f) == 0 ? Int((status >> 8) & 0xff) : nil,

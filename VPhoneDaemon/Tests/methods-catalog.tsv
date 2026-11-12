@@ -1,7 +1,7 @@
 accessibility.tree	never	nested:boolean,max_elements:integer,visible_only:boolean,clickable_only:boolean,limit:integer,max_depth:integer,timeout_ms:integer	-	action_eligible:boolean?,count:integer,elapsed_ms:number?,elements:array?,error:string~,filtering_applied:boolean?,foreground_after:object?,foreground_before:object?,format:string?,limits:object?,native_exception:string?,parent_checks:object?,pid:integer?,queries:integer?,readiness:object?,relationship_source:string?,roots:array?,runtime:object?,source:string?,status:string?,switches_after_restore:object?,switches_before:object?,symbols:object?,truncated:boolean?,truncation_reasons:array?	excluded:needs an unlocked guest with a frontmost app
 agent.apply_update	never	sha256:string!	-	restarting:boolean	mutating
 apfs.snapshot.delete	always	mount:string,name:string,prefix:string	-	after:array,already_deleted:array,before:array,deleted:array,mount:string,remaining:array	mutating
-apfs.snapshots	never	mount:string	-	mount:string,snapshots:array	read
+apfs.snapshots	never	mount:string,limit:integer,cursor:string	-	mount:string,next_cursor:string?,snapshots:array,total:integer,truncated:boolean	read
 apps.binary	never	bundle_id:string!	-	bundle_id:string,encrypted:boolean,entitlements:object*,executable:string	excluded:needs params
 apps.data_dir	never	bundle_id:string!	-	bundle_id:string,data_path:string	excluded:needs params
 apps.foreground	never	-	-	bundle_id:string,name:string,pid:integer,source:string,verified:boolean	read
@@ -9,7 +9,7 @@ apps.handlers	never	url:string!	-	apps:array?,count:integer?,error:string~,schem
 apps.info	never	bundle_id:string!	-	build:string?,bundle_id:string,bundle_path:string,data_path:string?,encrypted:boolean?,entitlements:object?*,executable:string?,group_containers:object?*,minimum_os:string?,name:string,running:boolean?,schemes:array?,sdk:string?,signer:string?,signing_error:string?,type:string?,version:string?	excluded:needs params
 apps.install	never	path:string!,cert_path:string,registration:string	-	bundle_container:string,bundle_id:string,bundle_path:string,containerized:boolean,data_container:string,method:string,msg:string,plugins:array,registration:string,unregistered_plugins:array,upgraded:boolean	mutating
 apps.launch	never	bundle_id:string!,url:string	-	frontmost_verified:boolean,pid:integer,warning:string?	mutating
-apps.list	never	filter:string	-	apps:array	read
+apps.list	never	filter:string,limit:integer,cursor:string	-	apps:array,next_cursor:string?,total:integer,truncated:boolean	read
 apps.network_policy	never	bundle_id:string!,repair:boolean	-	allowed:boolean?,bundle_id:string?,changed:boolean?,error:string~,policy:object?*	excluded:needs params
 apps.open_url	never	url:string!,bundle_id:string	-	bundle_id:string?,url:string	mutating
 apps.refresh	never	directory:string	-	directory:string,failed:array,registered:array,skipped:array,unchanged:array,unregistered:array,unverified:array	mutating
@@ -74,12 +74,12 @@ environment.status	never	-	-	libraries:array,root_read_only:boolean,staging:stri
 files.chmod	never	path:string!,mode:string!	-	mode:string,path:string	mutating
 files.chown	never	path:string!,owner:string!	-	gid:integer,path:string,uid:integer	mutating
 files.copy	never	from:string!,to:string!	-	destination:string,source:string	mutating
-files.find	never	root:string!,pattern:string!	-	matches:array,pattern:string,root:string	excluded:needs params
-files.list	never	path:string!	-	entries:array,path:string	excluded:needs params
+files.find	never	root:string!,pattern:string!,limit:integer,cursor:string	-	matches:array,next_cursor:string?,pattern:string,root:string,total:integer,truncated:boolean	excluded:needs params
+files.list	never	path:string!,limit:integer,cursor:string	-	entries:array,next_cursor:string?,path:string,total:integer,truncated:boolean	excluded:needs params
 files.mkdir	never	path:string!	-	created:boolean,path:string	mutating
 files.plist	never	path:string!	-	path:string,plist:any*	excluded:needs params
 files.plist_set	never	path:string!,key:string!,value:any,remove:boolean	-	format:string,key:string,path:string,previous:any:null*,value:any:null*	mutating
-files.read	never	path:string!,binary:boolean,limit:integer	-	content:string,encoding:string,path:string,size:integer,truncated:boolean	excluded:needs params
+files.read	never	path:string!,binary:boolean,limit:integer,offset:integer	-	content:string,encoding:string,next_offset:integer?,path:string,size:integer,total:integer?,truncated:boolean	excluded:needs params
 files.remove	never	path:string!,recursive:boolean	-	message:string?,path:string,removed:boolean,type:string?	mutating
 files.rename	never	from:string!,to:string!	-	destination:string,source:string	mutating
 files.save_to_files_app	never	path:string!,name:string!	-	folder:string,name:string,path:string	mutating
@@ -119,7 +119,7 @@ location.current	never	timeout_ms:number	-	age_seconds:number?,altitude:number?,
 location.services	never	enabled:boolean	-	enabled:boolean	read
 location.set	never	latitude:number!,longitude:number!,altitude:number,horizontal_accuracy:number,vertical_accuracy:number,speed:number,course:number	-	location:object,simulating:boolean	mutating
 logs.crash	never	path:string!	-	bytes:integer,content:string,encoding:string,path:string,size:integer,truncated:boolean	excluded:needs params
-logs.crashes	never	bundle_id:string	-	count:integer,crashes:array	read
+logs.crashes	never	bundle_id:string,limit:integer,cursor:string	-	count:integer,crashes:array,next_cursor:string?,total:integer,truncated:boolean	read
 logs.syslog	never	seconds:number,process:string,level:string,max_lines:integer,subsystem:string,category:string,message_contains:string	-	count:integer?,entries:array?,error:string~,seconds:number?,source:string?,truncated:boolean?	excluded:streams for a time window
 memory.jetsam	never	-	-	memory:object,priorities:array?,priorities_error:string?,properties:object*	read
 memory.pressure	never	-	-	memory:object	read
@@ -151,8 +151,10 @@ packages.tweaks	never	-	-	tweaks:array	read
 poster.inspect	never	pid:integer!	-	available:boolean,pid:integer,reason:string	excluded:needs params
 power.low_power_mode	never	enabled:boolean	-	changed:boolean?,enabled:boolean,method:string	read
 processes.kill	always	pid:integer!,signal:string	-	pid:integer,signal:string	mutating
-processes.list	never	filter:string	-	count:integer,processes:array	read
-processes.spawn	never	executable:string!,arguments:array,timeout_ms:number	-	arguments:array,executable:string,exit_code:integer:null,pid:integer,signal:integer:null,stderr:string,stdout:string,timed_out:boolean	mutating
+processes.list	never	filter:string,limit:integer,cursor:string	-	count:integer,next_cursor:string?,processes:array,total:integer,truncated:boolean	read
+processes.output	never	output_id:string!,stream:string!,offset:integer,limit:integer,binary:boolean	-	data:string,next_offset:integer?,total:integer	excluded:needs params
+processes.output_release	never	output_id:string!	-	released:boolean	excluded:needs params
+processes.spawn	never	executable:string!,arguments:array,timeout_ms:number,max_output_bytes:integer,max_capture_bytes:integer	-	arguments:array,capture_truncated:boolean,executable:string,exit_code:integer:null,output_dir:string?,output_id:string?,pid:integer,signal:integer:null,stderr:string,stderr_total:integer,stderr_truncated:boolean,stdout:string,stdout_total:integer,stdout_truncated:boolean,timed_out:boolean	mutating
 screen.screenshot	never	max_dimension:integer,quality:number,region:object	-	bytes:integer,coordinate_scale:number,data:string,height:integer,mime_type:string,point_height:number,point_width:number,region:object,width:integer	read
 screen.unlock	never	passcode:string,timeout_ms:number	-	locked:boolean,screen_off:boolean,was_locked:boolean,was_screen_off:boolean	mutating
 script.eval	never	source:string!,timeout_ms:number	-	crashed:boolean,message:string?,ok:boolean?,output:string?,result:string?	mutating
@@ -160,10 +162,10 @@ script.info	never	-	-	available:boolean,engine:string,globals:array,programs:obj
 security.ssl_killswitch	never	-	-	present:boolean	read
 services.disable	always	label:string!	disable `<label>`	changed:boolean,enabled:boolean,label:string	mutating
 services.disabled	never	-	-	count:integer,disabled:object*	read
-services.dump	never	-	-	count:integer,described:integer,errors:object*,services:array	excluded:reply exceeds the 1 MiB live cap
+services.dump	never	limit:integer,cursor:string	-	count:integer,described:integer,errors:object*,next_cursor:string?,services:array,total:integer,truncated:boolean	excluded:reply exceeds the 1 MiB live cap
 services.enable	never	label:string!	-	changed:boolean,enabled:boolean,label:string	mutating
 services.kickstart	when:kill	label:string!,kill:boolean	kill and restart `<label>`	accepted:boolean,action:string,domain:string?,kill:boolean,label:string,launchd_status:integer,message:string,pid:integer?,unchanged:boolean	mutating
-services.list	never	-	-	count:integer,services:array	read
+services.list	never	limit:integer,cursor:string	-	count:integer,next_cursor:string?,services:array,total:integer,truncated:boolean	read
 services.load	never	paths:array!,override:boolean	-	errors:object*,loaded:boolean,patched:array?,paths:array,services:array,unchanged:boolean?,verified:boolean	mutating
 services.print	never	label:string!	-	description:string,domain:string,label:string	excluded:needs params
 services.profile	never	-	-	disabled:array,enabled_since:array,groups:array,ios_major:integer,list_version:integer,never_disable:array,profile:string,reboot_required:boolean,record:object:null,running:array,supported:boolean,supported_ios:array	read

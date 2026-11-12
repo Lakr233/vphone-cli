@@ -81,6 +81,7 @@ file_specs() {
                 }
                 descs = descs row("force", "-", text)
             }
+            if (armBody ~ /(^|[(, ])paged:/) params = params (params == "" ? "" : ",") "limit:integer,cursor:string"
             if (params == "") params = "-"
             for (i = 1; i <= n; i++) { seen[labels[i]] = 1; out[labels[i]] = force " " params; dout[labels[i]] = descs }
             arm = ""
@@ -240,6 +241,21 @@ write_results() {
     /bin/rm -f "$cells_file" "$out"
 }
 
+# Check 13: the sort order of the paged methods whose order is not executor order. Prints one
+# FAIL line per method whose spec arm in dir $1 does not declare the expected `order:` in its `paged:`.
+check_orders() {
+    spec_files "$1"
+    for file in $files; do file_arms "$file"; done | /usr/bin/awk -F'\t' '
+        BEGIN {
+            want["apps.list"] = "order: .keys([\"bundle_id\", \"path\"])"
+            want["processes.list"] = "order: .keys([\"pid\"])"
+            want["files.find"] = "order: .strings"
+        }
+        $1 in want { seen[$1] = 1; at = index($2, "paged:"); if (!at || index(substr($2, at), want[$1] ")") == 0) print "FAIL order: " $1 " must declare paged: ... " want[$1] }
+        END { for (m in want) if (!(m in seen)) print "FAIL order: " m " has no spec arm" }
+    '
+}
+
 # Runs this script on a mutated copy of the daemon sources and asserts it exits
 # non-zero and names the offender: $1 label, $2 expected text, $3 file in the copy,
 # the rest an awk program that rewrites that file.
@@ -260,27 +276,30 @@ mutation_case() {
     return 1
 }
 
-# Writes the three-method fixture (spec file plus catalog.tsv) into dir $1.
+# Writes the four-method fixture (spec file plus catalog.tsv) into dir $1.
 result_fixture() {
     print -r -- 'enum FixtureMethod: String, GuestMethod {
     case alpha = "fix.alpha"
     case beta = "fix.beta"
     case gamma = "fix.gamma"
+    case epsilon = "fix.epsilon"
 
     var spec: MethodSpec {
         switch self {
         case .alpha: MethodSpec(summary: "a", result: [.required("b", .string), .optional("a", .integer), .hidden("c", .any).open(), .required("n", .string).nullable()])
         case .beta: MethodSpec(summary: "b", force: .always("do it"), result: [])
         case .gamma: MethodSpec(.required("y", .string, "y"), summary: "g", result: [.required("k", .object).open()])
+        case .epsilon: MethodSpec(.optional("q", .string, "q"), summary: "e", result: [.required("rows", .array)], paged: MethodSpec.Paged(key: "rows", order: .keep))
         }
     }
 }' > "$1/GuestAPIFixtureMethods.swift"
     print -r -- "fix.alpha	never	-	-	a:integer?,b:string,c:any~*,n:string:null	read
 fix.beta	always	-	-	-	mutating
-fix.gamma	never	y:string!	-	k:object*	excluded:needs params" > "$1/catalog.tsv"
+fix.gamma	never	y:string!	-	k:object*	excluded:needs params
+fix.epsilon	never	q:string,limit:integer,cursor:string	-	next_cursor:string?,rows:array,total:integer,truncated:boolean	read" > "$1/catalog.tsv"
 }
 
-# Check 11 mutations run on a three-method fixture (spec file plus catalog) so they hold whatever the real specs
+# Check 11 mutations run on a four-method fixture (spec file plus catalog) so they hold whatever the real specs
 # declare: $1 label, $2 expected text ("" = must pass), $3 swift|catalog, $4 sed -E program applied to that file.
 result_case() {
     local label="$1" expect="$2" target="$3" program="$4"
@@ -316,6 +335,7 @@ self_test_results() {
     result_case live-read-required-param "FAIL live: fix.gamma is read but has a required param" catalog 's/excluded:needs params$/read/' || bad=1
     result_case live-capitalised "FAIL live: fix.beta has invalid live value \"Read\"" catalog '/^fix.beta/s/mutating$/Read/' || bad=1
     result_case live-empty-reason "FAIL live: fix.gamma has invalid live value \"excluded:\"" catalog 's/excluded:needs params$/excluded:/' || bad=1
+    result_case paged-spec-drops-keys "FAIL result: fix.epsilon differs from the catalog" catalog 's/,total:integer,truncated:boolean/,total:integer/' || bad=1
     return $bad
 }
 
@@ -370,6 +390,8 @@ self_test() {
         '/case \.processesKill/ { inKill = 1 } inKill && /force: \.always/ { sub(/force: \.always/, "force: .never"); inKill = 0 } 1' "$source" || bad=1
     mutation_case params "FAIL params: processes.list" GuestAPIProcessMethods.swift \
         '{ sub(/\.optional\("filter", \.string/, ".required(\"filter\", .string") } 1' "$source" || bad=1
+    mutation_case order "FAIL order: apps.list" GuestAPICoreMethods.swift \
+        '{ sub(/order: \.keys\(\["bundle_id", "path"\]\)/, "order: .keep") } 1' "$source" || bad=1
     mutation_case undeclared-key "FAIL undeclared-key: GuestAPI+Log.swift process" GuestAPILogMethods.swift \
         '{ sub(/\.optional\("process", \.string/, ".optional(\"unrelated\", .string") } 1' "$source" || bad=1
     mutation_case message-text "FAIL message: system.shutdown" GuestAPIAppDetailMethods.swift \
@@ -639,6 +661,12 @@ if (( catalog_ok )); then
         failures=$((failures + 1))
     done
 fi
+
+# 13. order: apps.list, processes.list and files.find declare their sort order
+for finding in ${(f)"$(check_orders "$dir")"}; do
+    print -r -- "$finding"
+    failures=$((failures + 1))
+done
 
 # 12. docs: the guest-control references do not restate result shapes
 docs_root="${0:a:h:h:h}"
