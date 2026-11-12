@@ -65,8 +65,8 @@ func dispatcherBound(_ method: Method, cond: Bool) -> [String: Any] {
 }
 
 // Type inference (REQ-RPC-007): declared locals, parameters and properties give a
-// type; an external property or `?? NSNull()` gives any.
-// expect: typed => count:integer,external:any,fallback:any,items:array,label:string,meta:object,mixed:any,parsed:integer,ratio:number,same:integer,yes:boolean
+// type; an external property gives any, `?? NSNull()` makes the type nullable.
+// expect: typed => count:integer,external:any,fallback:integer:null,items:array,label:string,meta:object,mixed:any,parsed:integer,ratio:number,same:integer,yes:boolean
 func typed(_ pasteboard: Pasteboard, value: Int?, flag: Bool) -> [String: Any] {
     let n: Int = 4
     let ratio: Double = 0.5

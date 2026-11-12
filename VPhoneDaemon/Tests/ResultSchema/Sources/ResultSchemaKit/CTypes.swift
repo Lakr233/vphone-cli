@@ -19,7 +19,15 @@ final class CTypes {
         return .any
     }
 
+    static let objectiveC: [String: KeyType] = [
+        "NSArray": .array, "NSMutableArray": .array, "NSDictionary": .object, "NSMutableDictionary": .object,
+        "NSString": .string, "NSMutableString": .string,
+    ]
+
     private static func ref(_ words: [String], pointer: Bool) -> TypeRef {
+        let nullable = words.contains("_Nullable")
+        let words = words.filter { !["_Nonnull", "_Nullable", "_Null_unspecified"].contains($0) }
+        if pointer, words.count == 1, let known = objectiveC[words[0]] { return TypeRef(key: known, optional: nullable) }
         let key = key(words, pointer: pointer)
         if key != .any { return TypeRef(key: key) }
         let named = words.filter { !qualifiers.contains($0) }

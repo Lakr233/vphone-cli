@@ -77,6 +77,36 @@ public enum FirmwareGuestSystemPatchSet {
     public static let ciBarcodeBundlePath = "System/Library/CoreImage/CIBarcode.cifilter"
     public static let ciBarcodeExecutablePath = ciBarcodeBundlePath + "/CIBarcode"
 
+    /// Standalone debugger libraries and their dependencies, outside the shared
+    /// cache. Select by the installed binary's X1 instructions, not its OS label.
+    /// Paths are relative to System, including the installed OS cryptex.
+    public static let arm64eX1DebugImages: [(identifier: String, path: String, bundle: String?)] = [
+        ("system-libdispatch-cfw-arm64e_x1_introspection", "usr/lib/system/introspection/libdispatch.dylib", nil),
+        ("system-libbacktracerecording-cfw-arm64e_x1", "usr/lib/libBacktraceRecording.dylib", nil),
+        ("system-libmainthreadchecker-cfw-arm64e_x1", "usr/lib/libMainThreadChecker.dylib", nil),
+        ("system-librpac-cfw-arm64e_x1", "usr/lib/libRPAC.dylib", nil),
+        ("system-libviewdebuggersupport-cfw-arm64e_x1", "usr/lib/libViewDebuggerSupport.dylib", nil),
+        ("system-liblogredirect-cfw-arm64e_x1", "System/Cryptexes/OS/usr/lib/libLogRedirect.dylib", nil),
+        ("system-libmtlhud-cfw-arm64e_x1", "System/Cryptexes/OS/usr/lib/libMTLHud.dylib", nil),
+        ("system-libglinterpose-cfw-arm64e_x1", "System/Cryptexes/OS/usr/lib/libglInterpose.dylib", nil),
+        ("system-libmetalmetricsinterpose-cfw-arm64e_x1", "System/Cryptexes/OS/usr/lib/libMetalMetricsInterpose.dylib", nil),
+        (
+            "system-debughierarchyfoundation-cfw-arm64e_x1",
+            "System/Library/PrivateFrameworks/DebugHierarchyFoundation.framework/DebugHierarchyFoundation",
+            "System/Library/PrivateFrameworks/DebugHierarchyFoundation.framework"
+        ),
+        (
+            "system-gputoolscapture-cfw-arm64e_x1",
+            "System/Library/PrivateFrameworks/GPUToolsCapture.framework/GPUToolsCapture",
+            "System/Library/PrivateFrameworks/GPUToolsCapture.framework"
+        ),
+        (
+            "system-gputoolsdiagnostics-cfw-arm64e_x1",
+            "System/Library/PrivateFrameworks/GPUToolsDiagnostics.framework/GPUToolsDiagnostics",
+            "System/Library/PrivateFrameworks/GPUToolsDiagnostics.framework"
+        ),
+    ]
+
     public static let paravirtGPUIndexOffset = "system-paravirt_gpu-cfw-heap_index_offset"
     public static let paravirtGPUPrimitiveRestart = "system-paravirt_gpu-cfw-primitive_restart"
     public static let paravirtGPUCompilerCache = "system-paravirt_gpu-cfw-compiler_cache"
@@ -1223,7 +1253,14 @@ public enum FirmwareGuestSystemPatchSet {
                 """,
                 target: .guestFile(path: "/System/Library/CoreServices/SystemVersion.plist"),
             ),
-        ],
+        ] + arm64eX1DebugImages.map { image in
+            VPhonePatchDeclaration(
+                identifier: image.identifier,
+                title: "\((image.path as NSString).lastPathComponent) X1 compatibility",
+                summary: "Lowers unsupported X1 instructions in this standalone debug library before a debugger can intercept their faults. Missing images and images needing no conversion keep their original bytes and signature.",
+                target: .guestFile(path: "/" + image.path),
+            )
+        },
         requires: ["vphone.kernel.base"],
         provides: ["vphone.guest.system"],
     )

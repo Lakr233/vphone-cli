@@ -37,7 +37,7 @@ vphone-cli vm launch myphone --api-listen 127.0.0.1:8765
 | `token=<token>` クエリ項目 | `ws://127.0.0.1:8765/v1/events?token=<token>` のような WebSocket の URL |
 | `Sec-WebSocket-Protocol: vphone-token.<token>` | サブプロトコルしか設定できない WebSocket クライアント |
 
-トークンがない、または間違っている場合は `401 Unauthorized` が返され、ゲストに何かが届く前に接続が閉じられます。
+トークンがない、または間違っている場合は `401 Unauthorized` が返され、ゲストに何かが届く前に接続が閉じられます。ゲストが応答を 1 バイトも送らずに接続を閉じた場合、プロキシはエラーコード `guest_closed` 付きの `502 Bad Gateway` を返します。すでに送信中の応答が変更されることはありません。
 
 ## 呼び出しの例
 

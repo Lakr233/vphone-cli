@@ -79,6 +79,55 @@ final class DriftTests: XCTestCase {
         ])
     }
 
+    func testNullabilityChangedIsItsOwnFinding() throws {
+        try mutate(Self.catalog, "count:integer,", "count:integer:null,")
+        let report = check()
+        XCTAssertEqual(report.stdout, [
+            "\(Self.clip) key \"count\" nullability changed nullable -> non-null; "
+                + "remove .nullable() from \"count\" in \(Self.clipPlace)"
+        ])
+        XCTAssertEqual(report.exitCode, 1)
+    }
+
+    func testNullableDeclarationReportsTypeAndNullabilityFindings() throws {
+        // A declared `:null` key keeps its type and presence comparison independent of nullability.
+        try mutate(Self.catalog, "count:integer,", "count:number:null,")
+        XCTAssertEqual(check().stdout, [
+            "\(Self.clip) key \"count\" type changed number -> integer; declare \"count\" as .integer in \(Self.clipPlace)",
+            "\(Self.clip) key \"count\" nullability changed nullable -> non-null; "
+                + "remove .nullable() from \"count\" in \(Self.clipPlace)",
+        ])
+    }
+
+    func testNullOnlyDeclarationAgainstConcreteIsTypeDrift() throws {
+        try mutate(Self.catalog, "count:integer,", "count:null,")
+        XCTAssertEqual(check().stdout, [
+            "\(Self.clip) key \"count\" type changed null -> integer; declare \"count\" as .integer in \(Self.clipPlace)"
+        ])
+    }
+
+    func testNullableIntegerExtractionAgainstIntegerCatalogIsNullabilityDrift() throws {
+        try mutate(Self.clipPath, "\"count\": count]", "\"count\": Bool.random() ? nil : count]")
+        XCTAssertEqual(check().stdout, [
+            "\(Self.clip) key \"count\" nullability changed non-null -> nullable; add .nullable() to \"count\" in \(Self.clipPlace)"
+        ])
+    }
+
+    func testNullOnlyExtractionAgainstStringCatalogIsTypeDrift() throws {
+        try mutate(Self.clipPath, "\"text\": text, ", "\"text\": NSNull(), ")
+        XCTAssertEqual(check().stdout, [
+            "\(Self.clip) key \"text\" type changed string -> null; declare \"text\" as .null in \(Self.clipPlace)"
+        ])
+    }
+
+    func testNullOnlyExtractionAgainstAnyCatalogIsTypeDrift() throws {
+        try mutate(Self.catalog, "text:string", "text:any")
+        try mutate(Self.clipPath, "\"text\": text, ", "\"text\": NSNull(), ")
+        XCTAssertEqual(check().stdout, [
+            "\(Self.clip) key \"text\" type changed any -> null; declare \"text\" as .null in \(Self.clipPlace)"
+        ])
+    }
+
     func testPresenceRequiredToOptional() throws {
         try mutate(Self.devicePath, ", \"model\": \"iPhone\"]", "]")
         try mutate(Self.devicePath, "result[\"serial\"] = \"S1\"", "result[\"serial\"] = \"S1\"\n        result[\"model\"] = \"iPhone\"")
@@ -236,6 +285,15 @@ final class DriftTests: XCTestCase {
         XCTAssertEqual(keys?["a"]?.optional, true)
         XCTAssertEqual(keys?["a"]?.hidden, true)
         XCTAssertEqual(keys?["a"]?.open, true)
+        let nullable = DriftCheck.parseCell("a:string:null?,b:null,c:integer")
+        XCTAssertEqual(nullable?["a"]?.type, .string)
+        XCTAssertEqual(nullable?["a"]?.nullable, true)
+        XCTAssertEqual(nullable?["a"]?.optional, true)
+        XCTAssertEqual(nullable?["b"]?.type, .null)
+        XCTAssertEqual(nullable?["b"]?.nullable, false)
+        XCTAssertEqual(nullable?["c"]?.nullable, false)
+        XCTAssertNil(DriftCheck.parseCell("a:string:nul"))
+        XCTAssertNil(DriftCheck.parseCell("a:string?:null"))
         XCTAssertNil(DriftCheck.parseCell("a:string*?"))
         XCTAssertNil(DriftCheck.parseCell("a:string??"))
         XCTAssertNil(DriftCheck.parseCell("a:string,"))
