@@ -45,7 +45,7 @@ enum VPhonePCCGPURecovery {
         // and OpenSEP have not been tried with.
         let vm = try VPhoneBundleOperations.create(.init(
             name: name,
-            cpuCount: 8,
+            cpuCount: restoreCPUCount(platformVersion: expectedPlatformVersion),
             memoryMB: 8192,
             diskSizeGB: 64,
             romSource: VPhoneBootROM.appleSource,
@@ -112,6 +112,16 @@ enum VPhonePCCGPURecovery {
             gpuDriver: gpuDriver,
             diskMayBeAttached: &diskMayBeAttached,
         )
+    }
+
+    /// vCPUs of the temporary VM. cloudOS 18's restore kernel with several
+    /// vCPUs stops Virtualization.framework 308 (macOS 27.2) with a trap on a
+    /// vCPU thread right after it is sent, so the device never enters restore
+    /// mode (issue #901: cloudOS 18.6 failed 2 of 2 with 8 vCPUs and passed 2
+    /// of 2 with 1). cloudOS 26 restores with 8.
+    static func restoreCPUCount(platformVersion: String) -> UInt {
+        guard let major = Int(platformVersion.prefix { $0 != "." }), major < 26 else { return 8 }
+        return 1
     }
 
     /// The temporary VM reports iPhone99,11, which cloudOS releases after the
