@@ -870,4 +870,16 @@ struct FirmwarePatchSetCatalogTests {
             #expect(!preset.usesExternalPatchSets)
         }
     }
+
+    @Test
+    func `Trusted darwinOS is refused on iOS 27, where its first boot panics`() {
+        for version in ["27.0", "27.0.1", "27.2.1", "28.0"] {
+            let refusal = FirmwareRestoreImagePatchSet.trustedDarwinOSRefusal(iOSVersion: version)
+            #expect(refusal?.contains("iOS \(version)") == true)
+            #expect(refusal?.contains(FirmwareRestoreImagePatchSet.trustedDarwinOS) == true)
+        }
+        for version in ["26.5", "26.6.2", "18.6", "18.6.2"] {
+            #expect(FirmwareRestoreImagePatchSet.trustedDarwinOSRefusal(iOSVersion: version) == nil)
+        }
+    }
 }

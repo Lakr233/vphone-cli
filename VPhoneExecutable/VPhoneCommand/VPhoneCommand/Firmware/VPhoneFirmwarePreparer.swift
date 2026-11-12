@@ -142,6 +142,12 @@ enum VPhoneFirmwarePreparer {
         guard let plan = try pipeline.resolvePlan(iOSBase: VPhoneVersion(ota?.version ?? phone.version), cloudOS: VPhoneVersion(cloud.version)) else {
             throw ValidationError("Patch preset '\(selection.presetIdentifier)' did not resolve.")
         }
+        if plan.isEnabled(FirmwareRestoreImagePatchSet.trustedDarwinOS),
+           device.family == .iPhone || device.family == .iPad,
+           let refusal = FirmwareRestoreImagePatchSet.trustedDarwinOSRefusal(iOSVersion: phone.version)
+        {
+            throw ValidationError(refusal)
+        }
 
         let name = restored.restoreTreeName(version: phone.version, build: phone.build)
         let destination = bundle.url.appendingPathComponent(name)

@@ -246,6 +246,11 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
                 try patchLaunchdJetsam(targetMount: targetMount)
             }
             if trustedDarwinOS {
+                // A box turned on after `fw prepare` is caught here, before
+                // the restore, instead of as a first-boot panic.
+                if let refusal = FirmwareRestoreImagePatchSet.trustedDarwinOSRefusal(iOSVersion: try getProductVersion()) {
+                    throw VPhonePatchKit.PatcherError.patchVerificationFailed(refusal)
+                }
                 print("- Adding cryptexctl for trusted darwinOS…")
                 try addCryptexctl(targetMount: targetMount)
             }

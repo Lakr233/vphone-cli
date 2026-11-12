@@ -377,3 +377,26 @@ With the WKMS key refused (`cryptex7`/`cryptex8`, 2026-11-11, bundle
 | runtime | 13 minutes awake with network on one boot session, no NRDUpdated process, no `TXM [Panic]`; two cryptexes personalized, installed and uninstalled |
 | `cryptex.uninstall` | cryptexctl exits 1 without output after an uninstall that worked; the RPC takes `cryptexctl list` as the result |
 
+
+## iOS 27 does not boot (2026-11-12)
+
+iPhone17,3 iOS 27.0.1 (24A446) with cloudOS 26.4 (23E5207q), `minimal` with
+the box on, bundle 2.16.1-local.f9155a25: the restore succeeded
+(`Requesting Ap,OSEnvironment = 6`, cryptexctl staged through the temporary
+cloudOS restore), and the first boot panicked before launchd ran:
+
+```
+libignition: 1:   os environment      : trusted-darwinos
+libignition: 1: cryptex1 sniff: ignition failed: 8
+dyld[1]: result from check_np(): -1, errno 12
+dyld[1]: dyld cache '(null)' not loaded: syscall to map cache into shared region failed
+panic(…):  initproc failed to start -- exit reason namespace 6 subcode 0x1 description: Library not loaded: /usr/lib/libSystem.B.dylib
+```
+
+The same build with iOS 26.5 (23F77) / cloudOS 26.5 (23F75) restored, booted
+and answered `cryptex.list` (no panic in about 25 minutes). So iOS 27's dyld
+cannot mount the OS cryptex in environment 6. Until that is understood,
+`FirmwareRestoreImagePatchSet.trustedDarwinOSRefusal` refuses the patch for
+iOS 27 and later: `fw prepare` stops right after resolving the IPSWs, and
+the patcher stops before adding cryptexctl if the box was turned on after
+`fw prepare`.

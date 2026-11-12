@@ -5,6 +5,7 @@ Cryptex 是一个签名的磁盘映像，客户机在运行时将其挂载，并
 ## 开始之前
 
 - 创建机器时选择 `minimal` 预设，并在“新建机器”的“补丁”页上打开 **Trusted darwinOS environment** 选项。使用 `vphone-launchpad-cli` 时，即 `--preset minimal --allow filesystem-exp-trusted_darwinos`。该选项只在恢复时生效：要为已有的机器打开它，需要重新创建这台机器。
+- 使用 iOS 26 或 iOS 18 的 IPSW。已验证 iOS 26.5 搭配 cloudOS 26.5、iOS 18.6 搭配 cloudOS 18.6 可用。iOS 27 在此环境中无法启动，所以 IPSW 为 iOS 27 时，vphone-cli 会在恢复之前拒绝该选项。
 - 安装 macOS Security Research 工具（PCC Virtual Research Environment）。VM 窗口使用其中的 `/System/Library/SecurityResearch/usr/bin/cryptexctl.research` 构建 cryptex。
 - 客户机需要网络。安装 cryptex 时会请求 Apple 的签名服务器为此客户机个性化它。
 

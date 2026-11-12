@@ -44,6 +44,18 @@ public enum FirmwareRestoreImagePatchSet {
     /// research identity carries; `/osenvironments/trusted-darwinos` in the
     /// device tree is its overlay.
     public static let trustedDarwinOSEnvironment = 6
+
+    /// Why trusted darwinOS cannot be used with this iOS version, or nil when
+    /// it can. On iOS 27 (27.0.1 with cloudOS 26.4) dyld's ignition fails to
+    /// mount the OS cryptex in environment 6, so launchd finds no shared cache
+    /// and the first boot panics ("initproc failed to start … libSystem").
+    /// iOS 26.5 with cloudOS 26.5 and iOS 18.6 with cloudOS 18.6 boot.
+    public static func trustedDarwinOSRefusal(iOSVersion: String) -> String? {
+        guard let major = Int(iOSVersion.prefix { $0 != "." }), major >= 27 else { return nil }
+        return "The trusted darwinOS environment (\(trustedDarwinOS)) does not boot iOS \(iOSVersion): "
+            + "dyld cannot mount the OS cryptex in that environment, so the first boot panics. "
+            + "Use an iOS 26 or iOS 18 IPSW, or turn the patch off."
+    }
     public static let digestRehash = "manifest-boot-digest_rehash"
 
     /// Patches a machine asks for by name (`--allow`, or a preset that lists them);
