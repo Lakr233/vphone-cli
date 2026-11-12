@@ -37,7 +37,7 @@ token은 다음 중 어느 형식으로든 보낼 수 있습니다.
 | `token=<token>` 쿼리 항목 | `ws://127.0.0.1:8765/v1/events?token=<token>` 같은 WebSocket URL |
 | `Sec-WebSocket-Protocol: vphone-token.<token>` | 서브프로토콜만 설정할 수 있는 WebSocket 클라이언트 |
 
-token이 없거나 틀리면 `401 Unauthorized`가 반환되고, 게스트에 아무것도 전달되기 전에 연결이 닫힙니다.
+token이 없거나 틀리면 `401 Unauthorized`가 반환되고, 게스트에 아무것도 전달되기 전에 연결이 닫힙니다. 게스트가 응답을 한 바이트도 보내지 않고 연결을 닫으면 프록시는 오류 코드 `guest_closed`와 함께 `502 Bad Gateway`를 반환합니다. 이미 전송 중인 응답은 변경되지 않습니다.
 
 ## 호출 예시
 

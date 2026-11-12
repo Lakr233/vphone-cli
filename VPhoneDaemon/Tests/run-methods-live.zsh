@@ -22,7 +22,10 @@
 #   only keys, types and escaped error codes are printed, never reply values, and no reply is written to a file.
 #   Three consecutive timeout/transport/unparsable failures print `FAIL guest unresponsive` and stop the run.
 # Test seam (no VM): VPHONE_LIVE_BASE_URL (e.g. http://127.0.0.1:9), VPHONE_LIVE_TOKEN and optionally
-#   VPHONE_LIVE_CATALOG run only the schema comparison against that server (run-methods-live-stub-tests.sh).
+#   VPHONE_LIVE_CATALOG run only the schema comparison against that server (run-methods-live-stub-tests.sh);
+#   with VPHONE_LIVE_UNFORCED_CHECK=1 they run one unforced system.reboot refusal check instead.
+# Unforced calls to force methods: a guest-closed reply (HTTP 000, or the proxy's 502 `guest_closed`) is retried
+#   once and prints `RETRY <method> <params>: guest closed without a reply`; a second one halts with LEAK.
 # Output: `PASS <check>` or `FAIL <check>: expected <x> got <y>` per check, then
 #   live: <n> checks, <f> failures
 #   TOTAL_FAILS=<f>
@@ -118,13 +121,51 @@ schema_section() {
 }
 schema_summary() { [ $schema_ran = 0 ] || echo "$sp passed, $sf failed"; }
 
-# Test seam: a stub server stands in for the guest and only the schema comparison runs.
+# --- shared helpers (VM run and test seam) -----------------------------------
+# The daemon answers 200, or 400 for a handler error (APIWire.swift); 401/403 are refusals before the daemon.
+daemon_status() { case $1 in 200|400) return 0 ;; *) return 1 ;; esac; }
+# cu [curl-args]: silent curl with the shared timeouts and the token header file; noauth=1 omits the header.
+cu() { local a=(); [ -n "${noauth-}" ] || a=(-H @"$hdr"); curl -s --connect-timeout 3 --max-time 30 $a "$@"; }
+# rpc <method> <json>: POST /v1/rpc with the token; prints the body, leaves the HTTP status in "$hdr.code".
+# A failed or timed-out request or jq yields an empty value, which fails its check; it never aborts the run.
+rpc() { cu -H "Content-Type: application/json" -w '%{stderr}%{http_code}' -d "$1" "$schema_base/v1/rpc" 2> "$hdr.code" || true; }
+# All string values of a reply, one per line (messages live in nested fields).
+strs() { print -r -- "$1" | jq -r '.. | strings' 2>/dev/null || print -r -- "$1"; }
+J() { jq "$@" 2>/dev/null || true; }
+chk() { total=$((total+1)); if [ "$2" = ok ]; then echo "PASS $1"; else echo "FAIL $1: expected $3 got $4"; fails=$((fails+1)); fi }
+finish() { echo "live: $total checks, $fails failures"; echo "TOTAL_FAILS=$fails"; schema_summary; [ $fails = 0 ] && [ $sf = 0 ]; }
+# guest_closed <reply> <status>: true for no HTTP reply (000 or empty) or the proxy's 502 guest_closed.
+guest_closed() { case $2 in 000|'') return 0 ;; 502) print -r -- "$1" | jq -e '.error.code == "guest_closed"' >/dev/null 2>&1 ;; *) return 1 ;; esac; }
+# unforced <method> <params>: one rpc, retried once when the guest closed without a reply (seen after a vphoned
+# restart; not a leak); sets r and c.
+unforced() {
+  r=$(rpc "{\"method\":\"$1\",\"params\":$2}"); c=$(cat "$hdr.code" 2>/dev/null || true)
+  if guest_closed "$r" "$c"; then
+    echo "RETRY $1 $2: guest closed without a reply"
+    r=$(rpc "{\"method\":\"$1\",\"params\":$2}"); c=$(cat "$hdr.code" 2>/dev/null || true)
+  fi
+}
+# e <method> <params> <message>: an unforced call must answer <message> with status 200/400.
+# A reply to an unforced destructive call without `Pass force` means it may have run: stop at once.
+e() {
+  unforced "$1" "$2"; s=$(strs "$r")
+  if daemon_status "$c" && print -r -- "$s" | grep -qxF -- "$3"; then chk "$1 $2" ok; else chk "$1 $2" bad "'$3' with status 200/400" "status=$c '$s'"; fi
+  case $3 in *'Pass force'*) if ! print -r -- "$s" | grep -qF 'Pass force'; then echo "LEAK: $1 was not refused unforced; stopping"; finish || true; exit 1; fi ;; esac
+}
+
+# Test seam: a stub server stands in for the guest and only the schema comparison runs
+# (or, with VPHONE_LIVE_UNFORCED_CHECK=1, one unforced system.reboot check).
 if [ -n "${VPHONE_LIVE_BASE_URL-}" ]; then
   root=${0:a:h:h:h}
   schema_base=$VPHONE_LIVE_BASE_URL
   sdir=$(mktemp -d); hdr=$sdir/hdr
   trap 'rm -rf "$sdir"' EXIT
   (umask 077; printf 'Authorization: Bearer %s\n' "${VPHONE_LIVE_TOKEN-}" > "$hdr")
+  if [ "${VPHONE_LIVE_UNFORCED_CHECK-}" = 1 ]; then
+    total=0; fails=0
+    e system.reboot '{}' 'Pass force: true to reboot the guest'
+    finish; exit
+  fi
   schema_section
   schema_summary
   [ $sf = 0 ]; exit
@@ -140,8 +181,6 @@ mkdir -p .build; log=$root/.build/methods-vm.log
 tests=$root/VPhoneDaemon/Tests/run-methods-tests.sh
 n_specs=$(zsh "$tests" --specs | wc -l | tr -d ' ')
 n_forces=$(zsh "$tests" --forces | wc -l | tr -d ' ')
-# The daemon answers 200, or 400 for a handler error (APIWire.swift); 401/403 are refusals before the daemon.
-daemon_status() { case $1 in 200|400) return 0 ;; *) return 1 ;; esac; }
 [ -x "$cli" ] || { echo "UNAVAILABLE: no built bundle at $bundle; build the bundle (AGENTS.md Quick Reference) or set VPHONE_BUNDLE"; exit 2; }
 "$cli" host preflight >/dev/null 2>&1 || { echo "UNAVAILABLE: preflight failed; operator must run: sudo $bundle/Contents/MacOS/vphone-escalator allow $bundle/Contents/MacOS/vphone-vm"; exit 2; }
 
@@ -173,8 +212,6 @@ cleanup() {
   if [ -n "$lpid" ] && kill -0 $lpid 2>/dev/null; then kill $lpid 2>/dev/null || true; fi
   rm -rf "$hdr" "$hdr.code" "$sdir"
 }
-# cu [curl-args]: silent curl with the shared timeouts and the token header file; noauth=1 omits the header.
-cu() { local a=(); [ -n "${noauth-}" ] || a=(-H @"$hdr"); curl -s --connect-timeout 3 --max-time 30 $a "$@"; }
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -194,15 +231,7 @@ done
 [ $ok = 1 ] || { echo "UNAVAILABLE: hash not matched in 300s; see $log"; tail -20 "$log"; exit 2; }
 echo "hash matched after ${SECONDS}s"
 
-# rpc <method> <json>: POST /v1/rpc with the token; prints the body, leaves the HTTP status in "$hdr.code".
-# A failed or timed-out request or jq yields an empty value, which fails its check; it never aborts the run.
-rpc() { cu -H "Content-Type: application/json" -w '%{stderr}%{http_code}' -d "$1" http://$addr/v1/rpc 2> "$hdr.code" || true; }
-# All string values of a reply, one per line (messages live in nested fields).
-strs() { print -r -- "$1" | jq -r '.. | strings' 2>/dev/null || print -r -- "$1"; }
-J() { jq "$@" 2>/dev/null || true; }
 total=0; fails=0
-chk() { total=$((total+1)); if [ "$2" = ok ]; then echo "PASS $1"; else echo "FAIL $1: expected $3 got $4"; fails=$((fails+1)); fi }
-finish() { echo "live: $total checks, $fails failures"; echo "TOTAL_FAILS=$fails"; schema_summary; [ $fails = 0 ] && [ $sf = 0 ]; }
 
 # --- capability and catalog -------------------------------------------------
 h=$(cu http://$addr/v1/health || true)
@@ -247,13 +276,7 @@ p2=$(pn "$(rpc '{"method":"processes.list","params":{"filter":"launchd","extra":
 if [ -n "$p1" ] && [ "$p1" != "[]" ] && [ "$p1" = "$p2" ]; then chk "6 processes.list extra key dropped" ok
 else chk "6 processes.list extra key dropped" bad "same non-empty names" "plain=$p1 extra=$p2"; fi
 
-# --- the 20 force methods: refused unforced, a required param is validated before the force refusal
-# A reply to an unforced destructive call without `Pass force` means it may have run: stop at once.
-e() {
-  r=$(rpc "{\"method\":\"$1\",\"params\":$2}"); s=$(strs "$r"); c=$(cat "$hdr.code" 2>/dev/null || true)
-  if daemon_status "$c" && print -r -- "$s" | grep -qxF -- "$3"; then chk "$1 $2" ok; else chk "$1 $2" bad "'$3' with status 200/400" "status=$c '$s'"; fi
-  case $3 in *'Pass force'*) if ! print -r -- "$s" | grep -qF 'Pass force'; then echo "LEAK: $1 was not refused unforced; stopping"; finish || true; exit 1; fi ;; esac
-}
+# --- the 20 force methods: refused unforced (e, above), a required param is validated before the force refusal
 e processes.kill '{"pid":4242}' 'Pass force: true to send SIGTERM to 4242'
 e processes.kill '{"pid":1}' 'pid 1 cannot be signalled'
 e apps.uninstall '{}' 'bundle_id is required'
@@ -356,7 +379,7 @@ fa=$(print -r -- "$r1" | J -r "$L"'
 verified=0
 while IFS=$'\t' read -r fm fp fpat; do
   [ -n "$fm" ] || continue
-  r=$(rpc "{\"method\":\"$fm\",\"params\":$fp}"); s=$(strs "$r")
+  unforced "$fm" "$fp"; s=$(strs "$r")
   if print -r -- "$s" | grep -qE -- "$fpat"; then chk "8 $fm force text" ok; verified=$((verified+1))
   elif print -r -- "$s" | grep -qF 'Pass force: true to'; then chk "8 $fm force text" bad "$fpat" "$s"
   elif print -r -- "$r" | jq -e '.. | objects | select(has("error"))' >/dev/null 2>&1; then echo "SKIP 8 $fm force text: params rejected first"

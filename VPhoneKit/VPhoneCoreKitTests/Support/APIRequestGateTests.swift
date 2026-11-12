@@ -97,6 +97,23 @@ struct APIRequestGateTests {
         #expect(Gate.evaluate(request("GET /?token=\(token) HTTP/1.1\n"), token: "") == .reject)
     }
 
+    @Test func `guest closed response is a 502 with the guest_closed error`() throws {
+        let text = String(decoding: Gate.guestClosedResponse, as: UTF8.self)
+        let parts = text.components(separatedBy: "\r\n\r\n")
+        #expect(parts.count == 2)
+        let lines = parts[0].components(separatedBy: "\r\n")
+        let body = Data(parts[1].utf8)
+        #expect(lines.first == "HTTP/1.1 502 Bad Gateway")
+        #expect(lines.contains("Content-Type: application/json; charset=utf-8"))
+        #expect(lines.contains("Connection: close"))
+        #expect(lines.contains("Content-Length: \(body.count)"))
+        let json = try #require(try JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(json["type"] as? String == "response")
+        #expect(json["id"] is NSNull)
+        let error = try #require(json["error"] as? [String: Any])
+        #expect(error["code"] as? String == "guest_closed")
+    }
+
     @Test func `incomplete head waits and oversized head is refused`() {
         let partial = Data("GET /v1/health HTTP/1.1\r\nAuthorization: Bearer \(token)\r\n".utf8)
         #expect(Gate.evaluate(partial, token: token) == .needMore)

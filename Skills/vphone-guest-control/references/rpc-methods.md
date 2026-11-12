@@ -250,4 +250,4 @@ curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
 It adds streaming file transfer (`GET/PUT /v1/files/content?path=`), a TCP
 tunnel to a guest port (`/v1/ports/<port>` over WebSocket) and an event stream
 (`/v1/events`). Every `POST` needs `Content-Type: application/json`. Details
-and the 401/403/415 rules: `Research/vphoned_http_api.md` ("Access control").
+and the 401/403/415/502 rules: `Research/vphoned_http_api.md` ("Access control").

@@ -37,7 +37,7 @@ Send the token in any of these forms:
 | `token=<token>` query item | WebSocket URLs, such as `ws://127.0.0.1:8765/v1/events?token=<token>` |
 | `Sec-WebSocket-Protocol: vphone-token.<token>` | WebSocket clients that can only set a subprotocol |
 
-A missing or wrong token gets `401 Unauthorized`, and the connection closes before anything reaches the guest.
+A missing or wrong token gets `401 Unauthorized`, and the connection closes before anything reaches the guest. If the guest closes the connection before sending any reply byte, the proxy answers `502 Bad Gateway` with error code `guest_closed`; a reply already under way is never altered.
 
 ## Example calls
 
