@@ -228,12 +228,12 @@ struct GuestDeviceTests {
     }
 
     @Test
-    func `every iPhone but the XS Max presents its own board at 3x`() {
+    func `every board-presenting iPhone preserves its panel scale`() {
         #expect(VPhoneGuestDevice.iPhone17_3.presentsBoard)
         for device in VPhoneGuestDevice.known where device.family == .iPhone && device.notchedArtworkSubtype == nil {
             #expect(device.presentsBoard)
-            #expect(device.screen.scale == 3.0)
-            #expect(device.screen.pixelsPerInch == 460)
+            #expect(device.screen.scale == (device == .iPhone14_6 ? 2.0 : 3.0))
+            #expect(device.screen.pixelsPerInch == (device == .iPhone14_6 ? 326 : 460))
             #expect(device.screen.width < device.screen.height)
             #expect(VPhoneGuestDevice.detect(buildManifest: ["SupportedProductTypes": [device.productType]]) == device)
             #expect(device.restoreTreeName(version: "27.0", build: "24A437") == "\(device.productType)_27.0_24A437_Restore")
