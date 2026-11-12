@@ -89,7 +89,7 @@ public enum CustomFirmwareRemotePairing {
         let helper = instructions[helperRange.lowerBound].address
 
         var sites: [Site] = []
-        for (message, count) in [(controlMessage, 1), (tunnelMessage, 2)] {
+        for (message, counts) in [(controlMessage, 1 ... 1), (tunnelMessage, 2 ... 3)] {
             let needle = Data((message + "\0").utf8)
             var addresses: [UInt64] = []
             for strings in stringSections {
@@ -107,8 +107,8 @@ public enum CustomFirmwareRemotePairing {
             }
             let address = addresses[0]
             let references = instructions.indices.filter { referencesString(address, at: $0, in: instructions) }
-            guard references.count == count else {
-                throw PatcherError.patchSiteNotFound("remotepairingdeviced: expected \(count) rejection references, found \(references.count)")
+            guard counts.contains(references.count) else {
+                throw PatcherError.patchSiteNotFound("remotepairingdeviced: expected \(counts) rejection references, found \(references.count)")
             }
             for reference in references {
                 let range = try function(containing: reference)
@@ -133,7 +133,7 @@ public enum CustomFirmwareRemotePairing {
             }
         }
         let callers = instructions.filter { $0.mnemonic == "bl" && immediate($0, 0) == Int64(helper) }
-        guard sites.count == 3, Set(sites.map(\.address)).count == 3,
+        guard (3 ... 4).contains(sites.count), Set(sites.map(\.address)).count == sites.count,
               callers.allSatisfy({ call in sites.contains(where: { $0.address == call.address }) })
         else { throw PatcherError.patchSiteNotFound("remotepairingdeviced: local-path predicate has unrecognized callers") }
         return sites.sorted { $0.address < $1.address }
@@ -144,7 +144,7 @@ public enum CustomFirmwareRemotePairing {
         instructions: [ARM64Instruction], symbols: MachOSymbolTargets,
     ) -> Bool {
         guard index + 7 < function.upperBound, index < reference else { return false }
-        if control {
+        if control, instructions[index + 1].mnemonic != "tbz" {
             let result = instructions[index + 1]
             let release = instructions[index + 3]
             let gate = instructions[index + 4]
@@ -161,11 +161,20 @@ public enum CustomFirmwareRemotePairing {
             return accepted > instructions[reference].address && accepted < instructions[function.upperBound].address
         }
         let gate = instructions[index + 1]
-        let rejection = instructions[index + 6]
         guard gate.mnemonic == "tbz", register(gate, 0) == .w(0), immediate(gate, 1) == 0,
-              immediate(gate, 2) == Int64(instructions[index + 7].address),
-              instructions[index + 4].mnemonic == "ldrb",
-              instructions[index + 5].mnemonic == "cmp", immediate(instructions[index + 5], 1) == 1,
+              let accepted = immediate(gate, 2)
+        else { return false }
+        if control {
+            return accepted > instructions[reference].address && accepted < instructions[function.upperBound].address
+        }
+        let flagIndex = instructions[index + 2].mnemonic == "ldrb" ? index + 2 : index + 4
+        let flag = instructions[flagIndex]
+        let comparison = instructions[flagIndex + 1]
+        let rejection = instructions[flagIndex + 2]
+        guard accepted == Int64(instructions[flagIndex + 3].address),
+              flag.mnemonic == "ldrb", let flagRegister = register(flag, 0),
+              comparison.mnemonic == "cmp", register(comparison, 0) == flagRegister,
+              immediate(comparison, 1) == 1,
               rejection.mnemonic == "b.ne", let target = immediate(rejection, 0), target >= 0
         else { return false }
         let logAddress = instructions[reference].address
@@ -174,6 +183,9 @@ public enum CustomFirmwareRemotePairing {
 
     private static func referencesString(_ address: UInt64, at index: Int, in instructions: [ARM64Instruction]) -> Bool {
         let add = instructions[index]
+        if add.mnemonic == "adr" {
+            return register(add, 0) == .x(3) && immediate(add, 1) == Int64(address)
+        }
         guard add.mnemonic == "add", register(add, 0) == .x(3),
               let base = register(add, 1), let offset = immediate(add, 2), offset >= 0
         else { return false }
