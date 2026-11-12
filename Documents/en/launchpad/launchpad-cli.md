@@ -103,7 +103,7 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 | `--device <product-type>` | Make another device; see [Other devices](#other-devices) |
 | `--preset <preset>` | A preset name, or the path of a preset plist (2.14), which the machine keeps a copy of |
 | `--block <patch>`, `--allow <patch>` | Turn one patch of the preset off or on; repeatable. See [Patch overrides](#patch-overrides) |
-| `--no-template` | Restore the machine on its own instead of cloning a template |
+| `--no-template` | Restore the machine on its own instead of cloning a template. Of the slimming switches only `--slim` applies: `on` (the default) gives the machine a setup boot of its own, which skips Setup Assistant; `off` starts it at Setup Assistant |
 | `--slim on\|off`, `--trim …`, `--keep-languages …`, `--service-profile …`, `--remove-apps …`, `--keep-apps …` | The slimming switches of `vphone-cli vm create`. Apple Account goes with the trimmed service profile, as in New Machine |
 | `--accounts-off` | Accepted, and changes nothing |
 | `--ipsw <path>` | Optional. Passed only to a 2.12.0 bundle, which stages the kernelcache mix with it, as New Machine's ipsw field does. A 2.12.1 bundle extracts natively |

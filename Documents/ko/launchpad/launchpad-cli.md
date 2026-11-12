@@ -103,7 +103,7 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 | `--device <product-type>` | 다른 기기 만들기. 아래의 '다른 기기'를 참고하세요 |
 | `--preset <preset>` | 프리셋 이름 또는 프리셋 plist 경로(2.14). 머신이 그 사본을 보관합니다 |
 | `--block <patch>`, `--allow <patch>` | 프리셋의 패치 하나를 끄거나 켭니다. 반복할 수 있습니다. 아래의 '패치 재정의'를 참고하세요 |
-| `--no-template` | 템플릿을 복제하지 않고 머신을 단독으로 복원 |
+| `--no-template` | 템플릿을 복제하지 않고 머신을 단독으로 복원. 경량화 스위치 중 `--slim`만 적용됩니다. `on`(기본값)이면 머신이 자체 설정 부팅을 거쳐 설정 지원을 건너뛰고, `off`이면 설정 지원부터 시작합니다 |
 | `--slim on\|off`, `--trim …`, `--keep-languages …`, `--service-profile …`, `--remove-apps …`, `--keep-apps …` | `vphone-cli vm create`의 경량화 스위치. New Machine과 마찬가지로 Apple 계정은 trimmed 서비스 프로필과 함께 꺼집니다 |
 | `--accounts-off` | 받기는 하지만 아무것도 바꾸지 않습니다 |
 | `--ipsw <path>` | 선택 사항. New Machine의 ipsw 필드처럼, 이 경로로 kernelcache 믹스를 준비하는 2.12.0 번들에만 전달됩니다. 2.12.1 번들은 네이티브로 추출합니다 |

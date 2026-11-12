@@ -103,7 +103,7 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 | `--device <product-type>` | 別のデバイスを作成します。下記の「その他のデバイス」をご覧ください |
 | `--preset <preset>` | プリセットの名前、またはプリセットの plist のパス（2.14）。マシンはそのコピーを保持します |
 | `--block <patch>`、`--allow <patch>` | プリセットのパッチを 1 つオフまたはオンにします。繰り返し指定できます。下記の「パッチの上書き設定」をご覧ください |
-| `--no-template` | テンプレートを複製せず、マシンを単独で復元します |
+| `--no-template` | テンプレートを複製せず、マシンを単独で復元します。軽量化のスイッチのうち `--slim` だけが使えます。`on`（標準）ではマシン自身が初回セットアップ起動を行い、設定アシスタントを省略します。`off` では設定アシスタントから始まります |
 | `--slim on\|off`、`--trim …`、`--keep-languages …`、`--service-profile …`、`--remove-apps …`、`--keep-apps …` | `vphone-cli vm create` の軽量化のスイッチ。New Machine と同じく、Apple アカウントは trimmed のサービスプロファイルに従います |
 | `--accounts-off` | 受け付けますが、何も変わりません |
 | `--ipsw <path>` | 省略可能。2.12.0 のバンドルにだけ渡され、New Machine の ipsw 欄と同じく、kernelcache ミックスの準備に使われます。2.12.1 のバンドルはネイティブで展開します |
