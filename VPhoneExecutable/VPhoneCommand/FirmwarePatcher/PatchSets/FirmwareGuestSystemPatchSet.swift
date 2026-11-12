@@ -694,7 +694,7 @@ public enum FirmwareGuestSystemPatchSet {
                 title: "Pairing from guest apps",
                 summary: "Allows apps inside the guest to connect to its pairing control channel and tunnels.",
                 target: .guestExecutable(path: "/usr/libexec/remotepairingdeviced"),
-                applicability: ios27,
+                applicability: VPhonePatchApplicability(iOSBase: .oneOf([.major(17), .major(18), .major(26), .major(27)])),
             ),
             VPhonePatchDeclaration(
                 identifier: "system-launchd_cache_loader-boot-unsecure_cache_gate",
