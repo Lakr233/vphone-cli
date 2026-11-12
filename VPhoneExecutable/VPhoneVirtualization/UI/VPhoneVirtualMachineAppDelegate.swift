@@ -266,6 +266,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 try VPhoneHostFilePermissions.makeAccessible(at: config)
             }
             mc.captureView = wc.captureView
+            mc.onMouseCaptureChange = { [weak wc] _ in wc?.refreshSubtitle() }
             mc.showsTVControls = options.isTVGuest
             mc.showsWatchControls = options.isWatchGuest
             mc.touchIDMonitor = wc.touchIDMonitor
@@ -369,6 +370,9 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             control.onDisconnect = { [weak mc, weak provider = locationProvider, weak timeZoneSync, weak clockSync, weak hostAudioLatencySync] in
+                // A captured mouse drives a pointer that is gone; the Mac's
+                // cursor comes back instead of staying hidden and held.
+                mc?.captureView?.setMouseCaptured(false)
                 mc?.updateConnectAvailability(available: false)
                 mc?.updateSoftwareKeyboardAvailability(available: false)
                 mc?.updateVisionOSImmersionAvailability(connected: false, capabilities: [])
