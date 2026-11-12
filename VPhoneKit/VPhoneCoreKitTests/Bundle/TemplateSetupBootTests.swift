@@ -55,6 +55,13 @@ private final class FakeGuest: VPhoneTemplateSetupMachine {
     /// the `processes.list` that follows down with it, unanswered.
     var dyingVphonedTakesAList = false
     private var dyingVphoned = false
+    /// `system.reboot` powers the virtual machine off, so vphone-vm exits
+    /// with status 0 and the guest comes back only through another start.
+    var rebootPowersOff = false
+    /// Starting the VM again after it powered off fails.
+    var relaunchFails = false
+    private var poweredOff = false
+    var starts = 0
 
     // Guest state.
     var snapshots = ["orig-fs.disabled.rn-4EC2"]
@@ -117,15 +124,30 @@ private final class FakeGuest: VPhoneTemplateSetupMachine {
     }
 
     func start() throws {
+        if poweredOff, relaunchFails {
+            throw VPhoneGuestCallError(kind: .transport, message: "vphone-vm did not start")
+        }
+        poweredOff = false
+        starts += 1
         started = true
     }
 
     func failure() -> String? {
-        exitsAfterStart && started ? "vphone-vm exited with status 1" : nil
+        if poweredOff {
+            return "vphone-vm exited with status 0"
+        }
+        return exitsAfterStart && started ? "vphone-vm exited with status 1" : nil
+    }
+
+    func exitedCleanly() -> Bool {
+        poweredOff
     }
 
     func ping() -> Bool {
         clock.sleep(0.1)
+        if poweredOff {
+            return false
+        }
         if dyingVphoned {
             return true
         }
@@ -297,6 +319,7 @@ private final class FakeGuest: VPhoneTemplateSetupMachine {
             }
             downCalls = 3
             dyingVphoned = dyingVphonedTakesAList
+            poweredOff = rebootPowersOff
             if !servicesKeepRunning {
                 running = []
             }
@@ -914,6 +937,24 @@ struct TemplateSetupBootTests {
         let failure = try #require(run(guest).failed)
         #expect(failure.step == .reboot)
         #expect(guest.killed)
+    }
+
+    @Test func `a reboot that powers the virtual machine off starts it again once`() throws {
+        let guest = FakeGuest(clock: FakeClock())
+        guest.rebootPowersOff = true
+        let outcome = try run(guest).get()
+        #expect(outcome.isComplete)
+        #expect(guest.starts == 2)
+        #expect(!guest.killed)
+    }
+
+    @Test func `a virtual machine that cannot start again fails the reboot step`() throws {
+        let guest = FakeGuest(clock: FakeClock())
+        guest.rebootPowersOff = true
+        guest.relaunchFails = true
+        let failure = try #require(run(guest).failed)
+        #expect(failure.step == .reboot)
+        #expect(guest.starts == 1)
     }
 
     @Test func `a list the reboot leaves unanswered holds the step only for the poll timeout`() throws {

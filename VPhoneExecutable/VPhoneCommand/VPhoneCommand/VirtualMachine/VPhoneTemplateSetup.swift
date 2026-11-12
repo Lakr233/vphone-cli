@@ -107,6 +107,14 @@ final class VPhoneTemplateSetupVirtualMachine: VPhoneTemplateSetupMachine {
         }
     }
 
+    func exitedCleanly() -> Bool {
+        guard let process, !process.isRunning else { return false }
+        if case .exited(0) = process.waitForOutput(matching: "(?i:\(VPhoneBootPatterns.panicRegex))", timeout: 0) {
+            return true
+        }
+        return false
+    }
+
     func ping() -> Bool {
         VPhoneHostAutomationProbe.ping(socketPath: socketPath)
     }
