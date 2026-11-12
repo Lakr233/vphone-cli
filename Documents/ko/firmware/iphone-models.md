@@ -24,7 +24,7 @@ vphone-cli vm create iphone17pro \
 
 iPhone 모델마다 자체 IPSW가 있으므로, 소스를 명시하면 `--device`가 필요하지 않습니다.
 
-릴리스를 찾으려면 `fw catalog`를 실행합니다. iPhone 16 및 17 모델의 26.0~27.0.1 릴리스(iPhone 17e는 26.3.1부터)와 iPhone 18 Pro의 27.0.1을, 같은 릴리스의 iPhone17,3이 사용하는 cloudOS와 함께 표시합니다. 모델 하나의 릴리스만 보려면 다음을 실행합니다.
+릴리스를 찾으려면 `fw catalog`를 실행합니다. iPhone 13, 16, 17 모델의 26.0~27.0.1 릴리스(iPhone 17e는 26.3.1부터)와 iPhone 18 Pro의 27.0.1을, 같은 릴리스의 iPhone17,3이 사용하는 cloudOS와 함께 표시합니다. 모델 하나의 릴리스만 보려면 다음을 실행합니다.
 
 ```sh
 vphone-cli fw catalog --device iPhone18,1
@@ -34,6 +34,7 @@ vphone-cli fw catalog --device iPhone18,1
 
 | 제품 | 모델 | 보드 | 패널 | 포인트 @3x |
 | --- | --- | --- | --- | --- |
+| `iPhone14,5` | iPhone 13 | D17AP | 1170x2532 @ 460 ppi | 390x844 |
 | `iPhone17,3` | iPhone 16 | D47AP | 1179x2556 @ 460 ppi | 393x852 |
 | `iPhone17,4` | iPhone 16 Plus | D48AP | 1290x2796 @ 460 ppi | 430x932 |
 | `iPhone17,1` | iPhone 16 Pro | D93AP | 1206x2622 @ 460 ppi | 402x874 |

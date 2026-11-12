@@ -127,11 +127,23 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
         )
     }
 
+    /// iPhone SE (3rd generation): 750x1334 at 326 ppi, 375x667 points.
+    public static let iPhone14_6 = VPhoneGuestDevice(
+        family: .iPhone,
+        productType: "iPhone14,6",
+        deviceClass: "d49ap",
+        productName: "iPhone SE (3rd generation)",
+        screen: .init(width: 750, height: 1334, pixelsPerInch: 326, scale: 2.0),
+    )
+
     /// Experimental iPhone 15 / iOS 17.7 desktop bring-up on cloudOS 26.1.
     public static let iPhone15_4 = iPhone("iPhone15,4", "d37ap", "iPhone 15", width: 1179, height: 2556)
 
     /// Local iOS 16.6.1 bring-up experiment on cloudOS 26.1.
     public static let iPhone15_2 = iPhone("iPhone15,2", "d73ap", "iPhone 14 Pro", width: 1179, height: 2556)
+
+    /// iPhone 13: 1170x2532, 390x844 points.
+    public static let iPhone14_5 = iPhone("iPhone14,5", "d17ap", "iPhone 13", width: 1170, height: 2532)
 
     /// iPhone 16 Pro: 1206x2622, 402x874 points.
     public static let iPhone17_1 = iPhone("iPhone17,1", "d93ap", "iPhone 16 Pro", width: 1206, height: 2622)
@@ -308,10 +320,11 @@ public struct VPhoneGuestDevice: Sendable, Equatable {
 
     public static let known: [VPhoneGuestDevice] = [
         iPhone17_3,
+        iPhone14_5,
         iPhone17_4, iPhone17_1, iPhone17_2, iPhone17_5,
         iPhone18_3, iPhone18_4, iPhone18_1, iPhone18_2, iPhone18_5,
         iPhone19_2, iPhone19_4,
-        iPhone11_6, iPhone15_4, iPhone15_2,
+        iPhone11_6, iPhone14_6, iPhone15_4, iPhone15_2,
         iPad16_1,
         iPad15_7,
         iPad15_3, iPad15_5,
