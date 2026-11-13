@@ -78,6 +78,30 @@ user client in the process are not.
   the host's reach. A machine created with the transport on renders its icons
   with the GPU from the first boot, so it never drops.
 
+## Safari
+
+On the iPhone SE 3 with iOS 18.6.2 (22G100) and cloudOS 26.1 (23B85),
+Safari could navigate to a local HTML page and expose its contents through
+accessibility while the page area stayed black. With the Ethernet HTTP proxy
+off, the page still reproduced the problem. Disabling GPU-process DOM
+rendering revealed the page background. GraphicsLayer software drawing
+restored the heading and text inserted by JavaScript. Disabling GPU-process
+canvas rendering separately restored the blue rectangle drawn on a 2D
+canvas.
+
+The Safari patch supplies these two false values through the volatile
+argument domain at startup:
+
+- `WebKitDebugAcceleratedDrawingEnabled`
+- `WebKitExperimentalUseGPUProcessForCanvasRenderingEnabled`
+
+The guest installer writes the marker for the affected pairing. SystemHook
+checks it in MobileSafari and keeps the overrides in memory. WebKit's DOM GPU
+flag retains its existing value. The iOS 18 GPU transport remains enabled for
+Metal. After removing the two manual preferences from Safari's profile,
+the compiled SystemHook and marker displayed the probe text and blue
+rectangle.
+
 ## Retargeting to another pairing
 
 Do not widen the gate without repeating the measurement:

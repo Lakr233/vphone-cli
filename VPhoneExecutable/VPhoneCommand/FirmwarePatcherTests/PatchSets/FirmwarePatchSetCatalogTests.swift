@@ -724,6 +724,44 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test
+    func `Safari software rendering is scoped to the affected iOS and cloudOS pair`() throws {
+        let patch = FirmwareGuestSystemPatchSet.ios18SafariSoftwareRendering
+        for (base, cloud, expected) in [
+            ("18.6.2", "26.1", true),
+            ("18.6", "26.1", true),
+            ("18.5", "26.1", false),
+            ("18.7.2", "26.1", false),
+            ("18.6.2", "18.6", false),
+            ("18.6.2", "26.4", false),
+            ("26.1", "26.1", false),
+        ] {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: FirmwarePatchSetCatalog.standardPreset,
+                patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
+            )
+            #expect(plan.isEnabled(patch) == expected, "\(base)/\(cloud)")
+        }
+        let blocked = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.standardPreset,
+            patchSets: FirmwarePatchSetCatalog.bundled,
+            iOSBase: VPhoneVersion("18.6.2"), cloudOS: VPhoneVersion("26.1"),
+            blocked: [patch],
+        )
+        #expect(!blocked.isEnabled(patch))
+        #expect(FirmwareGuestPatchResolution.guestPatchesOff(selectionEnabled: blocked.enabled).contains(patch))
+        for preset in [FirmwarePatchSetCatalog.tvOSPreset, FirmwarePatchSetCatalog.tvOS4KPreset,
+                       FirmwarePatchSetCatalog.homePodMiniPreset, FirmwarePatchSetCatalog.homeViewPreset,
+                       FirmwarePatchSetCatalog.visionOSPreset] {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("18.6.2"), cloudOS: VPhoneVersion("26.1"),
+            )
+            #expect(!plan.isEnabled(patch), "\(preset.identifier)")
+        }
+    }
+
+    @Test
     func `Standard names the GLES renderer on every base while tvOS stays off`() throws {
         let patch = FirmwarePatchSetCatalog.paravirtGLESPatch
         #expect(!FirmwarePatchSetCatalog.manualOnlyPatches.contains(patch))
