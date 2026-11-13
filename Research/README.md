@@ -35,7 +35,7 @@ This directory keeps the evidence behind firmware patches, restore and the self-
 
 | Subject | Notes |
 | --- | --- |
-| Guest orientation | [SpringBoard language-change wedge and virtual gravity](Guest/springboard_orientation_stuck.md) |
+| Guest orientation | [SpringBoard language-change wedge and virtual gravity](Guest/springboard_orientation_stuck.md), [iPad pointer missing in landscape](Guest/ipad_pointer_landscape_scanout.md) |
 | Firmware and boot chain | [Manifest and origins](Firmware/firmware_manifest_and_origins.md), [iBoot patches](Firmware/iboot_patches.md), [TXM full chain](Firmware/txm_fullchain_analysis.md), [TXM JB patches](Firmware/txm_jb_patches.md), [selector 24](Firmware/txm_selector24_analysis.md), [variant differences](Firmware/txm_variant_diff.md) |
 | Kernel | [Native KDK extraction and byte-parity tests](Kernel/native_kdk_export.md), [CFW overview](Kernel/kernel_jb_patch_notes.md), [patcher verification](Kernel/kernel_patcher_verification.md), [FairPlay kexts](Kernel/kernel_fairplay_kexts.md), [base validation 1–5](Kernel/kernel_patch_base_first5_validation.md), [11–15](Kernel/kernel_patch_base_11_15_validation.md), [16–20](Kernel/kernel_patch_base_16_20_validation.md), [sandbox hooks](Kernel/kernel_patch_sandbox_hooks_17_26_validation.md), [individual patch notes](KernelCustomFirmwarePatches/README.md) |
 | Other patches and captures | [Launchd jetsam](Patches/cfw_patch_launchd_jetsam.md), [user-mode hypervisor references](Patches/hv_vmm_present_usermode_xrefs.md), [reference capture](Patches/patch_reference_capture.md) |

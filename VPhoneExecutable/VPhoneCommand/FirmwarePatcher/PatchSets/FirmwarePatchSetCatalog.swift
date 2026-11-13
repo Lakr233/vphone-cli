@@ -282,6 +282,7 @@ public enum FirmwarePatchSetCatalog {
         "dyld-boot-maxslide",
         "dyld-boot-xpc_lwcr",
         "dyld-cfw-camera",
+        FirmwareGuestDisplayPatchSet.quartzCoreUnrotatedFramebuffer,
         "kernel-boot-arm64e_x1",
         FirmwareKernelCustomFirmwarePatchSet.cssc,
         "preboot-cfw-devicetree_board_audio",
