@@ -1,14 +1,14 @@
-# Experimental iPhone 15 / iOS 17.7 desktop bring-up
+# Experimental iOS 17.7 desktop bring-up
 
-This is desktop-only bring-up, not general iOS 17 support. The guest uses the
-actual iPhone15,4 17.7 (21H16) userland and the cloudOS 26.1 (23B85) vphone600
-kernel/boot chain. The only accepted 17.x preparation pairing is this one.
+The experimental guests use iOS 17.7 userland with the cloudOS 26.1 vphone600
+kernel and boot chain. The [original iPhone 15 bring-up](https://github.com/Lakr233/vphone-cli/pull/794)
+uses the iPhone15,4 IPSW. The SE 3 uses its own iPhone14,6 IPSW (21H16) and
+requires cloudOS build 23B85.
 
 ## Reproduce
 
 Build and install the complete VPhone bundle as described in the main guide.
-Keep other machines on their existing bundles. With the installed version in
-`<bundle>`, create a separate disposable guest:
+With the installed version in `<bundle>`, create a separate iPhone 15 guest:
 
 ```sh
 vphone-launchpad-cli vm create ios17-test --bundle '<bundle>' \
@@ -33,8 +33,23 @@ vphone-launchpad-cli vm start ios17-test --wait
 vphone-launchpad-cli guest unlock ios17-test
 ```
 
-The scripted preferences step is currently required; this PR does not claim that
-one stock New Machine click completes every display compatibility setting.
+### iPhone SE (3rd generation)
+
+Use the same cloudOS source and SpringBoard selection with the D49AP restore:
+
+```sh
+vphone-launchpad-cli vm create iPhone-SE3-iOS17 --bundle '<bundle>' \
+  --device iPhone14,6 --cpu 6 --memory 6144 --disk-size 64 --network none \
+  --iphone-source 'https://updates.cdn-apple.com/2024FallFCS/fullrestores/062-79092/3B7E217F-B59B-4FBB-B682-A1154B0B7039/iPhone14,6_17.7_21H16_Restore.ipsw' \
+  --cloudos-source 'https://updates.cdn-apple.com/private-cloud-compute/399b664dd623358c3de118ffc114e42dcd51c9309e751d43bc949b98f4e31349' \
+  --no-template --keep-artifacts \
+  --allow system-springboard-exp-ios17_desktop
+```
+
+Run the preferences, restart and unlock commands above with
+`iPhone-SE3-iOS17` as the machine name. The existing SE 3 presentation path
+uses a 750×1334 panel at scale 2 and keeps the donor Home button type in the
+installed device tree.
 
 ## What changed and why
 
@@ -70,7 +85,7 @@ Restore the saved global preferences (or their original absence) to undo the
 separate CoreAnimation defaults. CPU, memory and NIC configuration are ordinary
 VM settings. No host security or global default bundle setting is changed.
 
-## Evidence and limits
+## iPhone 15 evidence and limits
 
 The first prototype booted and cold-rebooted, reported iPhone15,4 and iOS 17.7.0,
 completed first-boot migration, unlocked, and displayed the Home Screen icons and
