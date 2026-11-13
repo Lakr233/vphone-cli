@@ -11,6 +11,10 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     /// or reaches the guest as Esc (an iPad). See `VPhoneApplication`.
     var escapeIsBackGesture = true
     var isTVGuest = false
+    /// An iPad shows a pointer of its own. An iPhone that only advertises one
+    /// (`iPhonePointerEnabled`) may show none, so its pointer follows the
+    /// mouse only while the mouse is captured.
+    var isPadGuest = false
     var hardwareKeyboardEnabled = true
     /// Guest pixels per interface point, to turn trackpad travel into the
     /// guest's points for a native scroll.
@@ -63,7 +67,15 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         onMouseCaptureChange?(isMouseCaptured)
     }
 
+    /// The move last added to `capturedMousePoint`, by its timestamp.
+    private var capturedMoveTimestamp: TimeInterval = -1
+
     private func advanceCapturedMouse(_ event: NSEvent) {
+        // One move can reach the view twice, through its tracking area and as
+        // the window's first responder; adding its delta twice would move the
+        // guest's pointer twice as far as the mouse.
+        guard event.timestamp != capturedMoveTimestamp else { return }
+        capturedMoveTimestamp = event.timestamp
         capturedMousePoint.x = min(bounds.maxX, max(bounds.minX, capturedMousePoint.x + event.deltaX))
         capturedMousePoint.y = min(bounds.maxY, max(bounds.minY,
             capturedMousePoint.y + (isFlipped ? event.deltaY : -event.deltaY)))
@@ -71,6 +83,18 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
 
     private func pointerPoint(_ localPoint: NSPoint) -> CGPoint {
         interfacePoint(isMouseCaptured ? capturedMousePoint : localPoint)
+    }
+
+    /// What the mouse is over the display while it is not captured; the Device
+    /// menu sets it for every window.
+    var mouseMode = VPhoneGuestMouseMode.current {
+        didSet {
+            guard mouseMode == .touch, !isMouseCaptured else { return }
+            endNativeScroll()
+            if NSCursor.current == Self.hiddenCursor {
+                NSCursor.arrow.set()
+            }
+        }
     }
 
     /// Whether trackpad scroll/pinch gestures are replayed as guest touches.
@@ -238,13 +262,22 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     override func mouseMoved(with event: NSEvent) {
         guard guestPointerFollowsMouse, let control else {
             super.mouseMoved(with: event)
+            // The guest went away under a following pointer: the Mac's cursor
+            // comes back at once, not when the mouse next leaves the display.
+            if NSCursor.current == Self.hiddenCursor {
+                NSCursor.arrow.set()
+            }
             return
         }
-        advanceCapturedMouse(event)
+        if isMouseCaptured {
+            advanceCapturedMouse(event)
+        } else {
+            super.mouseMoved(with: event)
+        }
         if hidesHostCursor {
             Self.hiddenCursor.set()
         }
-        control.movePointer(to: interfacePoint(capturedMousePoint))
+        control.movePointer(to: pointerPoint(convert(event.locationInWindow, from: nil)))
     }
 
     /// The guest's pointer stands in for the Mac's over the display, so the
@@ -257,8 +290,11 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         }
     }
 
+    /// A captured mouse always drives the guest's pointer; otherwise it does
+    /// on an iPad in the Guest Pointer mouse mode. Only a guest that takes
+    /// pointer input has one to drive.
     private var guestPointerFollowsMouse: Bool {
-        isMouseCaptured && control?.supportsPointerScroll == true
+        (isMouseCaptured || (mouseMode == .pointer && isPadGuest)) && control?.supportsPointerScroll == true
     }
 
     /// Only in the key window: over a window in the background the Mac's
@@ -465,7 +501,9 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     /// Replay a trackpad scroll as a guest finger that presses under the pointer
     /// and follows the physical direction of the gesture.
     override func scrollWheel(with event: NSEvent) {
-        if guestPointerFollowsMouse, let control {
+        // A captured mouse scrolls the guest whatever the trackpad switch says;
+        // its scrolls have nowhere else to go.
+        if guestPointerFollowsMouse, isMouseCaptured || trackpadGesturesEnabled, let control {
             scrollNatively(event, control: control)
             return
         }
@@ -1323,5 +1361,25 @@ enum VPhoneTrackpadGestures {
     static var isEnabled: Bool {
         get { !UserDefaults.standard.bool(forKey: disabledKey) }
         set { UserDefaults.standard.set(!newValue, forKey: disabledKey) }
+    }
+}
+
+// MARK: - Guest Mouse Mode
+
+/// What the mouse is over the display of a guest with a pointer of its own
+/// (an iPad) while it is not captured: that pointer, which follows the mouse
+/// with the Mac's cursor hidden until it leaves the display, or a finger, as
+/// on every other guest. Saved per Mac user for every machine; the Device
+/// menu sets it, and `defaults write com.vphone.bundle guestMouseMode touch`
+/// does too. Capture Mouse is apart from it and never saved.
+enum VPhoneGuestMouseMode: String {
+    case pointer
+    case touch
+
+    private static let key = "guestMouseMode"
+
+    static var current: VPhoneGuestMouseMode {
+        get { UserDefaults.standard.string(forKey: key).flatMap(Self.init(rawValue:)) ?? .pointer }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: key) }
     }
 }

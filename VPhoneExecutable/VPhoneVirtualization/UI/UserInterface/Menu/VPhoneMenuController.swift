@@ -107,6 +107,9 @@ class VPhoneMenuController {
     var touchIDMenuItem: NSMenuItem?
     var trackpadGesturesItem: NSMenuItem?
     var mouseCaptureItem: NSMenuItem?
+    var mouseModeItems: [NSMenuItem] = []
+    /// After the menu has followed a capture or release of the mouse.
+    var onMouseCaptureChange: ((Bool) -> Void)?
     lazy var externalDisplayWindow = VPhoneExternalDisplayWindowController(control: control)
     var locationProvider: VPhoneLocationProvider?
     var locationMenuItem: NSMenuItem?
@@ -128,6 +131,7 @@ class VPhoneMenuController {
         didSet {
             captureView?.onMouseCaptureChange = { [weak self] captured in
                 self?.mouseCaptureItem?.state = captured ? .on : .off
+                self?.onMouseCaptureChange?(captured)
             }
         }
     }

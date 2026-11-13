@@ -505,11 +505,23 @@ class VPhoneVirtualMachineWindowController: NSObject, NSWindowDelegate {
         ])
     }
 
+    /// At once, not at the next status poll: a captured mouse is said there.
+    func refreshSubtitle() {
+        if let control {
+            updateSubtitle(control: control)
+        }
+    }
+
     /// OS version and address from vphoned's health report, which picks
     /// the IPv4 address first and falls back to IPv6; hidden until it connects.
+    /// A captured mouse comes first, with the keys that release it: the Mac's
+    /// cursor is hidden and held in the window until then.
     private func updateSubtitle(control: VPhoneGuestControl) {
         guard let window = windowController?.window else { return }
         var parts: [String] = []
+        if captureView?.isMouseCaptured == true {
+            parts.append(VPhoneLocalization.text("Mouse captured: Control–Option–M releases it"))
+        }
         if control.isConnected {
             if let version = control.guestIOSVersion, !version.isEmpty {
                 let osName = homePodGuest ? "HomePod" : usesTVOS ? "tvOS" : "iOS"

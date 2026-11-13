@@ -122,8 +122,30 @@ extension VPhoneMenuController {
         trackpadItem.state = VPhoneTrackpadGestures.isEnabled ? .on : .off
         trackpadGesturesItem = trackpadItem
         menu.addItem(trackpadItem)
+        // On a guest with a pointer of its own (an iPad) the mouse is that
+        // pointer or a finger; saved, like the trackpad switch, for every window.
+        let mouseModeItem = NSMenuItem(title: "Mouse Over Display", action: nil, keyEquivalent: "")
+        mouseModeItem.image = menuSymbol("cursorarrow")
+        let mouseModeMenu = NSMenu(title: "Mouse Over Display")
+        for (title, mode) in [("Guest Pointer", VPhoneGuestMouseMode.pointer), ("Touch", .touch)] {
+            let item = makeItem(title, action: #selector(setGuestMouseMode(_:)))
+            item.representedObject = mode.rawValue
+            item.state = VPhoneGuestMouseMode.current == mode ? .on : .off
+            mouseModeMenu.addItem(item)
+            mouseModeItems.append(item)
+        }
+        mouseModeMenu.items.first?.toolTip = VPhoneLocalization.text(
+            "The guest's pointer follows the mouse over the display, and the Mac's cursor is hidden there.",
+        )
+        mouseModeMenu.items.last?.toolTip = VPhoneLocalization.text(
+            "The mouse is a finger: a click is a tap, and the guest shows no pointer.",
+        )
+        mouseModeItem.submenu = mouseModeMenu
+        menu.addItem(mouseModeItem)
         let captureItem = makeItem("Capture Mouse", action: #selector(toggleMouseCapture), symbol: "computermouse")
-        captureItem.toolTip = "Forward mouse movement and buttons to the guest. Control–Option–M releases capture."
+        captureItem.toolTip = VPhoneLocalization.text(
+            "Forward mouse movement and buttons to the guest. Control–Option–M releases capture.",
+        )
         captureItem.state = .off
         mouseCaptureItem = captureItem
         menu.addItem(captureItem)
@@ -392,6 +414,16 @@ extension VPhoneMenuController {
         VPhoneTrackpadGestures.isEnabled = enabled
         trackpadGesturesItem?.state = enabled ? .on : .off
         captureView?.trackpadGesturesEnabled = enabled
+    }
+
+    /// Saved for every window of every machine, as the trackpad switch is.
+    @objc func setGuestMouseMode(_ sender: NSMenuItem) {
+        guard let mode = (sender.representedObject as? String).flatMap(VPhoneGuestMouseMode.init(rawValue:)) else { return }
+        VPhoneGuestMouseMode.current = mode
+        for item in mouseModeItems {
+            item.state = item.representedObject as? String == mode.rawValue ? .on : .off
+        }
+        captureView?.mouseMode = mode
     }
 
     @objc func toggleMouseCapture() {
