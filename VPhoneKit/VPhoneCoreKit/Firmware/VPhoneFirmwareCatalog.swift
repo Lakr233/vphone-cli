@@ -583,8 +583,8 @@ public enum VPhoneFirmwareCatalog {
 
     /// iPhone XS Max releases, each paired with its own release's research board
     /// cloudOS: the 18.x kernelcache recipes rebuild that iOS 18 kernel with the
-    /// cloudOS 26.1 vphone600 kexts. Kernel-first, so macOS 26.4 and later link
-    /// it over ssh on an older Mac (`VPHONE_KMUTIL_SSH`), and only `minimal` boots it.
+    /// cloudOS 26.1 vphone600 kexts. Kernel-first, linked by the kmutil of
+    /// macOS 15 on any Mac (KernelCollectionToolchain), and only `minimal` boots it.
     static let iOS18ResearchBoardReleases: [(version: String, url: String, cloudOS: VPhoneCloudOSOption)] = [
         ("18.1", "https://updates.cdn-apple.com/2024FallFCS/fullrestores/072-12814/E17284F9-4885-4E16-840A-40DF173142B3/iPhone11,2,iPhone11,4,iPhone11,6_18.1_22B83_Restore.ipsw",
          .init(name: "cloudOS 18.1 (22B83)", url: "https://updates.cdn-apple.com/private-cloud-compute/729b85b9b89b4383e7dfafdf0f5867b8cd2f3e4e69b279c8785dc7d044e377b7")),
@@ -843,9 +843,6 @@ public enum VPhoneFirmwareCatalog {
                     name: guest.productName,
                     family: guest.family.rawValue,
                     pairings: entries(pairings),
-                    // The iOS 18 research board kernels: from macOS 26.4 on, a
-                    // Mac running an older macOS links them over ssh.
-                    kernelcacheLayout: guest.notchedArtworkSubtype == nil ? nil : "kernel-first",
                 )
             },
         )
@@ -895,9 +892,9 @@ public struct VPhoneFirmwareCatalogReport: Codable, Equatable, Sendable {
         /// `iPhone`, `iPad` or `appleTV`.
         public let family: String
         public let pairings: [Entry]
-        /// `kernel-first` for a device whose every pairing boots a kernelcache
-        /// mix that only the kmutil of macOS 15 or 26.0 to 26.3 links
-        /// (`VPHONE_KMUTIL_SSH` from 26.4 on); absent for every other device.
+        /// `kernel-first` made Launchpad up to 2.17 ask for an ssh builder for
+        /// the iOS 18 guests. Every mix is now linked here by the kmutil its
+        /// base names, so this is never set.
         public let kernelcacheLayout: String?
         public init(productType: String, name: String, family: String, pairings: [Entry], kernelcacheLayout: String? = nil) {
             self.productType = productType

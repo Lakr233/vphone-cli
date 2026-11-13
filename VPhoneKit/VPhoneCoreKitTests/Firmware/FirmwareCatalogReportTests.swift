@@ -292,8 +292,8 @@ struct FirmwareCatalogReportTests {
         }
         #expect(VPhoneFirmwareCatalog.pairings(for: "iPhone11,4") == pairings)
         let devices = VPhoneFirmwareCatalog.report.devices
-        #expect(devices.first { $0.productType == "iPhone11,6" }?.kernelcacheLayout == "kernel-first")
-        #expect(devices.filter { $0.kernelcacheLayout != nil }.map(\.productType) == ["iPhone11,6"])
+        // The bundle links every mix itself: no device asks Launchpad for an ssh builder.
+        #expect(devices.allSatisfy { $0.kernelcacheLayout == nil })
     }
 
     @Test func `cellular i pad gets its wi fi model's pairings`() {

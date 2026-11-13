@@ -151,6 +151,81 @@ public struct VPhoneRemoteZip: Sendable {
         }
     }
 
+    /// Writes a stored member to `destination`, fetched in `chunk`-sized ranges
+    /// with up to `connections` at once: one connection to Apple's CDN often
+    /// runs well below the line's speed, and a recovery image is a gigabyte.
+    /// Each range is retried a few times. `progress` gets the bytes written so far.
+    public func download(
+        _ entry: Entry,
+        to destination: URL,
+        connections: Int = 16,
+        chunk: UInt64 = 8 << 20,
+        progress: (@Sendable (UInt64, UInt64) -> Void)? = nil,
+    ) async throws {
+        guard entry.compressionMethod == 0 else { throw Error.unsupportedCompression(entry.compressionMethod) }
+        let header = try await Self.range(of: url, from: entry.localHeaderOffset, count: 30, session: session)
+        guard header.count == 30, header.prefix(4) == Data([0x50, 0x4B, 0x03, 0x04]) else {
+            throw Error.malformed("no local file header at \(entry.localHeaderOffset)")
+        }
+        let start = entry.localHeaderOffset + 30 + UInt64(Self.u16(header, 26)) + UInt64(Self.u16(header, 28))
+        let total = entry.compressedSize
+        guard FileManager.default.createFile(atPath: destination.path, contents: nil) else {
+            throw Error.malformed("cannot create \(destination.path)")
+        }
+        let handle = try FileHandle(forWritingTo: destination)
+        defer { try? handle.close() }
+        try handle.truncate(atOffset: total)
+        let descriptor = handle.fileDescriptor
+        let url = url
+        let session = session
+        let offsets = Array(stride(from: UInt64(0), to: total, by: Int(chunk)))
+        let done = DownloadCounter()
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            var next = 0
+            func add() {
+                let offset = offsets[next]
+                next += 1
+                let count = min(chunk, total - offset)
+                group.addTask {
+                    var attempt = 0
+                    while true {
+                        do {
+                            let data = try await Self.range(of: url, from: start + offset, count: count, session: session)
+                            guard UInt64(data.count) == count else { throw Error.malformed("short range at \(offset)") }
+                            let written = data.withUnsafeBytes { pwrite(descriptor, $0.baseAddress, $0.count, off_t(offset)) }
+                            guard written == data.count else { throw Error.malformed("cannot write \(destination.path)") }
+                            progress?(done.add(count), total)
+                            return
+                        } catch where attempt < 4 && !(error is CancellationError) {
+                            attempt += 1
+                            try await Task.sleep(for: .seconds(attempt))
+                        }
+                    }
+                }
+            }
+            while next < offsets.count, next < connections {
+                add()
+            }
+            while try await group.next() != nil {
+                if next < offsets.count {
+                    add()
+                }
+            }
+        }
+    }
+
+    private final class DownloadCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: UInt64 = 0
+
+        func add(_ count: UInt64) -> UInt64 {
+            lock.withLock {
+                value += count
+                return value
+            }
+        }
+    }
+
     /// Raw DEFLATE, which is what a zip member stores — no zlib header, no
     /// checksum. `COMPRESSION_ZLIB` is libcompression's name for exactly that,
     /// misleadingly; it is the right constant.

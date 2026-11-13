@@ -26,42 +26,31 @@ CLI はバンドルの iPhoneOS プラットフォームのバージョンを、
 
 ## 研究用ボードの組み合わせ
 
-26.4 ベータより後の cloudOS には vphone600 のコンポーネントがないため、研究用ボードが代わりを務めます（[互換性](compatibility.md)の「どの cloudOS を使うか」をご覧ください）。その kernelcache は、vphone600 の仮想化 kext を加えて作り直されます。KDK の展開はあなたのユーザ権限でネイティブに実行され、root が必要なのは kmutil によるリンクだけです。
+26.4 ベータより後の cloudOS には vphone600 のコンポーネントがないため、研究用ボードが代わりを務めます（[互換性](compatibility.md)の「どの cloudOS を使うか」をご覧ください）。その kernelcache は、vphone600 の仮想化 kext を加えて作り直されます。すべてあなたのユーザ権限で実行され、sudo は不要です。
 
 1. 通常どおり `fw prepare` を実行します。
-2. 自分のユーザ権限でミックスを準備します。
+2. ミックスを作成します。
 
    ```sh
    vphone-cli fw kernelcache myphone
    ```
 
-3. root としてリンクします。
-
-   ```sh
-   sudo vphone-cli fw kernelcache myphone
-   ```
-
-4. `fw patch` に進みます。`fw patch` はキャッシュからミックスを取得します。
+3. `fw patch` に進みます。`fw patch` はキャッシュからミックスを取得します。あなたのユーザ権限で実行した場合は、`fw patch` 自身がミックスを作成することもできます。root で実行した場合はキャッシュから取得するだけです。
 
 `fw kernelcache` の古い `--ipsw` 引数は引き続き受け付けられますが、無視されます。
 
-## 別の Mac でリンクする
+## ミックスをリンクする kmutil
 
-カーネルは Apple がリンクしたレイアウトでしか起動せず、kmutil はレイアウトを実行中の Mac から決めます。
+カーネルは Apple がリンクしたレイアウトでしか起動せず、そのレイアウトはリンクする kmutil で決まります。macOS 15 と 26.0〜26.3 はカーネルを先頭に、macOS 26.4 以降は末尾に置き、macOS 27 はさらに kext の auth stub を残します。どの kernelcache にも Apple がビルドに使った kmutil のバージョンが記録されているため、`fw kernelcache` はどの macOS 上でも同じバージョンでミックスをリンクします。
 
-| ホストの macOS | リンクできるもの |
-| --- | --- |
-| macOS 26.4 以降 | iOS 26.4 以降の kernelcache（kernel-last） |
-| macOS 15、および 26.0〜26.3 | iOS 18 などの古い kernelcache（kernel-first） |
+| kernelcache | kmutil | 入手元 |
+| --- | --- | --- |
+| iOS 18.1〜18.3.1 | 463.40.2 | macOS 15.1 (24B83) |
+| iOS 18.5〜18.7.2 | 463.100.7 | macOS 15.6.1 (24G90) |
+| iOS 26.4〜26.7、watchOS 26.4、HomePod 26.5 | 487.100.11 | macOS 26.5 (25F71) |
+| iOS 27.2 | 514.40.8 | macOS 27.2.1 (26B131) |
 
-この Mac のレイアウトが異なる場合は、別の Mac または macOS 仮想マシンが ssh 経由でミックスをリンクします。`fw kernelcache` または作成処理のために、次を設定します。
-
-```sh
-export VPHONE_KMUTIL_SSH='user@host'
-export VPHONE_KMUTIL_SSH_PASSWORD='password'   # only without ssh keys and passwordless sudo there
-```
-
-準備したボリュームはその Mac の `/private/var/tmp` にアップロードされ、そこで root としてリンクされた後、削除されます。この Mac では root 権限は必要ありません。別の Mac ではリモートログインがオンになっていて、そのユーザが sudo を使えることが必要です。
+この Mac 自身の kmutil がそのバージョンなら、それを使います。そうでなければ、その macOS の復旧イメージ（約 1 GB）を Apple の IPSW から一度だけダウンロードし、その kmutil とカーネルコレクションビルダーを `~/.vphone/kernelcache/kmutil/<version>`（数 MB）に保存して、イメージは削除します。何もインストールされず、ホストの設定も変わりません。別の Mac で ssh 経由でリンクする `VPHONE_KMUTIL_SSH` は使われなくなりました。
 
 ## 関連項目
 
