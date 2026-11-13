@@ -188,6 +188,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             )
             wc.captureView?.escapeIsBackGesture = !options.isPadGuest && !options.isTVGuest
             wc.captureView?.isTVGuest = options.isTVGuest
+            wc.captureView?.isPadGuest = options.isPadGuest
             wc.homeButtonHoldsInGuest = options.isTVGuest
             windowController = wc
             if options.isHomePodGuest {

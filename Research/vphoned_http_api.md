@@ -1535,7 +1535,10 @@ not persisted. It forwards relative mouse movement, buttons and native scroll
 only after explicit menu activation. Control–Option–M or Device → Release
 Mouse releases it, as does losing window focus or closing the window. The
 Mac cursor is re-associated on release and any held guest pointer buttons are
-released. Trackpad-to-touch replay remains a separate setting.
+released. Trackpad-to-touch replay remains a separate setting. Outside
+capture, an iPad's pointer follows the mouse in Device → Mouse Over Display →
+Guest Pointer (the default); an opted-in iPhone's does not. See
+`Research/Guest/trackpad_gesture_mapping.md`.
 This only advertises/forwards input; it does not enable AssistiveTouch or
 promise iOS will show a pointer. The inner Duo display's pointer mapping is
 not established by this opt-in.

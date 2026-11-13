@@ -11,6 +11,10 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     /// or reaches the guest as Esc (an iPad). See `VPhoneApplication`.
     var escapeIsBackGesture = true
     var isTVGuest = false
+    /// An iPad shows a pointer of its own. An iPhone that only advertises one
+    /// (`iPhonePointerEnabled`) may show none, so its pointer follows the
+    /// mouse only while the mouse is captured.
+    var isPadGuest = false
     var hardwareKeyboardEnabled = true
     /// Guest pixels per interface point, to turn trackpad travel into the
     /// guest's points for a native scroll.
@@ -287,10 +291,10 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     }
 
     /// A captured mouse always drives the guest's pointer; otherwise it does
-    /// in the Pointer mouse mode. Only a guest with a pointer of its own has
-    /// one to drive.
+    /// on an iPad in the Guest Pointer mouse mode. Only a guest that takes
+    /// pointer input has one to drive.
     private var guestPointerFollowsMouse: Bool {
-        (isMouseCaptured || mouseMode == .pointer) && control?.supportsPointerScroll == true
+        (isMouseCaptured || (mouseMode == .pointer && isPadGuest)) && control?.supportsPointerScroll == true
     }
 
     /// Only in the key window: over a window in the background the Mac's

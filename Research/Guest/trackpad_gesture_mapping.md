@@ -254,6 +254,41 @@ the Mac cursor and restores the arrow. The opt-in preference persists, but
 actual capture is deliberately never persisted. Existing trackpad-to-touch
 behavior applies outside capture.
 
+### Mouse over the display (2026-11-13)
+
+From 2.15.1 to 2.16.1 the capture above was the only way the guest's pointer
+followed the mouse: `guestPointerFollowsMouse` required `isMouseCaptured`, so
+an iPad showed no pointer unless Capture Mouse was on. Before that an iPad's
+pointer followed the mouse whenever the trackpad switch was on (`fa0eb503`).
+
+Device → Mouse Over Display chooses what the mouse is over an iPad's display
+when it is not captured:
+
+- **Guest Pointer** (default): the iPad's pointer follows the mouse's absolute
+  position and the Mac's cursor is hidden over the display, as before
+  2.15.1. Leaving the display brings the Mac's cursor back.
+- **Touch**: the mouse is a finger; a click is a tap and no pointer shows.
+
+The choice is saved per Mac user in `com.vphone.bundle`'s defaults
+(`guestMouseMode`, `pointer` or `touch`) and applies to every window. An
+iPhone that only advertises pointer input (`iPhonePointerEnabled`) is not
+followed outside capture: iOS may draw no pointer there, and the Mac's cursor
+would be hidden with nothing in its place. Capture Mouse is unchanged and
+still never saved.
+
+Capture changes made with it:
+
+- The window subtitle says the mouse is captured and names Control–Option–M
+  for as long as it is.
+- A guest disconnect releases the capture. Before, a capture that lost the
+  guest left the Mac's cursor hidden and held in the window.
+- One `mouseMoved` can reach the view twice, through its tracking area and as
+  the window's first responder. Absolute positioning hides that; capture adds
+  each event's delta, so the pointer moved faster than the Mac's cursor. A move
+  with the timestamp of the last one counted is skipped. On an iPad16,1 guest
+  the user saw capture move faster than the Mac's cursor before this and at the
+  same speed after it; nothing else about capture changed between the builds.
+
 Hardware keyboard attachment remains a boot configuration: `config.keyboards`
 is either `[VZUSBKeyboardConfiguration()]` or empty. The SDK's runtime USB
 controller API takes `VZUSBDevice`; its keyboard configuration is not that
