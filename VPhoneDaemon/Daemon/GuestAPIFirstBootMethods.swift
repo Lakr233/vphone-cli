@@ -15,7 +15,10 @@ enum FirstBootMethod: String, GuestMethod {
                                 .required("settled", .boolean),
                                 .required("signals", .object),
                                 .required("stable_polls", .integer),
-                                .required("timeout_ms", .number)])
+                                .required("timeout_ms", .number),
+                                .required("elapsed_s", .number),
+                                .required("poll_s", .number),
+                                .required("timeout_s", .number)])
         }
     }
 }

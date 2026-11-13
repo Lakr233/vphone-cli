@@ -165,6 +165,7 @@ enum CoreMethod: String, GuestMethod {
                 .optional("skipped", .string)])
         case .bootstrapStatus: MethodSpec(summary: "Report bootstrap install progress: phase, download bytes, and any error.", result: [
                 .optional("downloaded_bytes", .integer),
+                .optional("error", .string),
                 .optional("message", .string),
                 .optional("jbroot", .string),
                 .optional("layout", .string),
