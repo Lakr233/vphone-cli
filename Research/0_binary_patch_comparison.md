@@ -6499,6 +6499,11 @@ the 17.7 single-buffer submission and 40-byte kernel completion entries for
 the 32-byte IOGPU reader. See the iOS 17.7 GPU rendering section of
 `Research/Guest/ios17_bringup.md` for the runtime checks and remaining limits.
 
+`system-wallpaper-cfw-ios17_image_assets` addresses the stock iOS 17
+wallpaper's HEIC decode failure. It creates PNG copies of the images referenced
+by wallpaper `7565` and updates their CAML references on a private disk clone.
+The patch backs up the original CAML documents and restores them on deselection.
+
 ## OpenGL ES in guests (2026-11-02)
 
 Upstream issue Lakr233/vphone-cli#793: every `-[EAGLContext initWithAPI:]`

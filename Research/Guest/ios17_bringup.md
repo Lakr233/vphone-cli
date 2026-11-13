@@ -183,3 +183,22 @@ resources were present. In the editor, CollectionsPoster loaded bundle
 at the stock background's 1700×1300 dimensions. This identifies a failure
 to produce decoded pixel data in the wallpaper extension. The reason that
 ImageIO returns no data remains unconfirmed.
+
+## Stock wallpaper image assets
+
+The Standard preset on iOS 17.7 with cloudOS 26.1 enables
+`system-wallpaper-cfw-ios17_image_assets`. The host decodes the original
+HEIC layers of wallpaper `7565` and writes PNG copies beside them. The
+installer changes the corresponding image references in each CAML document.
+The layer tree, animation and appearance states, original HEIC files, and
+SpringBoard's selected poster stay in place.
+
+The patch works on an existing guest through `cfw update-environment`.
+After a cold start the original wallpaper rendered on the Lock Screen and
+Home Screen on iPhone 15 and iPhone SE 3. The installed documents referenced
+39 image files on iPhone 15 across the three supplied screen variants and
+13 on iPhone SE 3. Blocking the patch and updating the environment restores
+the backed-up CAML documents and removes the PNG copies. On SE 3, a rollback
+restored a sampled CAML document byte for byte and removed its PNG copies.
+Re-enabling the patch restored the PNG references. Reversing the reference
+substitutions in the sampled patched document reproduced the original bytes.
