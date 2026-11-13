@@ -50,23 +50,35 @@ kexts whose imports have no counterpart there (15 donor kexts instead of 18).
 
 - KDK extraction is native to VPhone.bundle; no external `ipsw` is required.
   The recipe's gzip symbol map is decompressed in process.
-- Root for the link: kmutil only reads kexts owned by root:wheel, and links the
-  host's own kexts in place of any others without a word.
-- A kmutil of the base's `builderLayout`: macOS 26.4 or later for the iOS 26 bases,
-  macOS 15 or 26.0 to 26.3 for the iOS 18 ones. A Mac with the other layout
-  links over ssh on one that has it (`VPHONE_KMUTIL_SSH`, see
-  `Documents/en/firmware/firmware-preparation.md`).
-- The kmutil of macOS 27 links `kernel-last` too, but keeps every kext's
-  `__auth_stubs`. After the link, `KernelCollectionStubCalls` makes the calls
-  through them direct again and seals corecrypto's FIPS HMAC again, so the
-  kernel patches find the call sites they find on a macOS 26 link
+- The kmutil the base was built with. Every kernelcache records it
+  (`_PrelinkKCID`, `KernelManagement_host-<version>`), and only that
+  version's kernel collection builder lays the mix out as Apple did: macOS 15
+  and 26.0–26.3 link kernel-first, 26.4 and later kernel-last, 27 keeps the
+  auth stubs. `KernelCollectionToolchain` takes this Mac's kmutil when it is
+  that version, else the kmutil of the macOS release that ships it, read once
+  out of that IPSW's recoveryOS image, with
+  `libKernelCollectionBuilder.dylib` lifted out of its dyld shared cache
+  (`DyldCacheDylibExtractor`). They are kept in `~/.vphone/kernelcache/kmutil/<version>`.
+  A base whose version no release in `KernelCollectionToolchain.releases`
+  ships is refused before anything is extracted; adding a base of a new
+  kmutil version means adding its macOS release there, after checking that
+  release's recovery kmutil reports the version.
+- No root. kmutil reads only kexts owned by root:wheel and not group- or
+  world-writable, and links the host's own kexts in place of any others
+  without a word; `libvphone-kmutil-shim.dylib` (inserted into the ad hoc
+  signed kmutil) shows it the user's files that way, and gives it its own
+  release's KernelManagement configuration.
+- The kmutil of macOS 27 keeps every kext's `__auth_stubs`. After the link,
+  `KernelCollectionStubCalls` makes the calls through them direct again and
+  seals corecrypto's FIPS HMAC again, so the kernel patches find the call
+  sites they find on a macOS 26 link
   (`Research/0_binary_patch_comparison.md`, "macOS 27's kmutil keeps auth stubs").
 
-`vphone-cli fw kernelcache <vm>` stages the mix as the user (the extractions
-and the volume, in `~/.vphone/kernelcache/staged`), and under sudo links it:
-root copies the volume into a directory of its own, refusing any link out of
-it, and runs kmutil on the copy. `fw patch` then takes the mix from the cache;
-stage first as the invoking user, then run the link or `fw patch` under sudo.
+`vphone-cli fw kernelcache <vm>` stages the mix (the extractions and the
+volume, in `~/.vphone/kernelcache/staged`) and links it, as the user. The
+volume is linked from a clone in `/private/var/tmp` whose path has the length
+of Apple's build root (below). `fw patch` takes the mix from the cache, and
+builds it first when it runs as the user; root only reads it from the cache.
 
 `fw kernelcache --ipsw <path>` is still accepted as an ignored compatibility
 argument. The native extractor revision participates in both donor

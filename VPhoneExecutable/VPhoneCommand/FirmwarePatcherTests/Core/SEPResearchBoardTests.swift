@@ -29,6 +29,52 @@ struct SEPResearchBoardTests {
         #expect(IM4PHandler.paypStart(in: Data(repeating: 0xAA, count: 32) + Data("PAYP".utf8)) == nil)
     }
 
+    // MARK: - App Entries
+
+    /// A root argument object whose SEPD entry puts its part offsets `distance`
+    /// bytes before the name, with a Mach-O first part.
+    static func rootObject(distance: Int) -> Data {
+        var image = Data(count: 0x3000)
+        image.replaceSubrange(0x100 ..< 0x111, with: Data("Built by legion2P".utf8))
+        let name = 0x400
+        image.replaceSubrange(name ..< name + 4, with: Data("SEPD".utf8))
+        for (slot, value) in [0x1000, 0x800, 0x2000, 0x400].enumerated() {
+            withUnsafeBytes(of: UInt64(value).littleEndian) { image.replaceSubrange(name - distance + slot * 8 ..< name - distance + slot * 8 + 8, with: $0) }
+        }
+        withUnsafeBytes(of: SEPResearchBoardPatcher.machOMagic64.littleEndian) { image.replaceSubrange(0x1000 ..< 0x1004, with: $0) }
+        return image
+    }
+
+    @Test("An app's parts are found with the entry layout before and from cloudOS 27", arguments: SEPResearchBoardPatcher.entryDistances)
+    func findsApplicationParts(distance: Int) throws {
+        let app = try SEPResearchBoardPatcher.application(named: "SEPD", in: Self.rootObject(distance: distance))
+        #expect(app.part1 == 0x1000 ..< 0x1800)
+        #expect(app.part2 == 0x2000 ..< 0x2400)
+    }
+
+    @Test("An entry without a Mach-O first part is refused")
+    func refusesEntryWithoutMachO() {
+        #expect(throws: PatcherError.self) {
+            try SEPResearchBoardPatcher.application(named: "SEPD", in: Self.rootObject(distance: 0x70))
+        }
+    }
+
+    /// A research board SEP payload (decoded IM4P), e.g. cloudOS 27.2's, which
+    /// has no vphone600 SEP beside it. Xcode passes TEST_RUNNER_SEP_RESEARCH_PAYLOAD
+    /// to the test process as SEP_RESEARCH_PAYLOAD.
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["SEP_RESEARCH_PAYLOAD"] != nil))
+    func patchesResearchPayload() throws {
+        let path = try #require(ProcessInfo.processInfo.environment["SEP_RESEARCH_PAYLOAD"])
+        let research = try Data(contentsOf: URL(fileURLWithPath: path))
+        let shared = try Self.inspect(research, operation: SEPResearchBoardPatcher.sharedOperation)
+        let patcher = SEPResearchBoardPatcher(data: research, verbose: false)
+        _ = try patcher.findAll()
+        try patcher.apply()
+        let after = try Self.inspect(patcher.patchedData, operation: SEPResearchBoardPatcher.redirectedOperation)
+        #expect(after.entry == shared.entry)
+        #expect(after.hmacValid != false)
+    }
+
     // MARK: - Apple's Images
 
     static let repoRoot = URL(fileURLWithPath: #filePath)

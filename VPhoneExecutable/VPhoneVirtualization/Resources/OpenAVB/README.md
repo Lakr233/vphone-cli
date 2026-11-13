@@ -11,10 +11,10 @@ the image into each new machine folder.
 | --- | --- |
 | Source | `https://github.com/owngoal-dev/OpenAVB` |
 | Commit | `65a776e9ae00b2e1de22b18cbbad1359945d7277` |
-| Patches | none (`patches/*.patch`, applied in order, when there are any) |
+| Patches | `0001-entropy-descriptor-set-has-data.patch` (`patches/*.patch`, applied in order) |
 | Target | `make build/OpenAVB.bin` |
 | Toolchain | Homebrew LLVM 23.1.3 (`clang`, `llvm-objcopy`), Homebrew LLD 23.1.3 |
-| SHA-256 | `bbcabe73fd39fb92b96fbb4c661c1a15b0f9e5d9411468f7954c4f433911cb9c` |
+| SHA-256 | `35793a60f35beade7bef5b845fa207265cbe82f41f45ce8b56a109e999e71eb3` |
 | Size | 460057 bytes |
 
 The image is checked in rather than built by the `VPhone` scheme, so building
@@ -26,7 +26,15 @@ header). It clones and builds outside the repository and needs
 
 ## Patches
 
-None. OpenAVB's first commit, `54b67bf`, did not run under
+`0001-entropy-descriptor-set-has-data.patch` lets an iOS 27 LLB boot. The
+ROM hands LLB its entropy request over the descriptor transport, which has a
+fifth operation, SET_HAS_DATA, that marks a written request as holding data.
+AVPBooter sends it after every write; OpenAVB did not. LLB up to iOS 26 read
+the request without asking, but the iOS 27 LLB asks HAS_DATA first, finds
+nothing, and panics (`iBoot Panic: …:73`). With the patch, a 27.2 LLB logs the
+same lines as under AVPBooter and the kernel boots. Not upstream yet.
+
+Earlier changes are all upstream. OpenAVB's first commit, `54b67bf`, did not run under
 Virtualization.framework. Five changes found on live machines made it boot and
 restore, and upstream took them in
 [owngoal-dev/OpenAVB#1](https://github.com/owngoal-dev/OpenAVB/pull/1), now

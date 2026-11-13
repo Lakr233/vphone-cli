@@ -8,31 +8,6 @@ import VPhoneCoreKit
 /// root, kmutil or ipsw.
 @Suite("Kernelcache mix")
 struct KernelCacheMixerTests {
-    @Test("SSH drains large stderr while preserving binary stdout and stdin")
-    func largeSSHStreams() throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", "/bin/dd if=/dev/zero bs=65536 count=32 >&2 2>/dev/null; /bin/cat"]
-        let input = Data((0 ..< 262144).map { UInt8($0 % 256) })
-        let (output, errors) = try RemoteKernelCollectionBuilder.capture(process, input: .data(input))
-        #expect(process.terminationStatus == 0)
-        #expect(output == input)
-        #expect(errors.count == 2 * 1024 * 1024)
-    }
-
-    @Test("SSH upload leaves the caller's input file intact")
-    func sshInputFile() throws {
-        let input = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: input) }
-        let data = Data("archive input".utf8)
-        try data.write(to: input)
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/cat")
-        let (output, _) = try RemoteKernelCollectionBuilder.capture(process, input: .file(input))
-        #expect(output == data)
-        #expect(try Data(contentsOf: input) == data)
-    }
-
     @Test("Root refuses an external patch set before loading its code")
     func externalSetPrivilege() throws {
         let preset = VPhonePatchPreset(identifier: "external", title: "External", patchSets: [
@@ -101,7 +76,7 @@ struct KernelCacheMixerTests {
         let bases = try Self.recipes.bases()
         #expect(bases.map(\.id) == [
             "18.1_22B83", "18.2.1_22C161", "18.3.1_22D72", "18.5_22F76", "18.6_22G86", "18.7.2_22H124", "18.7_22H20",
-            "26.4_23E246", "26.5_23F77", "26.6_23G71", "26.7_23H20", "homepod_26.5_23L471", "watch_26.4_23T240",
+            "26.4_23E246", "26.5_23F77", "26.6_23G71", "26.7_23H20", "27.2_24B119", "homepod_26.5_23L471", "watch_26.4_23T240",
         ])
         for base in bases {
             #expect(FileManager.default.fileExists(atPath: base.symbolsURL.path), "\(base.id)")
@@ -157,30 +132,56 @@ struct KernelCacheMixerTests {
         #expect(donor.cloudOSSource?.hasPrefix("https://updates.cdn-apple.com/private-cloud-compute/") == true)
     }
 
-    @Test("A kernel-first base on a kernel-last Mac needs an ssh builder, and says how to name one")
-    func remoteBuilderSelection() throws {
-        let host = ProcessInfo.processInfo.operatingSystemVersion
-        let hostLayout = KernelCollectionBuilder.layout(forMacOS: host)
-        func base(_ layout: KernelCacheBase.BuilderLayout) throws -> KernelCacheBase {
-            let json = """
-            {"id": "t", "productVersion": "18.7", "symbols": "s", "kexts": "k", "builderLayout": "\(layout.rawValue)",
-             "kernel": {"file": "f", "sha256": "a", "decompressedSHA256": "b", "kdk": "KDK_18.7_22H42.kdk"}}
-            """
-            return try JSONDecoder().decode(KernelCacheBase.self, from: Data(json.utf8))
-        }
-        let other = try base(hostLayout == .kernelLast ? .kernelFirst : .kernelLast)
-        #expect {
-            try KernelCollectionBuilder.location(for: other, environment: [:])
-        } throws: { error in
-            "\(error)".contains(KernelCollectionBuilder.sshEnvironmentVariable)
-        }
-        let same = try base(hostLayout)
-        guard case .host = try KernelCollectionBuilder.location(for: same, environment: [:]) else {
-            Issue.record("a base of the host's layout links on the host")
+    @Test("A base is linked by the kmutil its kernelcache names, from this Mac or a known macOS release")
+    func toolchainSelection() throws {
+        let payload = Data(repeating: 0, count: 32) + Data("<key>_PrelinkKCID</key><string>KernelManagement_host-463.100.7</string>".utf8)
+        #expect(try KernelCollectionToolchain.builderVersion(of: payload) == "463.100.7")
+        #expect(throws: PatcherError.self) { try KernelCollectionToolchain.builderVersion(of: Data("no id".utf8)) }
+        #expect(KernelCollectionToolchain.kmutilVersion(of: Data("x(KernelManagement_executables-514.40.8)".utf8)) == "514.40.8")
+
+        guard case .host = KernelCollectionToolchain.source(for: "1.2.3", hostVersion: "1.2.3") else {
+            Issue.record("this Mac's kmutil is used when it is the version")
             return
         }
+        guard case let .release(release) = KernelCollectionToolchain.source(for: "463.100.7", hostVersion: "514.40.8") else {
+            Issue.record("a known version comes from its macOS release")
+            return
+        }
+        #expect(release.macOS == "15.6.1" && release.layout == .kernelFirst)
+        #expect(KernelCollectionToolchain.source(for: "0.0.1", hostVersion: "514.40.8") == nil)
+        // Every release links in the layout its macOS version gives.
+        #expect(KernelCollectionToolchain.releases.filter { $0.layout == .kernelFirst }.allSatisfy { $0.macOS.hasPrefix("15.") })
+        #expect(Set(KernelCollectionToolchain.releases.map(\.kernelManagement)).count == KernelCollectionToolchain.releases.count)
         #expect(KernelCollectionBuilder.layout(forMacOS: "15.6.1") == .kernelFirst)
         #expect(KernelCollectionBuilder.layout(forMacOS: "26.4") == .kernelLast)
+    }
+
+    @Test("The kmutil of a macOS 27 Mac is thinned to its plain arm64e slice")
+    func arm64eSlice() throws {
+        let binary = try Data(contentsOf: URL(fileURLWithPath: "/usr/bin/kmutil"))
+        let slice = try KernelCollectionToolchain.arm64eSlice(of: binary)
+        #expect(slice.le32(0) == 0xFEED_FACF && slice.le32(4) == 0x0100_000C && slice.le32(8) & 0xFF == 2)
+        #expect(KernelCollectionToolchain.kmutilVersion(of: slice) == KernelCollectionToolchain.hostKmutilVersion)
+    }
+
+    @Test("This Mac's kernel collection builder comes out of its dyld cache as a dylib of its own")
+    func builderExtraction() throws {
+        let cache = try KernelCollectionToolchain.hostSharedCache()
+        let output = FileManager.default.temporaryDirectory.appending(path: "kcb-\(UUID().uuidString).dylib")
+        defer { try? FileManager.default.removeItem(at: output) }
+        let extractor = try DyldCacheDylibExtractor.extract(cache: cache, path: KernelCollectionToolchain.builderPath, to: output)
+        let data = try Data(contentsOf: output)
+        #expect(data.le32(0) == 0xFEED_FACF && data.le32(12) == 6) // MH_DYLIB
+        #expect(data.le32(24) & DyldCacheDylibExtractor.inCacheFlag == 0)
+        var commands: [UInt32] = []
+        var offset = 32
+        for _ in 0 ..< Int(data.le32(16)) {
+            commands.append(data.le32(offset))
+            offset += Int(data.le32(offset + 4))
+        }
+        #expect(commands.contains(0x8000_0034)) // LC_DYLD_CHAINED_FIXUPS
+        #expect(!commands.contains(0x1E)) // no split-seg info is claimed
+        #expect(extractor.statistics["fixups", default: 0] > 0)
     }
 
     @Test("kmutil writes the collection beside the volume")
@@ -323,16 +324,6 @@ struct KernelCacheMixerTests {
             try KernelCacheKDK.mix(
                 base: base, sources: [first, base, donor], wanted: ["com.apple.kept"], output: pinned, pinned: ["com.apple.unknown": 1],
             )
-        }
-
-        // The staged volume root links holds no link but the KDK's own.
-        try KernelCacheVolumeCopy.checkLinks(in: volume, kdk: "KDK_26.6_23G71.kdk")
-        try FileManager.default.createSymbolicLink(
-            atPath: volume.appending(path: "System/Library/Extensions/Kept.kext/Kept2").path,
-            withDestinationPath: "/etc/master.passwd",
-        )
-        #expect(throws: PatcherError.self) {
-            try KernelCacheVolumeCopy.checkLinks(in: volume, kdk: "KDK_26.6_23G71.kdk")
         }
     }
 }

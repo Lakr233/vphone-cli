@@ -11127,62 +11127,6 @@
         }
       }
     },
-    "Name a Mac or macOS VM running macOS 15 or 26.0 to 26.3, with Remote Login on, as the macOS builder in Advanced Options: this Mac's kmutil cannot link iOS 18 kernels." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请在“高级选项”中将一台运行 macOS 15 或 26.0 至 26.3 且已打开“远程登录”的 Mac 或 macOS 虚拟机指定为 macOS 构建机：这台 Mac 的 kmutil 无法链接 iOS 18 内核。"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「詳細オプション」で、macOS 15 または 26.0〜26.3 を実行していて「リモートログイン」がオンの Mac または macOS 仮想マシンを、macOS ビルダーとして指定してください。この Mac の kmutil では iOS 18 のカーネルをリンクできません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 Mac의 kmutil은 iOS 18 커널을 링크할 수 없습니다. 고급 옵션에서 macOS 15 또는 26.0~26.3을 실행하고 원격 로그인이 켜져 있는 Mac 또는 macOS 가상 머신을 macOS 빌드 머신으로 지정하십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Trong Tùy chọn nâng cao, hãy chỉ định một máy Mac hoặc máy ảo macOS chạy macOS 15 hoặc 26.0 đến 26.3, đã bật Đăng nhập từ xa, làm máy dựng macOS: kmutil của máy Mac này không thể liên kết kernel iOS 18."
-          }
-        }
-      }
-    },
-    "Name the macOS builder as user@host." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "请以 user@host 格式填写 macOS 构建机。"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS ビルダーを user@host の形式で入力してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS 빌드 머신을 user@host 형식으로 입력하십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nhập máy dựng macOS theo dạng user@host."
-          }
-        }
-      }
-    },
     "Needs a Core Bundle" : {
       "localizations" : {
         "en" : {
@@ -12506,34 +12450,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "无"
-          }
-        }
-      }
-    },
-    "None with ssh keys" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 ssh 密钥时无需填写"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ssh 鍵を使う場合は不要"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ssh 키 사용 시 비워 두기"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Để trống nếu dùng khóa ssh"
           }
         }
       }
@@ -23647,68 +23563,6 @@
         }
       }
     },
-    "With %@: the kernelcache is rebuilt and linked on %@, and the restore image asks for administrator access once." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "With %1$@: the kernelcache is rebuilt and linked on %2$@, and the restore image asks for administrator access once."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ の場合：kernelcache を再構築して %2$@ でリンクし、復元イメージで管理者権限が一度求められます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%1$@ 사용 시: kernelcache를 다시 빌드하고 %2$@에서 링크하며, 복원 이미지에서 관리자 권한을 한 번 요청합니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Với %1$@: kernelcache được dựng lại và liên kết trên %2$@, và ảnh khôi phục yêu cầu quyền quản trị viên một lần."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 %1$@ 时：会重新构建 kernelcache 并在 %2$@ 上链接，恢复镜像会请求一次管理员权限。"
-          }
-        }
-      }
-    },
-    "With %@: the kernelcache is rebuilt and linked on this Mac, and the restore image asks for administrator access once." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ の場合：kernelcache を再構築してこの Mac でリンクし、復元イメージで管理者権限が一度求められます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 사용 시: kernelcache를 다시 빌드하고 이 Mac에서 링크하며, 복원 이미지에서 관리자 권한을 한 번 요청합니다."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Với %@: kernelcache được dựng lại và liên kết trên máy Mac này, và ảnh khôi phục yêu cầu quyền quản trị viên một lần."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "使用 %@ 时：会重新构建 kernelcache 并在这台 Mac 上链接，恢复镜像会请求一次管理员权限。"
-          }
-        }
-      }
-    },
     "With %@: the kernelcache is rebuilt with the watch's kexts, which asks for administrator access once." : {
       "localizations" : {
         "zh-Hans" : {
@@ -24417,34 +24271,6 @@
         }
       }
     },
-    "iOS 18 boots its own release's kernel, rebuilt with the vphone600 kexts of cloudOS 26.1: it is staged as you (a 2.12.0 Core Bundle needs the ipsw with `kernel extract --kdk` for that). Only the kmutil of macOS 15 or 26.0 to 26.3 links it: from macOS 26.4 on, the macOS builder, a Mac or macOS VM with Remote Login on, links it over ssh as root there. The password is for ssh and sudo on it and is not saved; leave it empty with ssh keys and passwordless sudo." : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iOS 18 会启动其自身版本的内核，并用 cloudOS 26.1 的 vphone600 kext 重新构建：以你的身份暂存（2.12.0 版核心 Bundle 为此需要带 `kernel extract --kdk` 的 ipsw）。只有 macOS 15 或 26.0 至 26.3 的 kmutil 能链接它：从 macOS 26.4 起，由 macOS 构建机（一台已打开“远程登录”的 Mac 或 macOS 虚拟机）通过 ssh 在其上以 root 身份链接。密码用于在构建机上执行 ssh 和 sudo，不会存储；如已配置 ssh 密钥和免密码 sudo，请留空。"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iOS 18 は、そのリリース自身のカーネルを cloudOS 26.1 の vphone600 kext で再構築して起動します。カーネルは現在のユーザとしてステージングされます（2.12.0 のコアバンドルでは、そのために `kernel extract --kdk` 付きの ipsw が必要です）。これをリンクできるのは macOS 15 または 26.0〜26.3 の kmutil だけです。macOS 26.4 以降では、macOS ビルダー（「リモートログイン」がオンの Mac または macOS 仮想マシン）が ssh 経由でそのマシン上で root としてリンクします。パスワードはそのマシンでの ssh と sudo に使われ、保存されません。ssh 鍵とパスワードなしの sudo を使う場合は空欄のままにしてください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iOS 18은 cloudOS 26.1의 vphone600 kext로 다시 빌드한 해당 릴리스 자체의 커널로 부팅합니다. 커널은 현재 사용자 권한으로 준비됩니다(2.12.0 코어 번들에서는 이를 위해 `kernel extract --kdk`를 포함한 ipsw가 필요합니다). 이 커널은 macOS 15 또는 26.0~26.3의 kmutil만 링크할 수 있습니다. macOS 26.4부터는 원격 로그인이 켜져 있는 Mac 또는 macOS 가상 머신인 macOS 빌드 머신이 ssh를 통해 해당 머신에서 root로 링크합니다. 암호는 해당 머신의 ssh 및 sudo에 사용되며 저장되지 않습니다. ssh 키와 암호 없는 sudo를 사용하는 경우 비워 두십시오."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "iOS 18 khởi động kernel của chính bản phát hành đó, được dựng lại với các kext vphone600 của cloudOS 26.1: kernel được chuẩn bị dưới tài khoản của bạn (Bundle lõi 2.12.0 cần ipsw với `kernel extract --kdk` cho việc này). Chỉ kmutil của macOS 15 hoặc 26.0 đến 26.3 mới liên kết được: từ macOS 26.4 trở đi, máy dựng macOS (một máy Mac hoặc máy ảo macOS đã bật Đăng nhập từ xa) liên kết kernel qua ssh với quyền root trên máy đó. Mật khẩu dùng cho ssh và sudo trên máy đó và không được lưu; để trống nếu dùng khóa ssh và sudo không cần mật khẩu."
-          }
-        }
-      }
-    },
     "iPad" : {
       "localizations" : {
         "en" : {
@@ -24743,62 +24569,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "macOS 15 或更高版本"
-          }
-        }
-      }
-    },
-    "macOS builder" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS 构建机"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS ビルダー"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "macOS 빌드 머신"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Máy dựng macOS"
-          }
-        }
-      }
-    },
-    "user@host" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "user@host"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "user@host"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "user@host"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "user@host"
           }
         }
       }

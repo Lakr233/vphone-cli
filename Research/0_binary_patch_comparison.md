@@ -4954,10 +4954,10 @@ it finds the recipe in `Contents/Resources/kernelcache_recipes` by SHA-256, then
    recipe's maps;
 2. keeps the recipe's bundle list: the base without its research-board-only
    kexts, plus the donor kexts that link against the base kernel;
-3. stages the bundles as a root-owned volume (kmutil reads no other kexts and
-   takes the host's own in their place without a word) and links it with
-   `kmutil create -a arm64e -n boot -s all -z -x --compress --img4-encode
-   --split-ro-rx-tags`;
+3. stages the bundles as a volume and links it with `kmutil create -a arm64e
+   -n boot -s all -z -x --compress --img4-encode --split-ro-rx-tags`, run by
+   the kmutil release Apple built the base with (below, "The kmutil of the
+   base's own release");
 4. puts back Apple's CPU subtype if the builder wrote another, makes calls
    through the auth stubs the macOS 27 builder keeps direct again
    (`KernelCollectionStubCalls`, below), and checks that every requested bundle
@@ -4970,24 +4970,21 @@ the new layout) and saves the preset's kernel patches into it
 in `FirmwareOriginals`. Mixes are cached in `~/.vphone/kernelcache/mix`, keyed
 by the kernelcaches, the maps and bundle list and the builder layout.
 
-Only the link needs root; native extraction runs as the invoking user. `fw kernelcache <vm>` stages
-the mix as the user (both extractions and the volume) and links it under sudo:
-root copies the staged volume into a fresh root-only directory, walking it by
-descriptor, refusing every symbolic link but the KDK's pointer to the volume's
-extensions and normalising modes (kmutil skips a kext with a group- or
-world-writable file as silently as one root does not own), and runs kmutil on
-the copy. The Launchpad helper's link runs with `--link-only`, which never
-stages. kmutil records the absolute path of every codeless kext, which moves
-the end of `__PRELINK_INFO`: the volume path takes the length of the build root
-Apple linked the base in, read from the base's own prelink info, so a mix no
-longer depends on where it is built. The 26.6 mix then has the segment layout
-of the hand-built research mix that booted.
+Nothing needs root. `fw kernelcache <vm>` stages the mix (both extractions and
+the volume) and links it as the user; `fw patch` builds it the same way when
+it runs as the user, and as root (the Minimal preset's patch through the
+Launchpad helper) only reads it from the cache, so root never runs the
+user's toolchain. kmutil records the absolute path of every codeless kext,
+which moves the end of `__PRELINK_INFO`: the volume is linked from a clone in
+`/private/var/tmp` whose path takes the length of the build root Apple linked
+the base in, read from the base's own prelink info, so a mix does not depend
+on where it is built. The 26.6 mix then has the segment layout of the
+hand-built research mix that booted.
 
-Requirements: root for linking; and for every base here (26.4–26.7, all
-`kernel-last`) the kmutil of macOS 26.4 or later. `fw prepare` now pairs a
-cloudOS without vphone600ap and refuses one whose kernelcache no recipe covers.
-`cfw update-kernel` refuses on a mixed kernel, whose originals are the research
-board's.
+`fw prepare` pairs a cloudOS without vphone600ap and refuses one whose
+kernelcache no recipe covers; `vm create` also refuses, before its restores,
+a base whose kmutil version no known macOS release ships. `cfw update-kernel` refuses on a mixed kernel, whose originals are the
+research board's.
 
 Native extraction checked on 2026-10-23: all 264 fileset images of the 26.4
 beta vphone600 and vresearch101 collections match the pinned reference in
@@ -5270,14 +5267,92 @@ AppleARMIISAudio needs); 18.1 to 18.3.1 take 15, without those three: 18.1
 lacks the tightbeam API they import, and its addresses in 18.2.1 and 18.3.1
 are not mapped reliably.
 
-The 18.x kernels are kernel-first. On macOS 26.4 and later the mix is linked
-on another Mac or macOS VM with an older kmutil over ssh (`VPHONE_KMUTIL_SSH`,
-`RemoteKernelCollectionBuilder`): the staged volume goes into a fresh
-directory of the remote `/private/var/tmp`, at a path as long as the base's
-build root, root links it there, and the result comes back. Linked with the
+The 18.x kernels are kernel-first. They were first linked on another Mac or
+macOS VM with an older kmutil over ssh (`VPHONE_KMUTIL_SSH`, since removed);
+now the kmutil of macOS 15 links them on any macOS (below). Linked with the
 kmutil of macOS 15.6.1, the 18.7.2 mix differs from the research build that
 booted only in the 15 rebound pointers and the symbol sets that build had
 extended.
+
+### The kmutil of the base's own release
+
+A mix links in the base's layout only with the kernel collection builder
+Apple linked the base with: macOS 15 and 26.0–26.3 put `__TEXT_EXEC` of the
+kernel first, 26.4 and later last, 27 keeps the auth stubs, and the version
+in between can move other things. kmutil itself only gathers the inputs and
+stamps its version (and a hash and UUID of it) into `__PRELINK_INFO`; the
+layout is `libKernelCollectionBuilder.dylib` (dyld's AppCacheBuilder), which
+exists only inside the dyld shared cache. Every kernelcache names its
+builder in `_PrelinkKCID`, and the version is the one the macOS release of
+the time ships as `KernelManagement_executables-<version>`:
+
+| `_PrelinkKCID` | Bases | macOS whose recovery kmutil reports it |
+| --- | --- | --- |
+| `KernelManagement_host-463.40.2` | 18.1, 18.2.1, 18.3.1 | 15.1 (24B83) |
+| `KernelManagement_host-463.100.7` | 18.5, 18.6, 18.7, 18.7.2 | 15.6.1 (24G90) |
+| `KernelManagement_host-487.100.11` | 26.4, 26.5, 26.6, 26.7, watch 26.4 | 26.5 (25F71) |
+| `KernelManagement_host-514.40.8` | 27.2 | 27.2.1 (26B131) |
+
+`KernelCollectionToolchain` uses this Mac's `/usr/bin/kmutil` when it is the
+version (thinned to its arm64e slice: macOS 27's is also arm64e.x1), else
+reads the release's recoveryOS (`BaseSystem` in its BuildManifest, about
+0.9–1.1 GB) out of the IPSW with parallel range requests, decrypts it
+(`VPhoneAEA`, `/usr/bin/aea`), mounts it read-only and takes `/usr/bin/kmutil`,
+the arm64e dyld shared cache and KernelManagement's configuration. The
+recovery kmutil is the binary of the full OS (its hash is in the static trust
+cache). Then:
+
+- **The builder as a dylib** (`DyldCacheDylibExtractor`): the image is copied
+  out of the cache keeping each segment's address modulo 4 KiB, so only ADRP
+  page deltas change; every slide-info (v5) pointer becomes an
+  `DYLD_CHAINED_PTR_ARM64E` fixup with its key, address diversity and
+  discriminator (a rebase, or a bind to the symbol a dependent exports there,
+  re-exports followed); branches into other images or the cache's stub
+  islands go to new auth stubs, and ADRP+LDR/ADD pairs into the cache's
+  coalesced GOTs to new GOT slots. The cache drops split-seg info, so an
+  ADRP's users are found by a forward scan of its block; an access the scan
+  misses would stay pointing into the cache, and none is left in the four
+  builders above (an ADRP whose uses are partly outside the image, or whose
+  target is outside without a use, is refused). The macOS 15 builders also
+  carry `__unwind_info`: its one personality names a coalesced GOT slot and
+  gets its own; their LSDAs only catch everything (`catch (...)`), which needs
+  no type table, and an LSDA that catches a type is refused. `__LINKEDIT` is
+  rebuilt (exports, symbols with the locals the cache keeps, indirect symbols,
+  function starts), and the result is signed ad hoc. dyld loads it from
+  `DYLD_LIBRARY_PATH` in place of the cached copy (`dylib-from-disk-to-override-cache`).
+- **The configuration**: macOS 26 renamed `PlatformDriverExtensionsDirectory`
+  to `PlatformDriverExtensionsDirectories` in
+  `KernelManagement.framework/Resources/com.apple.kernelmanagement.plist`,
+  and macOS 15's kmutil traps on the new file ("Configuration has unrecognized
+  format"). `libvphone-kmutil-shim.dylib` opens its own release's copy in its place.
+- **No root**: kmutil skips kexts root does not own, or with group- or
+  world-writable files, without a word, even for `kmutil find`. The shim,
+  inserted into the ad hoc signed kmutil (the system one ignores `DYLD_`
+  variables), reports the invoking user's files as `root:wheel` without those
+  write bits.
+
+The toolchain is checked with `kmutil create --help` before it is kept in
+`~/.vphone/kernelcache/kmutil/<version>`. Checked on 2026-11-13 on macOS 27.2.1:
+
+- the extractor gives the same bytes as the prototype it was ported from for
+  the 26.5 and 27.2 builders; with them, the kmutil of macOS 26.5 links a
+  145-kext oracle volume byte for byte as the system kmutil of a macOS 26.5
+  Mac had (kmutil's version string included), and the kmutil of 27.2 links
+  the same volume as this Mac's system kmutil does; the 26.5 kmutil with the
+  27.2 builder gives the 27.2 output instead, so the builder decides the layout;
+- the macOS 15.6.1 kmutil links the staged 18.6 mix, unprivileged, in about
+  2 seconds, to the mix a macOS 15 Mac of the same kmutil version (463.100.7)
+  had linked over ssh, except the volume's path (another directory of the same
+  length) and the unique identifiers and UUID kmutil derives from it.
+- `fw kernelcache --kernelcache <file>` (no VM), from an empty cache: 18.6
+  (15.6.1's recoveryOS fetched, 848 MB, 3 min 44 s in all), 26.6 (26.5's), 18.1
+  (15.1's) and 27.2 (this Mac's kmutil) all mix. The 18.1 mix linked by
+  463.40.2, the version Apple used, differs from the 463.100.7 link that booted
+  only in `__PRELINK_INFO` (the version string and what it shifts); every code
+  segment is the same.
+- 27.2 kexts call `strcmp` in the kernel's `__bootcode` through their auth stubs,
+  so `KernelCollectionStubCalls` takes a stub target in `__TEXT_BOOT_EXEC` as
+  well as `__TEXT_EXEC`; it refused the 27.2 mix before.
 
 ### The iPhone XS Max guest
 

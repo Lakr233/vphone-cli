@@ -1,0 +1,14 @@
+{
+  "builderLayout" : "kernel-last",
+  "donor" : "vphone600_26.4_23E5207q",
+  "id" : "27.2_24B119",
+  "kernel" : {
+    "decompressedSHA256" : "c08cfc528d03901658525bcf811ee3c84b9027e7bcf3ca2bddf3d8c212d20ca3",
+    "file" : "kernelcache.release.vresearch101",
+    "kdk" : "KDK_27.2_24B112.kdk",
+    "sha256" : "d780694253a9d519850e266207fd5e710f52f85de7cc967ee14ede3026c71e6b"
+  },
+  "kexts" : "kexts.txt",
+  "productVersion" : "27.2",
+  "symbols" : "symbols.json.gz"
+}
