@@ -51,11 +51,10 @@ Run the preferences, restart and unlock commands above with
 uses a 750×1334 panel at scale 2 and keeps the donor Home button type in the
 installed device tree.
 
-If the wallpaper is black, swipe down from the top of the unlocked Home
-Screen and touch and hold the background. Tap **+**, swipe the category row
-left to **Color**, choose a color, and select **Add** and **Set as Wallpaper
-Pair**. The color wallpaper renders on both screens and persists across a
-full stop and start.
+For GPU acceleration, prepare and restore the SE 3 with a bundle that includes
+the legacy GPU transport. Firmware preparation stages the cloudOS 18.6 driver.
+An existing installation that still carries the 26.1 driver needs the staged
+18.6 driver and a CFW install.
 
 ## What changed and why
 
@@ -147,5 +146,28 @@ in `NUNICalliopeResourceManager`. A native Color wallpaper set through the
 Lock Screen gallery rendered on both screens after a cold start. The
 [iOS 18 GPU transport](ios18_gpu_transport.md) uses a driver and ABI adapter
 measured for 18.6, so this test used the existing iOS 17 rendering path.
-Networking was disabled for this run. Camera, audio and Metal remain
-unverified.
+Networking was disabled for this run. Camera, audio and Metal were outside
+that first validation.
+
+### SE 3 GPU rendering
+
+The cloudOS 26.1 GPU driver fails to load on iOS 17.7 because its IOGPU
+dependency lacks `_OBJC_IVAR_$_IOGPUMetalHeap._device`. The cloudOS 18.6
+driver loads. Its Metal device uses the existing 18.6 transport, with two
+additional adapters for 17.7:
+
+- The IOGPU single-buffer submission uses trap 0 with a 40-byte entry.
+  The adapter forwards it through the existing widened method submission.
+- The IOGPU completion reader allocates 32 bytes. The cloudOS queue writes
+  40 bytes, and the original dequeue returns `kIOReturnNoSpace`. The
+  adapter dequeues the actual 40-byte entry and returns its first 32 bytes,
+  which contain the original callback token, timestamps and status.
+
+The 18.6 driver loads the transport before registering a Metal device.
+On an SE 3 guest that kept its original wallpaper selection, the App Library
+rendered a blurred background and translucent materials after a cold start.
+A Metal probe read back a 4096-byte blit fill, 1024 compute results, and
+256 render pixels. Settings opened and showed its row icons. The wallpaper
+gallery displayed thumbnails and opened the Astronomy editor. The existing
+wallpaper selection still rendered black, and the Astronomy preview showed
+artifacts.

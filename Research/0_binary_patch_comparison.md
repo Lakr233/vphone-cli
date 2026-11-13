@@ -6492,6 +6492,13 @@ Selection restores SpringBoard and removes the library on opt-out; a restart
 restores native methods.
 No native iOS 17 kernel, Metal driver, camera or networking support is claimed.
 
+The SE 3 17.7 guest additionally uses the cloudOS 18.6 GPU driver over the
+existing `system-systemhook-cfw-ios18_gpu_transport` selection. The driver
+weak-loads SystemHook before Metal registers the device. SystemHook translates
+the 17.7 single-buffer submission and 40-byte kernel completion entries for
+the 32-byte IOGPU reader. See the SE 3 GPU rendering section of
+`Research/Guest/ios17_bringup.md` for the runtime checks and remaining limits.
+
 ## OpenGL ES in guests (2026-11-02)
 
 Upstream issue Lakr233/vphone-cli#793: every `-[EAGLContext initWithAPI:]`
