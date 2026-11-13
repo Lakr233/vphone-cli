@@ -72,6 +72,11 @@ do {
         .serverChannelOption(ChannelOptions.backlog, value: 128)
         // Bound Darwin's mbuf chains to the 64 KiB payload limit used by
         // virtio-vsock backends, even when sosend coalesces a small remainder.
+        // The value is not read back: the cloudOS 26.4 kernel sets a VSOCK
+        // send buffer to the peer's credit again with every packet it
+        // receives (vsock_update_send_buffer_space), 262144 bytes under
+        // Virtualization, so a check that raced the first request refused a
+        // connection the host had already written to.
         .childChannelOption(ChannelOptions.socketOption(.so_sndbuf), value: vsockSendBufferLimit)
         .childChannelInitializer { channel in
             let http = GuestHyperTextHandler(hub: hub, fileIO: fileIO)
@@ -134,20 +139,13 @@ do {
                     }
                 },
             )
-            return channel.getOption(ChannelOptions.socketOption(.so_sndbuf)).flatMapThrowing { size in
-                guard size > 0, size <= vsockSendBufferLimit else {
-                    throw GuestAPIError.operationFailed(
-                        "VSOCK send buffer is \(size) bytes, outside 1...\(vsockSendBufferLimit)",
-                    )
-                }
-            }.flatMap {
-                channel.pipeline.configureHTTPServerPipeline(
-                    withServerUpgrade: (upgraders: [upgrader], completionHandler: { _ in }),
-                )
-            }.flatMap { channel.pipeline.addHandler(http) }
+            return channel.pipeline.configureHTTPServerPipeline(
+                withServerUpgrade: (upgraders: [upgrader], completionHandler: { _ in }),
+            ).flatMap { channel.pipeline.addHandler(http) }
         }
         .bind(to: VsockAddress(cid: .any, port: 1339))
         .wait()
+    try server.pipeline.addHandler(GuestAcceptErrorLogger()).wait()
     vp_native_confirm_cached_binary()
     NSLog("vphoned: HTTP/WebSocket API listening on vsock 1339")
     server.closeFuture.whenComplete { _ in
@@ -172,3 +170,17 @@ do {
 // scheduled on it.
 RunLoop.main.add(Timer(fire: .distantFuture, interval: 0, repeats: false) { _ in }, forMode: .default)
 RunLoop.main.run()
+
+// MARK: - Refused connections
+
+/// Logs a connection that was closed while it was being set up, or an accept
+/// that failed. SwiftNIO reports both only as an error on the listening
+/// channel, after its accept handler, and closes the connection without a
+/// word; the host just sees it end before any reply.
+final class GuestAcceptErrorLogger: ChannelInboundHandler, Sendable {
+    typealias InboundIn = Channel
+
+    func errorCaught(context _: ChannelHandlerContext, error: Error) {
+        NSLog("vphoned: connection refused during setup: %@", String(describing: error))
+    }
+}
