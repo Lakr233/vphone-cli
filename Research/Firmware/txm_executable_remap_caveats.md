@@ -76,7 +76,7 @@ the pre-check admission note under the TXM table in
 - **Disabling the patch alone does not restore the old behavior.** Turning
   `txm-cfw-executable_remap` off selects the historical base trust-cache bypass
   only and may stop iOS 27 from booting. To get the old pre-check admission,
-  restore with `--allow txm-exp-precheck_admission --block txm-cfw-executable_remap`
+  restore with `--allow txm-exp-precheck_admission` (it supersedes this patch)
   (iOS 27 only); see the pre-check admission note in
   [the patch comparison](../0_binary_patch_comparison.md).
 - **Template key change.** The boot-chain patch set changed, so templates built

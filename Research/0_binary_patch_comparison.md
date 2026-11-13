@@ -1837,8 +1837,11 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 > + `blraa` after a post-indexed `ldr x22, [x20], #0x40` table walk) so the walk
 > writes type 10 and returns PASS before ad-hoc, CMS and fallback classification
 > run. iOS 27 only, off by default (`opt`: blocked in every shipped preset and in
-> the catalog's manual-only set). Select it in place of rows 13–17 when the guest
-> injects CS_ADHOC code: `--allow txm-exp-precheck_admission --block txm-cfw-executable_remap`.
+> the catalog's manual-only set). Select it when the guest injects CS_ADHOC code:
+> `--allow txm-exp-precheck_admission`. It supersedes rows 13–17 — the patcher
+> skips `txm-cfw-executable_remap` when precheck is on (they are mutually
+> exclusive) and runs the base trust-cache bypass instead — so `--block
+> txm-cfw-executable_remap` is optional.
 >
 > Why it is needed: with rows 13–17, a CS_ADHOC dylib injected into one of
 > Apple's ad-hoc apps never reaches RX. ellekit/roothide inject `roothideinit.dylib`,
@@ -1861,9 +1864,9 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 > evidence, and this holds even when both patch groups are enabled — precheck
 > force-passes the walk as type 10, and type 10's mapping restriction denies the
 > self-remap independently of the legacy-bypass cause rows 13–17 fix. So the two
-> are a genuine either/or (injection XOR self-remap); enabling both behaves like
-> precheck alone with rows 13–17 dormant, and the preset should treat them as
-> mutually exclusive. iOS 26 is out of scope (rows 18–21 are iOS-27 gated). The
+> are a genuine either/or (injection XOR self-remap); the patcher enforces this
+> by skipping rows 13–17 when precheck is selected, so enabling both is precheck
+> alone, not a dormant mix. iOS 26 is out of scope (rows 18–21 are iOS-27 gated). The
 > standard default stays rows 13–17; flipping it trades the injection regression
 > for a self-remap regression and is a policy choice. Historical evidence: `Research/Firmware/txm_selector24_cms_gate.md`.
 >
