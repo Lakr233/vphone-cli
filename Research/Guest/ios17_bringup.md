@@ -51,6 +51,12 @@ Run the preferences, restart and unlock commands above with
 uses a 750×1334 panel at scale 2 and keeps the donor Home button type in the
 installed device tree.
 
+If the wallpaper is black, swipe down from the top of the unlocked Home
+Screen and touch and hold the background. Tap **+**, swipe the category row
+left to **Color**, choose a color, and select **Add** and **Set as Wallpaper
+Pair**. The color wallpaper renders on both screens and persists across a
+full stop and start.
+
 ## What changed and why
 
 - Device description for iPhone15,4/D37AP: 1179x2556 at 3x.
@@ -135,6 +141,11 @@ explicit refusal of the SE 3 IPSW with cloudOS 26.4 passed.
 Settings twice timed out while creating its scene, including after a cold
 start. The first watchdog report shows a wait on iconservices, and an
 iconservicesagent report records a crash in `CI::GLContext::init()`. The
-wallpaper remained black, and both widgets displayed placeholders.
+default wallpaper was black, and both widgets displayed placeholders. The
+`AegirPoster` crash report shows an assertion during Metal pipeline creation
+in `NUNICalliopeResourceManager`. A native Color wallpaper set through the
+Lock Screen gallery rendered on both screens after a cold start. The
+[iOS 18 GPU transport](ios18_gpu_transport.md) uses a driver and ABI adapter
+measured for 18.6, so this test used the existing iOS 17 rendering path.
 Networking was disabled for this run. Camera, audio and Metal remain
 unverified.
