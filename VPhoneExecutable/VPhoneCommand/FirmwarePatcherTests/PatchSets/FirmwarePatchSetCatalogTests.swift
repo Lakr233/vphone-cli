@@ -279,9 +279,19 @@ struct FirmwarePatchSetCatalogTests {
         // The unsecure-cache gate stays out: the launchd.plist minimal edits is
         // signed and in the trust cache, so the stock launchd_cache_loader takes it.
         #expect(!plan.isEnabled(FirmwareRestoreImagePatchSet.launchdCacheLoader))
-        let bootChain = FirmwarePatchSetCatalog.minimalBootChainPatches
+        // SPTM's patch is for cloudOS 18 alone, so a 26.4 plan leaves it out.
+        let sptm = SPTMSecondaryCPUPatcher.patchIdentifier
+        let bootChain = FirmwarePatchSetCatalog.minimalBootChainPatches.subtracting([sptm])
         let allBootChain = Set(FirmwareBootChainPatchSet.manifest.patches.map(\.identifier))
-        #expect(bootChain.isSubset(of: allBootChain))
+        #expect(FirmwarePatchSetCatalog.minimalBootChainPatches.isSubset(of: allBootChain))
+        #expect(plan.skippedByVersion.contains(sptm))
+        let cloudOS18 = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.minimalPreset,
+            patchSets: FirmwarePatchSetCatalog.bundled,
+            iOSBase: VPhoneVersion("18.5"),
+            cloudOS: VPhoneVersion("18.5"),
+        )
+        #expect(cloudOS18.enabled.intersection(allBootChain) == FirmwarePatchSetCatalog.minimalBootChainPatches)
         #expect(plan.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader])
             .union(FirmwarePatchSetCatalog.minimalDeviceTreePatches).union(bootChain).union(researchBoard))
         // A stock LLB does not reach the kernel on an OpenAVB machine: iBEC and

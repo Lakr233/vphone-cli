@@ -50,7 +50,7 @@ struct FirmwarePatchDriftTests {
             enabledPatches: ["avp", "ibss", "kernel-b", "kernel-a", "dyld"],
             declarations: declarations,
         )
-        #expect(Set(parts.keys) == [.iBSS, .iBEC, .llb, .txm, .restoreRamDisk, .kernelcache, .deviceTree, .sep])
+        #expect(Set(parts.keys) == [.iBSS, .iBEC, .llb, .txm, .sptm, .restoreRamDisk, .kernelcache, .deviceTree, .sep])
         #expect(parts[.iBSS] == ["ibss"])
         #expect(parts[.kernelcache] == ["kernel-a", "kernel-b"])
         // Off in the plan, or declaring nothing: recorded empty, not unknown.
@@ -240,7 +240,7 @@ struct FirmwarePatchDriftTests {
     func `Each target is delivered by the step that owns its bytes`() {
         #expect(FirmwarePatchDelivery(target: .firmware(.avpBooter)) == .firmwarePatch)
         #expect(FirmwarePatchDelivery(target: .firmware(.kernelcache)) == .updateKernel)
-        for component in [VPhoneFirmwareComponent.iBSS, .iBEC, .llb, .txm, .deviceTree, .sep] {
+        for component in [VPhoneFirmwareComponent.iBSS, .iBEC, .llb, .txm, .sptm, .deviceTree, .sep] {
             #expect(FirmwarePatchDelivery(target: .firmware(component)) == .restore)
         }
         let guest: [VPhonePatchTarget] = [

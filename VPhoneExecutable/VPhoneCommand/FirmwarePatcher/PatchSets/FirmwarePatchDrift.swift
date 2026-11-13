@@ -45,7 +45,7 @@ public enum FirmwarePatchDelivery: String, Sendable, Hashable, CaseIterable, Cod
         case .firmware(.kernelcache):
             self = restoredCustomisedSystem ? .restore : .updateKernel
         case .firmware:
-            // iBSS, iBEC, LLB, TXM, DeviceTree, SEP, and the restore-only
+            // iBSS, iBEC, LLB, TXM, SPTM, DeviceTree, SEP, and the restore-only
             // Filesystem/Manifest.
             self = .restore
         case .dyldSharedCache, .guestExecutable, .guestEntitlements, .guestFile, .prebootDeviceTree:
@@ -64,7 +64,7 @@ public enum FirmwarePatchDrift {
     /// in boot order. AVPBooter is not among them: it never leaves the VM
     /// folder, and `fw patch` records it itself.
     public static let restoredComponents: [VPhoneFirmwareComponent] = [
-        .iBSS, .iBEC, .llb, .txm, .restoreRamDisk, .kernelcache, .deviceTree, .sep,
+        .iBSS, .iBEC, .llb, .txm, .sptm, .restoreRamDisk, .kernelcache, .deviceTree, .sep,
     ]
 
     /// What a restore put into each component it wrote: the plan's enabled

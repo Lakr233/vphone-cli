@@ -13,6 +13,7 @@ public enum VPhoneFirmwareComponent: String, Sendable, Hashable, Codable, CaseIt
     case iBEC
     case llb = "LLB"
     case txm = "TXM"
+    case sptm = "SPTM"
     case restoreRamDisk = "RestoreRamDisk"
     case restoreTrustCache = "RestoreTrustCache"
     case kernelcache

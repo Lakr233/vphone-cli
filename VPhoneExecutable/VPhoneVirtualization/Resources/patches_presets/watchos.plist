@@ -80,6 +80,7 @@
 			<string>llb-cfw-serial_label</string>
 			<string>manifest-boot-digest_rehash</string>
 			<string>sep-boot-vresearch101_sepd_dispatch</string>
+			<string>sptm-boot-secondary_cpu_throttle_tunable</string>
 		</array>
 	</dict>
 	<key>Summary</key>
