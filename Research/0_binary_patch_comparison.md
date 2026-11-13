@@ -1798,14 +1798,6 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 | 11  | Debugger entitlement (selector 42\|37)            | `bl` -> `mov w0, #1`                      |    -    |  Y  |  Y  |
 | 12  | Developer mode bypass                             | NOP conditional guard before deny path    |    -    |  Y  |  Y  |
 | 13  | Native CMS research tolerance                     | NOP tolerance flag only after CMS certificate-policy miss; retain parsing, digest checks and the second policy restriction | - | Y | Y |
-
-### SPTM
-
-| #   | Patch                                             | Purpose                                   | Regular | Dev | JB  |
-| --- | ------------------------------------------------- | ----------------------------------------- | :-----: | :-: | :-: |
-| 1   | `sptm-boot-secondary_cpu_throttle_tunable` (cloudOS 18 only) | `b.eq` -> `nop` in the secondary CPU reset path: skip the core throttle tunable no vCPU has | Y | Y | Y |
-
-See "SPTM's secondary CPU tunable stops a multi-vCPU cloudOS 18 guest" below.
 | 14  | Native ad-hoc research tolerance                  | NOP tolerance flag after native classification miss; retain Apple's type-10 fallback and mapping restrictions | - | Y | Y |
 | 15  | CMS-less installer research tolerance             | Redirect only the absent CMS wrapper branch to the existing path-dependent fallback; retain SuperBlob validation, present-CMS failures and the second policy restriction | - | Y | Y |
 | 16  | Temporary ordinary-library Team-ID tolerance      | Skip only absent/mismatched Team-ID comparison for framework/dylib types 3–5; retain signature admission, category ordering, context/role and mapping checks | - | Y | Y |
@@ -1840,6 +1832,14 @@ See "SPTM's secondary CPU tunable stops a multi-vCPU cloudOS 18 guest" below.
 > classification above. The replacement has iOS 27.1 remap results and
 > tester-reported startup success; the historical 27.0.1 pairing has not been
 > retested. Historical evidence: `Research/Firmware/txm_selector24_cms_gate.md`.
+
+### SPTM
+
+| #   | Patch                                             | Purpose                                   | Regular | Dev | JB  |
+| --- | ------------------------------------------------- | ----------------------------------------- | :-----: | :-: | :-: |
+| 1   | `sptm-boot-secondary_cpu_throttle_tunable` (cloudOS 18 only) | `b.eq` -> `nop` in the secondary CPU reset path: skip the core throttle tunable no vCPU has | Y | Y | Y |
+
+See "SPTM's secondary CPU tunable stops a multi-vCPU cloudOS 18 guest" below.
 
 ## Kernelcache
 
