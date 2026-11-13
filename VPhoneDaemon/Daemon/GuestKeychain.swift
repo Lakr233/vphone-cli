@@ -74,7 +74,7 @@ enum GuestKeychain {
         )
         let items = try rows(from: result, operation: "Security")
         guard let item = items.first else {
-            throw GuestAPIError.operationFailed("Keychain item not found")
+            throw GuestAPIError.notFound("Keychain item not found")
         }
         return ["ok": true, "value": item["data"] as? String ?? ""]
     }
@@ -83,7 +83,7 @@ enum GuestKeychain {
     /// text and is stored as its UTF-8 bytes.
     static func update(_ identity: Identity, value: String) throws -> [String: Any] {
         guard let account = identity.account, !account.isEmpty else {
-            throw GuestAPIError.invalidRequest("account is required")
+            throw GuestAPIError.invalidRequest("account is required", hint: "Pass a non-empty account")
         }
         // IcliKit reads the item back after updating; only status crosses the
         // VM boundary.
@@ -121,7 +121,7 @@ enum GuestKeychain {
 
         init(_ params: [String: Any]) throws {
             guard let resolved = try libraryClass(params["class"] as? String ?? "genp") else {
-                throw GuestAPIError.invalidRequest("class is required")
+                throw GuestAPIError.invalidRequest("class is required", hint: "class is genp, inet, cert, key or idnt")
             }
             className = resolved
             account = Self.attribute(params, "account")
@@ -129,7 +129,7 @@ enum GuestKeychain {
             server = Self.attribute(params, "server")
             group = Self.attribute(params, "group") ?? Self.attribute(params, "accessGroup")
             guard account != nil || service != nil || server != nil else {
-                throw GuestAPIError.invalidRequest("account, service, or server is required")
+                throw GuestAPIError.invalidRequest("account, service, or server is required", hint: "Pass at least one of account, service or server")
             }
         }
 
@@ -147,7 +147,7 @@ enum GuestKeychain {
         case "cert", "certificate": "certificate"
         case "keys", "key": "key"
         case "idnt", "identity": "identity"
-        default: throw GuestAPIError.invalidRequest("Unknown keychain class")
+        default: throw GuestAPIError.invalidRequest("Unknown keychain class", hint: "class is genp, inet, cert, key or idnt")
         }
     }
 

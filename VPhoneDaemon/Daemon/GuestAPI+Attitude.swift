@@ -16,7 +16,7 @@ extension GuestAPI {
             if m == .motionAttitudeSet {
                 if let flag = params["enabled"] {
                     guard let number = flag as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else {
-                        throw GuestAPIError.invalidRequest("enabled must be a boolean")
+                        throw GuestAPIError.invalidRequest("enabled must be a boolean", hint: "true or false")
                     }
                     enabled = number.boolValue
                 }

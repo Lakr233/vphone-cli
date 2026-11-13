@@ -51,7 +51,7 @@ enum AppDetailMethod: String, GuestMethod {
                                        summary: "List the apps that can open a URL, based on its scheme.", result: [
                                            .optional("apps", .array),
                                            .optional("count", .integer),
-                                           .optional("error", .string),
+                                           .hidden("error", .string),
                                            .optional("scheme", .string),
                                            .optional("url", .string)])
         case .appsRegistration: MethodSpec(.required("path", .string, "Absolute guest path of the app bundle directory"),
@@ -60,7 +60,7 @@ enum AppDetailMethod: String, GuestMethod {
                                                .optional("bundle_id", .string),
                                                .optional("bundle_path", .string),
                                                .optional("data_path", .string),
-                                               .optional("error", .string),
+                                               .hidden("error", .string),
                                                .optional("group_containers", .object).open(),
                                                .optional("name", .string),
                                                .optional("path", .string),
@@ -77,7 +77,7 @@ enum AppDetailMethod: String, GuestMethod {
                                            .optional("bundle_id", .string),
                                            .optional("bundle_path", .string),
                                            .optional("data_path", .string),
-                                           .optional("error", .string),
+                                           .hidden("error", .string),
                                            .optional("group_containers", .object).open(),
                                            .optional("name", .string),
                                            .required("path", .string),
@@ -111,7 +111,7 @@ enum AppDetailMethod: String, GuestMethod {
                                                 .optional("allowed", .boolean),
                                                 .optional("bundle_id", .string),
                                                 .optional("changed", .boolean),
-                                                .optional("error", .string),
+                                                .hidden("error", .string),
                                                 .optional("policy", .object).open()])
         case .systemUicache: MethodSpec(.optional("directory", .string, "Applications directory to refresh; defaults to the Applications folder of the installed bootstrap"),
                                      summary: "Refresh LaunchServices registrations for the apps in a directory, like uicache -a.", result: [.required("directory", .string),
@@ -124,7 +124,7 @@ enum AppDetailMethod: String, GuestMethod {
         case .systemSystemApps: MethodSpec(.optional("visible", .boolean, "True shows system apps, false hides them; omit to only read the current setting"),
                                         summary: "Read or set whether hidden system apps are visible on the home screen.", result: [.optional("changed", .boolean),
                                                     .optional("configured", .boolean),
-                                                    .optional("error", .string),
+                                                    .hidden("error", .string),
                                                     .optional("requires_respring", .boolean),
                                                     .required("visible", .boolean)])
         case .systemRespring: MethodSpec(summary: "Restart SpringBoard, the home screen process, without rebooting the guest.", force: .always("restart SpringBoard"), result: [.required("method", .string),

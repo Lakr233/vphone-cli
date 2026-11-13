@@ -90,7 +90,7 @@ enum DeviceMethod: String, GuestMethod {
         case .deviceNameSet: MethodSpec(.optional("name", .string, "Device name, not blank, at most 255 UTF-8 bytes, no control characters; null or omitted unpins it"), summary: "Pin the device name shown by Xcode, devicectl and Finder; takes full effect after a guest restart", result: [.required("changed", .boolean), .required("name", .string).nullable(), .required("reboot_required", .boolean)])
         case .deviceIoreg: MethodSpec(.optional("plane", .string, "IORegistry plane to dump", default: "IOService"), summary: "Dump the IORegistry of one plane as JSON entries", result: [.optional("count", .integer),
                                                .required("entries", .array),
-                                               .optional("error", .string),
+                                               .hidden("error", .string),
                                                .optional("plane", .string)])
         case .deviceInputDevices: MethodSpec(summary: "List the HID input services the guest sees", result: [.required("available", .boolean),
                                                       .optional("reason", .string),
@@ -137,14 +137,14 @@ enum DeviceMethod: String, GuestMethod {
                                                        .optional("identity_binding", .string),
                                                        .optional("attribution_limit", .string)])
         case .displayExternalStatus: MethodSpec(summary: "Read whether the virtual external display is enabled and its size", result: [.required("enabled", .any),
-                                                         .optional("error", .string),
+                                                         .hidden("error", .string),
                                                          .optional("height", .integer),
                                                          .optional("name", .string),
                                                          .optional("nonce", .string),
                                                          .optional("ok", .boolean),
                                                          .optional("width", .integer)])
         case .displayExternalDiagnostics: MethodSpec(summary: "Read scene, monitor and policy diagnostics for the external display", result: [.optional("available", .boolean),
-                                                              .optional("error", .string),
+                                                              .hidden("error", .string),
                                                               .optional("externalPolicyClasses", .object),
                                                               .optional("monitor", .string),
                                                               .optional("owners", .object),
@@ -156,7 +156,7 @@ enum DeviceMethod: String, GuestMethod {
             MethodSpec(.required("enabled", .boolean, "true connects the virtual external display, false disconnects it"),
                        .optional("width", .integer, "Display width in pixels; checked only when enabling, with height 1920x1080 or 3840x2160", default: 1920),
                        .optional("height", .integer, "Display height in pixels; checked only when enabling, with width 1920x1080 or 3840x2160", default: 1080), summary: "Enable or disable the virtual external display at 1920x1080 or 3840x2160", result: [.optional("enabled", .any),
-                                .optional("error", .string),
+                                .hidden("error", .string),
                                 .optional("height", .integer),
                                 .optional("name", .string),
                                 .optional("nonce", .string),
@@ -235,11 +235,11 @@ enum DeviceMethod: String, GuestMethod {
         case .audioState: MethodSpec(summary: "Read the active audio category, its volume and mute state", result: [.optional("active_category", .string),
                                               .optional("active_muted", .boolean),
                                               .optional("active_volume", .number),
-                                              .optional("error", .string)])
+                                              .hidden("error", .string)])
         case .networkCapture:
             MethodSpec(.optional("seconds", .number, "Capture duration in seconds", default: 5, min: 1, max: 60),
                        .optional("interface", .string, "Interface to capture on, up to 15 letters, digits or underscores", default: "en0"),
-                       .optional("filter", .string, "Capture filter: optional tcp, udp or icmp, then src/dst port N and host A clauses joined with and"), summary: "Capture packets on an interface into a pcap file in the guest and return a summary", result: [.optional("bytes", .integer), .optional("error", .string), .required("file_bytes", .integer), .optional("filter", .string), .optional("interface", .string), .optional("link_type", .string), .optional("packets", .integer), .optional("path", .string), .required("seconds", .number), .optional("summary", .array)])
+                       .optional("filter", .string, "Capture filter: optional tcp, udp or icmp, then src/dst port N and host A clauses joined with and"), summary: "Capture packets on an interface into a pcap file in the guest and return a summary", result: [.optional("bytes", .integer), .hidden("error", .string), .required("file_bytes", .integer), .optional("filter", .string), .optional("interface", .string), .optional("link_type", .string), .optional("packets", .integer), .optional("path", .string), .required("seconds", .number), .optional("summary", .array)])
         case .securitySslKillswitch: MethodSpec(summary: "Report whether the SSL killswitch is present", result: [.required("present", .boolean)])
         case .diagnosticsSelfTest: MethodSpec(summary: "Run the guest's built-in self tests and report passed, failed and skipped", result: [.required("complete", .boolean),
                                                        .required("environment", .object),

@@ -54,7 +54,7 @@ extension GuestAPI {
         guard let data = fm.contents(atPath: root + "/Upgrade.plist"),
               let metadata = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String],
               metadata["Build"] == systemBuildVersion, metadata["Build"] == build else {
-            throw GuestAPIError.operationFailed("No matching installed OTA system-app payload.")
+            throw GuestAPIError.notFound("No matching installed OTA system-app payload.")
         }
         // An old journal has no removal baseline. Infer only absent apps and
         // placeholders with a valid backup, never a deliberately reinstalled app.
@@ -64,7 +64,7 @@ extension GuestAPI {
         for id in removed {
             try GuestSystemAppPolicy.validateBundleID(id)
             guard backups.contains(where: { $0["bundle_id"] as? String == id && $0["restorable"] as? Bool == true && $0["error"] == nil }) else {
-                throw GuestAPIError.operationFailed("No valid removal backup for \(id); refusing OTA reconciliation.")
+                throw GuestAPIError.notFound("No valid removal backup for \(id); refusing OTA reconciliation.")
             }
         }
         if apply, !removed.isEmpty {
@@ -185,7 +185,7 @@ extension GuestAPI {
     /// `bundle_ids` in request order without repeats, or nil when absent.
     static func systemAppsToRemove(_ params: [String: Any]) throws -> [String] {
         guard let ids = try systemAppIDs(params) else {
-            throw GuestAPIError.invalidRequest("bundle_ids must list the apps to remove")
+            throw GuestAPIError.invalidRequest("bundle_ids must list the apps to remove", hint: "Pass bundle_ids as a non-empty array of bundle identifier strings")
         }
         return ids
     }
@@ -193,7 +193,7 @@ extension GuestAPI {
     static func systemAppIDs(_ params: [String: Any], key: String = "bundle_ids") throws -> [String]? {
         guard let value = params[key] else { return nil }
         guard let ids = value as? [String], (key == "removed_bundle_ids" || !ids.isEmpty), ids.allSatisfy({ !$0.isEmpty }) else {
-            throw GuestAPIError.invalidRequest("\(key) must list bundle identifiers")
+            throw GuestAPIError.invalidRequest("\(key) must list bundle identifiers", hint: "Pass an array of non-empty bundle identifier strings")
         }
         var seen = Set<String>()
         return ids.filter { seen.insert($0).inserted }
@@ -442,7 +442,7 @@ extension GuestAPI {
                     result["bundle_path"] = record["bundle_path"] ?? ""
                     return result
                 }
-                throw GuestAPIError.operationFailed(
+                throw GuestAPIError.notFound(
                     directory.map { "\(GuestSystemAppPolicy.backupContainerPath(id, in: $0)) has no manifest naming its original container" }
                         ?? "No backup of \(id) in \(GuestSystemAppPolicy.backupDirectories.joined(separator: " or "))",
                 )
@@ -470,7 +470,7 @@ extension GuestAPI {
                 }
             } else {
                 guard try bundleContainerExists(location) else {
-                    throw GuestAPIError.operationFailed("The backup container \(backupPath) is missing")
+                    throw GuestAPIError.notFound("The backup container \(backupPath) is missing")
                 }
             }
             try checkBundleIdentifier(location, id)

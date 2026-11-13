@@ -12,7 +12,7 @@ enum GuestProcessSpawnPolicy {
         guard arguments.count <= 16 else { return "too many arguments" }
         guard arguments.allSatisfy({ !$0.isEmpty && $0.utf8.count <= 256 && !$0.contains(where: { $0 == "\0" || $0 == "\n" || $0 == "\r" }) }) else { return "invalid argument" }
         guard arguments.joined().utf8.count <= 2048 else { return "arguments too long" }
-        guard timeout.isFinite, timeout >= 0.1, timeout <= 10 else { return "invalid timeout" }
+        guard timeout.isFinite, timeout >= 0.1, timeout <= 10 else { return "timeout_ms must be 100–10000" }
         return nil
     }
 }

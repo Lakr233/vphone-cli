@@ -16,7 +16,7 @@ extension GuestAPI {
     static func setLocationServices(_ enabled: Bool) throws -> [String: Any] {
         let selector = NSSelectorFromString("setLocationServicesEnabled:")
         guard let method = class_getClassMethod(CLLocationManager.self, selector) else {
-            throw GuestAPIError.operationFailed("setLocationServicesEnabled: unavailable")
+            throw GuestAPIError.unavailable("setLocationServicesEnabled: unavailable")
         }
         typealias Setter = @convention(c) (AnyClass, Selector, Bool) -> Void
         let setter = unsafeBitCast(method_getImplementation(method), to: Setter.self)

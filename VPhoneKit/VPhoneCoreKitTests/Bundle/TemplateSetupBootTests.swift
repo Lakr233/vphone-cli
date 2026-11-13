@@ -997,6 +997,9 @@ struct TemplateSetupBootTests {
         #expect(VPhoneGuestCallError(kind: .refused, message: "x", detail: ["retryable": true]).isRetryable)
         #expect(VPhoneGuestCallError(kind: .refused, message: "x", detail: ["reason": "busy"]).isRetryable)
         #expect(!VPhoneGuestCallError(kind: .refused, message: "x", detail: ["code": "invalid_operation"]).isRetryable)
+        for code in ["invalid_param", "not_found", "unavailable", "force_required", "permission"] {
+            #expect(!VPhoneGuestCallError(kind: .refused, message: "x", detail: ["code": code]).isRetryable)
+        }
         #expect(!VPhoneGuestCallError(kind: .refused, message: "x").isRetryable)
         #expect(VPhoneGuestCallError(kind: .refused, message: "x", detail: ["code": "c"]).code == "c")
     }

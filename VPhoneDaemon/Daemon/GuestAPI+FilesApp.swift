@@ -19,7 +19,7 @@ extension GuestAPI {
                 return container + "/File Provider Storage"
             }
         }
-        throw GuestAPIError.operationFailed("Files app storage not found. Open Files once and try again.")
+        throw GuestAPIError.notFound("Files app storage not found. Open Files once and try again.")
     }
 
     /// Moves an uploaded file into On My iPhone › vphone-drop. Items there are
@@ -29,7 +29,7 @@ extension GuestAPI {
     /// extension.
     static func saveToFilesApp(_ source: String, name: String) throws -> [String: Any] {
         guard !name.isEmpty, !name.contains("/"), name != ".", name != ".." else {
-            throw GuestAPIError.invalidRequest("name must be a single file name")
+            throw GuestAPIError.invalidRequest("name must be a single file name", hint: "Use a non-empty name without slashes, not . or ..")
         }
         let manager = FileManager.default
         let root = try filesAppRoot()

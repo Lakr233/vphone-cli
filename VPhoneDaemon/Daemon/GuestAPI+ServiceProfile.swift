@@ -66,7 +66,7 @@ extension GuestAPI {
                 profile: profile, iosMajor: major, extraGroups: extraGroups, allow: allow,
             )
         } catch let failure as GuestServiceProfile.Failure {
-            throw GuestAPIError.invalidRequest(failure.description)
+            throw GuestAPIError.invalidRequest(failure.description, hint: "profile is trimmed or none; group names must be in the trimmed service list for this iOS version")
         }
         let previous = GuestServiceProfile.readRecord()
         let overrides = try disabledServiceOverrides()["disabled"] as? [String: Bool] ?? [:]

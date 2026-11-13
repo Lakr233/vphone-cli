@@ -248,7 +248,7 @@ enum CoreMethod: String, GuestMethod {
                                                    .optional("altitude", .number),
                                                    .optional("client", .string),
                                                    .optional("course", .number),
-                                                   .optional("error", .string),
+                                                   .hidden("error", .string),
                                                    .optional("fresh", .boolean),
                                                    .optional("horizontal_accuracy", .number),
                                                    .optional("latitude", .number),

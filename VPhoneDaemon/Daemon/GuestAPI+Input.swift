@@ -71,7 +71,7 @@ extension GuestAPI {
         case .uiTree, .accessibilityTree:
             if let value = params["nested"] {
                 guard let number = value as? NSNumber, CFGetTypeID(number) == CFBooleanGetTypeID() else {
-                    throw GuestAPIError.invalidRequest("nested must be a boolean")
+                    throw GuestAPIError.invalidRequest("nested must be a boolean", hint: "true or false")
                 }
             }
             if bool(params, "nested") {
@@ -111,7 +111,7 @@ extension GuestAPI {
     /// it weakly, so its classes are nil on a watch.
     private static func requireTextRecognition() throws {
         guard NSClassFromString("VNRecognizeTextRequest") != nil else {
-            throw GuestAPIError.operationFailed("Text recognition needs Vision, which this guest does not have")
+            throw GuestAPIError.unavailable("Text recognition needs Vision, which this guest does not have")
         }
     }
 

@@ -36,7 +36,7 @@ extension GuestAPI {
         guard params["limit"] == nil,
               !bool(params, "clickable_only"), params["visible_only"] == nil
         else {
-            throw GuestAPIError.invalidRequest("Nested snapshots preserve all structural nodes; filtering and limit are unsupported")
+            throw GuestAPIError.invalidRequest("Nested snapshots preserve all structural nodes; filtering and limit are unsupported", hint: "Omit limit, clickable_only and visible_only, or set nested to false")
         }
         let count = try hierarchyInteger(params, "max_elements", default: 500, range: 1 ... 2000)
         let depth = try hierarchyInteger(params, "max_depth", default: 32, range: 1 ... 32)

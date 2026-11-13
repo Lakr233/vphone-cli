@@ -1,9 +1,17 @@
 import Foundation
 
 enum GuestAPIError: Error, CustomStringConvertible {
-    case invalidRequest(String)
-    case unsupportedMethod(String)
-    case operationFailed(String)
+    case invalidRequest(String, hint: String? = nil)
+    case unsupportedMethod(String, hint: String? = nil)
+    case operationFailed(String, hint: String? = nil)
+    /// The named target (file, app, process, service) does not exist.
+    case notFound(String, hint: String? = nil)
+    /// The platform, OS or a component cannot do this.
+    case unavailable(String, hint: String? = nil)
+    /// The OS refused for lack of entitlement or access.
+    case permission(String, hint: String? = nil)
+    /// A destructive call came without `force: true`.
+    case forceRequired(String, hint: String? = nil)
     /// The request would repeat work the guest has already done. The code is
     /// sent as the error code so a client can tell it apart from a failure.
     case alreadyDone(code: String, message: String)
@@ -13,8 +21,10 @@ enum GuestAPIError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case let .invalidRequest(message), let .operationFailed(message): message
-        case let .unsupportedMethod(method): "Unknown method: \(method)"
+        case let .invalidRequest(message, _), let .operationFailed(message, _), let .notFound(message, _),
+             let .unavailable(message, _), let .permission(message, _), let .forceRequired(message, _): message
+        case let .unsupportedMethod(method, _):
+            "Unknown method: \(method.count > 64 ? String(method.prefix(64)) + "…" : method)"
         case let .alreadyDone(_, message): message
         case .locationServicesOff:
             "Location Services are turned off in the guest. Turn them on with location.services {enabled:true}."
@@ -22,13 +32,65 @@ enum GuestAPIError: Error, CustomStringConvertible {
     }
 
     var code: String {
-        if case let .alreadyDone(code, _) = self {
-            return code
+        switch self {
+        case .invalidRequest: "invalid_param"
+        case .notFound, .unsupportedMethod: "not_found"
+        case .unavailable: "unavailable"
+        case .permission: "permission"
+        case .forceRequired: "force_required"
+        case .operationFailed: "invalid_operation"
+        case let .alreadyDone(code, _): code
+        case .locationServicesOff: "location_services_off"
         }
-        if case .locationServicesOff = self {
-            return "location_services_off"
+    }
+
+    /// One line naming the fix; nil for errors that carry none.
+    var hint: String? {
+        switch self {
+        case let .invalidRequest(_, hint), let .unsupportedMethod(_, hint), let .operationFailed(_, hint),
+             let .notFound(_, hint), let .unavailable(_, hint), let .permission(_, hint), let .forceRequired(_, hint): hint
+        case .alreadyDone, .locationServicesOff: nil
         }
-        return "invalid_operation"
+    }
+
+    /// The wire `error` object. `hint` is present only when the error has one.
+    var wireBody: [String: Any] {
+        var body: [String: Any] = ["code": code, "message": description]
+        if let hint { body["hint"] = hint }
+        return body
+    }
+
+    /// A producer's result whose `error` key reports a whole-call failure: the failure, thrown as
+    /// `make(message)`; a result without an `error` string is returned as it is.
+    static func inBandFailure(_ result: [String: Any], as make: (String) -> GuestAPIError) throws -> [String: Any] {
+        if let message = result["error"] as? String { throw make(message) }
+        return result
+    }
+
+    /// The candidate nearest `name` by Levenshtein distance, if within max(2, name.count / 3).
+    /// Ties go to the first candidate. A name over 64 characters has no match.
+    static func closest(_ name: String, _ candidates: [String]) -> String? {
+        let a = Array(name)
+        guard a.count <= 64 else { return nil }
+        let limit = max(2, a.count / 3)
+        var best: (name: String, distance: Int)?
+        for candidate in candidates {
+            let b = Array(candidate)
+            guard abs(a.count - b.count) <= limit else { continue }
+            var row = Array(0 ... b.count)
+            for i in 0 ..< a.count {
+                var previous = row[0]
+                row[0] = i + 1
+                for j in 0 ..< b.count {
+                    let saved = row[j + 1]
+                    row[j + 1] = min(row[j + 1] + 1, row[j] + 1, previous + (a[i] == b[j] ? 0 : 1))
+                    previous = saved
+                }
+            }
+            let distance = row[b.count]
+            if distance <= limit, distance < (best?.distance ?? Int.max) { best = (candidate, distance) }
+        }
+        return best?.name
     }
 }
 
@@ -137,7 +199,10 @@ struct GuestMethodArea {
         for area in areas {
             if let result = try area.execute(method, params) { return result }
         }
-        throw GuestAPIError.unsupportedMethod(method)
+        let names = areas.flatMap { $0.entries().map(\.name) }.sorted()
+        throw GuestAPIError.unsupportedMethod(
+            method, hint: GuestAPIError.closest(method, names).map { "Did you mean `\($0)`?" },
+        )
     }
 
     static func flag(_ params: [String: Any], _ key: String, default fallback: Bool = false) -> Bool {
@@ -145,7 +210,20 @@ struct GuestMethodArea {
     }
 
     static func admit(_ spec: MethodSpec, _ params: [String: Any]) throws -> [String: Any] {
-        let declared = Set(spec.params.map(\.name))
+        let names = spec.params.map(\.name)
+        let declared = Set(names)
+        let unknown = params.keys.filter { !declared.contains($0) && $0 != "force" }.sorted()
+        if !unknown.isEmpty {
+            let shown = unknown.prefix(5).joined(separator: ", ")
+            let more = unknown.count > 5 ? " and \(unknown.count - 5) more" : ""
+            let hint = if names.isEmpty {
+                "This method takes no params"
+            } else {
+                (GuestAPIError.closest(unknown[0], names).map { "Did you mean `\($0)`? " } ?? "")
+                    + "Valid params: \(names.joined(separator: ", "))"
+            }
+            throw GuestAPIError.invalidRequest("Unknown param: \(shown)\(more)", hint: hint)
+        }
         let admitted = params.filter { declared.contains($0.key) }
         let action: ForceAction? = switch spec.force {
         case .never: nil
@@ -153,7 +231,10 @@ struct GuestMethodArea {
         case let .when(key, _, action): flag(admitted, key) ? action : nil
         }
         if let action, !flag(params, "force") {
-            throw GuestAPIError.invalidRequest("Pass force: true to \(try action(admitted))")
+            throw GuestAPIError.forceRequired(
+                "Pass force: true to \(try action(admitted))",
+                hint: "Confirm with the user, then repeat the call with force: true",
+            )
         }
         return admitted
     }
@@ -188,6 +269,18 @@ struct GuestMethodArea {
     }
 }
 
+extension GuestAPIError {
+    /// An OS failure as a coded error: a missing target (ENOENT, ESRCH) is `notFound`, a refusal for
+    /// lack of access (EACCES, EPERM) is `permission`, anything else stays `operationFailed`.
+    static func fromErrno(_ code: Int32, _ message: String) -> GuestAPIError {
+        switch code {
+        case ENOENT, ESRCH: .notFound(message)
+        case EACCES, EPERM: .permission(message)
+        default: .operationFailed(message)
+        }
+    }
+}
+
 // MARK: - Names Before the Renames
 
 /// The names guest methods and their params had before they followed one set
@@ -209,19 +302,22 @@ enum GuestLegacyNames {
     ]
 
     /// `params` with the old names of `method` turned into today's. A new
-    /// name the request also carries wins; a value that is not a number is
-    /// passed on as it is, so it fails the way the new param would.
+    /// name the request also carries wins, and the old one is dropped either
+    /// way, so it is never refused as an unknown param; a value that is not a
+    /// number is passed on as it is, so it fails the way the new param would.
     static func params(of method: String, _ params: [String: Any]) -> [String: Any] {
         var params = params
-        for (old, new) in seconds[method] ?? [] where params[new] == nil {
-            guard let value = params.removeValue(forKey: old) else { continue }
+        for (old, new) in seconds[method] ?? [] {
+            guard let value = params.removeValue(forKey: old), params[new] == nil else { continue }
             params[new] = (value as? NSNumber).map { NSNumber(value: $0.doubleValue * 1000) } ?? value
         }
-        if method == "input.swipe", params["from"] == nil, params["to"] == nil,
-           let x1 = params["x1"], let y1 = params["y1"], let x2 = params["x2"], let y2 = params["y2"]
-        {
-            params["from"] = [x1, y1]
-            params["to"] = [x2, y2]
+        if method == "input.swipe" {
+            let ends = ["x1", "y1", "x2", "y2"].map { params[$0] }
+            if params["from"] == nil, params["to"] == nil, let x1 = ends[0], let y1 = ends[1], let x2 = ends[2], let y2 = ends[3] {
+                params["from"] = [x1, y1]
+                params["to"] = [x2, y2]
+                for key in ["x1", "y1", "x2", "y2"] { params.removeValue(forKey: key) }
+            }
         }
         return params
     }

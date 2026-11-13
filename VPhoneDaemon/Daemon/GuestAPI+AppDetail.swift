@@ -54,7 +54,7 @@ extension GuestAPI {
     static func refreshAppRegistrations(directory: String?) throws -> [String: Any] {
         guard let directory = try directory ?? GuestIrisinInstaller.completedBootstrap().map({ $0.root + "/Applications" })
         else {
-            throw GuestAPIError.operationFailed("No bootstrap environment was found")
+            throw GuestAPIError.notFound("No bootstrap environment was found")
         }
         do {
             return try refreshApps(directory: directory)
@@ -82,10 +82,10 @@ extension GuestAPI {
     /// request; the guest then stops, which ends the virtual machine on the
     /// host, so the caller usually loses the connection before the reply.
     static func requestShutdown() throws -> [String: Any] {
-        guard geteuid() == 0 else { throw GuestAPIError.operationFailed("shutdown requires root") }
+        guard geteuid() == 0 else { throw GuestAPIError.permission("shutdown requires root") }
         let status = vp_system_halt()
         guard status == 0 else {
-            throw GuestAPIError.operationFailed("shutdown request rejected: \(String(cString: strerror(status)))")
+            throw GuestAPIError.fromErrno(status, "shutdown request rejected: \(String(cString: strerror(status)))")
         }
         return ["accepted": true, "completion": "the virtual machine stops"]
     }

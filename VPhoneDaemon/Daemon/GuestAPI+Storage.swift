@@ -30,7 +30,7 @@ extension GuestAPI {
         do {
             try GuestSnapshotPolicy.validateMount(mount)
         } catch {
-            throw GuestAPIError.invalidRequest(String(describing: error))
+            throw GuestAPIError.invalidRequest(String(describing: error), hint: "mount must be an absolute path")
         }
         return mount
     }
@@ -45,7 +45,10 @@ extension GuestAPI {
             )
             return (mount, selection)
         } catch {
-            throw GuestAPIError.invalidRequest(String(describing: error))
+            throw GuestAPIError.invalidRequest(
+                String(describing: error),
+                hint: "Pass either name or prefix, and start it with \(GuestSnapshotPolicy.deletablePrefix)",
+            )
         }
     }
 

@@ -18,7 +18,7 @@ extension GuestAPI {
         case .processesKill:
             let (pid, name, signal) = try killRequest(params)
             guard kill(pid_t(pid), signal) == 0 else {
-                throw GuestAPIError.operationFailed("kill(\(pid)): \(String(cString: strerror(errno)))")
+                throw GuestAPIError.fromErrno(errno, "kill(\(pid)): \(String(cString: strerror(errno)))")
             }
             return ["pid": pid, "signal": name]
         case .memoryJetsam:
@@ -31,7 +31,7 @@ extension GuestAPI {
     static func killRequest(_ params: [String: Any]) throws -> (pid: Int, name: String, signal: Int32) {
         let pid = try integer(params, "pid")
         guard pid > 1, pid != Int(getpid()) else {
-            throw GuestAPIError.invalidRequest("pid \(pid) cannot be signalled")
+            throw GuestAPIError.invalidRequest("pid \(pid) cannot be signalled", hint: "pid must be greater than 1 and not vphoned's own process")
         }
         let name = optionalString(params, "signal")?.uppercased() ?? "TERM"
         guard let signal = signals[name.hasPrefix("SIG") ? String(name.dropFirst(3)) : name] else {
@@ -45,7 +45,7 @@ extension GuestAPI {
     /// unavailable result rather than a synthetic scene snapshot.
     private static func inspectPoster(_ params: [String: Any]) throws -> [String: Any] {
         let pid = try integer(params, "pid")
-        guard pid > 1 else { throw GuestAPIError.invalidRequest("pid must be a positive process id") }
+        guard pid > 1 else { throw GuestAPIError.invalidRequest("pid must be a positive process id", hint: "pid must be an integer greater than 1") }
         let helper = "/usr/libexec/vphone-poster-inspect"
         guard access(helper, X_OK) == 0 else {
             return ["available": false, "pid": pid, "reason": "poster instrumented helper is not installed"]
@@ -109,7 +109,7 @@ extension GuestAPI {
         vp_spawn_file_actions_addclose(&actions, stderrPipe.readEnd)
         var pid: pid_t = 0
         let spawnError = vp_spawn(&pid, executable, &actions, nil, &argv, environ)
-        guard spawnError == 0 else { throw GuestAPIError.operationFailed("posix_spawn: " + String(cString: strerror(spawnError))) }
+        guard spawnError == 0 else { throw GuestAPIError.fromErrno(spawnError, "posix_spawn: " + String(cString: strerror(spawnError))) }
         stdoutPipe.closeWriteEnd(); stderrPipe.closeWriteEnd()
 
         fcntl(stdoutPipe.readEnd, F_SETFL, O_NONBLOCK)

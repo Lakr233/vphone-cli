@@ -122,7 +122,7 @@ final class GuestShellSessionHandler: ChannelInboundHandler, @unchecked Sendable
         if name.isEmpty || name == "repl" || name == "js" { return nil }
         if name.hasPrefix("/") {
             guard access(name, X_OK) == 0 else {
-                throw GuestAPIError.invalidRequest("\(name) is not an executable file in this guest")
+                throw GuestAPIError.invalidRequest("\(name) is not an executable file in this guest", hint: "Pass an absolute path to an executable file, or a program name from the bootstrap")
             }
             return name
         }
@@ -141,7 +141,7 @@ final class GuestShellSessionHandler: ChannelInboundHandler, @unchecked Sendable
         {
             return candidate
         }
-        throw GuestAPIError.invalidRequest("The bootstrap at \(root) has no \(name)")
+        throw GuestAPIError.invalidRequest("The bootstrap at \(root) has no \(name)", hint: "Pass a program that exists in the bootstrap, or leave program unset for vphoned's own session")
     }
 
     // MARK: - Opening

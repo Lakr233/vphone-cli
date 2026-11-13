@@ -74,7 +74,7 @@ enum FileToolMethod: String, GuestMethod {
                                            .hidden("control_texts", .object),
                                            .optional("data_member", .string),
                                            .optional("destination", .string),
-                                           .optional("error", .string),
+                                           .hidden("error", .string),
                                            .optional("extracted", .boolean),
                                            .optional("files", .array),
                                            .optional("format", .string),

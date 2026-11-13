@@ -60,13 +60,13 @@ extension GuestAPI {
 
     private static func installEnvironment(_ params: [String: Any]) throws -> [String: Any] {
         guard let requested = params["libraries"] as? [[String: Any]], !requested.isEmpty else {
-            throw GuestAPIError.invalidRequest("libraries must list the uploaded libraries")
+            throw GuestAPIError.invalidRequest("libraries must list the uploaded libraries", hint: "Pass libraries as an array of {name, sha256} objects")
         }
         var names: [String] = []
         for entry in requested {
             let name = try string(entry, "name")
             guard environmentLibraries.contains(name) else {
-                throw GuestAPIError.invalidRequest("\(name) is not part of the vphone environment")
+                throw GuestAPIError.invalidRequest("\(name) is not part of the vphone environment", hint: "Valid libraries: \(environmentLibraries.joined(separator: ", "))")
             }
             if environmentSelectedLibraries.contains(name), !FileManager.default.fileExists(atPath: "/usr/lib/" + name) {
                 throw GuestAPIError.invalidRequest("\(name) is off in this VM's patches; enable it with cfw install or cfw update-environment first")

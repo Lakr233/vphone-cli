@@ -15,7 +15,7 @@ extension GuestAPI {
             )
         case .filesWrite:
             guard let content = params["content"] as? String else {
-                throw GuestAPIError.invalidRequest("content is required")
+                throw GuestAPIError.invalidRequest("content is required", hint: "Pass content as a string; an empty string is allowed")
             }
             return try writeFile(
                 string(params, "path"),
@@ -50,7 +50,7 @@ extension GuestAPI {
                         as: UTF8.self,
                     )
                 } else {
-                    throw GuestAPIError.invalidRequest("value is required unless remove is true")
+                    throw GuestAPIError.invalidRequest("value is required unless remove is true", hint: "Pass value (any JSON value), or remove: true to delete the key")
                 }
             return try setPlistValue(string(params, "path"), key: string(params, "key"), json: json)
         case .keychainDatabase:

@@ -111,7 +111,9 @@ extension GuestAPI {
             }
             return try setDeviceName(name as? String)
         case .deviceIoreg:
-            return try ioregistry(plane: optionalString(params, "plane") ?? "IOService")
+            return try GuestAPIError.inBandFailure(
+                ioregistry(plane: optionalString(params, "plane") ?? "IOService"), as: { .operationFailed($0) },
+            )
         case .deviceInputDevices:
             return vp_hid_input_devices()
         case .deviceDisplays:
@@ -125,9 +127,9 @@ extension GuestAPI {
         case .displayCaptureActive:
             return vp_display_capture_active()
         case .displayExternalStatus:
-            return vp_external_display_status()
+            return try GuestAPIError.inBandFailure(vp_external_display_status(), as: { .unavailable($0) })
         case .displayExternalDiagnostics:
-            return vp_external_display_diagnostics()
+            return try GuestAPIError.inBandFailure(vp_external_display_diagnostics(), as: { .operationFailed($0) })
         case .displayExternalConfigure:
             guard let enabled = params["enabled"] as? Bool else {
                 throw GuestAPIError.invalidRequest("enabled must be a boolean")
@@ -343,7 +345,7 @@ extension GuestAPI {
                 }
                 return number.intValue
             }
-            guard params[key] == nil, let fallback else { throw GuestAPIError.invalidRequest("\(key) is required") }
+            guard params[key] == nil, let fallback else { throw GuestAPIError.invalidRequest("\(key) is required", hint: "Pass \(key) as an integer in \(range.lowerBound)...\(range.upperBound)") }
             return fallback
         }
 
@@ -399,7 +401,7 @@ extension GuestAPI {
         }
         let relayed = vp_core_motion_hinge()
         if relayed, orientation == 2 {
-            throw GuestAPIError.invalidRequest("the host controls have no upside-down orientation")
+            throw GuestAPIError.invalidRequest("the host controls have no upside-down orientation", hint: "Use ambiguous, portrait, landscape-left, landscape-right, face-up or face-down")
         }
         foldLock.lock()
         defer { foldLock.unlock() }
@@ -444,7 +446,7 @@ extension GuestAPI {
                 )
             }
             guard springBoardSwept || vp_device_pose_set(Int32(orientation), Int32(hinge), Int32(tabletop)) else {
-                throw GuestAPIError.operationFailed("SpringBoardServices has no device pose override on this guest")
+                throw GuestAPIError.unavailable("SpringBoardServices has no device pose override on this guest")
             }
             if params["orientation"] != nil { vp_device_orientation_publish(Int32(orientation)) }
             // The pose has landed; the hinge half is published beside it, and
@@ -520,12 +522,12 @@ extension GuestAPI {
             "portrait-upside-down": 180, "270": 270, "landscape-right": 270, "right": 270,
         ]
         guard let degrees = degreesByName[spec.lowercased()] else {
-            throw GuestAPIError.invalidRequest("unknown rotation: \(spec)")
+            throw GuestAPIError.invalidRequest("unknown rotation: \(spec)", hint: "Valid rotations: \(degreesByName.keys.sorted().joined(separator: ", "))")
         }
         let pose = vp_device_pose_get()
         guard pose["available"] as? Bool == true, let readHinge = (pose["hinge"] as? NSNumber)?.int32Value,
               let tabletop = (pose["tabletop"] as? NSNumber)?.int32Value
-        else { throw GuestAPIError.operationFailed("SpringBoard's device pose is unavailable") }
+        else { throw GuestAPIError.unavailable("SpringBoard's device pose is unavailable") }
         // The pose readback does not follow SpringBoard's own folds; the
         // virtual hinge holds where the last one ended.
         let hinge = settledFoldAngle().map { Int32(hingeState(for: $0)) } ?? readHinge
@@ -537,7 +539,7 @@ extension GuestAPI {
         // Partially open the override stands for 90° and slides the fold
         // toward the cover; CoreMotion's relay reads the hinge instead.
         guard hinge != 2 || vp_core_motion_hinge() else {
-            throw GuestAPIError.operationFailed("A partially open fold does not turn through the device pose.")
+            throw GuestAPIError.unavailable("A partially open fold does not turn through the device pose.")
         }
         GuestFoldPose.cancelStartupRestore()
         defer { GuestFoldPose.finishExplicitRequest() }
@@ -572,7 +574,7 @@ extension GuestAPI {
         let hinge = settledFoldAngle().map { Int32(hingeState(for: $0)) } ??
             (vp_device_pose_get()["hinge"] as? NSNumber)?.int32Value ?? 1
         guard hinge != 2 || vp_core_motion_hinge() else {
-            throw GuestAPIError.operationFailed("a partially open fold does not turn through the pose override")
+            throw GuestAPIError.unavailable("a partially open fold does not turn through the pose override")
         }
         let before = interfaceRotationDegrees()
         guard try turn(to: deviceOrientation, hinge: hinge, tabletop: 0, reaching: { $0 != before }) else {
@@ -591,7 +593,7 @@ extension GuestAPI {
                              reaching turned: (Int?) -> Bool) throws -> Bool {
         let relayed = vp_core_motion_hinge()
         if relayed, deviceOrientation == 2 {
-            throw GuestAPIError.invalidRequest("the host controls have no upside-down orientation")
+            throw GuestAPIError.invalidRequest("the host controls have no upside-down orientation", hint: "Use ambiguous, portrait, landscape-left, landscape-right, face-up or face-down")
         }
         let previous = (vp_device_pose_get()["device_orientation"] as? NSNumber)?.int32Value
         if relayed {
@@ -752,7 +754,7 @@ extension GuestAPI {
     /// character.
     private static func validateDeviceName(_ name: String) throws {
         if let problem = GuestDeviceNameRule.problem(name) {
-            throw GuestAPIError.invalidRequest(problem)
+            throw GuestAPIError.invalidRequest(problem, hint: "Use a non-blank name of at most 255 UTF-8 bytes with no control characters")
         }
     }
 

@@ -1,20 +1,20 @@
-accessibility.tree	never	nested:boolean,max_elements:integer,visible_only:boolean,clickable_only:boolean,limit:integer,max_depth:integer,timeout_ms:integer	-	action_eligible:boolean?,count:integer,elapsed_ms:number?,elements:array?,error:string?,filtering_applied:boolean?,foreground_after:object?,foreground_before:object?,format:string?,limits:object?,native_exception:string?,parent_checks:object?,pid:integer?,queries:integer?,readiness:object?,relationship_source:string?,roots:array?,runtime:object?,source:string?,status:string?,switches_after_restore:object?,switches_before:object?,symbols:object?,truncated:boolean?,truncation_reasons:array?	excluded:needs an unlocked guest with a frontmost app
+accessibility.tree	never	nested:boolean,max_elements:integer,visible_only:boolean,clickable_only:boolean,limit:integer,max_depth:integer,timeout_ms:integer	-	action_eligible:boolean?,count:integer,elapsed_ms:number?,elements:array?,error:string~,filtering_applied:boolean?,foreground_after:object?,foreground_before:object?,format:string?,limits:object?,native_exception:string?,parent_checks:object?,pid:integer?,queries:integer?,readiness:object?,relationship_source:string?,roots:array?,runtime:object?,source:string?,status:string?,switches_after_restore:object?,switches_before:object?,symbols:object?,truncated:boolean?,truncation_reasons:array?	excluded:needs an unlocked guest with a frontmost app
 agent.apply_update	never	sha256:string!	-	restarting:boolean	mutating
 apfs.snapshot.delete	always	mount:string,name:string,prefix:string	-	after:array,already_deleted:array,before:array,deleted:array,mount:string,remaining:array	mutating
 apfs.snapshots	never	mount:string	-	mount:string,snapshots:array	read
 apps.binary	never	bundle_id:string!	-	bundle_id:string,encrypted:boolean,entitlements:object*,executable:string	excluded:needs params
 apps.data_dir	never	bundle_id:string!	-	bundle_id:string,data_path:string	excluded:needs params
 apps.foreground	never	-	-	bundle_id:string,name:string,pid:integer,source:string,verified:boolean	read
-apps.handlers	never	url:string!	-	apps:array?,count:integer?,error:string?,scheme:string?,url:string?	excluded:needs params
+apps.handlers	never	url:string!	-	apps:array?,count:integer?,error:string~,scheme:string?,url:string?	excluded:needs params
 apps.info	never	bundle_id:string!	-	build:string?,bundle_id:string,bundle_path:string,data_path:string?,encrypted:boolean?,entitlements:object?*,executable:string?,group_containers:object?*,minimum_os:string?,name:string,running:boolean?,schemes:array?,sdk:string?,signer:string?,signing_error:string?,type:string?,version:string?	excluded:needs params
 apps.install	never	path:string!,cert_path:string,registration:string	-	bundle_container:string,bundle_id:string,bundle_path:string,containerized:boolean,data_container:string,method:string,msg:string,plugins:array,registration:string,unregistered_plugins:array,upgraded:boolean	mutating
 apps.launch	never	bundle_id:string!,url:string	-	frontmost_verified:boolean,pid:integer,warning:string?	mutating
 apps.list	never	filter:string	-	apps:array	read
-apps.network_policy	never	bundle_id:string!,repair:boolean	-	allowed:boolean?,bundle_id:string?,changed:boolean?,error:string?,policy:object?*	excluded:needs params
+apps.network_policy	never	bundle_id:string!,repair:boolean	-	allowed:boolean?,bundle_id:string?,changed:boolean?,error:string~,policy:object?*	excluded:needs params
 apps.open_url	never	url:string!,bundle_id:string	-	bundle_id:string?,url:string	mutating
 apps.refresh	never	directory:string	-	directory:string,failed:array,registered:array,skipped:array,unchanged:array,unregistered:array,unverified:array	mutating
-apps.register	never	path:string!	-	build:string?,bundle_id:string?,bundle_path:string?,data_path:string?,error:string?,group_containers:object?*,name:string?,path:string,plugins:array?,registered:boolean?,running:boolean?,schemes:array?,signer:string?,type:string?,version:string?	mutating
-apps.registration	never	path:string!	-	build:string?,bundle_id:string?,bundle_path:string?,data_path:string?,error:string?,group_containers:object?*,name:string?,path:string?,plugins:array?,registered:boolean?,running:boolean?,schemes:array?,signer:string?,type:string?,version:string?	excluded:needs params
+apps.register	never	path:string!	-	build:string?,bundle_id:string?,bundle_path:string?,data_path:string?,error:string~,group_containers:object?*,name:string?,path:string,plugins:array?,registered:boolean?,running:boolean?,schemes:array?,signer:string?,type:string?,version:string?	mutating
+apps.registration	never	path:string!	-	build:string?,bundle_id:string?,bundle_path:string?,data_path:string?,error:string~,group_containers:object?*,name:string?,path:string?,plugins:array?,registered:boolean?,running:boolean?,schemes:array?,signer:string?,type:string?,version:string?	excluded:needs params
 apps.remove_system	always	bundle_ids:array!,backup:boolean,respring:boolean	-	backup_directory:string:null,error:string?,failed:integer,message:string?,removed:integer,respring:object:null,results:array	mutating
 apps.removed_system	never	-	-	backups:array,directory:string,legacy_directory:string,legacy_other:array,other:array	read
 apps.restore_system	always	bundle_ids:array,respring:boolean	restore removed system apps	error:string?,failed:integer,message:string?,respring:object:null,restored:integer,results:array	mutating
@@ -25,7 +25,7 @@ apps.unregister	always	path:string!	unregister `<path>`	bundle_id:string?,messag
 apps.unregister_dir	always	directory:string!	unregister every app in `<directory>`	directory:string?,error:string?,failed:array?,unregistered:array?,unverified:array?	mutating
 apps.url_schemes	never	-	-	schemes:object*	read
 audio.host_latency	never	seconds:number	-	changed:boolean?,seconds:number	read
-audio.state	never	-	-	active_category:string?,active_muted:boolean?,active_volume:number?,error:string?	read
+audio.state	never	-	-	active_category:string?,active_muted:boolean?,active_volume:number?,error:string~	read
 audio.volume	never	value:number,category:string	-	category:string,volume:number	read
 bootstrap.firmware	never	-	-	dpkg_database_updated:boolean,firmware_version:string,jbroot:string,layout:string	excluded:needs an installed bootstrap
 bootstrap.inspect	never	-	-	installed:boolean,jbroot:string?,layout:string?,roots:array	read
@@ -46,7 +46,7 @@ device.displays	never	-	-	displays:array	read
 device.environment	never	-	-	basebin_version:string,bootstrap_tools_present:object,euid:integer,executable:string,external_tools_used:object,ios_version:string,jbroot:string:null,jbroot_source:string,layout:string:null,maintainer_scripts:string,markers:array,native:array,platform_binary:boolean,rootfs_prefix:string,roothide_runtime_active:boolean,spawns_processes:boolean	read
 device.info	never	-	-	agent:object,battery:object,boot_session_uuid:string,boot_time:number,brightness:object,developer_mode:object,device_name:object,host:string,ios_version:string,jailbreak:object,kernel:string,lock:object,low_power_mode:object,memory_bytes:integer,model:string,network:object,processor_count:integer,rotation:object,screen:object,storage:object,sysname:string,uptime_seconds:number,volume:number	read
 device.input_devices	never	-	-	available:boolean,reason:string?,serviceCount:integer?,services:array?	read
-device.ioreg	never	plane:string	-	count:integer?,entries:array,error:string?,plane:string?	read
+device.ioreg	never	plane:string	-	count:integer?,entries:array,error:string~,plane:string?	read
 device.name.get	never	-	-	name:string:null	read
 device.name.set	never	name:string	-	changed:boolean,name:string:null,reboot_required:boolean	mutating
 device.network	never	-	-	addresses:array	read
@@ -57,10 +57,10 @@ display.auto_lock	never	-	-	auto_lock_seconds:integer:null,lock_screen_minimum_s
 display.auto_lock.set	never	seconds:integer!	-	auto_lock_seconds:integer:null,lock_screen_minimum_seconds:integer:null,never:boolean,requested_auto_lock_seconds:integer	mutating
 display.brightness	never	value:number	-	auto:boolean:null,value:number	read
 display.capture_active	never	-	-	attribution_limit:string?,available:boolean,base64:string?,capture_content_verified:boolean?,color_profile_verified:boolean?,color_space:string?,format:string?,height:integer?,identity_binding:string?,orientation_mapping_verified:boolean?,pixel_format:string?,png_bitmap:string?,reason:string?,renderer:string?,renderer_status:string?,resized:boolean?,rotation_applied:integer?,row_bytes:integer?,source:object?*,source_after:object?*,state:string?,surface_bytes:integer?,width:integer?	excluded:needs a display with a verified native capture identity
-display.external.configure	never	enabled:boolean!,width:integer,height:integer	-	enabled:any?,error:string?,height:integer?,name:string?,nonce:string?,ok:boolean?,width:integer?	mutating
-display.external.diagnostics	never	-	-	available:boolean?,error:string?,externalPolicyClasses:object?,monitor:string?,owners:object?,sceneManager:string?,scenes:array?,transformer:string?,updated:number?	read
+display.external.configure	never	enabled:boolean!,width:integer,height:integer	-	enabled:any?,error:string~,height:integer?,name:string?,nonce:string?,ok:boolean?,width:integer?	mutating
+display.external.diagnostics	never	-	-	available:boolean?,error:string~,externalPolicyClasses:object?,monitor:string?,owners:object?,sceneManager:string?,scenes:array?,transformer:string?,updated:number?	read
 display.external.frame	never	-	-	data:string,mime_type:string	excluded:needs an external display on the guest
-display.external.status	never	-	-	enabled:any,error:string?,height:integer?,name:string?,nonce:string?,ok:boolean?,width:integer?	read
+display.external.status	never	-	-	enabled:any,error:string~,height:integer?,name:string?,nonce:string?,ok:boolean?,width:integer?	read
 display.layout	never	-	-	available:boolean,cadisplays:array*,capability_failures:object*,geometry_available:boolean,monitors:array*,observation:object*,reason:string,thread:object*	read
 display.metrics	never	-	-	available:boolean,bounds:object?*,display_id:integer?,point_scale:number?,reason:string,reference_bounds:object?*,source:string	read
 display.modes	never	-	-	available:boolean,displays:array?,reason:string?	read
@@ -90,7 +90,7 @@ homepod.debug.catalog	never	-	-	animations:array,available:boolean,interface:str
 homepod.display.state	never	-	-	available:boolean,bit_depth:integer,configured:boolean,display_count:integer,displays:array,error:string:null,frame_timestamp:integer?,frames_received:integer,generation:integer,geometry:object,hardware_version:integer,last_report_id:integer,last_report_length:integer,message:string:null,minus:number,pixels:array,plus:number,rejected_reports:integer,report_bit_depth:integer,state:string	excluded:HomePod guests only
 homeview.distance.get	never	-	-	applied:integer,available:boolean,backlight_state:integer:null,display_style:integer:null,level_of_detail:integer,mode:string,override_active:integer:null,reset_scope:string	excluded:HomePod guests only
 homeview.distance.set	never	mode:string!,reset_environment:boolean	-	applied:integer,available:boolean,backlight_state:integer:null,display_style:integer:null,level_of_detail:integer,mode:string,override_active:integer:null,reset_scope:string	mutating
-input.button	never	name:string!	-	active_category:string?,active_muted:boolean?,active_volume:number?,before:object?,button:string?,error:string?,locked:boolean?,method:string?,screen_off:boolean?	mutating
+input.button	never	name:string!	-	active_category:string?,active_muted:boolean?,active_volume:number?,before:object?,button:string?,error:string~,locked:boolean?,method:string?,screen_off:boolean?	mutating
 input.double_tap	never	x:number!,y:number!,interval:number	-	x:number,y:number	mutating
 input.drag	never	points:array!,seconds:number,hold:number,steps:integer	-	count:integer,points:integer	mutating
 input.hid	never	page:integer!,usage:integer!,long_press:boolean,down:boolean	-	action:string,long_press:boolean?,page:integer,usage:integer	mutating
@@ -115,12 +115,12 @@ launchd.getenv	never	key:string!	-	exists:boolean,key:string,value:string?	exclu
 launchd.setenv	never	key:string!,value:string!	-	exists:boolean,key:string,value:string:null,verified:boolean	mutating
 launchd.unsetenv	never	key:string!	-	exists:boolean,key:string,value:null,verified:boolean	mutating
 location.clear	never	-	-	location:object?,simulating:boolean	mutating
-location.current	never	timeout_ms:number	-	age_seconds:number?,altitude:number?,client:string?,course:number?,error:string?,fresh:boolean?,horizontal_accuracy:number?,latitude:number?,longitude:number?,simulated:boolean?,speed:number?,timestamp:string?,vertical_accuracy:number?	excluded:needs a location fix on the guest
+location.current	never	timeout_ms:number	-	age_seconds:number?,altitude:number?,client:string?,course:number?,error:string~,fresh:boolean?,horizontal_accuracy:number?,latitude:number?,longitude:number?,simulated:boolean?,speed:number?,timestamp:string?,vertical_accuracy:number?	excluded:needs a location fix on the guest
 location.services	never	enabled:boolean	-	enabled:boolean	read
 location.set	never	latitude:number!,longitude:number!,altitude:number,horizontal_accuracy:number,vertical_accuracy:number,speed:number,course:number	-	location:object,simulating:boolean	mutating
 logs.crash	never	path:string!	-	bytes:integer,content:string,encoding:string,path:string,size:integer,truncated:boolean	excluded:needs params
 logs.crashes	never	bundle_id:string	-	count:integer,crashes:array	read
-logs.syslog	never	seconds:number,process:string,level:string,max_lines:integer,subsystem:string,category:string,message_contains:string	-	count:integer?,entries:array?,error:string?,seconds:number?,source:string?,truncated:boolean?	excluded:streams for a time window
+logs.syslog	never	seconds:number,process:string,level:string,max_lines:integer,subsystem:string,category:string,message_contains:string	-	count:integer?,entries:array?,error:string~,seconds:number?,source:string?,truncated:boolean?	excluded:streams for a time window
 memory.jetsam	never	-	-	memory:object,priorities:array?,priorities_error:string?,properties:object*	read
 memory.pressure	never	-	-	memory:object	read
 methods.list	never	-	-	methods:array	read
@@ -130,7 +130,7 @@ motion.attitude.set	never	roll:number!,pitch:number!,yaw:number!,enabled:boolean
 motion.gyroscope.clear	never	-	-	enabled:boolean,provider:object:null,provider_running:any,units:string,x:number,y:number,z:number	mutating
 motion.gyroscope.get	never	-	-	enabled:boolean,provider:object:null,provider_running:any,units:string,x:number,y:number,z:number	read
 motion.gyroscope.set	never	x:number!,y:number!,z:number!,enabled:boolean	-	enabled:boolean,provider:object:null,provider_running:any,units:string,x:number,y:number,z:number	mutating
-network.capture	never	seconds:number,interface:string,filter:string	-	bytes:integer?,error:string?,file_bytes:integer,filter:string?,interface:string?,link_type:string?,packets:integer?,path:string?,seconds:number,summary:array?	excluded:captures for a time window
+network.capture	never	seconds:number,interface:string,filter:string	-	bytes:integer?,error:string~,file_bytes:integer,filter:string?,interface:string?,link_type:string?,packets:integer?,path:string?,seconds:number,summary:array?	excluded:captures for a time window
 network.hostname.get	never	-	-	local_host_name:string:null,managed:boolean	read
 network.hostname.set	never	local_host_name:string	-	changed:boolean,local_host_name:string:null,managed:boolean	mutating
 network.ipv4.get	never	interface:string	-	address:any?,dns:array,interface:string,managed:boolean,method:string,router:string?,service:string,subnet_mask:any?	read
@@ -143,7 +143,7 @@ notify.state	never	name:string!	-	name:string,state:integer	excluded:needs param
 ota.apps.apply	always	removed_bundle_ids:array	update retained Apple app programs from the installed OTA	apps:array,build:string,pending:integer,removed_bundle_ids:array,removed_pending:array	mutating
 ota.apps.status	never	removed_bundle_ids:array	-	apps:array,build:string,pending:integer,removed_bundle_ids:array,removed_pending:array	excluded:needs an installed OTA system-app payload
 packages.compare	never	left:string!,right:string!	-	comparison:integer,left:string,relation:string,right:string	excluded:needs params
-packages.info	never	path:string!	-	control:object?*,control_files:array?,control_member:string?,control_order:array?,control_texts:object~,data_member:string?,destination:string?,error:string?,extracted:boolean?,files:array?,format:string?,scripts:array?	excluded:needs params
+packages.info	never	path:string!	-	control:object?*,control_files:array?,control_member:string?,control_order:array?,control_texts:object~,data_member:string?,destination:string?,error:string~,extracted:boolean?,files:array?,format:string?,scripts:array?	excluded:needs params
 packages.list	never	filter:string	-	count:integer,packages:array	excluded:needs the bootstrap dpkg database
 packages.repos	never	-	-	repos:array	read
 packages.status	never	name:string!	-	architecture:string?,fields:object?,files:array?,installed:boolean,known:boolean,package:string,status:string?,version:string?	excluded:needs params
@@ -183,7 +183,7 @@ setup.status	never	-	-	current_version:integer:null,data_migration_done:boolean:
 system.reboot	always	userspace:boolean	-	accepted:boolean,completion:string,kind:string	mutating
 system.respring	always	-	restart SpringBoard	method:string,pid:integer,previous_pid:integer,restarted:boolean	mutating
 system.shutdown	always	-	shut down the guest	accepted:boolean,completion:string	mutating
-system.system_apps	never	visible:boolean	-	changed:boolean?,configured:boolean?,error:string?,requires_respring:boolean?,visible:boolean	read
+system.system_apps	never	visible:boolean	-	changed:boolean?,configured:boolean?,error:string~,requires_respring:boolean?,visible:boolean	read
 system.uicache	never	directory:string	-	directory:string,failed:array,registered:array,skipped:array,unchanged:array,unregistered:array,unverified:array	mutating
 time.clock	never	time:number,automatic:boolean	-	automatic:boolean:null,changed:boolean?,offset:number?,time:number	read
 time.timezone	never	identifier:string,automatic:boolean	-	automatic:boolean:null,changed:boolean?,identifier:string:null,seconds_from_gmt:integer:null	read
@@ -191,10 +191,10 @@ udid.clear	never	-	-	path:string:null,restarted_pids:array,udid:null,usb_reenume
 udid.get	never	-	-	path:string:null,udid:string:null	read
 udid.set	never	udid:string!	-	path:string:null,restarted_pids:array,udid:string:null,usb_reenumerated:boolean,usb_serial:string	mutating
 ui.describe	never	-	-	context_changed:boolean,elements:object?,frontmost:object,ocr:object?,screen:object,screenshot:object	read
-ui.element_at	never	x:number!,y:number!	-	element:object?,error:string?,source:string?,x:number?,y:number?	excluded:needs params
+ui.element_at	never	x:number!,y:number!	-	element:object?,error:string~,source:string?,x:number?,y:number?	excluded:needs params
 ui.ocr	never	languages:array,min_confidence:number	-	blocks:array,count:integer,engine:string	excluded:needs text recognition the guest lacks
 ui.tap_element	never	text:string,identifier:string,role:string,match:string,index:integer	-	element:object,tapped:boolean	mutating
-ui.tree	never	nested:boolean,max_elements:integer,visible_only:boolean,clickable_only:boolean,limit:integer,max_depth:integer,timeout_ms:integer	-	action_eligible:boolean?,count:integer,elapsed_ms:number?,elements:array?,error:string?,filtering_applied:boolean?,foreground_after:object?,foreground_before:object?,format:string?,limits:object?,native_exception:string?,parent_checks:object?,pid:integer?,queries:integer?,readiness:object?,relationship_source:string?,roots:array?,runtime:object?,source:string?,status:string?,switches_after_restore:object?,switches_before:object?,symbols:object?,truncated:boolean?,truncation_reasons:array?	excluded:needs an unlocked guest with a frontmost app
+ui.tree	never	nested:boolean,max_elements:integer,visible_only:boolean,clickable_only:boolean,limit:integer,max_depth:integer,timeout_ms:integer	-	action_eligible:boolean?,count:integer,elapsed_ms:number?,elements:array?,error:string~,filtering_applied:boolean?,foreground_after:object?,foreground_before:object?,format:string?,limits:object?,native_exception:string?,parent_checks:object?,pid:integer?,queries:integer?,readiness:object?,relationship_source:string?,roots:array?,runtime:object?,source:string?,status:string?,switches_after_restore:object?,switches_before:object?,symbols:object?,truncated:boolean?,truncation_reasons:array?	excluded:needs an unlocked guest with a frontmost app
 ui.wait	never	text:string,identifier:string,role:string,match:string,index:integer,timeout_ms:number	-	disappeared:boolean,element:object,found:boolean,waited_ms:integer	excluded:needs a selector
 ui.wait_gone	never	text:string,identifier:string,role:string,match:string,index:integer,timeout_ms:number	-	disappeared:boolean,element:object,found:boolean,waited_ms:integer	excluded:needs a selector
 visionos.immersion.get	never	-	-	applied:boolean,available:boolean,level:number	excluded:visionOS guests only

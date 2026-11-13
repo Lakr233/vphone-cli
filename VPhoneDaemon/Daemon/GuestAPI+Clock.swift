@@ -75,7 +75,7 @@ extension GuestAPI {
     private static func setAutomaticClock(_ enabled: Bool) throws -> [String: Any] {
         var state = try clockState()
         guard let current = state["automatic"] as? Bool else {
-            throw GuestAPIError.operationFailed("CoreTime's automatic time setting is unavailable on this guest")
+            throw GuestAPIError.unavailable("CoreTime's automatic time setting is unavailable on this guest")
         }
         if current != enabled {
             guard vp_clock_set_automatic(enabled) == 0 else {
@@ -107,7 +107,7 @@ extension GuestAPI {
         for _ in 0 ..< clockOffers {
             switch vp_clock_offer(hostTime(), clockUncertainty) {
             case 0: break
-            case -1: throw GuestAPIError.operationFailed("CoreTime has no TMSetSourceTime on this guest")
+            case -1: throw GuestAPIError.unavailable("CoreTime has no TMSetSourceTime on this guest")
             default: throw GuestAPIError.operationFailed("timed did not take the time within 3 seconds")
             }
             // timed sets the clock on its own queue, a few milliseconds later.
