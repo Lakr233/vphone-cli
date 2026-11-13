@@ -51,10 +51,10 @@ Run the preferences, restart and unlock commands above with
 uses a 750×1334 panel at scale 2 and keeps the donor Home button type in the
 installed device tree.
 
-For GPU acceleration, prepare and restore the SE 3 with a bundle that includes
-the legacy GPU transport. Firmware preparation stages the cloudOS 18.6 driver.
-An existing installation that still carries the 26.1 driver needs the staged
-18.6 driver and a CFW install.
+For GPU acceleration on either model, prepare and restore with a bundle that
+includes the legacy GPU transport. Firmware preparation stages the cloudOS
+18.6 driver. An existing installation that still carries the 26.1 driver
+needs the staged 18.6 driver and a CFW install.
 
 ## What changed and why
 
@@ -149,7 +149,7 @@ measured for 18.6, so this test used the existing iOS 17 rendering path.
 Networking was disabled for this run. Camera, audio and Metal were outside
 that first validation.
 
-### SE 3 GPU rendering
+## iOS 17.7 GPU rendering
 
 The cloudOS 26.1 GPU driver fails to load on iOS 17.7 because its IOGPU
 dependency lacks `_OBJC_IVAR_$_IOGPUMetalHeap._device`. The cloudOS 18.6
