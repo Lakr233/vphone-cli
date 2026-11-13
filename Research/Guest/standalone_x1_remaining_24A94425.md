@@ -59,9 +59,54 @@ frequency or severity.
 
 The dependency inspection found `usr/bin/swift-inspect` directly linking
 `usr/lib/swift/libswiftRemoteMirror.dylib`; this does not establish that ordinary
-Swift app startup loads it. Likewise, the `libobjcMsgSend34`–`48` entries and
-DriverKit debug libraries need actual loader/feature evidence before assigning
-an application-wide priority.
+Swift app startup loads it. DriverKit debug libraries also need actual
+loader/feature evidence before assigning an application-wide priority. The
+following case study distinguishes the standalone `libobjcMsgSend34`–`48`
+entries from the message-send images observed in a running app.
+
+## Why `libobjcMsgSend46` can remain in this inventory
+
+The file at `/System/Cryptexes/OS/usr/lib/objc/libobjcMsgSend46.dylib` is a real
+X1 image, not a false positive based on its name. Its UUID is
+`499B1C67-EA76-3662-A0C9-A5B6BA209758`; the 86,016-byte file has a complete plan
+for 27 instructions in one code-signature slot: 21 `addpt`, three `pacibsppc`
+and three `autibsppc`. Its install name is `/usr/lib/objc/libobjcMsgSend46.dylib`.
+
+A follow-up LLDB inspection of a development app on the same updated guest
+established the relevant distinction:
+
+- The process's image list contained `libobjcMsgSend.dylib` and numbered images
+  `1` through `33`. It contained none of `34` through `48`; an explicit lookup
+  of `libobjcMsgSend46.dylib` returned no matching module.
+- The inspected `libobjc.A.dylib` links to the unnumbered
+  `/usr/lib/objc/libobjcMsgSend.dylib`. The startup backtrace also entered that
+  image's `_objc_msgSend_uncached` function.
+- The unnumbered image's live Mach-O header carries `MH_DYLIB_IN_CACHE`.
+  Its instructions at image-relative offsets `0x838`, `0xCA0` and `0xD18`
+  were `add`, `pacibsp` and `autibsp`, respectively. The corresponding offsets
+  in the standalone `46` file still hold `addpt`, `pacibsppc` and `autibsppc`.
+
+The existing shared-cache bootstrap patch includes the unnumbered image and
+`libobjcMsgSend5.dylib`; the remaining-cache patch selects the other cache
+images. This is separate from the standalone-file audit. The measured startup
+therefore uses an already lowered shared-cache implementation while the
+unloaded standalone `46` file correctly remains `needsLowering`. This finding
+does not identify the numbering scheme or prove that another firmware or
+workflow can never load `46`.
+
+There is also a separate reason an on-disk candidate can coexist with a running
+process: `VPhoneX1Exception.c` handles eligible `EXC_BAD_INSTRUCTION` faults by
+lowering the instruction in a private copy of the process's memory page. It
+does not rewrite the file, so a later disk audit still finds the original
+instruction. No such repair of `46` was observed here, and this fallback is not
+needed to explain this case. Debuggers and crash reporters can intercept the
+fault before that handler, as the accessibility startup failure demonstrated.
+
+Keep the 15 standalone entries in the 1,019-image inventory. Promote one to
+required coverage only with its actual loading/execution evidence and the
+conversion, signing and runtime checks above. An unused file is not validated
+by successful app startup; neither is an executed file validated merely by
+the existence of the exception fallback.
 
 ## Reproducing and tracking changes
 
