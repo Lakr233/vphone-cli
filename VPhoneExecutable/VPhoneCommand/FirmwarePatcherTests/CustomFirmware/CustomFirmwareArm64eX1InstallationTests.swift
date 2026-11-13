@@ -6,7 +6,7 @@ import VPhoneCoreKit
 import VPhonePatchKit
 import VPhoneSign
 
-@Suite("Standalone debug-library X1 installation")
+@Suite("Standalone debug and accessibility X1 installation")
 struct CustomFirmwareArm64eX1InstallationTests {
     typealias Installation = CustomFirmwareArm64eX1Installation
     static let identifier = "system-libdispatch-cfw-arm64e_x1_introspection"
@@ -18,9 +18,9 @@ struct CustomFirmwareArm64eX1InstallationTests {
 
     /// Extend the lowering fixture with a real __LINKEDIT so the production
     /// signer, including identifier and entitlement preservation, is exercised.
-    static func library(subtype: UInt32 = 0x8000_000C, unvisited: Bool = false) -> Data {
+    static func library(subtype: UInt32 = 0x8000_000C, fileType: UInt32 = 6, unvisited: Bool = false) -> Data {
         var (data, hashOffset) = CustomFirmwareArm64eX1Tests.signedFixture()
-        data.replaceSubrange(8 ..< 24, with: ARM64.encodeU32(subtype) + ARM64.encodeU32(6)
+        data.replaceSubrange(8 ..< 24, with: ARM64.encodeU32(subtype) + ARM64.encodeU32(fileType)
             + ARM64.encodeU32(4) + ARM64.encodeU32(256))
         var segment = ARM64.encodeU32(0x19) + ARM64.encodeU32(72)
         segment += Data("__LINKEDIT".utf8) + Data(count: 6)
@@ -106,10 +106,11 @@ struct CustomFirmwareArm64eX1InstallationTests {
         #expect(try !fixture.system.exists(Self.path + ".bak"))
     }
 
-    @Test func `applying reapplying and disabling preserve the original and its entitlements`() throws {
+    @Test(arguments: [UInt32(6), 8])
+    func `applying reapplying and disabling preserve the original and its entitlements`(fileType: UInt32) throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
-        let source = Self.library()
+        let source = Self.library(fileType: fileType)
         try fixture.write(source)
         #expect(try fixture.update() == .applied)
         let patched = try fixture.system.readData(Self.path)
@@ -143,7 +144,7 @@ struct CustomFirmwareArm64eX1InstallationTests {
     }
 
     @Test func `incomplete and malformed images fail before guest writes`() throws {
-        for source in [Self.library(unvisited: true), Data("truncated".utf8),
+        for source in [Self.library(unvisited: true), Self.library(fileType: 8, unvisited: true), Data("truncated".utf8),
                        CustomFirmwareArm64eX1Tests.signedFixture().0] {
             let fixture = try Fixture()
             defer { fixture.remove() }
@@ -155,10 +156,11 @@ struct CustomFirmwareArm64eX1InstallationTests {
         }
     }
 
-    @Test func `failed bundle signing restores the executable backup and shared resource bytes`() throws {
+    @Test(arguments: [UInt32(6), 8])
+    func `failed bundle signing restores the executable backup and shared resource bytes`(fileType: UInt32) throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
-        let source = Self.library(), originalSeal = Data("original seal".utf8)
+        let source = Self.library(fileType: fileType), originalSeal = Data("original seal".utf8)
         try fixture.write(source)
         try fixture.write(originalSeal, at: Self.seal)
         try FileManager.default.linkItem(at: fixture.url.appendingPathComponent(Self.seal),

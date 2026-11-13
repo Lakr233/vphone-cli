@@ -107,6 +107,54 @@ public enum FirmwareGuestSystemPatchSet {
         ),
     ]
 
+    /// In-process accessibility plug-ins with standalone X1 images in 27.1.
+    /// HomePop keeps its existing declaration above. A cache-only or ordinary
+    /// arm64e image needs no write; inspect the installed bytes as for debug libraries.
+    public static let arm64eX1AccessibilityImages: [(identifier: String, path: String, bundle: String?)] = [
+        ("system-accessibilitysettingspopaccessibility-cfw-arm64e_x1", "AccessibilitySettingsPopAccessibility"),
+        ("system-accessibilityuiservicepopaccessibility-cfw-arm64e_x1", "AccessibilityUIServicePopAccessibility"),
+        ("system-accessibilityutilitiespopaccessibility-cfw-arm64e_x1", "AccessibilityUtilitiesPopAccessibility"),
+        ("system-activityachievementsui-cfw-arm64e_x1", "ActivityAchievementsUI"),
+        ("system-activitybridgesetup-cfw-arm64e_x1", "ActivityBridgeSetup"),
+        ("system-activityringsui-cfw-arm64e_x1", "ActivityRingsUI"),
+        ("system-activitysharing-cfw-arm64e_x1", "ActivitySharing"),
+        ("system-activitysharingui-cfw-arm64e_x1", "ActivitySharingUI"),
+        ("system-ambientsettingspopaccessibility-cfw-arm64e_x1", "AmbientSettingsPopAccessibility"),
+        ("system-assistivetouchpopaccessibility-cfw-arm64e_x1", "AssistiveTouchPopAccessibility"),
+        ("system-clarityboardpopaccessibility-cfw-arm64e_x1", "ClarityBoardPopAccessibility"),
+        ("system-fitnessapp-cfw-arm64e_x1", "FitnessApp"),
+        ("system-fitnessui-cfw-arm64e_x1", "FitnessUI"),
+        ("system-gaxspringboardserverpopaccessibility-cfw-arm64e_x1", "GAXSpringboardServerPopAccessibility"),
+        ("system-gaxuiserverpopaccessibility-cfw-arm64e_x1", "GAXUIServerPopAccessibility"),
+        ("system-livespeechuiservicepopaccessibility-cfw-arm64e_x1", "LiveSpeechUIServicePopAccessibility"),
+        ("system-magnifierangelpopaccessibility-cfw-arm64e_x1", "MagnifierAngelPopAccessibility"),
+        ("system-ntkcustomization-cfw-arm64e_x1", "NTKCustomization"),
+        ("system-ntkpride2026facebundle-cfw-arm64e_x1", "NTKPride2026FaceBundle"),
+        ("system-ntkultracubefacebundlecompanion-cfw-arm64e_x1", "NTKUltraCubeFaceBundleCompanion"),
+        ("system-nanomailbridgesettings-cfw-arm64e_x1", "NanoMailBridgeSettings"),
+        ("system-nanomediabridgeui-cfw-arm64e_x1", "NanoMediaBridgeUI"),
+        ("system-nanopeoplebridgesettings-cfw-arm64e_x1", "NanoPeopleBridgeSettings"),
+        ("system-nanotimekitcompanion-cfw-arm64e_x1", "NanoTimeKitCompanion"),
+        ("system-schooltimesettingsui-cfw-arm64e_x1", "SchoolTimeSettingsUI"),
+        ("system-speechrecognitioncommandandcontrolpopaccessibility-cfw-arm64e_x1", "SpeechRecognitionCommandAndControlPopAccessibility"),
+        ("system-springboardpopaccessibility-cfw-arm64e_x1", "SpringBoardPopAccessibility"),
+        ("system-springboardpopframework-cfw-arm64e_x1", "SpringBoardPopFramework"),
+        ("system-swiftuipopaccessibility-cfw-arm64e_x1", "SwiftUIPopAccessibility"),
+        ("system-systemstatusuipopaccessibility-cfw-arm64e_x1", "SystemStatusUIPopAccessibility"),
+        ("system-uikitpopaccessibility-cfw-arm64e_x1", "UIKitPopAccessibility"),
+        ("system-votaxuiservicepopaccessibility-cfw-arm64e_x1", "VOTAXUIServicePopAccessibility"),
+        ("system-voiceovertouchpopaccessibility-cfw-arm64e_x1", "VoiceOverTouchPopAccessibility"),
+        ("system-activity_widget-cfw-arm64e_x1", "activity-widget"),
+        ("system-com_apple_nanotimekit_createwatchface-cfw-arm64e_x1", "com.apple.NanoTimeKit.CreateWatchFace"),
+    ].map { image in
+        let bundle = "System/Library/AccessibilityBundles/" + image.1 + ".axbundle"
+        return (identifier: image.0, path: bundle + "/" + image.1, bundle: bundle)
+    }
+
+    /// Shared by installation and CLI lookup so declared optional images cannot
+    /// accidentally keep using the non-strict bootstrap conversion path.
+    public static let arm64eX1OptionalImages = arm64eX1DebugImages + arm64eX1AccessibilityImages
+
     public static let paravirtGPUIndexOffset = "system-paravirt_gpu-cfw-heap_index_offset"
     public static let paravirtGPUPrimitiveRestart = "system-paravirt_gpu-cfw-primitive_restart"
     public static let paravirtGPUCompilerCache = "system-paravirt_gpu-cfw-compiler_cache"
@@ -1258,6 +1306,13 @@ public enum FirmwareGuestSystemPatchSet {
                 identifier: image.identifier,
                 title: "\((image.path as NSString).lastPathComponent) X1 compatibility",
                 summary: "Lowers unsupported X1 instructions in this standalone debug library before a debugger can intercept their faults. Missing images and images needing no conversion keep their original bytes and signature.",
+                target: .guestFile(path: "/" + image.path),
+            )
+        } + arm64eX1AccessibilityImages.map { image in
+            VPhonePatchDeclaration(
+                identifier: image.identifier,
+                title: "\((image.path as NSString).lastPathComponent) X1 compatibility",
+                summary: "Lowers unsupported X1 instructions in this standalone accessibility plug-in before UIKit loads it into an app. Missing images and images needing no conversion keep their original bytes and signature.",
                 target: .guestFile(path: "/" + image.path),
             )
         },

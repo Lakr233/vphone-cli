@@ -687,6 +687,22 @@
 > reached, because the manager's construction needs haptics hardware a
 > VM does not have). See the full section below.
 
+> **Standalone accessibility X1 coverage and audit (2026-11-13):**
+> The existing HomePop and debug-library patches do not cover the separate
+> `UIKitPopAccessibility` image. On iOS 27.1 `24A94425`, a development app
+> faulted in `+[AXUIKitPopGlue initialize]` on `pacibsppc`; crash handling then
+> preceded a scene watchdog. The guest system patch set now declares the other
+> 35 standalone X1 `.axbundle` images in this userland, including UIKit and
+> SwiftUI, and uses complete, reversible lowering with the existing installer.
+> Ordinary and missing images remain unchanged; unvalidated OS presets stay
+> excluded. Native signing, repeat conversion, backups and app startup with
+> accessibility enabled were checked. The read-only `cfw audit-arm64e-x1`
+> command discovers native and universal images independently of their names;
+> `--strict` rejects remaining instructions, incomplete plans and scan errors.
+> The same firmware still has 1,012 unlisted images with complete plans and
+> seven incomplete images. See the [coverage study](Guest/accessibility_library_x1.md)
+> and [complete remaining inventory](Guest/standalone_x1_remaining_24A94425.md).
+
 > **CIBarcode standalone X1 lowering (2026-10-29, local validation):**
 > `system-cibarcode-cfw-arm64e_x1` applies the existing static X1 planner to
 > `/System/Library/CoreImage/CIBarcode.cifilter/CIBarcode`, outside the shared

@@ -165,7 +165,10 @@ installation and selection suites passed all 11 tests. `VPhoneCommand` also
 built for the offline checks; that host build used the existing local
 limera1n-removal overlay for the unrelated restore backend, not included here.
 
-The failure was observed on a running guest. Post-patch app launch under LLDB
-and the full set of view, GPU, XCTest and sanitizer workflows still need guest
-validation. No Apple binaries, application binaries or private crash captures
-are included in this contribution.
+The failure was observed on a running guest. Subsequent app startup validation
+on 2026-11-13 found a separate UIKit accessibility image missing from this
+inventory. After the [accessibility additions](accessibility_library_x1.md),
+both ordinary and LLDB startup passed with accessibility enabled, including
+live instruction and backup verification. The full set of view, GPU, XCTest
+and sanitizer workflows still needs guest validation. No Apple binaries,
+application binaries or private crash captures are included in this contribution.

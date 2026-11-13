@@ -1570,10 +1570,11 @@ struct VPhoneCustomFirmwareInstaller {
             )
         }
 
-        // Debuggers can receive these standalone libraries' X1 faults before
-        // the inherited translator. Inspect the actual image after cryptex
-        // installation; older arm64e libraries must not be backed up or re-signed.
-        for image in FirmwareGuestSystemPatchSet.arm64eX1DebugImages {
+        // Debuggers and app crash reporters can receive standalone debug and
+        // accessibility images' X1 faults before the inherited translator.
+        // Inspect the actual image after cryptex installation; older arm64e
+        // libraries must not be backed up or re-signed.
+        for image in FirmwareGuestSystemPatchSet.arm64eX1OptionalImages {
             let enabled = plan == nil ? guestDevice.family == .iPhone : on(image.identifier)
             do {
                 let outcome = try CustomFirmwareArm64eX1Installation.update(
