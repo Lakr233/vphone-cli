@@ -1864,6 +1864,14 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 > never rewrite the booted TXM (`fw set-patches`: "LLB, TXM, DeviceTree: only a
 > restore"), so an in-place `fw patch` + `cfw install` keeps the old TXM.
 
+### SPTM
+
+| #   | Patch                                             | Purpose                                   | Regular | Dev | JB  |
+| --- | ------------------------------------------------- | ----------------------------------------- | :-----: | :-: | :-: |
+| 1   | `sptm-boot-secondary_cpu_throttle_tunable` (cloudOS 18 only) | `b.eq` -> `nop` in the secondary CPU reset path: skip the core throttle tunable no vCPU has | Y | Y | Y |
+
+See "SPTM's secondary CPU tunable stops a multi-vCPU cloudOS 18 guest" below.
+
 ## Kernelcache
 
 ### Base Patches (All Variants)
@@ -7426,3 +7434,97 @@ guest has none (the note has the disassembly).
 iOS 27 does not boot in environment 6: dyld cannot mount the OS cryptex and
 launchd panics on libSystem (27.0.1 with cloudOS 26.4, 2026-11-12). `fw prepare`
 and the patcher refuse the box for iOS 27 and later (`trustedDarwinOSRefusal`).
+
+## SPTM's secondary CPU tunable stops a multi-vCPU cloudOS 18 guest (2026-11-12)
+
+A cloudOS 18 guest with more than one vCPU stops the whole virtual machine on
+macOS 27.2.1 (26B131, Virtualization.framework 308.2.7): "The virtual machine
+stopped unexpectedly", once the kernel starts its second CPU. It happens in
+the DFU restore and in a normal boot, with 2, 4 and 8 vCPUs; one vCPU boots.
+Issue #901 is the same stop in the temporary cloudOS restore `fw prepare` runs
+for the GPU driver, which has used one vCPU since.
+
+### Cause
+
+`com.apple.Virtualization.VirtualMachine` traps (`EXC_BREAKPOINT`, `brk 1`) on
+a `com.apple.virtualization.thread.cpu-N` thread, N > 0, after logging
+"Unhandled exception code 0x%x". Read with lldb on that thread at the log call
+(iPhone11,6 18.5 22F76 on cloudOS 18.5 22F76, two vCPUs):
+
+| Register | Value | Meaning |
+| --- | --- | --- |
+| exit syndrome | `0x82000007` | EC `0x20`, instruction abort from a lower EL, translation fault |
+| guest PC | `0x200` | the synchronous exception vector of a `VBAR_EL1` of 0 |
+| `VBAR_EL1` | `0` | not set yet |
+| `SCTLR_EL1` | `0x30800180` | MMU off |
+| `ELR_EL1` | `0x749b7494` | the instruction that faulted first |
+| `ESR_EL1` | `0x97c48010` | EC `0x25`, data abort at the same EL, synchronous external abort, 64-bit read into `x4` |
+| `FAR_EL1` | `0x218` | |
+| `x2`, `x3`, `x6` | `0`, `0x218`, `0x610f0000` | base, offset, `MIDR_EL1` |
+
+`ELR_EL1` is `0xfffffff027083494` in `sptm.vresearch1.release` (page offset
+`0x3494`, and `x1` is in its `__DATA`), in the path a CPU other than the boot
+CPU enters at reset:
+
+```
+fffffff027083414  mrs  x15, MPIDR_EL1        ; find this CPU's data, x1
+...
+fffffff02708346c  mrs  x6, MIDR_EL1
+fffffff027083470  and  x2, x6, #0xfff0       ; part number
+fffffff027083474  cmp  x2, #0
+fffffff027083478  b.eq 0xfffffff027083480    ; <- patched to nop
+fffffff02708347c  b    0xfffffff0270834ac
+fffffff027083480  ldr  x2, [x1, #0xc90]
+fffffff027083484  movk x3, #0, lsl #48 ... movk x3, #0x218
+fffffff027083494  ldr  x4, [x2, x3]          ; faults
+fffffff027083498  and  x4, x4, #0xffffffffffffff
+fffffff02708349c  mov  x5, #0xb2
+fffffff0270834a0  lsl  x5, x5, #56
+fffffff0270834a4  orr  x4, x4, x5
+fffffff0270834a8  str  x4, [x2, x3]
+fffffff0270834ac  adrp x20, ...              ; then msr VBAR_EL1, x0
+```
+
+Offset `0x218` with the top byte as the field is XNU's `CORE_THRTL_CFG2`
+(`CORE_THRTL_CFG2_OFFSET`, `c1pptThrtlRate` at bit 56,
+`pexpert/pexpert/arm64/apple_arm64_regs.h`): a core throttle tunable applied
+through the CPU's implementation-defined register block. The SPTM build takes
+the block for a `MIDR_EL1` part number of 0, which is what a
+Virtualization.framework vCPU reports (`0x610f0000`), and the register base in
+the CPU's data is 0 on a VM. No store with that displacement exists in the
+image. The read of physical `0x218` gets an external abort, the CPU vectors
+to `0x200` with no vector table, and Virtualization.framework has no handler
+for the instruction abort that follows. The boot CPU never takes this path.
+
+cloudOS 26.1's SPTM (23B78) reads `MIDR_EL1` once in its reset path, after it
+has set `VBAR_EL1`, and has no such block.
+
+### Patch
+
+`sptm-boot-secondary_cpu_throttle_tunable` (`SPTMSecondaryCPUPatcher`), in the
+boot chain set, gated to cloudOS 18 and boot-essential: the `b.eq` becomes a
+`nop`, so every CPU takes the `b` that skips the tunable. `minimal` and
+`watchos` select it, as they do iBEC's and LLB's patches. SPTM is a firmware
+component of its own (`VPhoneFirmwareComponent.sptm`), delivered by the
+restore; on any other cloudOS no SPTM component is built.
+
+Reveal procedure, all on decoded operands in `__TEXT_EXEC,__text`:
+
+1. `mrs <r>, MIDR_EL1`, then `and <t>, <r>, #0xfff0`, then `cmp <t>, #0`.
+2. `b.eq` whose target is the instruction after the `b` that follows it.
+3. Between that target and the `b`'s target, an `ldr` and a `str` through the
+   same base and index registers.
+
+Exactly one site must match; none means an SPTM without the tunable or one
+patched before, and nothing is written.
+
+Validation: `SPTMSecondaryCPUTests`, then an 18.x guest restored with the
+patch and booted with more than one vCPU. Checked 2026-11-12 on macOS 27.2.1:
+iPhone11,6 18.5 (22F76) on cloudOS 18.5, `minimal`, four vCPUs, restored and
+booted to vphoned, all four vCPU threads running; before the patch the same
+machine stopped with 2, 4 and 8. An SPTM rebuilt without its `PAYP` segment
+properties (`kcrf`, `kcwf`, `kcxf` and their sizes) makes iBoot panic before it
+starts the kernel, so `IM4PHandler` keeps them. Not known: whether a host before
+macOS 27.2 stops the same way. cloudOS 18.5 (22F76) and 18.6 (22G86) each
+match one site, 26.1 (23B85) and 26.4 (23E5207q) none; the other 18.x SPTMs
+were not read.

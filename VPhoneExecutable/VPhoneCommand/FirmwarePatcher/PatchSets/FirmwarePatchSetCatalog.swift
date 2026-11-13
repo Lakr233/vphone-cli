@@ -428,7 +428,8 @@ public enum FirmwarePatchSetCatalog {
     /// once (iOS 26.6.2 23G90 on cloudOS 26.4 23E5207q and watchOS 26.4 23T240
     /// on cloudOS 26.4 23E244, 2026-11-03), even with every BuildManifest
     /// digest rehashed; with these patches both boot at 4096 MB. AVPBooter,
-    /// iBSS, TXM and the restore ramdisk stay stock.
+    /// iBSS, TXM and the restore ramdisk stay stock. SPTM takes one patch, on
+    /// cloudOS 18 only: without it a second vCPU stops the virtual machine.
     public static let minimalBootChainPatches: Set<String> = [
         "ibec-cfw-serial_label",
         "ibec-boot-image4_callback",
@@ -440,6 +441,7 @@ public enum FirmwarePatchSetCatalog {
         "llb-boot-rootfs",
         "llb-boot-panic_bypass",
         "llb-cfw-display_scale",
+        SPTMSecondaryCPUPatcher.patchIdentifier,
     ]
 
     /// A guest on a stock kernel and TXM, with only iBEC and LLB patched

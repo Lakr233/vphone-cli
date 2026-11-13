@@ -259,6 +259,26 @@ extension FirmwarePipeline {
             }(),
         ))
 
+        // 5b. SPTM — patched on cloudOS 18 only, whose secondary CPU reset path
+        //     touches a register no vCPU has (SPTMSecondaryCPUPatcher). Later
+        //     releases restore it as Apple ships it and build no component.
+        if cloudOSProductVersion?.major == 18 {
+            let sptmPatch = SPTMSecondaryCPUPatcher.patchIdentifier
+            let sptmPath = (try? Self.manifestComponentPath("Ap,RestoreSecurePageTableMonitor", in: restoreDir))
+                ?? "Firmware/sptm.vresearch1.release.im4p"
+            components.append(ComponentDescriptor(
+                name: VPhoneFirmwareComponent.sptm.rawValue,
+                inRestoreDir: true,
+                searchPatterns: [sptmPath],
+                patcherFactories: includeBootChain && isEnabled(sptmPatch, fallback: true)
+                    && !notApplicablePatches.contains(sptmPatch) ? [{ data, verbose in
+                        let p = SPTMSecondaryCPUPatcher(data: data, verbose: verbose)
+                        p.gate = gate
+                        return p
+                    }] : [],
+            ))
+        }
+
         // 6. Restore ramdisk and trust cache
         let sealPatch = RestoreRamDiskSealPatcher.patchIdentifier
         let includeSealPatch = includeBootChain

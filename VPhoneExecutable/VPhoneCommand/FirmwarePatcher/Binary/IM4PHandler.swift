@@ -7,7 +7,7 @@ import Img4tool
 public enum IM4PHandler {
     /// Their `PAYP` properties (`arms`/`tz0s` for the SEP) describe how the
     /// image is loaded, so a rebuilt container keeps them.
-    private static let paypPreservingFourCCs: Set<String> = ["trxm", "krnl", "sepi"]
+    private static let paypPreservingFourCCs: Set<String> = ["trxm", "sptm", "krnl", "sepi"]
     /// Written back LZFSE-compressed: the image the boot ROM decodes itself.
     static let lzfseFourCCs: Set<String> = ["ibss"]
 

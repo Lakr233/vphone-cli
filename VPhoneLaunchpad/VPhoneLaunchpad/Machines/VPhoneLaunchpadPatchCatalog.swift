@@ -90,7 +90,7 @@ nonisolated struct VPhoneLaunchpadPatchCatalog: Decodable, Sendable {
         }
 
         private static let bootChainParts: Set<String> = [
-            "AVPBooter", "iBSS", "iBEC", "LLB", "TXM", "kernelcache", "DeviceTree", "SEP", "Filesystem", "Manifest",
+            "AVPBooter", "iBSS", "iBEC", "LLB", "TXM", "SPTM", "kernelcache", "DeviceTree", "SEP", "Filesystem", "Manifest",
         ]
 
         /// False when the patch applies to every version, which is not worth a

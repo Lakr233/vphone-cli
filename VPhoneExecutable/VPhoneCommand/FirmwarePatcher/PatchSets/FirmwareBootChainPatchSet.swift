@@ -171,6 +171,17 @@ public enum FirmwareBootChainPatchSet {
                 bootEssential: true,
             ),
 
+            // MARK: SPTM
+
+            VPhonePatchDeclaration(
+                identifier: SPTMSecondaryCPUPatcher.patchIdentifier,
+                title: "SPTM secondary CPU tunable",
+                summary: "Skips the core throttle tunable cloudOS 18's SPTM applies when a second CPU starts. No vCPU has that register, and the access stops the virtual machine, so without it the guest runs on one vCPU only.",
+                target: .firmware(.sptm),
+                applicability: VPhonePatchApplicability(cloudOS: .major(18)),
+                bootEssential: true,
+            ),
+
             // MARK: Restore environment
 
             VPhonePatchDeclaration(
