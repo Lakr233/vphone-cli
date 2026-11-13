@@ -171,3 +171,15 @@ A Metal probe read back a 4096-byte blit fill, 1024 compute results, and
 gallery displayed thumbnails and opened the Astronomy editor. The existing
 wallpaper selection still rendered black, and the Astronomy preview showed
 artifacts.
+
+On iPhone 15 (D37AP), a fresh restore and cold boot also rendered App Library's
+blurred backdrop and translucent search field. The Metal probe passed the same
+blit, compute and render readbacks at 3× display scale. The stock iOS 17
+wallpaper (CollectionsPoster identifier `7565`) remained black in the active
+lock screen and the editor. Its 393×852-point layered animation and HEIC
+resources were present. In the editor, CollectionsPoster loaded bundle
+`7565` and configured its layers, then ImageIO logged `CGImageBlockCreate
+… data is NULL` and `decodeImageImp failed - NULL _blockArray`, including
+at the stock background's 1700×1300 dimensions. This identifies a failure
+to produce decoded pixel data in the wallpaper extension. The reason that
+ImageIO returns no data remains unconfirmed.
