@@ -148,6 +148,16 @@ each corresponding system feature has crashed. In particular, the inherited
 exception translator can handle paths that a debugger or crash reporter may
 intercept first.
 
+The [remaining inventory](standalone_x1_remaining_24A94425.md) now annotates
+cache relationships separately from lowering state. Comparison with all 4,702
+installed cache images identifies four matching builds, one different-build
+ASan variant, 15 message-send-family entries and 999 images without a matching
+cache entry. The matching cache-extracted builds have no remaining X1
+candidates; the standalone copies retain their original audit results. The
+same report records 10 P1 conversion-validation candidates and eight P2
+feature/service checks, with concrete dependencies or plug-in metadata and
+explicit runtime-validation limits. These annotations do not select new patches.
+
 The incomplete images must not be reported as clean or patched by a byte sweep:
 
 | Image | Unvisited candidates |
