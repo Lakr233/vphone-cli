@@ -97,9 +97,12 @@ enum VPhoneFirmwarePreparer {
             device: productType,
             downloadConnections: downloadConnections,
         )
-        if phone.version.hasPrefix("17."),
-           !(phone.version == "17.7" && device.productType == "iPhone15,4" && cloud.version == "26.1") {
-            throw ValidationError("Experimental iOS 17 bring-up is limited to iPhone15,4 17.7 with cloudOS 26.1. Other pairings have not been validated.")
+        if phone.version.hasPrefix("17.") {
+            let iPhone15 = device == .iPhone15_4
+            let se3 = device == .iPhone14_6 && phone.build == "21H16" && cloud.build == "23B85"
+            guard phone.version == "17.7", cloud.version == "26.1", iPhone15 || se3 else {
+                throw ValidationError("Experimental iOS 17 bring-up supports iPhone15,4 17.7 with cloudOS 26.1 and iPhone14,6 17.7 (21H16) with cloudOS 26.1 (23B85).")
+            }
         }
         if phone.version.hasPrefix("16."),
            !(phone.version == "16.6.1" && device.productType == "iPhone15,2" && cloud.version == "26.1") {
