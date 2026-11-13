@@ -73,14 +73,8 @@ struct ControlTests {
         let usage = try require(VPhoneLaunchpadControlCommand.named("vm.create")).usage
         precondition(usage.contains("[--block <value>]...") && usage.contains("[--allow <value>]..."), usage)
 
-        // The ssh builder is named on the command line; its password never is.
-        let (builder, _) = try parse(["vm", "create", "xs", "--ipsw", "/x/ipsw", "--kmutil-ssh", "test@192.168.64.24"])
-        precondition(builder.option("kmutil-ssh") == "test@192.168.64.24", "Builder: \(builder)")
-        precondition(
-            failure(["vm", "create", "xs", "--\(VPhoneLaunchpadControlRequest.kmutilSSHPasswordOption)", "pw"])?.message
-                == "unknown option --\(VPhoneLaunchpadControlRequest.kmutilSSHPasswordOption).",
-            "No password option",
-        )
+        // The ssh builder of bundles up to 2.17 is gone.
+        precondition(failure(["vm", "create", "xs", "--kmutil-ssh", "test@host"])?.message == "unknown option --kmutil-ssh.", "No ssh builder")
     }
 
     /// A request from a CLI without repeated options still decodes, and
