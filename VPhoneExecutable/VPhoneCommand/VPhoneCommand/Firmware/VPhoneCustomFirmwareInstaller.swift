@@ -404,6 +404,12 @@ struct VPhoneCustomFirmwareInstaller {
         ]), !cloned {
             throw ValidationError("GPU compiler cache versioning needs a private APFS disk clone so the compiler and its cache identity update together; the original disk was left untouched.")
         }
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.ios17Wallpaper)
+            || receiptGuest?.contains(FirmwareGuestSystemPatchSet.ios17Wallpaper) == true {
+            guard cloned else {
+                throw ValidationError("The iOS 17 wallpaper update needs a private APFS disk clone.")
+            }
+        }
         if device.usesTVOS {
             // A paired dyld edit must never fall back to mutating the live disk.
             // Its errors propagate below, so this clone is committed only after
@@ -1404,6 +1410,7 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.glesUpperLeft
                     && identifier != FirmwareGuestSystemPatchSet.glesDepthClip
                     && identifier != FirmwareGuestSystemPatchSet.ios18GPUTransport
+                    && identifier != FirmwareGuestSystemPatchSet.ios17Wallpaper
                     && identifier != FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
                     && identifier != FirmwareGuestSystemPatchSet.visionOSSkipBuddy
                     && identifier != FirmwareGuestSystemPatchSet.visionOSEnvironments
@@ -1505,6 +1512,17 @@ struct VPhoneCustomFirmwareInstaller {
             try installCryptexes(restore: restore, system: system, work: work, owner: owner, replaceExisting: strict)
         }
         let version = try productVersion(system: system)
+        let wallpaper = FirmwareGuestSystemPatchSet.ios17Wallpaper
+        if version == "17.7" {
+            let enabled = on(wallpaper)
+            if enabled || priorGuest.contains(wallpaper) {
+                let count = try VPhoneIOS17WallpaperAssets.update(system: system, enabled: enabled)
+                if enabled && count > 0 {
+                    live.insert(wallpaper)
+                    print("  [+] \(wallpaper): \(count) original wallpaper layers prepared")
+                }
+            }
+        }
 
         func requireX1Bootstrap() throws {
             let required: Set<String> = [
