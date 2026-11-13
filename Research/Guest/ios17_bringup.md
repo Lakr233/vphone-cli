@@ -114,3 +114,27 @@ cold-booting again returned to the Home Screen.
 
 Automated validation and a separate integrated clean-restore result are recorded
 in the PR description, with prototype observations distinguished from that run.
+
+## SE 3 evidence and limits
+
+On 2026-11-13 a fresh standalone VM completed DFU restore, CFW installation,
+first-boot migration and setup. After setting the three CoreAnimation defaults,
+it completed an explicit stop and start with a new boot-session UUID. vphoned
+answered after five seconds and reported iPhone14,6, iOS 17.7.0 and 375×667
+points at scale 2. The Home Screen and Dock rendered at 750×1334. Taps
+opened Calendar and dismissed its welcome sheet to show the day view. The
+virtual Home button returned to the Home Screen.
+
+The restore logs show Home button type 2 in the restore tree, type 1 in the
+installed tree and LLB scale 2. CFW installed the existing SpringBoard weak
+load and applied both the SwapEnd resize (0x508 to 0x560) and the seputil
+gigalocker name change. The release pairing required only a preparation
+validation change. The bundle build, 43 device and catalog tests, and an
+explicit refusal of the SE 3 IPSW with cloudOS 26.4 passed.
+
+Settings twice timed out while creating its scene, including after a cold
+start. The first watchdog report shows a wait on iconservices, and an
+iconservicesagent report records a crash in `CI::GLContext::init()`. The
+wallpaper remained black, and both widgets displayed placeholders.
+Networking was disabled for this run. Camera, audio and Metal remain
+unverified.
