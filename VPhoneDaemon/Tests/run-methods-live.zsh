@@ -28,6 +28,8 @@
 #   with VPHONE_LIVE_UNFORCED_CHECK=1 they run one unforced system.reboot refusal check instead.
 # Unforced calls to force methods: a guest-closed reply (HTTP 000, or the proxy's 502 `guest_closed`) is retried
 #   once and prints `RETRY <method> <params>: guest closed without a reply`; a second one halts with LEAK.
+# Input observe (checks numbered 9): unlocks the guest, launches Settings (apps.launch), taps its status bar in
+#   Settings, presses a letter key and the home button.
 # Output: `PASS <check>` or `FAIL <check>: expected <x> got <y>` per check, then
 #   live: <n> checks, <f> failures
 #   TOTAL_FAILS=<f>
@@ -613,6 +615,70 @@ case $r in
     *) [ "$r" = '[true,true]' ] && chk "network.resolve failure message and error" ok || chk "network.resolve failure message and error" bad '[true,true]' "$r" ;;
 esac
 qc "script.eval failure message and error" script.eval '{"source":"("}' '.result | [has("message"), .error == .message] | tojson' '[true,true]'
+# --- input observe --------------------
+# Launches Settings (the Home Screen has no verifiable frontmost app, so ui.tree fails there). Mutating: taps the Settings status bar, presses
+# keys and the home button. A failed step prints FAIL, never a silent skip.
+# ob <jq-filter> <reply>: the filter applied to the reply's result object (empty when absent).
+ob() { print -r -- "$2" | J -c "(.result // .) | $1"; }
+OT='{"method":"ui.tree","params":{"visible_only":true,"max_elements":500}}'
+rpc '{"method":"input.button","params":{"name":"home"}}' >/dev/null; sleep 2
+# A freshly booted guest is locked and refuses to unlock for up to ~60 s; retry for up to 100 s.
+for _ in $(seq 20); do [ "$(ob '.locked' "$(rpc '{"method":"screen.unlock"}')")" = false ] && break; sleep 5; done
+rpc '{"method":"apps.launch","params":{"bundle_id":"com.apple.Preferences"}}' >/dev/null
+tc0=
+for _ in 1 2 3 4 5 6 7 8 9 10; do sleep 2; tc0=$(ob '.count' "$(rpc "$OT")"); case $tc0 in ''|*[!0-9]*|0) ;; *) break ;; esac; done
+sx=196; sy=60
+case $tc0 in ''|*[!0-9]*|0) chk "9 Settings ui.tree has elements" bad "an integer > 0" "${tc0:-none}" ;; *) chk "9 Settings ui.tree has elements" ok ;; esac
+# The tap is a harmless status-bar tap in Settings.
+# without observe a tap returns exactly {x, y}.
+r=$(rpc "{\"method\":\"input.tap\",\"params\":{\"x\":$sx,\"y\":$sy}}")
+z=$(ob 'keys | sort' "$r")
+[ "$z" = '["x","y"]' ] && chk "9 input.tap without observe returns exactly x,y" ok || chk "9 input.tap without observe returns exactly x,y" bad '["x","y"]' "${z:-no reply}"
+sleep 1
+# observed tap on Settings keeps x,y and adds observed.
+r=$(rpc "{\"method\":\"input.tap\",\"params\":{\"x\":$sx,\"y\":$sy,\"observe\":true}}")
+[ "$(ob 'keys | sort' "$r")" = '["observed","x","y"]' ] && chk "9 input.tap observe keeps x,y and adds observed" ok || chk "9 input.tap observe keeps x,y and adds observed" bad '["observed","x","y"]' "$(ob 'keys | sort' "$r")"
+z=$(ob '.observed.frontmost_bundle_id' "$r")
+[ "$z" = '"com.apple.Preferences"' ] && chk "9 observed.frontmost_bundle_id is com.apple.Preferences" ok || chk "9 observed.frontmost_bundle_id is com.apple.Preferences" bad '"com.apple.Preferences"' "${z:-none}"
+z=$(ob '.observed.frontmost_verified' "$r")
+[ "$z" = true ] && chk "9 observed.frontmost_verified is true" ok || chk "9 observed.frontmost_verified is true" bad true "${z:-none}"
+oc=$(ob '.observed.ui_element_count' "$r")
+case $oc in ''|*[!0-9]*|0) chk "9 observed.ui_element_count > 0" bad "an integer > 0" "${oc:-none}" ;; *) chk "9 observed.ui_element_count > 0" ok ;; esac
+# a ui.tree call just after reports the same count.
+tc=$(ob '.count' "$(rpc "$OT")")
+[ -n "$oc" ] && [ "$oc" = "$tc" ] && chk "9 observed.ui_element_count equals ui.tree count" ok || chk "9 observed.ui_element_count equals ui.tree count" bad "$oc" "${tc:-none}"
+# input.key with and without observe (a letter key: harmless on any screen).
+r=$(rpc '{"method":"input.key","params":{"name":"a"}}')
+z=$(ob 'keys | sort' "$r")
+[ "$z" = '["dispatched","key"]' ] && chk "9 input.key without observe has no observed" ok || chk "9 input.key without observe has no observed" bad '["dispatched","key"]' "${z:-no reply}"
+r=$(rpc '{"method":"input.key","params":{"name":"a","observe":true}}')
+z=$(ob 'keys | sort' "$r")
+[ "$z" = '["dispatched","key","observed"]' ] && chk "9 input.key observe adds observed" ok || chk "9 input.key observe adds observed" bad '["dispatched","key","observed"]' "${z:-no reply}"
+z=$(ob '.observed | (.frontmost_bundle_id | type) + " " + (.frontmost_verified | type) + " " + (.ui_element_count | type)' "$r")
+[ "$z" = '"string boolean number"' ] && chk "9 input.key observed field types" ok || chk "9 input.key observed field types" bad '"string boolean number"' "${z:-none}"
+# a failed action returns its own error and no observed.
+r=$(rpc '{"method":"input.key","params":{"name":"no-such-key"}}'); e1=$(strs "$r")
+r=$(rpc '{"method":"input.key","params":{"name":"no-such-key","observe":true}}'); e2=$(strs "$r")
+z=$(print -r -- "$r" | J '[.. | objects | select(has("observed"))] | length')
+if [ -n "$e2" ] && [ "$e1" = "$e2" ] && [ "$z" = 0 ]; then chk "9 input.key invalid name with observe: same error, no observed" ok
+else chk "9 input.key invalid name with observe: same error, no observed" bad "the unobserved error and no observed" "plain='$e1' observe='$e2' observed=${z:-?}"; fi
+# delay 5001 is refused before the action runs: the home button must not run, so the screen is unchanged.
+b=$(ob '.count' "$(rpc "$OT")")
+r=$(rpc '{"method":"input.button","params":{"name":"home","observe":true,"observe_delay_ms":5001}}')
+strs "$r" | grep -qxF 'observe_delay_ms must be an integer from 0 to 5000' && chk "9 observe_delay_ms 5001 is invalid-request" ok || chk "9 observe_delay_ms 5001 is invalid-request" bad "observe_delay_ms must be an integer from 0 to 5000" "$(strs "$r")"
+sleep 1; a=$(ob '.count' "$(rpc "$OT")")
+[ -n "$b" ] && [ "$b" = "$a" ] && chk "9 delay 5001 leaves the screen unchanged" ok || chk "9 delay 5001 leaves the screen unchanged" bad "$b" "${a:-none}"
+# observe passes the unknown-param check; any other undeclared param is still refused before the action.
+r=$(rpc '{"method":"input.button","params":{"name":"home","observe":true,"bogus":1}}')
+z=$(print -r -- "$r" | J -r '[.error.code, .error.message] | join(" ")')
+[ "$z" = 'invalid_param Unknown param: bogus' ] && chk "9 input.button observe with a bogus param is Unknown param: bogus" ok || chk "9 input.button observe with a bogus param is Unknown param: bogus" bad 'invalid_param Unknown param: bogus' "${z:-none}"
+rpc '{"method":"input.button","params":{"name":"home"}}' >/dev/null
+# Catalog: exactly the 15 input.* methods, each declaring observe, observe_delay_ms and the observed result key.
+rc=$(rpc '{"method":"methods.list"}')
+n=$(print -r -- "$rc" | J -r "$L"' | [.[] | select(.name | startswith("input."))] | length')
+z=$(print -r -- "$rc" | J -r "$L"' | [.[] | select(.name | startswith("input.")) | select(([.params[].name] | index("observe")) != null and ([.params[].name] | index("observe_delay_ms")) != null and ([.result[].name] | index("observed")) != null) | .name | ltrimstr("input.")] | sort | join(",")')
+want=button,double_tap,drag,hid,key,long_press,paste,pointer,scroll,swipe,tap,touch,touch2,touch_sequence,type
+[ "$n" = 15 ] && [ "$z" = "$want" ] && chk "9 methods.list has 15 input.* methods with observe, observe_delay_ms, observed" ok || chk "9 methods.list has 15 input.* methods with observe, observe_delay_ms, observed" bad "15 input.* methods: $want" "n=${n:-none} with=${z:-none}"
 
 # --- schema comparison of every read-class method ---------------------------
 schema_section

@@ -145,7 +145,7 @@ enum GuestAPI {
     }
 
     static func execute(method: String, params: [String: Any]) throws -> [String: Any] {
-        try GuestMethodArea.dispatch(areas, method: method, params: params)
+        try GuestMethodArea.dispatch(areas, method: method, params: params, observer: { try liveObservation() })
     }
 
     /// `screen.screenshot`. Without options the capture is base64-encoded as it

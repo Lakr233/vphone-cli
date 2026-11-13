@@ -53,6 +53,9 @@ enum LogicTests {
         settingsValue()
         screenshotSizing()
         methodDispatch()
+        observeWrapper()
+        observeUnknownParams()
+        observeCatalog()
         print("\(checks) checks, \(failures) failures")
         exit(failures == 0 ? 0 : 1)
     }
@@ -178,7 +181,7 @@ enum LogicTests {
     static func dispatchPaged(_ method: PagingProbe, _ result: [String: Any], _ params: String = "{}") throws -> [String: Any] {
         let decoded = (try? JSONSerialization.jsonObject(with: Data(params.utf8)) as? [String: Any]) ?? [:]
         let area = GuestMethodArea.make(PagingProbe.self) { _, _ in result }
-        return try GuestMethodArea.dispatch([area], method: method.rawValue, params: decoded)
+        return try GuestMethodArea.dispatch([area], method: method.rawValue, params: decoded, observer: { nil })
     }
 
     static func paging() {
@@ -1406,7 +1409,7 @@ enum LogicTests {
             GuestMethodArea.make(FixtureMethod.self) { _, params in params },
         ]
         func call(_ params: [String: Any]) -> [String: Any]? {
-            try? GuestMethodArea.dispatch(table, method: "methods.list", params: params)
+            try? GuestMethodArea.dispatch(table, method: "methods.list", params: params, observer: { nil })
         }
         let answer = call([:])
         let names = (answer?["methods"] as? [[String: Any]] ?? []).compactMap { $0["name"] as? String }
@@ -1420,11 +1423,11 @@ enum LogicTests {
             var all: [String: Any] = ["force": true]
             for param in entry["params"] as? [[String: Any]] ?? [] { all[param["name"] as? String ?? ""] = "x" }
             var rejected = false
-            do { _ = try GuestMethodArea.dispatch(table, method: name, params: all) } catch { rejected = String(describing: error).hasPrefix("Unknown param") }
+            do { _ = try GuestMethodArea.dispatch(table, method: name, params: all, observer: { nil }) } catch { rejected = String(describing: error).hasPrefix("Unknown param") }
             expect(!rejected, "\(name): every listed param is admitted")
         }
         var unknown = ""
-        do { _ = try GuestMethodArea.dispatch(table, method: "nope.nothing", params: [:]) } catch { unknown = String(describing: error) }
+        do { _ = try GuestMethodArea.dispatch(table, method: "nope.nothing", params: [:], observer: { nil }) } catch { unknown = String(describing: error) }
         expectEqual(unknown, "Unknown method: nope.nothing", "no area answering is an unknown method")
     }
 
@@ -1526,7 +1529,7 @@ enum LogicTests {
 
         // Unknown method: hint only with a near method
         func unknownMethod(_ name: String) -> [String: Any] {
-            do { _ = try GuestMethodArea.dispatch([area], method: name, params: [:]) } catch let error as GuestAPIError { return wire(error) } catch {}
+            do { _ = try GuestMethodArea.dispatch([area], method: name, params: [:], observer: { nil }) } catch let error as GuestAPIError { return wire(error) } catch {}
             return [:]
         }
         body = unknownMethod("wide.cal")
@@ -1557,5 +1560,193 @@ enum LogicTests {
             expectEqual(body["message"] as? String ?? "", "boom \(c.errno)", "errno \(c.errno) keeps the message")
             expect(body["hint"] == nil, "errno \(c.errno): no hint key")
         }
+    }
+
+    // MARK: Observe wrapper
+
+    enum ObserveFixture: String, GuestMethod {
+        case tap = "input.tap"
+        case key = "input.key"
+        var spec: MethodSpec { MethodSpec(summary: "fixture") }
+    }
+
+    enum CatalogFixture: String, GuestMethod, CaseIterable {
+        case button = "input.button", doubleTap = "input.double_tap", drag = "input.drag", hid = "input.hid"
+        case key = "input.key", longPress = "input.long_press", paste = "input.paste", pointer = "input.pointer"
+        case scroll = "input.scroll", swipe = "input.swipe", tap = "input.tap", touch = "input.touch"
+        case touch2 = "input.touch2", touchSequence = "input.touch_sequence", type = "input.type"
+        case other = "ui.tree"
+        var spec: MethodSpec { MethodSpec(summary: "fixture", result: [.required("x", .number)]) }
+    }
+
+    /// `methods.list` declares observe, observe_delay_ms and observed once, on every input.* name.
+    static func observeCatalog() {
+        let catalog = GuestMethodArea.catalog([GuestMethodArea.make(CatalogFixture.self) { _, _ in [:] }])
+        let methods = catalog["methods"] as? [[String: Any]] ?? []
+        let inputs = methods.filter { ($0["name"] as? String)?.hasPrefix("input.") == true }
+        expectEqual(inputs.count, 15, "the catalog lists 15 input.* methods")
+        for method in methods {
+            let name = method["name"] as? String ?? ""
+            let params = method["params"] as? [[String: Any]] ?? []
+            let result = method["result"] as? [[String: Any]] ?? []
+            let observe = params.first { $0["name"] as? String == "observe" }
+            let delay = params.first { $0["name"] as? String == "observe_delay_ms" }
+            let observed = result.first { $0["name"] as? String == "observed" }
+            if name.hasPrefix("input.") {
+                expectEqual(observe?["type"] as? String, "boolean", "\(name): observe is boolean")
+                expectEqual(observe?["required"] as? Bool, false, "\(name): observe is optional")
+                expectEqual(observe?["default"] as? Bool, false, "\(name): observe defaults to false")
+                expectEqual(delay?["type"] as? String, "integer", "\(name): observe_delay_ms is integer")
+                expectEqual(delay?["required"] as? Bool, false, "\(name): observe_delay_ms is optional")
+                expectEqual(delay?["default"] as? Int, 300, "\(name): delay defaults to 300")
+                expectEqual(delay?["minimum"] as? Double, 0, "\(name): delay minimum")
+                expectEqual(delay?["maximum"] as? Double, 5000, "\(name): delay maximum")
+                for param in [observe, delay] {
+                    expect((param?["description"] as? String ?? "").count <= 120, "\(name): description is at most 120 chars")
+                    expect(!(param?["description"] as? String ?? "").isEmpty, "\(name): description is set")
+                }
+                expectEqual(observed?["type"] as? String, "object", "\(name): observed is an object")
+                expectEqual(observed?["required"] as? Bool, false, "\(name): observed is optional")
+                expectEqual(result.count, 2, "\(name): observed is added once")
+                expectEqual(params.count, 2, "\(name): both params added once")
+            } else {
+                expect(observe == nil && delay == nil && observed == nil, "\(name): non-input methods are unchanged")
+            }
+        }
+    }
+
+    static func observeWrapper() {
+        nonisolated(unsafe) var actions = 0
+        let area = GuestMethodArea.make(ObserveFixture.self) { method, _ in
+            actions += 1
+            if method == .key { throw GuestAPIError.invalidRequest("unknown key") }
+            return ["x": 1, "y": 2]
+        }
+        let seen: [String: Any] = ["bundle_id": "com.apple.Preferences", "verified": true]
+        let treeOf: (Int) -> () throws -> [String: Any] = { count in { ["count": count] } }
+        struct Down: Error, CustomStringConvertible { var description: String { "down" } }
+        func dispatch(_ method: String, _ params: [String: Any],
+                      frontmost: @escaping () throws -> [String: Any] = { ["bundle_id": "com.apple.Preferences", "verified": true] },
+                      tree: @escaping () throws -> [String: Any] = { ["count": 7] }) -> (result: [String: Any]?, error: String?) {
+            do {
+                let result = try GuestMethodArea.dispatch([area], method: method, params: params) {
+                    try GuestMethodArea.observation(frontmost: frontmost, tree: tree)
+                }
+                return (result, nil)
+            } catch { return (nil, String(describing: error)) }
+        }
+
+        // pass-through
+        actions = 0
+        expectEqual(json(dispatch("input.tap", [:]).result), json(["x": 1, "y": 2]), "absent observe returns the action reply")
+        expectEqual(json(dispatch("input.tap", ["observe": false]).result), json(["x": 1, "y": 2]), "observe false returns the action reply")
+        expectEqual(json(dispatch("input.tap", ["observe_delay_ms": 0]).result), json(["x": 1, "y": 2]), "a valid delay without observe adds nothing")
+
+        // validation: the action does not run
+        let delayMessage = "observe_delay_ms must be an integer from 0 to 5000"
+        let observeMessage = "observe must be a boolean"
+        actions = 0
+        for bad: Any in [-1, 5001, 1.5, "300", true] {
+            for observe: Bool? in [nil, true] {
+                var params: [String: Any] = ["observe_delay_ms": bad]
+                if let observe { params["observe"] = observe }
+                expectEqual(dispatch("input.tap", params).error ?? "", delayMessage, "delay \(bad) observe \(String(describing: observe))")
+            }
+        }
+        expectEqual(dispatch("input.tap", ["observe": "yes"]).error ?? "", observeMessage, "observe: \"yes\"")
+        expectEqual(dispatch("input.tap", ["observe": 1]).error ?? "", observeMessage, "observe: 1")
+        expectEqual(dispatch("input.tap", ["observe": "yes", "observe_delay_ms": 5001]).error ?? "", observeMessage, "observe is checked before observe_delay_ms")
+        expectEqual(actions, 0, "an invalid observe request does not run the action")
+
+        // delay bounds
+        let defaultStart = Date()
+        let replyDefault = dispatch("input.tap", ["observe": true])
+        expect(replyDefault.error == nil && replyDefault.result?["observed"] != nil, "the default delay succeeds")
+        expect(Date().timeIntervalSince(defaultStart) >= 0.3, "an absent observe_delay_ms waits the 300 ms default")
+        let start = Date()
+        let reply5000 = dispatch("input.tap", ["observe": true, "observe_delay_ms": 5000])
+        expect(reply5000.error == nil && reply5000.result?["observed"] != nil, "delay 5000 succeeds")
+        expect(Date().timeIntervalSince(start) >= 5, "delay 5000 waits 5 seconds")
+
+        // observed shape
+        let ok = dispatch("input.tap", ["observe": true, "observe_delay_ms": 0]).result
+        expectEqual(json(ok?["observed"] as? [String: Any]), json(["frontmost_bundle_id": "com.apple.Preferences", "frontmost_verified": true, "ui_element_count": 7]), "observed shape")
+        expectEqual(ok?["x"] as? Int ?? 0, 1, "action keys stay")
+
+        // failed action: same error, no observed
+        let failed = dispatch("input.key", ["observe": true, "observe_delay_ms": 0])
+        expectEqual(failed.error ?? "", "unknown key", "a throwing action keeps its error")
+        expect(failed.result == nil, "a throwing action has no reply")
+
+        // failed observe: action keys plus observed.observe_error only
+        let observeKeys = ["frontmost_bundle_id", "frontmost_verified", "ui_element_count"]
+        func failedObserve(_ name: String, frontmost: @escaping () throws -> [String: Any], tree: @escaping () throws -> [String: Any]) {
+            let reply = dispatch("input.tap", ["observe": true, "observe_delay_ms": 0], frontmost: frontmost, tree: tree)
+            let observed = reply.result?["observed"] as? [String: Any]
+            expect(reply.error == nil && reply.result?["x"] as? Int == 1, "\(name): the action succeeds")
+            expect(observed?["observe_error"] as? String != nil, "\(name): observed.observe_error is set")
+            expect(observeKeys.allSatisfy { observed?[$0] == nil }, "\(name): no partial fields")
+        }
+        failedObserve("frontmost throws", frontmost: { throw Down() }, tree: treeOf(7))
+        failedObserve("frontmost empty", frontmost: { [:] }, tree: treeOf(7))
+        failedObserve("bundle id empty", frontmost: { ["bundle_id": "", "verified": true] }, tree: treeOf(7))
+        failedObserve("bundle id not a string", frontmost: { ["bundle_id": 5, "verified": true] }, tree: treeOf(7))
+        failedObserve("tree throws", frontmost: { seen }, tree: { throw Down() })
+        failedObserve("tree reply carries error", frontmost: { seen }, tree: { ["error": "no ui stack", "count": 3] })
+        failedObserve("tree reply has no count", frontmost: { seen }, tree: { [:] })
+        let treeError = dispatch("input.tap", ["observe": true, "observe_delay_ms": 0], tree: { ["error": "no ui stack"] }).result?["observed"] as? [String: Any]
+        expectEqual(treeError?["observe_error"] as? String, "no ui stack", "the ui.tree error message is observed.observe_error")
+        let nilObserver = try? GuestMethodArea.dispatch([area], method: "input.tap", params: ["observe": true, "observe_delay_ms": 0]) { nil }
+        expect(nilObserver?["observed"] is [String: Any] && (nilObserver?["observed"] as? [String: Any])?["observe_error"] != nil, "a nil observer result is observed.observe_error")
+
+        // verified false passes through; the count is capped at 500
+        let unverified = dispatch("input.tap", ["observe": true, "observe_delay_ms": 0], frontmost: { ["bundle_id": "com.apple.Preferences", "verified": false] }).result
+        expectEqual((unverified?["observed"] as? [String: Any])?["frontmost_verified"] as? Bool, false, "verified false is reported")
+        let capped = dispatch("input.tap", ["observe": true, "observe_delay_ms": 0], tree: treeOf(501)).result
+        expectEqual((capped?["observed"] as? [String: Any])?["ui_element_count"] as? Int, 500, "501 elements report 500")
+
+        // the sleep holds no lock: a plain call finishes while an observe call sleeps
+        nonisolated(unsafe) let sleeping = dispatch
+        let sleeper = Thread {
+            _ = sleeping("input.tap", ["observe": true, "observe_delay_ms": 1500], { ["bundle_id": "a", "verified": true] }, { ["count": 1] })
+        }
+        sleeper.start()
+        Thread.sleep(forTimeInterval: 0.2)
+        let plainStart = Date()
+        _ = dispatch("input.tap", [:])
+        expect(Date().timeIntervalSince(plainStart) < 0.5, "a plain call finishes while an observe call sleeps")
+        while !sleeper.isFinished { Thread.sleep(forTimeInterval: 0.05) }
+    }
+
+    enum DeclaredFixture: String, GuestMethod {
+        case tap = "input.tap"
+        var spec: MethodSpec { MethodSpec(.required("x", .number, "x"), .required("y", .number, "y"), summary: "fixture") }
+    }
+
+    /// observe through the real dispatch and the real unknown-param check of a `make`-built area with declared params.
+    static func observeUnknownParams() {
+        nonisolated(unsafe) var seen: [String: Any] = [:]
+        let area = GuestMethodArea.make(DeclaredFixture.self) { _, params in
+            seen = params
+            return ["x": params["x"] ?? 0, "y": params["y"] ?? 0]
+        }
+        func call(_ params: [String: Any]) -> (result: [String: Any]?, error: [String: Any]) {
+            do {
+                let result = try GuestMethodArea.dispatch([area], method: "input.tap", params: params) {
+                    ["frontmost_bundle_id": "a", "frontmost_verified": true, "ui_element_count": 1]
+                }
+                return (result, [:])
+            } catch let error as GuestAPIError { return (nil, wire(error)) } catch { return (nil, ["message": "\(error)"]) }
+        }
+        let ok = call(["x": 1, "y": 2, "observe": true, "observe_delay_ms": 0])
+        expect(ok.error.isEmpty, "observe is accepted on a declared input.* method: \(ok.error)")
+        expectEqual((ok.result?["observed"] as? [String: Any])?["ui_element_count"] as? Int, 1, "observed is added")
+        expectEqual(seen.keys.sorted(), ["x", "y"], "the handler never sees the observe params")
+        let bogus = call(["x": 1, "y": 2, "observe": true, "bogus": 1])
+        expectEqual(bogus.error["code"] as? String ?? "", "invalid_param", "a bogus param is invalid_param")
+        expectEqual(bogus.error["message"] as? String ?? "", "Unknown param: bogus", "a bogus param is still rejected")
+        let range = call(["x": 1, "y": 2, "observe": true, "observe_delay_ms": 5001])
+        expectEqual(range.error["code"] as? String ?? "", "invalid_param", "observe_delay_ms 5001 is invalid_param")
+        expectEqual(range.error["message"] as? String ?? "", "observe_delay_ms must be an integer from 0 to 5000")
     }
 }

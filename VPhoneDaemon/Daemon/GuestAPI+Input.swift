@@ -64,6 +64,14 @@ extension GuestAPI {
 
     // MARK: - Accessibility and OCR
 
+    /// `observed` for `input.*` calls with `observe: true`. `executeInterface` takes `interfaceLock` itself.
+    static func liveObservation(
+        frontmost: () throws -> [String: Any] = { frontmostApp() },
+        tree: () throws -> [String: Any] = { try executeInterface(.uiTree, ["visible_only": true, "max_elements": 500]) },
+    ) throws -> [String: Any] {
+        try GuestMethodArea.observation(frontmost: frontmost, tree: tree)
+    }
+
     static func executeInterface(_ m: InterfaceMethod, _ params: [String: Any]) throws -> [String: Any] {
         interfaceLock.lock()
         defer { interfaceLock.unlock() }

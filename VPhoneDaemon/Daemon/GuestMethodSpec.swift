@@ -214,15 +214,90 @@ struct GuestMethodArea {
     }
 
     /// The first area that answers `method` runs it; no area answering is an unknown method.
-    static func dispatch(_ areas: [GuestMethodArea], method: String, params: [String: Any]) throws -> [String: Any] {
+    /// An `input.*` call with `observe: true` waits `observe_delay_ms` after the action and adds
+    /// `observed` from `observer`; an observe failure never fails the action. The observe params
+    /// are removed before the area runs, so `admit` still rejects every other undeclared param.
+    static func dispatch(
+        _ areas: [GuestMethodArea], method: String, params: [String: Any],
+        observer: () throws -> [String: Any]?,
+    ) throws -> [String: Any] {
         let method = GuestLegacyNames.methods[method] ?? method
+        let observable = isObservable(method)
+        let delay = observable ? try observeDelay(params) : nil
+        let names = observable ? Set(observeParams.map(\.name)) : []
+        let actionParams = observable ? params.filter { !names.contains($0.key) } : params
+        var result: [String: Any]?
         for area in areas {
-            if let result = try area.execute(method, params) { return result }
+            if let answer = try area.execute(method, actionParams) {
+                result = answer
+                break
+            }
         }
-        let names = areas.flatMap { $0.entries().map(\.name) }.sorted()
-        throw GuestAPIError.unsupportedMethod(
-            method, hint: GuestAPIError.closest(method, names).map { "Did you mean `\($0)`?" },
-        )
+        guard var result else {
+            let known = areas.flatMap { $0.entries().map(\.name) }.sorted()
+            throw GuestAPIError.unsupportedMethod(
+                method, hint: GuestAPIError.closest(method, known).map { "Did you mean `\($0)`?" },
+            )
+        }
+        guard let delay else { return result }
+        if delay > 0 { Thread.sleep(forTimeInterval: Double(delay) / 1000) }
+        do {
+            result["observed"] = try observer() ?? ["observe_error": "observation unavailable"]
+        } catch {
+            result["observed"] = ["observe_error": String(describing: error)]
+        }
+        return result
+    }
+
+    /// Methods that take `observe`: every name with the `input.` prefix. `observeParams` is the one declaration: the catalog
+    /// reports it and dispatch validates and strips it.
+    static let observablePrefix = "input."
+    static func isObservable(_ method: String) -> Bool { method.hasPrefix(observablePrefix) }
+
+    private static var observeParams: [MethodParam] { [
+        .optional("observe", .boolean, "True adds an observed object with the foreground app and UI element count after the action", default: false),
+        .optional("observe_delay_ms", .integer, "Milliseconds to wait after the action before observing", default: 300, min: 0, max: 5000),
+    ] }
+
+    private static func isBoolean(_ value: Any) -> Bool {
+        guard let number = value as? NSNumber else { return false }
+        return CFGetTypeID(number) == CFBooleanGetTypeID()
+    }
+
+    /// Validates `observe` and `observe_delay_ms`; returns the delay when `observe` is true, else nil.
+    private static func observeDelay(_ params: [String: Any]) throws -> Int? {
+        if let value = params["observe"], !isBoolean(value) {
+            throw GuestAPIError.invalidRequest("observe must be a boolean")
+        }
+        var delay = 300
+        if let value = params["observe_delay_ms"] {
+            guard let number = value as? NSNumber, !isBoolean(number),
+                  number.doubleValue == number.doubleValue.rounded(),
+                  (0 ... 5000).contains(number.doubleValue)
+            else { throw GuestAPIError.invalidRequest("observe_delay_ms must be an integer from 0 to 5000") }
+            delay = number.intValue
+        }
+        return flag(params, "observe") ? delay : nil
+    }
+
+    /// The `observed` object: the foreground app and the visible element count, capped at 500.
+    static func observation(
+        frontmost: () throws -> [String: Any], tree: () throws -> [String: Any],
+    ) throws -> [String: Any] {
+        let front = try frontmost()
+        guard let bundleID = front["bundle_id"] as? String, !bundleID.isEmpty else {
+            throw GuestAPIError.operationFailed("foreground app unknown")
+        }
+        let reply = try tree()
+        if let message = reply["error"] as? String { throw GuestAPIError.operationFailed(message) }
+        guard let count = reply["count"] as? NSNumber else {
+            throw GuestAPIError.operationFailed("ui tree has no count")
+        }
+        return [
+            "frontmost_bundle_id": bundleID,
+            "frontmost_verified": front["verified"] as? Bool == true,
+            "ui_element_count": min(count.intValue, 500),
+        ]
     }
 
     static func flag(_ params: [String: Any], _ key: String, default fallback: Bool = false) -> Bool {
@@ -275,7 +350,8 @@ struct GuestMethodArea {
             case .always: "always"
             case let .when(key, _, _): "when:" + key
             }
-            let declaredParams = spec.params + (spec.paged == nil ? [] : Self.pagingParams)
+            let observable = isObservable(name)
+            let declaredParams = spec.params + (spec.paged == nil ? [] : Self.pagingParams) + (observable ? observeParams : [])
             let params = declaredParams.map { param -> [String: Any] in
                 var entry: [String: Any] = [
                     "name": param.name, "type": param.type.rawValue, "required": param.required, "description": param.description,
@@ -290,6 +366,7 @@ struct GuestMethodArea {
             if let text = spec.force.text { entry["force_action"] = text }
             if let declared = spec.result {
                 let result = declared + (spec.paged == nil ? [] : Self.pagingResult)
+                    + (observable ? [ResultKey.optional("observed", .object)] : [])
                 entry["result"] = result.filter { $0.presence != .hidden }.sorted { $0.name < $1.name }.map {
                     ["name": $0.name, "type": $0.type.rawValue, "required": $0.presence == .required, "open": $0.isOpen, "nullable": $0.isNullable] as [String: Any]
                 }
