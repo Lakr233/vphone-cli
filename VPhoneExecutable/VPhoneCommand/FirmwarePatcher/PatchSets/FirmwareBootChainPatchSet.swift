@@ -126,7 +126,7 @@ public enum FirmwareBootChainPatchSet {
             VPhonePatchDeclaration(
                 identifier: "txm-exp-precheck_admission",
                 title: "TXM pre-check admission (legacy force-admit)",
-                summary: "Forces the selector-24 pre-check policy walk to admit every image, CS_ADHOC code included, before native classification runs. This is the pre-#831 behaviour that let injected ad-hoc dylibs (ellekit/roothide) reach RX in every host. Off by default; standard uses txm-cfw-executable_remap instead. Select this in place of the remap patch when the guest injects CS_ADHOC code. iOS 27 only; it also satisfies the 27.0.1 first-boot admission the walk otherwise rejects.",
+                summary: "Forces the selector-24 pre-check policy walk to admit every image, CS_ADHOC code included, before native classification runs. This is the pre-#831 behaviour that let injected ad-hoc dylibs (ellekit/roothide) reach RX in every host. Off by default; standard uses txm-cfw-executable_remap instead. Select it when the guest injects CS_ADHOC code; it supersedes txm-cfw-executable_remap, which is then not emitted, so an app can no longer remap its own executable code. iOS 27 only; it also satisfies the 27.0.1 first-boot admission the walk otherwise rejects.",
                 target: .firmware(.txm),
                 applicability: VPhonePatchApplicability(iOSBase: .major(27)),
             ),

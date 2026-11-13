@@ -19,8 +19,16 @@ public final class TXMDevPatcher: TXMPatcher {
 
     override public func findAll() throws -> [PatchRecord] {
         patches = []
+        // The pre-check force-admit and native classification are mutually
+        // exclusive. txm-exp-precheck_admission passes the selector-24 walk as
+        // type 10 before classification runs, so txm-cfw-executable_remap's
+        // classifier rewrites would be dead code behind it. When both are
+        // selected, precheck takes precedence and executable_remap is not
+        // emitted, so `--allow txm-exp-precheck_admission` alone is enough and
+        // the patch receipt does not list a patch that never runs.
+        let precheckEnabled = gate.isEnabled(Self.precheckAdmissionID)
         do {
-            if gate.isEnabled(Self.executableRemapID) {
+            if gate.isEnabled(Self.executableRemapID), !precheckEnabled {
                 try patchExecutableRemap() // includes the base bypass with real cache queries
             } else {
                 try patchTrustcacheBypass()
@@ -34,10 +42,8 @@ public final class TXMDevPatcher: TXMPatcher {
         // Legacy force-admit of the selector-24 pre-check walk. Restored as a
         // selectable patch: it admits every image (CS_ADHOC code included) at the
         // top of the ladder, which native classification does not, so injected
-        // ad-hoc dylibs reach RX. It skips the native classification that
-        // txm-cfw-executable_remap preserves, so the two are not meant to run
-        // together; select one or the other per the VM's needs.
-        if gate.isEnabled(Self.precheckAdmissionID) {
+        // ad-hoc dylibs reach RX.
+        if precheckEnabled {
             patchPrecheckForcePass()
         }
         patchSelector24ForcePass()
