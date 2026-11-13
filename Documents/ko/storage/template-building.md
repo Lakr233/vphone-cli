@@ -77,16 +77,11 @@ New Machine은 짧은 페이지로 열립니다. 이름, 펌웨어 카탈로그�
 
 ### kernelcache를 다시 빌드하는 펌웨어
 
-**Firmware**에서 자체 cloudOS에서도 실행되는 릴리스(`fw catalog`의 세 번째 열)는 권장 cloudOS 옆에 그 cloudOS를 제공합니다. 이 경우 생성 작업은 사용자 권한으로 kernelcache 믹스를 준비하고 도우미가 root로 링크하게 하며, 이때 인증을 한 번 요청합니다.
+**Firmware**에서 자체 cloudOS에서도 실행되는 릴리스(`fw catalog`의 세 번째 열)는 권장 cloudOS 옆에 그 cloudOS를 제공합니다. 이 경우 생성 작업은 사용자 권한으로 kernelcache 믹스를 빌드하고, 그 릴리스의 kernelcache를 빌드할 때 사용된 kmutil로 링크합니다([펌웨어 준비](../firmware/firmware-preparation.md#믹스를-링크하는-kmutil) 참고). Core Bundle 2.17 이하에서는 대신 도우미가 root로 링크하며, 이때 인증을 한 번 요청합니다.
 
 이전의 호환 Core Bundle(2.12.0)은 `ipsw` 도구로 믹스를 준비하므로, Launchpad는 이런 조합에 여전히 `ipsw` 도구 필드를 표시합니다. Core Bundle 2.12.1 이상은 네이티브로 추출하며 선택한 경로를 무시합니다.
 
-iPhone XS Max는 iOS 18.1~18.7.2를 각 릴리스 자체의 cloudOS에서 템플릿 없이 실행하며, 기본 프리셋은 Minimal입니다. Standard도 동작합니다(18.6에서 확인). 이 조합은 항상 kernelcache를 다시 빌드하므로 **Firmware**에서 macOS 빌더도 묻습니다.
-
-- 원격 로그인이 켜져 있고 macOS 15 또는 26.0~26.3을 실행하는 Mac이나 macOS 가상 머신의 `user@host`
-- ssh와 sudo에 사용할 암호. ssh 키와 암호 없는 sudo를 사용하면 비워 둡니다.
-
-Launchpad는 빌더는 저장하지만 암호는 저장하지 않으며, 암호는 환경 변수(`VPHONE_KMUTIL_SSH_PASSWORD`)로만 `vphone-cli`에 전달됩니다. 그런 다음 생성 작업은 ssh를 통해 사용자 권한으로 믹스를 준비하고 링크합니다. macOS 26.4부터는 빌더가 필수이며, 빌더가 없는 이전 Mac에서는 도우미가 root로 믹스를 링크합니다.
+iPhone XS Max는 iOS 18.1~18.7.2를 각 릴리스 자체의 cloudOS에서 템플릿 없이 실행하며, 기본 프리셋은 Minimal입니다. Standard도 동작합니다(18.6에서 확인). 이 조합은 항상 kernelcache를 다시 빌드하며, 어떤 macOS에서든 macOS 15의 kmutil로 링크합니다.
 
 ### 생성 작업이 템플릿을 사용하는 방식
 

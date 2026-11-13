@@ -107,7 +107,6 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 | `--slim on\|off`, `--trim …`, `--keep-languages …`, `--service-profile …`, `--remove-apps …`, `--keep-apps …` | The slimming switches of `vphone-cli vm create`. Apple Account goes with the trimmed service profile, as in New Machine |
 | `--accounts-off` | Accepted, and changes nothing |
 | `--ipsw <path>` | Optional. Passed only to a 2.12.0 bundle, which stages the kernelcache mix with it, as New Machine's ipsw field does. A 2.12.1 bundle extracts natively |
-| `--kmutil-ssh <user@host>` | The Mac that links an iOS 18 guest's (`--device iPhone11,6`) kernel-first mix over ssh, as New Machine's macOS builder field. The password for ssh and sudo there comes from the client's `VPHONE_KMUTIL_SSH_PASSWORD`, never from an argument |
 | `--from <step>` | Retry from a step (`findTemplate` … `firstBoot`) with the options the creation started with |
 
 The parser also accepts `--iphone-source`, `--cloudos-source`, `--cpu`, `--memory`, `--disk-size`, `--network`, `--keep-artifacts` and `--no-wait`; see `vphone-launchpad-cli help`.
@@ -126,7 +125,7 @@ The result names the template, whether this creation built it, and the patches i
 Two more cases run steps as root through the helper:
 
 - `--preset minimal` (Minimal: a stock boot chain, kernel and TXM, with the system customized before the restore) is also restored on its own without slimming, and its `fw patch` runs as root through the helper. Its Userspace debugging box (`userspace-debugging` under Features in `vphone-cli fw patches`) is an `--allow` for each patch it lists. Its Trusted darwinOS environment box (`trusted-darwinos`, which is `--allow filesystem-exp-trusted_darwinos`) restores an iPhone or iPad as trusted darwinOS with cloudOS's cryptexctl, so a cryptex can be installed while it runs (Apps › Install Cryptex… in the VM window; see [Cryptexes](../machines/cryptexes.md)), and the box's summary says what it changes. The guest then enforces Restricted Execution Mode, and a research-board guest (cloudOS 26.5 to 26.7) cannot turn on Developer Mode, and changing the box takes effect only with a new restore.
-- For a machine whose cloudOS has no vphone600 components (its release's own cloudOS, a watch, an iOS 18 guest), the kernelcache mix is staged with `fw kernelcache` and linked by the helper as root.
+- For a machine whose cloudOS has no vphone600 components (its release's own cloudOS, a watch, an iOS 18 guest), `fw kernelcache` builds the kernelcache mix as you. With Core Bundles up to 2.17 it only stages it, and the helper links it as root.
 
 ### Patch overrides
 

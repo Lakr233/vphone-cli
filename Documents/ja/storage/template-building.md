@@ -77,16 +77,11 @@ New Machine は短いページで開きます：名前、ファームウェア�
 
 ### kernelcache を作り直すファームウェア
 
-**Firmware** では、そのリリース自身の cloudOS でも動作するリリース（`fw catalog` の 3 列目）について、推奨の cloudOS と並べてその cloudOS が選べます。作成処理では、kernelcache ミックスをあなたのユーザ権限で準備し、ヘルパーに root としてリンクさせます。その際に一度だけ認証を求めます。
+**Firmware** では、そのリリース自身の cloudOS でも動作するリリース（`fw catalog` の 3 列目）について、推奨の cloudOS と並べてその cloudOS が選べます。作成処理では、kernelcache ミックスをあなたのユーザ権限で作成し、そのリリースの kernelcache のビルドに使われた kmutil でリンクします（[ファームウェアの準備](../firmware/firmware-preparation.md#ミックスをリンクする-kmutil)をご覧ください）。Core Bundle 2.17 以前では、代わりにヘルパーが root としてリンクし、その際に一度だけ認証を求めます。
 
 これらの組み合わせでは、ミックスの準備に `ipsw` ツールを使う古い互換の Core Bundle（2.12.0）のために、Launchpad は引き続き `ipsw` ツールの欄を表示します。Core Bundle 2.12.1 以降はネイティブで展開し、選択したパスは無視します。
 
-iPhone XS Max は iOS 18.1〜18.7.2 を、それぞれのリリース自身の cloudOS 上で、テンプレートなしで、既定では Minimal プリセットで実行します。Standard も動作します（18.6 で確認）。これらの組み合わせでは常に kernelcache を作り直すため、**Firmware** で macOS ビルダーも尋ねられます。
-
-- macOS 15 または 26.0〜26.3 を実行し、リモートログインがオンになっている Mac または macOS 仮想マシンの `user@host`
-- ssh と sudo 用のパスワード。ssh 鍵とパスワードなしの sudo を使う場合は空にします
-
-Launchpad はビルダーを保存しますが、パスワードは保存しません。パスワードは環境変数（`VPHONE_KMUTIL_SSH_PASSWORD`）でのみ `vphone-cli` に渡されます。作成処理は、あなたのユーザ権限で ssh 経由でミックスを準備してリンクします。macOS 26.4 以降ではビルダーが必須です。それより古い Mac でビルダーがない場合は、ヘルパーが root としてミックスをリンクします。
+iPhone XS Max は iOS 18.1〜18.7.2 を、それぞれのリリース自身の cloudOS 上で、テンプレートなしで、既定では Minimal プリセットで実行します。Standard も動作します（18.6 で確認）。これらの組み合わせでは常に kernelcache を作り直し、どの macOS 上でも macOS 15 の kmutil でリンクします。
 
 ### 作成処理でのテンプレートの使い方
 

@@ -107,7 +107,6 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 | `--slim on\|off`、`--trim …`、`--keep-languages …`、`--service-profile …`、`--remove-apps …`、`--keep-apps …` | `vphone-cli vm create` 的精简开关。与 New Machine 中一样，Apple 账户随精简的服务配置一起关闭 |
 | `--accounts-off` | 可以传入，但不会改变任何设置 |
 | `--ipsw <path>` | 可选。只传给 2.12.0 bundle，它用这个文件准备 kernelcache 组合，作用与 New Machine 的 ipsw 字段相同。2.12.1 bundle 会原生提取 |
-| `--kmutil-ssh <user@host>` | 通过 ssh 链接 iOS 18 客户机（`--device iPhone11,6`）kernel-first 组合的 Mac，作用与 New Machine 的 macOS 构建机字段相同。该机上 ssh 和 sudo 的密码来自客户端的 `VPHONE_KMUTIL_SSH_PASSWORD`，绝不从参数传入 |
 | `--from <step>` | 使用创建开始时的选项，从某个步骤（`findTemplate` … `firstBoot`）重试 |
 
 解析器还接受 `--iphone-source`、`--cloudos-source`、`--cpu`、`--memory`、`--disk-size`、`--network`、`--keep-artifacts` 和 `--no-wait`；见 `vphone-launchpad-cli help`。
@@ -126,7 +125,7 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 另有两种情况会通过辅助程序以 root 身份运行某些步骤：
 
 - `--preset minimal`（Minimal：原装的启动链、内核和 TXM，在恢复前定制系统）也会单独恢复且不做精简，它的 `fw patch` 通过辅助程序以 root 身份运行。它的用户空间调试选项（`vphone-cli fw patches` 中 Features 下的 `userspace-debugging`）相当于对其列出的每个补丁使用 `--allow`。它的 Trusted darwinOS environment 选项（`trusted-darwinos`，即 `--allow filesystem-exp-trusted_darwinos`）会把 iPhone 或 iPad 以 trusted darwinOS 环境恢复，并加入 cloudOS 的 cryptexctl，这样就能在客体运行时安装 cryptex（VM 窗口中的 Apps › Install Cryptex…，参阅 [Cryptex](../machines/cryptexes.md)），选项下方的说明列出了它的影响。此后客体会强制执行 Restricted Execution Mode，研究板客体（cloudOS 26.5 至 26.7）无法打开开发者模式；更改此选项只有在重新恢复后才会生效。
-- 对于 cloudOS 不含 vphone600 组件的虚拟机（使用其版本自己的 cloudOS、手表、iOS 18 客户机），kernelcache 组合由 `fw kernelcache` 准备，再由辅助程序以 root 身份链接。
+- 对于 cloudOS 不含 vphone600 组件的虚拟机（使用其版本自己的 cloudOS、手表、iOS 18 客户机），`fw kernelcache` 以你的身份构建 kernelcache 组合。使用 Core Bundle 2.17 及更早版本时，它只负责准备，再由辅助程序以 root 身份链接。
 
 ### 补丁覆盖
 
