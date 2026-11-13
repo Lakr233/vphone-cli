@@ -63,7 +63,15 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         onMouseCaptureChange?(isMouseCaptured)
     }
 
+    /// The move last added to `capturedMousePoint`, by its timestamp.
+    private var capturedMoveTimestamp: TimeInterval = -1
+
     private func advanceCapturedMouse(_ event: NSEvent) {
+        // One move can reach the view twice, through its tracking area and as
+        // the window's first responder; adding its delta twice would move the
+        // guest's pointer twice as far as the mouse.
+        guard event.timestamp != capturedMoveTimestamp else { return }
+        capturedMoveTimestamp = event.timestamp
         capturedMousePoint.x = min(bounds.maxX, max(bounds.minX, capturedMousePoint.x + event.deltaX))
         capturedMousePoint.y = min(bounds.maxY, max(bounds.minY,
             capturedMousePoint.y + (isFlipped ? event.deltaY : -event.deltaY)))
