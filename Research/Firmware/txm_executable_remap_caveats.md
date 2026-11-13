@@ -57,20 +57,28 @@ success before classification, which is why these processes ran before. A
 plain-ad-hoc CodeDirectory (`ldid -S`, flags `0`) classifies natively and is
 unaffected — this matches the injector libraries' own signing (flags `0`).
 
-Dylibs injected into an already-signed host application are **not** affected;
-only standalone CS_ADHOC executables that map injected code are.
+Dylibs injected into an already-signed host application are not affected when
+the injected dylib itself is ldid-signed (flags `0`). They **are** affected when
+the injected dylib is CS_ADHOC and the host is one of Apple's ad-hoc apps — see
+the pre-check admission note under the TXM table in
+[the patch comparison](../0_binary_patch_comparison.md).
 
 ## Deployment caveats
 
-- **TXM is fixed into the VM at flash time.** Changing the bundle or running an
-  environment update does not replace it. Only a fresh restore / new template
-  picks up this change, so existing machines keep the old behavior and
-  "upgrade the bundle" does not validate the patch. Good for staged rollout;
-  bad as a verification shortcut.
-- **Disabling the patch does not restore the old behavior.** Turning
+- **TXM is fixed into the VM at flash time.** Changing the bundle, running an
+  environment update, or running `fw patch` followed by `cfw install` does not
+  replace it (`fw set-patches`: "LLB, TXM, DeviceTree: only a restore"). Only a
+  fresh restore / new template picks up a TXM change, so existing machines keep
+  the old behavior and "upgrade the bundle" does not validate the patch. Check
+  the TXM section of `PatchReceipt.plist` (writer `restore`, its date) before
+  attributing a result to a TXM change. Good for staged rollout; bad as a
+  verification shortcut.
+- **Disabling the patch alone does not restore the old behavior.** Turning
   `txm-cfw-executable_remap` off selects the historical base trust-cache bypass
-  only; it cannot bring back the removed iOS 27 pre-check override and may stop
-  iOS 27 from booting. The only rollback is restoring with a previous build.
+  only and may stop iOS 27 from booting. To get the old pre-check admission,
+  restore with `--allow txm-exp-precheck_admission --block txm-cfw-executable_remap`
+  (iOS 27 only); see the pre-check admission note in
+  [the patch comparison](../0_binary_patch_comparison.md).
 - **Template key change.** The boot-chain patch set changed, so templates built
   by older series are marked stale and an identical create resolves to a
   different boot-chain plan; templates must be rebuilt, which re-restores.

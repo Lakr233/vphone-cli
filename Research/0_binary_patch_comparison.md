@@ -1802,6 +1802,10 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 | 15  | CMS-less installer research tolerance             | Redirect only the absent CMS wrapper branch to the existing path-dependent fallback; retain SuperBlob validation, present-CMS failures and the second policy restriction | - | Y | Y |
 | 16  | Temporary ordinary-library Team-ID tolerance      | Skip only absent/mismatched Team-ID comparison for framework/dylib types 3–5; retain signature admission, category ordering, context/role and mapping checks | - | Y | Y |
 | 17  | Missing-profile compatibility with AMFI bypass    | Waive only the type-4 null-profile error when AMFI trust-cache bypass skips association; retain type 4 and checks of present profiles | - | Y | Y |
+| 18  | Pre-check admission: `mov w8, #0xa`               | Selector-24 pre-check walk body: tolerated validation-type byte | - | opt | opt |
+| 19  | Pre-check admission: `strb w8, [x19]`             | Write type 10 to the walk's out parameter | - | opt | opt |
+| 20  | Pre-check admission: `mov w0, #0x90`              | Return the walk's PASS status before classification | - | opt | opt |
+| 21  | Pre-check admission: `b <epilogue>`               | Skip the policy table walk | - | opt | opt |
 
 > **Executable remapping:** rows 13–17 form `txm-cfw-executable_remap`, selected
 > by standard without an iOS/cloudOS version gate. Unique semantic matches in
@@ -1815,8 +1819,9 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 > Runtime reports on iOS 26.6.2 and iOS 27.1 each execute 28/28 main/framework
 > original-code remaps with actual RX mappings; the tester also reports normal
 > startup and App loading with the replacement. The iOS 27 forced type-10 pre-check
-> patch is removed; native pre-check code is unchanged, and iOS 26/27 produce
-> identical output from the pinned TXM. Host tests reproduce and resolve the historical
+> patch is not part of standard; native pre-check code is unchanged, and iOS 26/27 produce
+> identical output from the pinned TXM. It is available again as the selectable
+> rows 18–21 (see below). Host tests reproduce and resolve the historical
 > `0x12491`/`0x32202` admission failures using this patch; the retained CMS
 > restriction can still reject. Other OS pairs and policy contexts remain unverified.
 > Native association and final-validation code is
@@ -1826,12 +1831,38 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 > not full stock-policy alignment. See [TXM executable remap](Firmware/txm_executable_remap.md)
 > for discovery, exact changes, regression tests, evidence and remaining limits.
 
-> **Former pre-check admission:** `txm-boot-precheck_admission` bypassed the
-> selector-24 policy walk and fixed an iOS 27.0.1 first-boot init SIGKILL, but
-> forced all admitted signatures to type 10. It is replaced by native
-> classification above. The replacement has iOS 27.1 remap results and
-> tester-reported startup success; the historical 27.0.1 pairing has not been
-> retested. Historical evidence: `Research/Firmware/txm_selector24_cms_gate.md`.
+> **Pre-check admission (selectable, rows 18–21):** `txm-exp-precheck_admission`
+> restores the force-admit that #831 removed as `txm-boot-precheck_admission`.
+> It rewrites the selector-24 pre-check walk (anchor: the only `mov x17, #0x7e51`
+> + `blraa` after a post-indexed `ldr x22, [x20], #0x40` table walk) so the walk
+> writes type 10 and returns PASS before ad-hoc, CMS and fallback classification
+> run. iOS 27 only, off by default (`opt`: blocked in every shipped preset and in
+> the catalog's manual-only set). Select it in place of rows 13–17 when the guest
+> injects CS_ADHOC code: `--allow txm-exp-precheck_admission --block txm-cfw-executable_remap`.
+>
+> Why it is needed: with rows 13–17, a CS_ADHOC dylib injected into one of
+> Apple's ad-hoc apps never reaches RX. ellekit/roothide inject `roothideinit.dylib`,
+> itself CS_ADHOC (CodeDirectory flags `0x2`), so Settings and other system apps
+> SIGKILL at launch with `CODESIGNING / Invalid Page` in its initializer, and with
+> injection live the UI crash-loops. Injection into SpringBoard can still work, so
+> the native decision depends on the host process, not only on the injected image.
+> Reclassifying ad-hoc images at the classifier is not a substitute: the
+> classifier runs for every image, injected dylibs included.
+>
+> Evidence (2026-11-13): iPad16,1 / iOS 27.0.1 / cloudOS 26.4, created by a full
+> `vm create` restore with the flags above (receipt TXM section lists
+> `txm-exp-precheck_admission`, no `txm-cfw-executable_remap`, writer `restore`),
+> then roothide + ellekit. Settings and seven other ad-hoc apps load
+> `TweakLoader → libinjector → roothideinit` and stay up with no injection crash.
+> A test tweak's `MSHookFunction` on the shared-cache `access` installs and fires
+> inside Settings without a crash, so inline hooks keep working. Not tested: an
+> app `vm_remap`-ing its own main-executable code (the case rows 13–17 were
+> validated on), iOS 26, and enabling both patch groups together. The standard
+> default stays rows 13–17. Historical evidence: `Research/Firmware/txm_selector24_cms_gate.md`.
+>
+> Test only on a freshly restored machine: `cfw install` and environment updates
+> never rewrite the booted TXM (`fw set-patches`: "LLB, TXM, DeviceTree: only a
+> restore"), so an in-place `fw patch` + `cfw install` keeps the old TXM.
 
 ## Kernelcache
 
@@ -5343,7 +5374,7 @@ a 26.x kernel (18.6.2 on cloudOS 26.1) does match the second one, wrongly; see
 | `kernel-exp-frida_thread_set_state_entitlement_flag`, `kernel-exp-frida_syscall_filter_off` | cloudOS ≥ 26.4 | also cloudOS 18.x (same shapes, 18.6 `0xA606E0`/`0xA608E8`; `0xA0FB18`, `0xA0FBA8`, `0x113FB54`). TPRO and the immutable-code patch have no 18.x shape and stay ≥ 26.4 |
 
 `kernel-boot-vm_map_protect` finds no gate on 18.x, as on 26.5 and later.
-The former `txm-boot-precheck_admission` (the 27.0.1 fix) and `ibec-boot-bootx_precondition`
+`txm-exp-precheck_admission` (formerly `txm-boot-precheck_admission`, the 27.0.1 fix) and `ibec-boot-bootx_precondition`
 have no 18.x site and are not needed there.
 The four VirtualAudio throw patches (`speaker_route_throws`, `mute_set_throw`,
 `speaker_protection_gate`, `volume_mode_precondition`) look for code iOS 18.6's

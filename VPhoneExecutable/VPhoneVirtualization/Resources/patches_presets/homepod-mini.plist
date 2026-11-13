@@ -111,7 +111,7 @@
 			<string>dyld-cfw-gles_depth_clip</string>
 			<string>dyld-cfw-arm64e_x1_cache</string>
 			<string>system-cibarcode-cfw-arm64e_x1</string>
-		<string>system-homepopaccessibility-cfw-arm64e_x1</string>
+			<string>system-homepopaccessibility-cfw-arm64e_x1</string>
 			<string>system-libdispatch-cfw-arm64e_x1_introspection</string>
 			<string>system-libbacktracerecording-cfw-arm64e_x1</string>
 			<string>system-libmainthreadchecker-cfw-arm64e_x1</string>
@@ -203,6 +203,7 @@
 			<string>system-wakeboard-exp-visionos_frame_pacing</string>
 			<string>system-launchdaemons-exp-visionos_nonfatal_services</string>
 			<string>system-preferences-exp-visionos_skip_buddy</string>
+			<string>txm-exp-precheck_admission</string>
 		</array>
 	</dict>
 	<key>Summary</key>

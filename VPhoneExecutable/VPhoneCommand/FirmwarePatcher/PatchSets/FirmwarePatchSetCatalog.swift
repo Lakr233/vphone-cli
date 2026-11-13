@@ -75,6 +75,10 @@ public enum FirmwarePatchSetCatalog {
             .union([FirmwareGuestSystemPatchSet.visionOSUXMIPC, FirmwareGuestSystemPatchSet.visionOSSkipBuddy, FirmwareGuestSystemPatchSet.visionOSEnvironments, FirmwareGuestSystemPatchSet.visionOSFramePacing])
             .union(FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches)
             .union([FirmwareKernelCustomFirmwarePatchSet.tvTPROPagers, misTrustAuthPatch, FirmwareGuestSystemPatchSet.settingsRootRows, FirmwareGuestSystemPatchSet.settingsSoftwareUpdate, FirmwareGuestSystemPatchSet.tvTPRO, FirmwareGuestSystemPatchSet.tvOTAUserland, FirmwareGuestSystemPatchSet.tvSetupDisplayLookup, FirmwareGuestSystemPatchSet.tvSetupFocus, FirmwareGuestSystemPatchSet.tvLocalActivation, FirmwareGuestSystemPatchSet.tvLegacySetup])
+            // Legacy TXM force-admit, off by default; standard uses native
+            // classification (txm-cfw-executable_remap). Selected per VM when the
+            // guest injects CS_ADHOC code (ellekit/roothide). See TXMDevPatcher.
+            .union([TXMDevPatcher.precheckAdmissionID])
 
     /// ProMotion: the 120 Hz timing for the paravirtual display.
     ///
