@@ -56,6 +56,25 @@ final class DriftTests: XCTestCase {
         XCTAssertEqual(report.exitCode, 1)
     }
 
+    static let pagedCells = "count:integer,next_cursor:string?,text:string,total:integer,truncated:boolean"
+
+    func testPagedMethodMayDeclareDispatchKeys() throws {
+        try mutate("repo/VPhoneDaemon/Daemon/GuestAPI.swift", "    case clipboardGet = \"clipboard.get\"\n}",
+                   "    case clipboardGet = \"clipboard.get\"\n    var spec: MethodSpec {\n        switch self {\n"
+                       + "        case .clipboardGet: MethodSpec(result: [], paged: MethodSpec.Paged(key: \"text\", order: .keep))\n        }\n    }\n}")
+        try mutate(Self.catalog, "count:integer,text:string", Self.pagedCells)
+        XCTAssertEqual(check(), DriftReport())
+    }
+
+    func testNonPagedMethodListingDispatchKeysFails() throws {
+        try mutate(Self.catalog, "count:integer,text:string", Self.pagedCells)
+        let report = check()
+        XCTAssertEqual(report.stdout, ["next_cursor", "total", "truncated"].map {
+            "\(Self.clip) removed key \"\($0)\"; remove \"\($0)\" from \(Self.clipPlace)"
+        })
+        XCTAssertEqual(report.exitCode, 1)
+    }
+
     func testRemovedKey() throws {
         try mutate(Self.clipPath, "\"text\": text, ", "")
         let report = check()

@@ -49,6 +49,7 @@ if iPhoneStartup {
     GuestScreenUnlock.startTapToWake()
 }
 GuestIrisinInstaller.refreshBootstrapOnStartup()
+GuestProcessSpool.shared.sweepAll()
 if iPhoneStartup {
     GuestAPI.restoreUSBSerialOnStartup()
     GuestStaticNames.shared.restoreOnStartup()

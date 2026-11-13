@@ -1,14 +1,15 @@
 import Foundation
 
 // Prints "<method><tab><result cell>" for every method, sorted by name. The cell lists the result keys sorted by name
-// as name:type[:null][?|~][*] (? optional, ~ hidden, * open), "-" when empty and "missing" when undeclared. Compiled
+// as name:type[:null][?|~][*] (? optional, ~ hidden, * open), "-" when empty and "missing" when undeclared; a paged
+// method also lists the paging keys dispatch adds. Compiled
 // by run-methods-tests.sh with GuestMethodSpec.swift, the GuestAPI*Methods.swift files, GuestAPIStub.swift and a
 // generated file defining `kinds`. The cell grammar is the one DriftCheck.parseCell reads.
 @main
 struct MethodsHarness {
     static func main() {
         let rows = kinds.flatMap { $0.entries() }.map { name, spec in
-            (name, cell(spec.result))
+            (name, cell(spec.result.map { $0 + (spec.paged == nil ? [] : GuestMethodArea.pagingResult) }))
         }
         for (name, cell) in rows.sorted(by: { $0.0 < $1.0 }) { print("\(name)\t\(cell)") }
     }

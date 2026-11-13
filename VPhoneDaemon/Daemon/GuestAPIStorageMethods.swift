@@ -6,7 +6,7 @@ enum StorageMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .apfsSnapshots: MethodSpec(.optional("mount", .string, "Absolute mount point of the APFS volume", default: "/"), summary: "List the APFS snapshot names on a guest volume.", result: [.required("mount", .string), .required("snapshots", .array)])
+        case .apfsSnapshots: MethodSpec(.optional("mount", .string, "Absolute mount point of the APFS volume", default: "/"), summary: "List the APFS snapshot names on a guest volume.", result: [.required("mount", .string), .required("snapshots", .array)], paged: MethodSpec.Paged(key: "snapshots", order: .keep))
         case .apfsSnapshotDelete:
             MethodSpec(.optional("mount", .string, "Absolute mount point of the APFS volume", default: "/"),
                        .optional("name", .string, "Exact snapshot name to delete; must start with orig-fs.disabled.rn- and extend it; not with prefix"),

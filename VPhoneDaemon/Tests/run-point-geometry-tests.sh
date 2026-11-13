@@ -33,7 +33,7 @@ flags=(-swift-version 6 -warnings-as-errors -module-cache-path "$temporary/modul
 "${compiler[@]}" "${flags[@]}" -emit-library -emit-module -module-name VphonedNative \
     "$daemon/Tests/PointGeometry/NativeTestSupport.swift" -o "$temporary/libVphonedNative.$extension"
 "${compiler[@]}" "${flags[@]}" -parse-as-library -lIcliKit -lVphonedNative -Xlinker -rpath -Xlinker "$temporary" \
-    "$daemon/Daemon/GuestMethodSpec.swift" "$daemon/Daemon/GuestPointGeometry.swift" \
+    "$daemon/Daemon/GuestMethodSpec.swift" "$daemon/Daemon/GuestPaging.swift" "$daemon/Daemon/GuestPointGeometry.swift" \
     "$daemon/Daemon/GuestAPI+PointGeometry.swift" "$daemon/Daemon/GuestAPIInputMethods.swift" "$input" "$daemon/Tests/PointGeometry/PointGeometryTests.swift" \
     -o "$temporary/point-tests"
 "$temporary/point-tests"

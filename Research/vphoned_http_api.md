@@ -570,18 +570,18 @@ request carries `"force": true`.
 | Display, audio | `display.pose` (read-only SpringBoard pose snapshot: orientation, device_orientation, hinge, tabletop; reports unavailable for an unsupported ABI), `display.modes` (read-only CoreAnimation display bounds, native size, current/available modes, and virtual-mode selector availability; availability does not prove a mode change is supported), `display.brightness {value?}`, `display.rotation {orientation?}`, `display.posture {hinge, orientation?, tabletop?}` (a foldable guest's pose through SpringBoard's test-automation override, see below; capability `device_pose`), `display.orientation` (SpringBoard's interface orientation without a screen capture, for polling; `degrees` is null while SpringBoard has no answer; `device_degrees`, present while the gravity provider runs, is the way the device is held in the interface degrees that match it, which differs from `degrees` while the app in front or the rotation lock keeps the interface from following; on a foldable `fold_angle` is the virtual hinge's angle, so a host can follow folds it did not ask for, and `screen_off` whether the panel is dark, so a host can keep the panel's frame from before off its window as it comes on (SpringBoard has the screen off and FoldDisplay saw the panel go off since it was last lit; the always-on Lock Screen keeps the panel on and is not dark); capability `display_orientation`), `display.rotation_lock {locked}`, `display.auto_lock`, `display.auto_lock.set {seconds}` (writes the mobile UserSettings input through cfprefsd and posts profiled's effective-settings notification, and returns an immediate readback; the caller must verify the effective value), `screen.unlock {passcode?, timeout_ms?}` (the display on and the Lock Screen passed, see below; capability `screen_unlock`), `audio.volume {value?, category?}`, `audio.state` |
 | Input | `input.touch`, `input.hid {page, usage, down?, long_press?}`, `input.button {name}`, `input.key {name}`, `input.type {text, delay_ms?}`, `input.paste {text}`, `input.tap`, `input.double_tap`, `input.long_press`, `input.swipe {from: [x, y], to: [x, y], seconds?, steps?}`, `input.drag {points}` (answers `count`), `input.touch_sequence {events}` — gesture coordinates are screen points; `input.pointer {x, y, seq?, buttons?}`, `input.scroll {phase, dx?, dy?, x?, y?}` (capabilities `pointer_scroll` and `pointer_buttons`, see below) |
 | UI | `ui.tree` (alias `accessibility.tree`), `ui.element_at`, `ui.tap_element`, `ui.wait`, `ui.wait_gone`, `ui.ocr {languages?, min_confidence?}`, `ui.describe`, `screen.screenshot {max_dimension?, quality?, region?}` |
-| Processes | `processes.list {filter?}`, `processes.kill {pid, signal?}` **force**, `processes.spawn {executable, arguments?, timeout_ms?}`, `memory.jetsam`, `memory.pressure` (only the three kernel memory sysctls, for polling) |
-| launchd | `services.list`, `status`, `print`, `dump`, `disabled`, `start`, `enable`, `load`, `profile` (see below), `kickstart {label, kill?}` (`launchctl kickstart`, capability `service_kickstart`, see below); `services.stop`, `disable`, `remove`, `signal`, `unload`, `profile.apply {profile, groups?, allow?}` **force**, and `kickstart` with `kill` **force**; `launchd.getenv`, `setenv`, `unsetenv`. On tvOS, which never enables user sessions, they read the system domain alone; before icli 0.8.6 the foreground-user lookup trapped there and killed vphoned |
-| Logs | `logs.syslog {seconds, process?, level?, max_lines?, subsystem?, category?, message_contains?}` (a bounded capture of at most 60 s; filters apply before the line cap), `logs.crashes {bundle_id?}`, `logs.crash {path}` |
+| Processes | `processes.list {filter?, limit?, cursor?}`, `processes.kill {pid, signal?}` **force**, `processes.spawn {executable, arguments?, timeout_ms?, max_output_bytes?, max_capture_bytes?}`, `processes.output {output_id, stream, offset?, limit?, binary?}`, `processes.output_release {output_id}`, `memory.jetsam`, `memory.pressure` (only the three kernel memory sysctls, for polling) |
+| launchd | `services.list {limit?, cursor?}`, `status`, `print`, `dump {limit?, cursor?}`, `disabled`, `start`, `enable`, `load`, `profile` (see below), `kickstart {label, kill?}` (`launchctl kickstart`, capability `service_kickstart`, see below); `services.stop`, `disable`, `remove`, `signal`, `unload`, `profile.apply {profile, groups?, allow?}` **force**, and `kickstart` with `kill` **force**; `launchd.getenv`, `setenv`, `unsetenv`. On tvOS, which never enables user sessions, they read the system domain alone; before icli 0.8.6 the foreground-user lookup trapped there and killed vphoned |
+| Logs | `logs.syslog {seconds, process?, level?, max_lines?, subsystem?, category?, message_contains?}` (a bounded capture of at most 60 s; filters apply before the line cap), `logs.crashes {bundle_id?, limit?, cursor?}`, `logs.crash {path}` |
 | HomeView distance | `homeview.distance.get`, `homeview.distance.set {mode, reset_environment?}` (capability `homeview_distance`; near/standard/far map to native detail2/1/0; automatic requires `reset_environment:true` and clears persona, display-style, detail and backlight overrides together). Unknown ownership is `mode:"unknown"`, `override_active:null`; readback does not prove a rendered UI change. |
 | Darwin notifications | `notify.post {name, state?}` (`postDarwinNotification`; `state` is a UInt64, as a number or a decimal string, stored before the post), `notify.state {name}` (`darwinNotificationState`) |
 | Network, security | `network.capture {seconds, interface?, filter?}` (writes a pcap in the guest scratch directory), `network.ipv4.get {interface?}`, `network.ipv4.set {interface?, method, address?, subnet_mask?, router?, dns?}`, `network.hostname.get`, `network.hostname.set {local_host_name?}`, `device.name.get`, `device.name.set {name}` (see below), `network.static_names.get`, `network.static_names.set {entries}`, `network.resolve {host, family?, port?, first_only?, timeout_ms?}` (see below), `security.ssl_killswitch` |
-| Apps | `apps.list`, `search`, `refresh`, `launch`, `terminate`, `foreground`, `open_url`, `install`, `info`, `binary`, `data_dir`, `url_schemes`, `handlers`, `registration`, `register`, `network_policy {repair?}`; `apps.uninstall`, `unregister`, `unregister_dir` **force**; `apps.removed_system`, `apps.remove_system {bundle_ids, backup?, respring?}` **force**, `apps.restore_system {bundle_ids?, respring?}` **force** (removable system apps, see below) |
+| Apps | `apps.list {filter?, limit?, cursor?}`, `search`, `refresh`, `launch`, `terminate`, `foreground`, `open_url`, `install`, `info`, `binary`, `data_dir`, `url_schemes`, `handlers`, `registration`, `register`, `network_policy {repair?}`; `apps.uninstall`, `unregister`, `unregister_dir` **force**; `apps.removed_system`, `apps.remove_system {bundle_ids, backup?, respring?}` **force**, `apps.restore_system {bundle_ids?, respring?}` **force** (removable system apps, see below) |
 | OTA Apple app programs | `ota.apps.status`, `ota.apps.apply {force:true, removed_bundle_ids?:[]}` (capability `ota_system_apps`; reconciles removed Apple app registrations including placeholders against valid removal backups, then updates retained programs from the installed 24A446 payload; no caller-selected paths or third-party IDs; an omitted baseline infers only absent/placeholder apps, never installed apps; preserves user-data/group containers and original removal backups; see [the OTA runbook](Restore/data_preserving_full_ota.md#preserve-removed-system-apps-2026-10-25)) |
 | System | `system.uicache`, `system.system_apps {visible?}`, `system.respring` **force**, `system.reboot {userspace?}` **force**, `system.shutdown` **force**, `developer_mode.status`, `developer_mode.enable`, `power.low_power_mode`, `time.timezone {identifier?, automatic?}`, `time.clock {time?, automatic?}` (see below), `diagnostics.self_test` |
 | Cryptexes | `cryptex.list`, `cryptex.install {path, variant, persist?}`, `cryptex.uninstall {identifier}` (capability `cryptex`; only a guest restored as trusted darwinOS has `/usr/bin/cryptexctl`, see "Cryptexes" below) |
-| Files | `files.list`, `mkdir`, `remove`, `rename`, `read {binary?, limit?}`, `write`, `find`, `copy`, `symlink`, `chmod`, `chown`, `plist`, `plist_set {value \| remove}` |
-| APFS snapshots | `apfs.snapshots {mount?}`, `apfs.snapshot.delete {mount?, name? \| prefix?}` **force** (only `orig-fs.disabled.rn-*`, see below) |
+| Files | `files.list {limit?, cursor?}`, `mkdir`, `remove`, `rename`, `read {binary?, limit?, offset?}`, `write`, `find {limit?, cursor?}`, `copy`, `symlink`, `chmod`, `chown`, `plist`, `plist_set {value \| remove}` |
+| APFS snapshots | `apfs.snapshots {mount?, limit?, cursor?}`, `apfs.snapshot.delete {mount?, name? \| prefix?}` **force** (only `orig-fs.disabled.rn-*`, see below) |
 | Preferences, clipboard, location | `settings.get/set/delete`, `clipboard.get/set/clear`, `location.set/clear/current/services {enabled?}` |
 | Motion | `motion.gyroscope.get`, `motion.gyroscope.set {x,y,z,enabled?}`, `motion.gyroscope.clear` (capability `motion_gyroscope`; finite JSON numbers in [-1000,1000] rad/s, all axes required; `enabled` defaults to true and must be a JSON Boolean; capability `motion_gyroscope_toggle` supports disabling while retaining configured axes; HID provider status is not proof of CoreMotion app delivery) |
 | Keychain | `keychain.list {class?}`, `add`, `delete`, `get`, `update`, `database` |
@@ -966,11 +966,58 @@ first address only, as a client that does not fall back would.
 investigation. `executable` is a logical name mapped to a fixed path (`ps`,
 `launchctl`, or `log`); arguments are passed directly without a shell and are
 limited to 16 items, 256 bytes per item, and 2048 bytes total. `timeout_ms` is
-between 100 and 10000 (default 3000), and each output stream is capped at
-64 KiB. The reply includes the child PID, timeout flag, exit code or signal,
-and UTF-8 stdout/stderr. It is intentionally insufficient for arbitrary code
-execution; future poster-extension tracing must stay within this allowlist or
-use a separately reviewed diagnostic binary.
+between 100 and 10000 (default 3000). The reply includes the child PID, timeout
+flag, exit code or signal, and UTF-8 stdout/stderr. It is intentionally insufficient for
+arbitrary code execution; future poster-extension tracing must stay within this
+allowlist or use a separately reviewed diagnostic binary.
+
+**Spooled spawn output.** vphoned writes each of stdout and stderr to a file
+under `/var/root/Library/Caches/vphoned-spool/<output_id>/` while the child runs,
+so memory stays bounded and the child never blocks on a full pipe. The reply
+carries an inline first page per stream of at most `max_output_bytes` raw bytes
+(integer 1 to 65536, default 65536), cut at a UTF-8 character boundary; invalid
+bytes decode to U+FFFD, so the text is at most 3 times that. `stdout_total` /
+`stderr_total` are the bytes captured, `stdout_truncated` / `stderr_truncated`
+(always present) say the inline page is shorter than the capture, and
+`capture_truncated` (always present) is true when a stream hit
+`max_capture_bytes` (integer 1 to 16777216 per stream, default 2097152): past it
+the rest is read and discarded, and the child still runs to exit. When either
+stream is truncated the reply also has `output_id` and `output_dir`
+(`/var/root/Library/Caches/vphoned-spool/<output_id>`, files `stdout` and
+`stderr`); a timed-out spawn drops its spool and has neither. Read the rest with
+`processes.output {output_id, stream: "stdout"|"stderr", offset?, limit?, binary?}`
+(`offset` raw bytes 0 to 1099511627776, `limit` 1 to 65536 default 65536): the
+reply is `data` (the slice as UTF-8 with the end cut on a character boundary, or
+the base64 of exactly the raw bytes with `binary: true`), `total` (raw bytes
+captured) and `next_offset` (offset plus raw bytes returned) only when more
+remains; an offset past the end returns empty `data`. `files.read` on
+`<output_dir>/stdout` with `offset` (raw bytes, 0 to 1099511627776, default 0)
+reads the same bytes and keeps its text/`binary` and `limit` behavior (default
+cap 512 KiB, `size` is the whole file). Whenever `files.read` gets `offset` or
+`limit`, its reply also has `total` (the file's raw bytes) and, only while
+`truncated`, `next_offset` (offset plus raw bytes returned), so it pages like
+`processes.output`. `processes.output_release {output_id}`
+removes the spool and returns `{released: true}`. A spool lives 10 minutes, the
+spool dir is capped at 64 MiB and the oldest spools are evicted first; a spawn
+that cannot fit fails with code `unavailable` ("spool full"). A released,
+expired or evicted `output_id` fails with code `not_found`; repeat
+`processes.spawn`. A malformed `output_id`, `stream`, `offset`, `limit`,
+`max_output_bytes` or `max_capture_bytes` fails with code `invalid_param`. The spool dir
+is private (daemon-owned 0700) and vphoned removes every spool when it starts.
+
+**Bounded list replies.** `apps.list`, `processes.list`, `services.list`,
+`services.dump`, `files.list`, `files.find`, `apfs.snapshots` and `logs.crashes`
+take `limit` (integer 1 to 1000, default 200) and `cursor` (string) and return
+at most `limit` entries from the cursor in their existing array key, plus
+`total` (entries before paging) and `truncated`. When `truncated` is true the
+reply also has `next_cursor`; pass it as `cursor` for the next page. The last
+page has `truncated: false` and no `next_cursor`. An existing `count` is the
+number of entries returned. A bad `limit` or `cursor` fails with code
+`invalid_param`. A cursor is an offset into a fresh listing, so guest
+changes between calls can shift entries. `processes.list` is sorted by `pid`,
+`apps.list` by `bundle_id` then `path` and `files.find` by path before paging.
+The paging runs in vphoned after the listing is built, so `services.dump` still
+does its full dump; `files.find` pages over icli's 500-match ceiling.
 
 `processes.list` joins icli's kernel process list with `proc_pid_rusage`
 footprint, resident size and CPU time (`VPhoneDaemon/Native/vphoned_process.m`),

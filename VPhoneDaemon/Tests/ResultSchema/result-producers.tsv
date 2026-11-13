@@ -79,7 +79,7 @@ files.list	VPhoneDaemon/Daemon/GuestAPI.swift#fileList
 files.mkdir	icli:IcliKit/Filesystem.swift#makeDirectory
 files.plist	icli:IcliKit/Filesystem.swift#readPlist
 files.plist_set	icli:IcliKit/Filesystem.swift#setPlistValue
-files.read	icli:IcliKit/Filesystem.swift#readFile
+files.read	icli:IcliKit/Filesystem.swift#readFile;VPhoneDaemon/Daemon/GuestAPI+FileTool.swift#readFileFrom
 files.remove	icli:IcliKit/Filesystem.swift#removePath
 files.rename	icli:IcliKit/Filesystem.swift#movePath
 files.save_to_files_app	VPhoneDaemon/Daemon/GuestAPI+FilesApp.swift#saveToFilesApp
@@ -152,6 +152,8 @@ poster.inspect	VPhoneDaemon/Daemon/GuestAPI+Process.swift#inspectPoster
 power.low_power_mode	icli:IcliKit/Device/SystemModes.swift#lowPowerMode;icli:IcliKit/Device/SystemModes.swift#setLowPowerMode
 processes.kill	VPhoneDaemon/Daemon/GuestAPI+Process.swift#executeProcess
 processes.list	VPhoneDaemon/Daemon/GuestAPI+Process.swift#processList
+processes.output	VPhoneDaemon/Daemon/GuestAPI+Process.swift#processesOutput
+processes.output_release	VPhoneDaemon/Daemon/GuestAPI+Process.swift#processesOutputRelease
 processes.spawn	VPhoneDaemon/Daemon/GuestAPI+Process.swift#spawnProcess
 screen.screenshot	VPhoneDaemon/Daemon/GuestAPI.swift#executeCore
 screen.unlock	VPhoneDaemon/Daemon/GuestAPI+Device.swift#executeDevice
