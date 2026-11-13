@@ -90,7 +90,8 @@ extension VPhoneGuestControl {
         let window = ContinuousClock.now + .seconds(90)
         do {
             while true {
-                let result = try await call("screen.unlock", params: ["timeout": 60])
+                // `timeout` for a machine still on a vphoned from before `timeout_ms`.
+                let result = try await call("screen.unlock", params: ["timeout_ms": 60000, "timeout": 60])
                 if result["was_locked"] as? Bool == true {
                     print("[unlock] dismissed the Lock Screen at startup")
                     return

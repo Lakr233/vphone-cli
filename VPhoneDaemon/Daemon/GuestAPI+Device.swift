@@ -213,7 +213,7 @@ extension GuestAPI {
         case .screenUnlock:
             return try GuestScreenUnlock.unlock(
                 passcode: optionalString(params, "passcode"),
-                timeout: number(params, "timeout", default: 10),
+                timeout: number(params, "timeout_ms", default: 10000) / 1000,
             )
         case .audioVolume:
             let category = optionalString(params, "category") ?? "Audio/Video"
@@ -860,7 +860,8 @@ extension GuestAPI {
         var reply: [String: Any] = ["host": host, "elapsed_ms": elapsed()]
         guard resolved.status == 0 else {
             reply["status"] = "error"
-            reply["error"] = String(cString: gai_strerror(resolved.status))
+            reply["message"] = String(cString: gai_strerror(resolved.status))
+            reply["error"] = reply["message"]
             return reply
         }
         reply["status"] = "resolved"

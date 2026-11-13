@@ -23,11 +23,11 @@ extension GuestAPI {
     static let settleMaximumTimeout = 110.0
 
     private static func waitForFirstBootSettle(_ params: [String: Any]) throws -> [String: Any] {
-        for key in ["timeout_s", "poll_s", "stable_polls"] where params[key] != nil && !(params[key] is NSNumber) {
+        for key in ["timeout_ms", "poll_ms", "stable_polls"] where params[key] != nil && !(params[key] is NSNumber) {
             throw GuestAPIError.invalidRequest("\(key) must be a number")
         }
-        let timeout = min(max(number(params, "timeout_s", default: 90), 0), settleMaximumTimeout)
-        let poll = min(max(number(params, "poll_s", default: 5), 1), 30)
+        let timeout = min(max(number(params, "timeout_ms", default: 90000) / 1000, 0), settleMaximumTimeout)
+        let poll = min(max(number(params, "poll_ms", default: 5000), 1000), 30000) / 1000
         let stablePolls = Int(min(max(number(params, "stable_polls", default: 3), 2), 20))
 
         let start = Date()
@@ -45,8 +45,12 @@ extension GuestAPI {
         let latest = samples[samples.count - 1]
         return [
             "settled": verdict.settled,
-            "elapsed_s": (Date().timeIntervalSince(start) * 10).rounded() / 10,
+            "elapsed_ms": (Date().timeIntervalSince(start) * 1000).rounded(),
             "polls": samples.count,
+            "timeout_ms": timeout * 1000,
+            "poll_ms": poll * 1000,
+            // The names in seconds before the millisecond ones, for older clients.
+            "elapsed_s": (Date().timeIntervalSince(start) * 10).rounded() / 10,
             "timeout_s": timeout,
             "poll_s": poll,
             "stable_polls": stablePolls,

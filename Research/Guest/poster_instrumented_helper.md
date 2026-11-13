@@ -6,7 +6,7 @@ launcher or UI mutator.
 
 ## Contract
 
-`poster.inspect` accepts a target PID discovered by `process.spawn(ps)` and a
+`poster.inspect` accepts a target PID discovered by `processes.spawn(ps)` and a
 short list of read-only fields. The helper verifies that the PID's executable
 and bundle identity are the poster wallpaper extension before attaching. It
 returns one bounded JSON document (64 KiB) containing:
@@ -25,7 +25,7 @@ visibility, transforms, or layer contents.
 ## Isolation and limits
 
 The helper is started only through the signed guest payload and a dedicated
-RPC, not through arbitrary `process.spawn`. It accepts one PID, performs one
+RPC, not through arbitrary `processes.spawn`. It accepts one PID, performs one
 sample, and exits. It has a 3 second wall-clock limit, a 64 KiB response cap,
 and no filesystem/network access. The target must be a poster extension child
 of SpringBoard or the known wallpaper host; otherwise it refuses the request.

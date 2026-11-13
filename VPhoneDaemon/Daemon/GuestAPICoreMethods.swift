@@ -166,6 +166,7 @@ enum CoreMethod: String, GuestMethod {
         case .bootstrapStatus: MethodSpec(summary: "Report bootstrap install progress: phase, download bytes, and any error.", result: [
                 .optional("downloaded_bytes", .integer),
                 .optional("error", .string),
+                .optional("message", .string),
                 .optional("jbroot", .string),
                 .optional("layout", .string),
                 .optional("packages", .array),
@@ -242,7 +243,7 @@ enum CoreMethod: String, GuestMethod {
                        .optional("course", .number, "Heading in degrees from 0 up to but not including 360; unset when omitted", min: 0),
                        summary: "Simulate the device location at a coordinate until cleared.", result: [.required("location", .object), .required("simulating", .boolean)])
         case .locationClear: MethodSpec(summary: "Stop simulating location and return to the real one.", result: [.optional("location", .object), .required("simulating", .boolean)])
-        case .locationCurrent: MethodSpec(.optional("timeout", .number, "Seconds to wait for a fix; more than 0", default: 10, max: 300),
+        case .locationCurrent: MethodSpec(.optional("timeout_ms", .number, "Milliseconds to wait for a fix; more than 0", default: 10000, max: 300000),
                                           summary: "Get the current location fix, simulated or real.", result: [.optional("age_seconds", .number),
                                                    .optional("altitude", .number),
                                                    .optional("client", .string),

@@ -94,7 +94,7 @@ Success is `{"ok":true}`, with `result` for `rpc`, `path` for `screenshot`, and
 
 The socket's `tap` and `swipe` take **pixel coordinates of the screen**, the
 `screen.screenshot` size (1179×2556 on a new iPhone17,3; origin top left).
-The vphoned methods `input.tap`, `input.swipe` and
+The vphoned methods `input.tap`, `input.swipe` (`from`/`to` `[x,y]` pairs) and
 friends take **screen points**, as `device.screen` reports. Do not mix the two
 in one script. When you do not know where a control is, do not guess: call
 `ui.tree` or `ui.ocr`, which return positions, or use `ui.tap_element` with a

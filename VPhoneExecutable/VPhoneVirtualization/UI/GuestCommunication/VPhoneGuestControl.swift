@@ -679,6 +679,8 @@ final class VPhoneGuestControl {
     /// enforces the executable and argument limits; this wrapper keeps the
     /// response typed enough for process discovery without hiding raw output.
     func spawnDiagnostic(executable: String, arguments: [String] = [], timeout: Double = 3) async throws -> [String: Any] {
+        // The names from before the renames, which every vphoned answers:
+        // a machine keeps its older vphoned until it is redeployed.
         try await call("process.spawn", params: [
             "executable": executable,
             "arguments": arguments,

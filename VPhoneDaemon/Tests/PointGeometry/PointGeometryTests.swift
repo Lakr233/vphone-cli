@@ -71,8 +71,8 @@ func rejects(_ operation: () throws -> Void) {
             precondition(abs(fallbackPoint[0] - 300 / 466.0) < 1e-9)
             precondition(abs(fallbackPoint[1] - 78 / 678.0) < 1e-9)
             for method in [InputMethod.inputDoubleTap, .inputLongPress, .inputSwipe, .inputDrag] {
-                _ = try GuestAPI.executeInput(method, ["x": 600, "y": 300, "x1": 600, "y1": 300,
-                                                      "x2": 500, "y2": 200, "points": [[600, 300], [500, 200]]])
+                _ = try GuestAPI.executeInput(method, ["x": 600, "y": 300, "from": [600, 300], "to": [500, 200],
+                                                      "points": [[600, 300], [500, 200]]])
             }
             _ = try GuestAPI.executeTouch(["phase": "down", "x": 600, "y": 300, "normalized": false])
             _ = try GuestAPI.executeInput(.inputTouchSequence,
@@ -144,8 +144,8 @@ func rejects(_ operation: () throws -> Void) {
             _ = try GuestAPI.executeTouch(["phase": "down", "normalized": flag, "x": 900, "y": 300])
         }
         for method in [InputMethod.inputDoubleTap, .inputLongPress, .inputSwipe, .inputDrag] {
-            _ = try GuestAPI.executeInput(method, ["x": 900, "y": 300, "x1": 900, "y1": 300,
-                                                  "x2": 800, "y2": 400, "points": [[900, 300], [800, 400]]])
+            _ = try GuestAPI.executeInput(method, ["x": 900, "y": 300, "from": [900, 300], "to": [800, 400],
+                                                  "points": [[900, 300], [800, 400]]])
         }
         rejects { _ = try GuestAPI.withActivePointGeometry { throw IcliError.failed("input failed") } }
         precondition(!icli_interface_geometry_current(nil), "input error leaked geometry")

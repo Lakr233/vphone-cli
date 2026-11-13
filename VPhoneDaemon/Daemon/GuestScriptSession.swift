@@ -29,7 +29,7 @@ enum GuestScriptSession {
     // MARK: - One Script
 
     /// Evaluate what the worker writes to stdin and answer with one JSON line,
-    /// `{ok, result | error, output}`; stdout carries nothing else.
+    /// `{ok, result | message, output}`; stdout carries nothing else.
     private static func evaluate() -> Int32 {
         // No terminal here, but the group still matters: a timed-out session is
         // killed by its group so that nothing the script started is left behind.
@@ -39,17 +39,20 @@ enum GuestScriptSession {
         let probe = evaluateProbe(source, api: answer)
         let line = reply(ok: probe.ok, output: probe.output, result: probe.result, error: probe.error)
         let encoded = (try? JSONSerialization.data(withJSONObject: line))
-            ?? Data(#"{"ok":false,"error":"The reply could not be encoded","output":""}"#.utf8)
+            ?? Data(#"{"ok":false,"message":"The reply could not be encoded","error":"The reply could not be encoded","output":""}"#.utf8)
         FileHandle.standardOutput.write(encoded + Data("\n".utf8))
         return probe.ok ? 0 : 65
     }
 
-    /// The answer line: `result` or `error` is present only when the probe produced it. A session that
+    /// The answer line: `result` or `message` is present only when the probe produced it. A session that
     /// answers did not crash; the worker reports `crashed: true` itself when none does.
     private static func reply(ok: Bool, output: String, result: String?, error: String?) -> [String: Any] {
         var reply: [String: Any] = ["ok": ok, "output": output, "crashed": false]
         if let result { reply["result"] = result }
-        if let error { reply["error"] = error }
+        if let error {
+            reply["message"] = error
+            reply["error"] = error
+        }
         return reply
     }
 

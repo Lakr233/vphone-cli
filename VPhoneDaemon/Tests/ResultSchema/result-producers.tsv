@@ -92,7 +92,7 @@ homeview.distance.get	VPhoneDaemon/Daemon/GuestAPI+HomeViewDistance.swift#call
 homeview.distance.set	VPhoneDaemon/Daemon/GuestAPI+HomeViewDistance.swift#call
 input.button	icli:IcliKit/Input/Screen.swift#pressButton
 input.double_tap	icli:IcliKit/Input/Screen.swift#doubleTap
-input.drag	icli:IcliKit/Input/Screen.swift#drag
+input.drag	VPhoneDaemon/Daemon/GuestAPI+Input.swift#executeInput
 input.hid	VPhoneDaemon/Daemon/GuestAPI.swift#executeCore
 input.key	icli:IcliKit/Input/Screen.swift#pressKey
 input.long_press	icli:IcliKit/Input/Screen.swift#longPress
@@ -150,9 +150,9 @@ packages.status	icli:IcliKit/Host/Packages.swift#packageStatus
 packages.tweaks	icli:IcliSystem/Host.swift#listTweaks
 poster.inspect	VPhoneDaemon/Daemon/GuestAPI+Process.swift#inspectPoster
 power.low_power_mode	icli:IcliKit/Device/SystemModes.swift#lowPowerMode;icli:IcliKit/Device/SystemModes.swift#setLowPowerMode
-process.spawn	VPhoneDaemon/Daemon/GuestAPI+Process.swift#spawnProcess
 processes.kill	VPhoneDaemon/Daemon/GuestAPI+Process.swift#executeProcess
 processes.list	VPhoneDaemon/Daemon/GuestAPI+Process.swift#processList
+processes.spawn	VPhoneDaemon/Daemon/GuestAPI+Process.swift#spawnProcess
 screen.screenshot	VPhoneDaemon/Daemon/GuestAPI.swift#executeCore
 screen.unlock	VPhoneDaemon/Daemon/GuestAPI+Device.swift#executeDevice
 script.eval	VPhoneDaemon/Daemon/GuestScriptSession.swift#reply;VPhoneDaemon/Daemon/GuestAPI+Script.swift#evaluateScript

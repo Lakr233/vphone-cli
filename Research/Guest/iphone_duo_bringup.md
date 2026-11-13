@@ -3595,7 +3595,7 @@ Local artifacts: `/tmp/duo-wallpaper/round{4..9}_*.log`,
 row a real Duo resolves at this panel size; accept them or supply a native
 reference screenshot to compare against. (2) The home black band owner.
 (3) Live-instance forensics beyond this needs frida in the guest, which
-needs a `process.spawn`-style vphoned RPC or bootstrap ssh first — no
+needs a `processes.spawn`-style vphoned RPC or bootstrap ssh first — no
 arbitrary process launch exists today (`exec` runs the host-side CLI).
 
 ### Round-12 destabilization and rollback (2026-10-27 evening)
@@ -3727,7 +3727,7 @@ Forensics past the 72pt band (bundles `f6c61f57`…`ad926933`):
   lands on the 72pt state; (2) the root fix remains making the extension
   scene/​display mode rotate — the display-identity workstream;
   (3) live compositor introspection needs frida in the guest (extension
-  process), which needs the `process.spawn` vphoned RPC or bootstrap ssh.
+  process), which needs the `processes.spawn` vphoned RPC or bootstrap ssh.
 
 ### Cover-viewport switch regression on the latest build (2026-10-27 late)
 

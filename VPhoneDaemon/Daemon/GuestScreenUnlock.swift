@@ -29,7 +29,7 @@ enum GuestScreenUnlock {
 
     static func unlock(passcode: String?, timeout: Double) throws -> [String: Any] {
         guard timeout.isFinite, (1 ... 60).contains(timeout) else {
-            throw GuestAPIError.invalidRequest("timeout must be 1–60 seconds")
+            throw GuestAPIError.invalidRequest("timeout_ms must be 1000–60000")
         }
         exclusive.lock()
         defer { exclusive.unlock() }

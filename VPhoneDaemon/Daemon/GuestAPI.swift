@@ -409,8 +409,12 @@ enum GuestAPI {
         case .locationClear:
             return try clearSimulatedLocation()
         case .locationCurrent:
+            let timeout = number(params, "timeout_ms", default: 10000)
+            guard timeout.isFinite, timeout > 0, timeout <= 300_000 else {
+                throw GuestAPIError.invalidRequest("timeout_ms must be more than 0 and at most 300000")
+            }
             guard CLLocationManager.locationServicesEnabled() else { throw GuestAPIError.locationServicesOff }
-            return try currentLocation(timeout: number(params, "timeout", default: 10))
+            return try currentLocation(timeout: timeout / 1000)
         case .developerModeStatus:
             return try developerModeStatus()
         case .developerModeEnable:

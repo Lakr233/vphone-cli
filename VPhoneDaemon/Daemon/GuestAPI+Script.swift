@@ -11,8 +11,8 @@ import VphonedNative
 /// interactive one; both run in a session process rather than in the worker,
 /// so a script that crashes or never returns ends only its own session.
 ///
-/// `script.eval` takes `{source, timeout?}` and answers
-/// `{ok, result | error, output, crashed}`: a script that throws is an answer,
+/// `script.eval` takes `{source, timeout_ms?}` and answers
+/// `{ok, result | message, output, crashed}`: a script that throws is an answer,
 /// not a failed request, and its output comes back either way.
 extension GuestAPI {
     static func executeScript(_ m: ScriptMethod, _ params: [String: Any]) throws -> [String: Any] {
@@ -34,7 +34,7 @@ extension GuestAPI {
     /// Long enough for a script that waits on a system service, short enough
     /// that a stuck one does not hold a client's request open indefinitely.
     private static func scriptTimeout(_ params: [String: Any]) -> Double {
-        let value = number(params, "timeout", default: 30)
+        let value = number(params, "timeout_ms", default: 30000) / 1000
         guard value.isFinite, value > 0 else { return 30 }
         return min(max(value, 1), 600)
     }
@@ -64,7 +64,8 @@ extension GuestAPI {
         else {
             // The session died before it could answer: how it ended is all
             // there is to report, and it is what a crash looks like here.
-            return ["ok": false, "crashed": true, "output": "", "error": describe(sessionStatus: status)]
+            let message = describe(sessionStatus: status)
+            return ["ok": false, "crashed": true, "output": "", "message": message, "error": message]
         }
         var result = answer
         result["crashed"] = false

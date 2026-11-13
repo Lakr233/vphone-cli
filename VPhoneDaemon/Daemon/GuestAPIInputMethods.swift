@@ -44,10 +44,8 @@ enum InputMethod: String, GuestMethod {
                        .optional("seconds", .number, "How long to hold the touch in seconds; above 0, at most 60", default: 1, max: 60),
                        summary: "Press and hold the screen at a point.", result: [.required("seconds", .number), .required("x", .number), .required("y", .number)])
         case .inputSwipe:
-            MethodSpec(.required("x1", .number, "Start x in screen points", min: 0),
-                       .required("y1", .number, "Start y in screen points", min: 0),
-                       .required("x2", .number, "End x in screen points", min: 0),
-                       .required("y2", .number, "End y in screen points", min: 0),
+            MethodSpec(.required("from", .array, "Start point as [x, y] in screen points"),
+                       .required("to", .array, "End point as [x, y] in screen points"),
                        .optional("seconds", .number, "Swipe duration in seconds; above 0, at most 60", default: 0.3, max: 60),
                        .optional("steps", .integer, "Number of intermediate touch moves", default: 20, min: 1, max: 2000),
                        summary: "Swipe from one screen point to another.", result: [.required("from", .array), .required("to", .array)])
@@ -56,7 +54,7 @@ enum InputMethod: String, GuestMethod {
                        .optional("seconds", .number, "Duration of the drag in seconds; above 0, at most 60", default: 0.5, max: 60),
                        .optional("hold", .number, "Seconds to hold at the first point before moving, 0 to 60", default: 0.5, min: 0, max: 60),
                        .optional("steps", .integer, "Touch moves in total; at least one per segment, at most 2000", default: 20, min: 1, max: 2000),
-                       summary: "Press at the first point and drag through the given points, as when moving an icon.", result: [.required("points", .integer)])
+                       summary: "Press at the first point and drag through the given points, as when moving an icon.", result: [.required("count", .integer), .required("points", .integer)])
         case .inputTouchSequence: MethodSpec(.required("events", .array, "1 to 10000 objects with phase (down, move or up), x, y and optional delay_ms (0 to 60000)"),
                                                   .optional("normalized", .boolean, "True reads x and y as 0 to 1 fractions of the screen; false reads screen points", default: true),
                                                   summary: "Play a scripted multi-event touch sequence for custom gestures.", result: [.required("duration_ms", .integer),
@@ -131,7 +129,7 @@ enum InterfaceMethod: String, GuestMethod {
                        .optional("role", .string, "Role filter: control for clickable, element for any, or an exact role such as button"),
                        .optional("match", .string, "How text is compared, ignoring case", values: ["contains", "exact"], default: "contains"),
                        .optional("index", .integer, "Which match to use when several elements match, from 0", default: 0, min: 0),
-                       .optional("timeout", .number, "Seconds to wait before failing, 0 to 60", default: 10, min: 0, max: 60),
+                       .optional("timeout_ms", .number, "Milliseconds to wait before failing, 0 to 60000", default: 10000, min: 0, max: 60000),
                        summary: "Wait until an element matching text or identifier appears (ui.wait) or disappears (ui.wait_gone).", result: [.required("disappeared", .boolean),
                                 .required("element", .object),
                                 .required("found", .boolean),

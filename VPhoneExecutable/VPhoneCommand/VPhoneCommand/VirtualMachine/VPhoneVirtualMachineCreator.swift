@@ -823,7 +823,7 @@ public struct VPhoneVirtualMachineCreator {
                 case "completed":
                     return status
                 case "failed":
-                    throw VPhoneVirtualMachineCreationError.bootstrapFailed(status["error"] as? String ?? "unknown error")
+                    throw VPhoneVirtualMachineCreationError.bootstrapFailed(status["message"] as? String ?? "unknown error")
                 default:
                     break
                 }

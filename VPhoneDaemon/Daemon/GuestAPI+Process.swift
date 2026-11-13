@@ -9,7 +9,7 @@ import VphonedNative
 extension GuestAPI {
     static func executeProcess(_ m: ProcessMethod, _ params: [String: Any]) throws -> [String: Any] {
         switch m {
-        case .processSpawn:
+        case .processesSpawn:
             return try spawnProcess(params)
         case .posterInspect:
             return try inspectPoster(params)
@@ -62,7 +62,7 @@ extension GuestAPI {
         guard let name = params["executable"] as? String,
               let executable = GuestProcessSpawnPolicy.executables[name] else { throw GuestAPIError.invalidRequest("executable must be one of " + GuestProcessSpawnPolicy.executables.keys.sorted().joined(separator: ", ")) }
         let arguments = params["arguments"] as? [String] ?? []
-        let timeout = (params["timeout_seconds"] as? NSNumber).map { $0.doubleValue } ?? 3.0
+        let timeout = (params["timeout_ms"] as? NSNumber).map { $0.doubleValue / 1000 } ?? 3.0
         if let error = GuestProcessSpawnPolicy.validate(executable: name, arguments: arguments, timeout: timeout) { throw GuestAPIError.invalidRequest(error) }
         let run = try runProgram(executable, arguments, timeout: timeout)
         return [

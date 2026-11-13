@@ -81,7 +81,7 @@ enum DeviceMethod: String, GuestMethod {
                        .optional("port", .integer, "TCP port to connect to for each resolved address; omit to only resolve"),
                        .optional("family", .string, "Restrict results to one address family; omit for both", values: ["ipv4", "ipv6"]),
                        .optional("first_only", .boolean, "Connect-test only the first address", default: false),
-                       .optional("timeout_ms", .number, "Milliseconds to wait for the resolver; values under 100 count as 100", default: 5000, min: 100), summary: "Resolve a host name with the guest resolver and optionally test TCP connects to a port", result: [.optional("addresses", .array), .required("elapsed_ms", .integer), .optional("error", .string), .required("host", .string), .optional("status", .string)])
+                       .optional("timeout_ms", .number, "Milliseconds to wait for the resolver; values under 100 count as 100", default: 5000, min: 100), summary: "Resolve a host name with the guest resolver and optionally test TCP connects to a port", result: [.optional("addresses", .array), .required("elapsed_ms", .integer), .optional("error", .string), .optional("message", .string), .required("host", .string), .optional("status", .string)])
         case .networkStaticNamesGet: MethodSpec(summary: "List the static host name to address entries vphoned serves to the guest", result: [.required("entries", .array)])
         case .networkStaticNamesSet: MethodSpec(.optional("entries", .array, "Array of objects with address (IPv4) and names (array of host names); omit to clear"), summary: "Replace the static host name to address entries; an empty or missing list clears them", result: [.required("changed", .boolean), .required("entries", .array)])
         case .networkHostnameGet: MethodSpec(summary: "Read the guest's mDNS local host name and whether vphoned manages it", result: [.required("local_host_name", .string).nullable(), .required("managed", .boolean)])
@@ -227,7 +227,7 @@ enum DeviceMethod: String, GuestMethod {
                                                       .required("lock_screen_minimum_seconds", .integer).nullable(),
                                                       .required("never", .boolean),
                                                       .required("requested_auto_lock_seconds", .integer)])
-        case .screenUnlock: MethodSpec(.optional("passcode", .string, "Device passcode; required when the device is locked and has one"), .optional("timeout", .number, "Seconds to allow the unlock", default: 10, min: 1, max: 60), summary: "Wake the display and pass the Lock Screen, entering the passcode if the device has one", result: [.required("locked", .boolean),
+        case .screenUnlock: MethodSpec(.optional("passcode", .string, "Device passcode; required when the device is locked and has one"), .optional("timeout_ms", .number, "Milliseconds to allow the unlock", default: 10000, min: 1000, max: 60000), summary: "Wake the display and pass the Lock Screen, entering the passcode if the device has one", result: [.required("locked", .boolean),
                                                 .required("screen_off", .boolean),
                                                 .required("was_locked", .boolean),
                                                 .required("was_screen_off", .boolean)])
