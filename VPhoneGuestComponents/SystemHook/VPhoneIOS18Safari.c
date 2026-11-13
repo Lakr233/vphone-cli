@@ -33,6 +33,10 @@ void vpUseIOS18SafariSoftwareRendering(void) {
     // Argument-domain values are process-local, even on a used Safari profile.
     set(arguments, selector("setObject:forKey:"), off,
         string((id)strings, utf8, "WebKitDebugAcceleratedDrawingEnabled"));
+    // Safari reads this feature flag independently of GraphicsLayer drawing.
+    // A GPU-backed 2D canvas can still be blank on an otherwise visible page.
+    set(arguments, selector("setObject:forKey:"), off,
+        string((id)strings, utf8, "WebKitExperimentalUseGPUProcessForCanvasRenderingEnabled"));
     set(defaults, selector("setVolatileDomain:forName:"), arguments, name);
     ((void (*)(id, SEL))send)(arguments, selector("release"));
 }
