@@ -31,7 +31,7 @@ bootstrap.firmware	never	-	-	dpkg_database_updated:boolean,firmware_version:stri
 bootstrap.inspect	never	-	-	installed:boolean,jbroot:string?,layout:string?,roots:array	read
 bootstrap.install	never	layout:string!,package_path:string	-	app_path:string:null,architecture:string,dpkg_database_updated:boolean,firmware_version:string,jbroot:string,layout:string,maintainer_scripts_executed:boolean,registration:object:null,roothide_base:object?,service_load:object,service_start:object?,service_start_warning:string?,service_status:object,tag:string,version:string	mutating
 bootstrap.packages	never	-	-	jbroot:string?,packages:array,repositories:array?,skipped:string?	excluded:needs an installed bootstrap
-bootstrap.status	never	-	-	downloaded_bytes:integer?,jbroot:string?,layout:string?,message:string?,packages:array?,phase:string,tag:string?,total_bytes:integer?,version:string?	read
+bootstrap.status	never	-	-	downloaded_bytes:integer?,error:string?,jbroot:string?,layout:string?,message:string?,packages:array?,phase:string,tag:string?,total_bytes:integer?,version:string?	read
 bootstrap.uninstall	always	roots:array,jbroot:string,reboot:boolean	uninstall the bootstrap	deleted:boolean,reboot_scheduled:boolean,roots:array	mutating
 clipboard.clear	never	-	-	change_count:integer,has_image:boolean,has_text:boolean,image:object?,items:integer,method:string,text:string,types:array	mutating
 clipboard.get	never	-	-	change_count:integer,has_image:boolean,has_text:boolean,image:object?,items:integer,method:string,text:string,types:array	read
@@ -87,12 +87,12 @@ files.symlink	never	target:string!,link:string!,replace:boolean	-	link:string,re
 files.write	never	path:string!,content:string!,encoding:string	-	bytes:integer,path:string	mutating
 homepod.debug.call	never	operation:string!,arguments:object!	-	operation:string,submitted:boolean?,value:any:null?*	mutating
 homepod.debug.catalog	never	-	-	animations:array,available:boolean,interface:string,operations:array,phases:array	excluded:HomePod guests only
-homepod.display.state	never	-	-	available:boolean,bit_depth:integer,configured:boolean,display_count:integer,displays:array,frame_timestamp:integer?,frames_received:integer,generation:integer,geometry:object,hardware_version:integer,last_report_id:integer,last_report_length:integer,message:string:null,minus:number,pixels:array,plus:number,rejected_reports:integer,report_bit_depth:integer,state:string	excluded:HomePod guests only
+homepod.display.state	never	-	-	available:boolean,bit_depth:integer,configured:boolean,display_count:integer,displays:array,error:string:null,frame_timestamp:integer?,frames_received:integer,generation:integer,geometry:object,hardware_version:integer,last_report_id:integer,last_report_length:integer,message:string:null,minus:number,pixels:array,plus:number,rejected_reports:integer,report_bit_depth:integer,state:string	excluded:HomePod guests only
 homeview.distance.get	never	-	-	applied:integer,available:boolean,backlight_state:integer:null,display_style:integer:null,level_of_detail:integer,mode:string,override_active:integer:null,reset_scope:string	excluded:HomePod guests only
 homeview.distance.set	never	mode:string!,reset_environment:boolean	-	applied:integer,available:boolean,backlight_state:integer:null,display_style:integer:null,level_of_detail:integer,mode:string,override_active:integer:null,reset_scope:string	mutating
 input.button	never	name:string!	-	active_category:string?,active_muted:boolean?,active_volume:number?,before:object?,button:string?,error:string~,locked:boolean?,method:string?,screen_off:boolean?	mutating
 input.double_tap	never	x:number!,y:number!,interval:number	-	x:number,y:number	mutating
-input.drag	never	points:array!,seconds:number,hold:number,steps:integer	-	count:integer	mutating
+input.drag	never	points:array!,seconds:number,hold:number,steps:integer	-	count:integer,points:integer	mutating
 input.hid	never	page:integer!,usage:integer!,long_press:boolean,down:boolean	-	action:string,long_press:boolean?,page:integer,usage:integer	mutating
 input.key	never	name:string!	-	dispatched:boolean,key:string	mutating
 input.long_press	never	x:number!,y:number!,seconds:number	-	seconds:number,x:number,y:number	mutating
@@ -135,7 +135,7 @@ network.hostname.get	never	-	-	local_host_name:string:null,managed:boolean	read
 network.hostname.set	never	local_host_name:string	-	changed:boolean,local_host_name:string:null,managed:boolean	mutating
 network.ipv4.get	never	interface:string	-	address:any?,dns:array,interface:string,managed:boolean,method:string,router:string?,service:string,subnet_mask:any?	read
 network.ipv4.set	never	interface:string,method:string!,address:string,subnet_mask:string,router:string,dns:array	-	address:any?,changed:boolean,dns:array,interface:string,managed:boolean,method:string,router:string?,service:string,subnet_mask:any?	mutating
-network.resolve	never	host:string!,port:integer,family:string,first_only:boolean,timeout_ms:number	-	addresses:array?,elapsed_ms:integer,host:string,message:string?,status:string?	excluded:needs params
+network.resolve	never	host:string!,port:integer,family:string,first_only:boolean,timeout_ms:number	-	addresses:array?,elapsed_ms:integer,error:string?,host:string,message:string?,status:string?	excluded:needs params
 network.static_names.get	never	-	-	entries:array	read
 network.static_names.set	never	entries:array	-	changed:boolean,entries:array	mutating
 notify.post	never	name:string!,state:any	-	delivered:boolean,name:string,posted:boolean,state:integer?	mutating
@@ -157,7 +157,7 @@ processes.output_release	never	output_id:string!	-	released:boolean	excluded:nee
 processes.spawn	never	executable:string!,arguments:array,timeout_ms:number,max_output_bytes:integer,max_capture_bytes:integer	-	arguments:array,capture_truncated:boolean,executable:string,exit_code:integer:null,output_dir:string?,output_id:string?,pid:integer,signal:integer:null,stderr:string,stderr_total:integer,stderr_truncated:boolean,stdout:string,stdout_total:integer,stdout_truncated:boolean,timed_out:boolean	mutating
 screen.screenshot	never	max_dimension:integer,quality:number,region:object	-	bytes:integer,coordinate_scale:number,data:string,height:integer,mime_type:string,point_height:number,point_width:number,region:object,width:integer	read
 screen.unlock	never	passcode:string,timeout_ms:number	-	locked:boolean,screen_off:boolean,was_locked:boolean,was_screen_off:boolean	mutating
-script.eval	never	source:string!,timeout_ms:number	-	crashed:boolean,message:string?,ok:boolean?,output:string?,result:string?	mutating
+script.eval	never	source:string!,timeout_ms:number	-	crashed:boolean,error:string?,message:string?,ok:boolean?,output:string?,result:string?	mutating
 script.info	never	-	-	available:boolean,engine:string,globals:array,programs:object	read
 security.ssl_killswitch	never	-	-	present:boolean	read
 services.disable	always	label:string!	disable `<label>`	changed:boolean,enabled:boolean,label:string	mutating
@@ -179,7 +179,7 @@ services.unload	always	paths:array!,override:boolean	unload services	errors:obje
 settings.delete	never	domain:string!,key:string!	-	domain:string,exists:boolean,key:string,notified:string?,removed:boolean,user:string	mutating
 settings.get	never	domain:string!,key:string	-	count:integer?,domain:string,exists:boolean?,key:string?,type:string?,user:string,value:any?*,values:object?*	excluded:needs params
 settings.set	never	domain:string!,key:string!,value:any!,type:string	-	count:integer?,domain:string,exists:boolean?,key:string?,notified:string?,type:string?,user:string,value:any?*,values:object?*	mutating
-setup.settle	never	timeout_ms:number,poll_ms:number,stable_polls:number	-	elapsed_ms:number,poll_ms:number,polls:integer,reasons:array,settled:boolean,signals:object,stable_polls:integer,timeout_ms:number	excluded:waits for Setup Assistant to settle
+setup.settle	never	timeout_ms:number,poll_ms:number,stable_polls:number	-	elapsed_ms:number,elapsed_s:number,poll_ms:number,poll_s:number,polls:integer,reasons:array,settled:boolean,signals:object,stable_polls:integer,timeout_ms:number,timeout_s:number	excluded:waits for Setup Assistant to settle
 setup.skip	always	-	skip Setup Assistant	current_version:integer:null,data_migration_done:boolean:null,pending:boolean,pid:integer,respring:object,running:boolean,setup_done:boolean,setup_version:integer:null	mutating
 setup.status	never	-	-	current_version:integer:null,data_migration_done:boolean:null,pending:boolean,pid:integer,running:boolean,setup_done:boolean,setup_version:integer:null	read
 system.reboot	always	userspace:boolean	-	accepted:boolean,completion:string,kind:string	mutating

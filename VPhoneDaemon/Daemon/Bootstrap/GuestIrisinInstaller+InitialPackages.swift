@@ -43,7 +43,7 @@ extension GuestIrisinInstaller {
         guard result.status == 0 else {
             let lines = (result.output + result.errors).split(separator: "\n").suffix(6).joined(separator: "\n")
             let error = "irisin-cli install exited with status \(result.status):\n\(lines)"
-            setProgress(["phase": "failed", "layout": installation.layout, "packages": packages, "message": error])
+            setProgress(["phase": "failed", "layout": installation.layout, "packages": packages, "message": error, "error": error])
             throw GuestAPIError.operationFailed(error)
         }
         setProgress(["phase": "completed", "layout": installation.layout, "packages": packages])

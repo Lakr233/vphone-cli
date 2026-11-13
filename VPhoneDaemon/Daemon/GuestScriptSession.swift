@@ -39,7 +39,7 @@ enum GuestScriptSession {
         let probe = evaluateProbe(source, api: answer)
         let line = reply(ok: probe.ok, output: probe.output, result: probe.result, error: probe.error)
         let encoded = (try? JSONSerialization.data(withJSONObject: line))
-            ?? Data(#"{"ok":false,"message":"The reply could not be encoded","output":""}"#.utf8)
+            ?? Data(#"{"ok":false,"message":"The reply could not be encoded","error":"The reply could not be encoded","output":""}"#.utf8)
         FileHandle.standardOutput.write(encoded + Data("\n".utf8))
         return probe.ok ? 0 : 65
     }
@@ -49,7 +49,10 @@ enum GuestScriptSession {
     private static func reply(ok: Bool, output: String, result: String?, error: String?) -> [String: Any] {
         var reply: [String: Any] = ["ok": ok, "output": output, "crashed": false]
         if let result { reply["result"] = result }
-        if let error { reply["message"] = error }
+        if let error {
+            reply["message"] = error
+            reply["error"] = error
+        }
         return reply
     }
 

@@ -206,7 +206,7 @@ struct GuestMethodArea {
         GuestMethodArea(entries: { M.allCases.map { ($0.rawValue, $0.spec) } }) { method, params in
             guard let m = M(rawValue: method) else { return nil }
             let spec = m.spec
-            let admitted = try admit(spec, params)
+            let admitted = try admit(spec, GuestLegacyNames.params(of: method, params))
             let result = try handle(m, admitted)
             guard let paged = spec.paged else { return result }
             return try GuestPaging.apply(result, paged, admitted)
@@ -221,6 +221,7 @@ struct GuestMethodArea {
         _ areas: [GuestMethodArea], method: String, params: [String: Any],
         observer: () throws -> [String: Any]?,
     ) throws -> [String: Any] {
+        let method = GuestLegacyNames.methods[method] ?? method
         let observable = isObservable(method)
         let delay = observable ? try observeDelay(params) : nil
         let names = observable ? Set(observeParams.map(\.name)) : []
@@ -385,5 +386,47 @@ extension GuestAPIError {
         case EACCES, EPERM: .permission(message)
         default: .operationFailed(message)
         }
+    }
+}
+
+// MARK: - Names Before the Renames
+
+/// The names guest methods and their params had before they followed one set
+/// of rules (`processes.spawn`, `timeout_ms`, `input.swipe` `from`/`to`).
+/// Older clients still send them, so they are translated to today's before a
+/// request is admitted; `methods.list` and the docs name only today's.
+enum GuestLegacyNames {
+    static let methods = ["process.spawn": "processes.spawn"]
+
+    /// Per method, a param in seconds and the millisecond param it became.
+    static let seconds: [String: [(old: String, new: String)]] = [
+        "location.current": [("timeout", "timeout_ms")],
+        "processes.spawn": [("timeout_seconds", "timeout_ms")],
+        "screen.unlock": [("timeout", "timeout_ms")],
+        "script.eval": [("timeout", "timeout_ms")],
+        "setup.settle": [("timeout_s", "timeout_ms"), ("poll_s", "poll_ms")],
+        "ui.wait": [("timeout", "timeout_ms")],
+        "ui.wait_gone": [("timeout", "timeout_ms")],
+    ]
+
+    /// `params` with the old names of `method` turned into today's. A new
+    /// name the request also carries wins, and the old one is dropped either
+    /// way, so it is never refused as an unknown param; a value that is not a
+    /// number is passed on as it is, so it fails the way the new param would.
+    static func params(of method: String, _ params: [String: Any]) -> [String: Any] {
+        var params = params
+        for (old, new) in seconds[method] ?? [] {
+            guard let value = params.removeValue(forKey: old), params[new] == nil else { continue }
+            params[new] = (value as? NSNumber).map { NSNumber(value: $0.doubleValue * 1000) } ?? value
+        }
+        if method == "input.swipe" {
+            let ends = ["x1", "y1", "x2", "y2"].map { params[$0] }
+            if params["from"] == nil, params["to"] == nil, let x1 = ends[0], let y1 = ends[1], let x2 = ends[2], let y2 = ends[3] {
+                params["from"] = [x1, y1]
+                params["to"] = [x2, y2]
+                for key in ["x1", "y1", "x2", "y2"] { params.removeValue(forKey: key) }
+            }
+        }
+        return params
     }
 }
