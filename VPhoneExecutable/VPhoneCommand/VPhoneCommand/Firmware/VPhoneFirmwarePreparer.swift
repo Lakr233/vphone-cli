@@ -203,19 +203,20 @@ enum VPhoneFirmwarePreparer {
            plan.isEnabled("system-extensions-boot-gpu_bundle") || plan.isEnabled(FirmwareRestoreImagePatchSet.gpuDriver)
         {
             let cachedDriver = cachedGPUDriver(for: cloud)
-            // iOS 18 cannot load a 26.x cloudOS driver. With its transport
-            // selected it takes the driver of its own release's cloudOS.
+            // Both legacy GPU clients use the measured cloudOS 18.6 driver.
             let ownReleaseDriver = plan.isEnabled(FirmwareGuestSystemPatchSet.ios18GPUTransport)
+                && (phone.version != "17.7" || device == .iPhone14_6)
+            let driverRelease = phone.version == "17.7" ? "18.6" : VPhonePCCGPUDriver.release(phone.version)
             if let gpuDriverBundle {
                 print("[*] Staging GPU driver from local bundle...")
                 try VPhonePCCGPUDriver.stage(
                     from: gpuDriverBundle,
                     into: phoneTree,
-                    expectedPlatformVersion: ownReleaseDriver ? VPhonePCCGPUDriver.release(phone.version) : cloud.version,
+                    expectedPlatformVersion: ownReleaseDriver ? driverRelease : cloud.version,
                 )
             } else if ownReleaseDriver {
                 try stageIOS18GPUDriver(
-                    forVersion: phone.version,
+                    forVersion: driverRelease,
                     into: phoneTree,
                     staging: staging,
                     ipswCacheDirectory: ipswCacheDirectory,

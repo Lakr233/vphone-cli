@@ -2402,9 +2402,28 @@ struct VPhoneCustomFirmwareInstaller {
         let gpuDriver = FirmwareGuestSystemPatchSet.paravirtGPUDriverPath
         let gpuBundle = "System/Library/Extensions/\(VPhonePCCGPUDriver.name)"
         let gpuDriverOn = gpuDriverPatches.filter { on($0.id) }
+        let isIOS17GPU = version == "17.7" && guestDevice == .iPhone14_6
+        let driverInfo = "\(gpuBundle)/Info.plist"
+        let installedDriverVersion = (try? PropertyListSerialization.propertyList(
+            from: system.readData(driverInfo), format: nil) as? [String: Any])?["DTPlatformVersion"] as? String
+        let gpuTransportPatch = FirmwareGuestSystemPatchSet.ios18GPUTransport
+        let transportOn = on(gpuTransportPatch)
+        let linkLegacyGPUTransport = isIOS17GPU && installedDriverVersion == "18.6" && transportOn
+        if isIOS17GPU && installedDriverVersion == "18.6" && !transportOn {
+            throw ValidationError("Prepare the cloudOS 26.1 GPU driver with the legacy GPU transport blocked before removing the transport from this guest.")
+        }
+        if linkLegacyGPUTransport && !preservedGLES.isEmpty {
+            try installLibraryAlias(system: system, alias: "vg", target: "/usr/lib/SystemHook-vphone.dylib")
+            try patchMachO(system: system, work: work, path: gpuDriver,
+                           identifier: "com.apple.driver.AppleParavirtGPUMetalIOGPUFamily", injectedDylibPath: "/vg")
+            try sealGuestBundle(system: system, bundle: gpuBundle)
+        }
         isolate(gpuDriverPatches.map(\.id)) {
             guard preservedGLES.isEmpty else { return }
-            if !gpuDriverOn.isEmpty {
+            if !gpuDriverOn.isEmpty || linkLegacyGPUTransport {
+                if linkLegacyGPUTransport {
+                    try installLibraryAlias(system: system, alias: "vg", target: "/usr/lib/SystemHook-vphone.dylib")
+                }
                 let compilerCache = gpuDriverOn.first { $0.id == FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache }
                 let pluginName = "gpu-compiler-cache-plugin.dylib"
                 if compilerCache != nil {
@@ -2421,6 +2440,7 @@ struct VPhoneCustomFirmwareInstaller {
                     system: system, work: work, path: gpuDriver,
                     verbs: gpuDriverOn.filter { $0.id != compilerCache?.id }.map(\.verb),
                     identifier: "com.apple.driver.AppleParavirtGPUMetalIOGPUFamily",
+                    injectedDylibPath: linkLegacyGPUTransport ? "/vg" : nil,
                     beforeSigning: { staged in
                         if let compilerCache {
                             try patch(compilerCache.verb, [staged.path, "--compiler-plugin", work.file(pluginName).path])
@@ -2441,6 +2461,9 @@ struct VPhoneCustomFirmwareInstaller {
             }
         }
 
+        if linkLegacyGPUTransport && !Set(failures).isDisjoint(with: gpuDriverPatches.map(\.id)) {
+            throw ValidationError("The iOS 17 GPU transport could not be linked to the driver.")
+        }
         if on(FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache),
            failures.contains(FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache) {
             throw ValidationError("GPU compiler cache identity update failed; the private disk clone was discarded to keep the compiler and driver consistent.")
@@ -2934,26 +2957,29 @@ struct VPhoneCustomFirmwareInstaller {
             }
         }
 
-        // The transport only makes sense over the iOS release's own driver,
-        // which `fw prepare` stages when this patch is selected. A machine
-        // prepared before that still has the cloudOS one, which iOS 18 cannot
-        // load at all, so translating for it would change nothing.
-        let gpuTransportPatch = FirmwareGuestSystemPatchSet.ios18GPUTransport
+        // Enable the transport after the matching driver has been installed.
         let gpuTransportMarker = String(FirmwareGuestSystemPatchSet.ios18GPUTransportMarker.dropFirst())
         isolate([gpuTransportPatch]) {
-            if on(gpuTransportPatch) {
+            if version == "17.7" && !linkLegacyGPUTransport {
+                try system.removeItem(gpuTransportMarker)
+                if isIOS17GPU && transportOn {
+                    print("  [!] \(gpuTransportPatch): prepare the cloudOS 18.6 GPU driver before enabling this transport.")
+                }
+                return
+            }
+            if transportOn {
                 let info = try PropertyListSerialization.propertyList(
                     from: system.readData("\(gpuBundle)/Info.plist"), format: nil,
                 ) as? [String: Any]
                 let driver = info?["DTPlatformVersion"] as? String ?? "unknown"
-                guard VPhonePCCGPUDriver.release(driver) == VPhonePCCGPUDriver.release(version) else {
+                guard VPhonePCCGPUDriver.release(driver) == "18.6" else {
                     try system.removeItem(gpuTransportMarker)
-                    print("  [!] \(gpuTransportPatch): the installed GPU driver is for \(driver), not \(version); run fw prepare again to stage the iOS \(VPhonePCCGPUDriver.release(version)) driver")
+                    print("  [!] \(gpuTransportPatch): the installed GPU driver is for \(driver); run fw prepare again to stage the cloudOS 18.6 driver")
                     return
                 }
                 // Written once: vphoned drops the icons IconServices stored
                 // before this time, when the guest had no GPU.
-                let marker = Data("1\n".utf8)
+                let marker = Data((version == "17.7" ? "2\n" : "1\n").utf8)
                 if (try? system.readData(gpuTransportMarker)) != marker {
                     try system.writeFile(gpuTransportMarker, contents: marker, mode: 0o644, owner: Self.guestOwner)
                     print("  [+] \(gpuTransportPatch): on over the iOS \(driver) GPU driver")

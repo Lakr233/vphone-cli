@@ -842,17 +842,16 @@ public enum FirmwareGuestSystemPatchSet {
             ),
             VPhonePatchDeclaration(
                 identifier: ios18GPUTransport,
-                title: "iOS 18 GPU transport",
+                title: "Legacy iOS GPU transport",
                 summary: """
-                Gives an iOS 18 guest on a cloudOS 26.1 kernel a Metal device. `fw prepare` stages \
-                the paravirtual GPU driver of the iOS release's own cloudOS, and SystemHook \
-                translates the IOGPU and driver calls the 26.1 kernel renumbered or widened. \
-                Without it the guest has no GPU and draws its UI in software. Restart after changing; \
-                switching it on or off also needs a new `fw prepare` for the matching driver.
+                Gives iOS 18.6 and iPhone SE 3 iOS 17.7 guests a Metal device on cloudOS 26.1. \
+                Firmware preparation stages the cloudOS 18.6 paravirtual GPU driver. SystemHook \
+                translates the IOGPU calls and the iOS 17 completion records. Switching it on or off \
+                requires preparing the matching driver again before CFW installation.
                 """,
                 target: .guestFile(path: ios18GPUTransportMarker),
                 applicability: VPhonePatchApplicability(
-                    iOSBase: .release(major: 18, minor: 6),
+                    iOSBase: .oneOf([.release(major: 17, minor: 7), .release(major: 18, minor: 6)]),
                     cloudOS: .release(major: 26, minor: 1),
                 ),
             ),
