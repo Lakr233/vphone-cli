@@ -2402,7 +2402,7 @@ struct VPhoneCustomFirmwareInstaller {
         let gpuDriver = FirmwareGuestSystemPatchSet.paravirtGPUDriverPath
         let gpuBundle = "System/Library/Extensions/\(VPhonePCCGPUDriver.name)"
         let gpuDriverOn = gpuDriverPatches.filter { on($0.id) }
-        let isIOS17GPU = version == "17.7" && guestDevice == .iPhone14_6
+        let isIOS17GPU = VPhoneFirmwarePreparer.usesIOS17GPUTransport(version: version, device: guestDevice)
         let driverInfo = "\(gpuBundle)/Info.plist"
         let installedDriverVersion = (try? PropertyListSerialization.propertyList(
             from: system.readData(driverInfo), format: nil) as? [String: Any])?["DTPlatformVersion"] as? String

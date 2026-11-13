@@ -11,6 +11,10 @@ import VPhonePatchKit
 /// disposable directory inside the VM; only a complete tree is moved into
 /// place for the patch/restore steps to see.
 enum VPhoneFirmwarePreparer {
+    static func usesIOS17GPUTransport(version: String, device: VPhoneGuestDevice) -> Bool {
+        version == "17.7" && (device == .iPhone14_6 || device == .iPhone15_4)
+    }
+
     enum Error: Swift.Error, LocalizedError {
         case existingRestore(URL)
         case missingComponent(URL)
@@ -205,7 +209,7 @@ enum VPhoneFirmwarePreparer {
             let cachedDriver = cachedGPUDriver(for: cloud)
             // Both legacy GPU clients use the measured cloudOS 18.6 driver.
             let ownReleaseDriver = plan.isEnabled(FirmwareGuestSystemPatchSet.ios18GPUTransport)
-                && (phone.version != "17.7" || device == .iPhone14_6)
+                && (phone.version != "17.7" || usesIOS17GPUTransport(version: phone.version, device: device))
             let driverRelease = phone.version == "17.7" ? "18.6" : VPhonePCCGPUDriver.release(phone.version)
             if let gpuDriverBundle {
                 print("[*] Staging GPU driver from local bundle...")

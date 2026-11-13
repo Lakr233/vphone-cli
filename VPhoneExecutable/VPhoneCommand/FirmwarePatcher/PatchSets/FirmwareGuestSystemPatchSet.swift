@@ -844,7 +844,7 @@ public enum FirmwareGuestSystemPatchSet {
                 identifier: ios18GPUTransport,
                 title: "Legacy iOS GPU transport",
                 summary: """
-                Gives iOS 18.6 and iPhone SE 3 iOS 17.7 guests a Metal device on cloudOS 26.1. \
+                Gives iOS 18.6 guests and iOS 17.7 guests on iPhone SE 3 and iPhone 15 a Metal device with cloudOS 26.1. \
                 Firmware preparation stages the cloudOS 18.6 paravirtual GPU driver. SystemHook \
                 translates the IOGPU calls and the iOS 17 completion records. Switching it on or off \
                 requires preparing the matching driver again before CFW installation.
