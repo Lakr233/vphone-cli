@@ -395,6 +395,21 @@ struct TXMExecutableRemapTests {
     }
 
     @Test
+    func precheckSupersedesExecutableRemap() throws {
+        // Both selected: precheck force-passes the selector-24 walk before
+        // classification, so executable_remap would be dead behind it. findAll
+        // must skip executable_remap and run the base trust-cache bypass instead,
+        // so the receipt never lists a patch that does not run.
+        let data = try fixture()
+        let patcher = TXMDevPatcher(data: data, verbose: false)
+        let enabled: Set<String> = [TXMDevPatcher.precheckAdmissionID, TXMDevPatcher.executableRemapID, "txm-boot-trustcache_bypass"]
+        patcher.gate = VPhonePatchGate(declared: enabled, enabled: enabled)
+        _ = try patcher.findAll()
+        #expect(!patcher.patches.contains { $0.patchID.hasPrefix(TXMDevPatcher.executableRemapID) })
+        #expect(patcher.patches.contains { $0.patchID == "txm-boot-trustcache_bypass" })
+    }
+
+    @Test
     func nativeAMFIProfileAssociationDoesNotNeedTheCompatibilitySite() throws {
         var data = try fixture()
         // Missing profile shape is only required when AMFI bypass skips
