@@ -83,6 +83,26 @@ struct CustomFirmwareArm64eX1AuditTests {
         #expect(try fixture.system.readData("Images/Truncated") == failed)
     }
 
+    @Test func `a universal magic without an X1 entry is neither an image nor a failure`() throws {
+        let fixture = try Installation.Fixture()
+        defer { fixture.remove() }
+        // A Java class file: CAFEBABE, then minor/major version read as a count
+        // whose table runs past the end of the file.
+        var javaClass = Data([0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x34])
+        javaClass += Data(repeating: 0x07, count: 64)
+        try fixture.write(javaClass, at: "Library/Java/Main.class")
+        // A readable universal table that names only ordinary arm64e.
+        let ordinary = CustomFirmwareArm64eX1Tests.universal(
+            Installation.library(subtype: 0x8000_0002), Installation.library(subtype: 0x8000_0002),
+        )
+        try fixture.write(ordinary, at: "Images/OrdinaryFat")
+        let report = try CustomFirmwareArm64eX1Audit.scan(root: fixture.url)
+        #expect(report.images.isEmpty)
+        #expect(report.failures.isEmpty)
+        #expect(!report.needsAttention)
+        #expect(report.examinedFiles == 2)
+    }
+
     @Test func `universal images are inspected and executable scanning is explicit`() throws {
         let fixture = try Installation.Fixture()
         defer { fixture.remove() }

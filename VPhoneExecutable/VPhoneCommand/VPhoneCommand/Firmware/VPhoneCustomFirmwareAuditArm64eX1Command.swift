@@ -7,9 +7,10 @@ struct VPhoneCustomFirmwareAuditArm64eX1Command: ParsableCommand {
         commandName: "audit-arm64e-x1",
         abstract: "Read-only audit of standalone X1 libraries and plug-ins",
         discussion: """
-        Scans a copied or read-only mounted guest System tree, including cryptex
-        files installed beneath it. Discovers images by Mach-O contents, without
-        a filename whitelist, and runs the production lowering planner in memory.
+        Scans a copied or read-only mounted guest System volume, given as the root
+        that holds System/ and usr/, including cryptex files installed beneath it.
+        Discovers images by Mach-O contents, without a filename whitelist, and runs
+        the production lowering planner in memory.
         Reports remaining instructions, incomplete conversions, errors and matching
         patch declarations. No image, signature, backup or receipt is written.
 
@@ -20,13 +21,26 @@ struct VPhoneCustomFirmwareAuditArm64eX1Command: ParsableCommand {
         """,
     )
 
-    @Argument(help: "Guest System directory", transform: URL.init(fileURLWithPath:)) var system: URL
+    @Argument(help: "Guest System volume root, the directory holding System/ and usr/", transform: URL.init(fileURLWithPath:))
+    var volume: URL
     @Flag(name: .long, help: "Include MH_EXECUTE and MH_DYLINKER images") var includeExecutables = false
     @Flag(name: .long, help: "Emit the full machine-readable report") var json = false
     @Flag(name: .long, help: "Fail if instructions remain or any image could not be audited") var strict = false
 
+    /// Declarations name volume-relative paths. A System/ subdirectory would
+    /// still scan, but would match no declaration and report them all undeclared.
+    func validate() throws {
+        for child in ["System", "usr"] {
+            var directory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: volume.appendingPathComponent(child).path, isDirectory: &directory),
+                  directory.boolValue else {
+                throw ValidationError("\(volume.path) is not a System volume root: it has no \(child)/ directory")
+            }
+        }
+    }
+
     func run() throws {
-        let report = try CustomFirmwareArm64eX1Audit.scan(root: system, includeExecutables: includeExecutables)
+        let report = try CustomFirmwareArm64eX1Audit.scan(root: volume, includeExecutables: includeExecutables)
         if json {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

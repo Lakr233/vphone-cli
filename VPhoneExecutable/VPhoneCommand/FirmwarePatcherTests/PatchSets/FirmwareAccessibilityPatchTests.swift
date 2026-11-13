@@ -21,6 +21,7 @@ struct FirmwareAccessibilityPatchTests {
         #expect(Set(all.map(\.path)).count == all.count)
         #expect(Set(all.map { ($0.path as NSString).lastPathComponent }).count == all.count)
         #expect(!all.contains { $0.path == FirmwareGuestSystemPatchSet.homePopAccessibilityExecutablePath })
+        #expect(Set(all.map(\.identifier)).isSubset(of: FirmwarePatchSetCatalog.tvOSBlockedPatches))
     }
 
     @Test func `each plug-in can be disabled independently and uses image-based applicability`() throws {

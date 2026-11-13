@@ -105,8 +105,9 @@ vphone-cli cfw audit-arm64e-x1 /path/to/readonly/System-volume --json --strict >
 ```
 
 The argument is the volume root containing `System/`, `usr/` and `Applications/`,
-including the installed physical OS cryptex. The default examines `MH_DYLIB`
-and `MH_BUNDLE`; `--include-executables` also selects `MH_EXECUTE` and
+including the installed physical OS cryptex; the command refuses a path without
+`System/` and `usr/`, such as the `System/` subdirectory itself.
+The default examines `MH_DYLIB` and `MH_BUNDLE`; `--include-executables` also selects `MH_EXECUTE` and
 `MH_DYLINKER`. Symlinks, `.bak` files/directories, kernel extensions and dyld
 shared caches are outside this scan. Shared caches need their separate converter;
 an external cryptex or developer image needs a separate mounted-root audit.
@@ -117,8 +118,8 @@ memory copies; no image, signature, backup or receipt is written. Remaining
 instructions, incomplete conversion, malformed load commands, signature errors
 and traversal/read errors prevent a strict pass. An X1 header alone does not:
 lowered images retain that header and are reported as `noLoweringNeeded`.
-Four audit regression tests cover unknown filenames, native and universal
-images, strict failure inputs, unchanged bytes/inodes/mtimes, inaccessible empty
+Five audit regression tests cover unknown filenames, native and universal
+images, universal magic without an X1 entry (a Java class file), strict failure inputs, unchanged bytes/inodes/mtimes, inaccessible empty
 APFS markers, and executable/kernel selection. They passed, as did the command
 build. The complete `VPhone` bundle also rebuilt with this command and
 passed deep, strict signature verification. A strict scan of all 36 converted

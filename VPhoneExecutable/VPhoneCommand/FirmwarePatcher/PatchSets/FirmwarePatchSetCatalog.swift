@@ -250,7 +250,9 @@ public enum FirmwarePatchSetCatalog {
     /// validated port of: display, camera, audio, sensors, the GPU driver (a
     /// plain-arm64 HD cannot load it), debugserver, the environment hooks, and
     /// the iPhone 19 ARM64E_X1 boot path.
-    public static let tvOSBlockedPatches: Set<String> = [
+    /// The standalone X1 images join from their table, so a new entry is blocked
+    /// here without a second list.
+    public static let tvOSBlockedPatches: Set<String> = Set<String>([
         FirmwareGuestSystemPatchSet.glesDepthClip,
         FirmwareGuestSystemPatchSet.metalCacheReuseKey,
         FirmwareGuestSystemPatchSet.glesPointDraw,
@@ -263,53 +265,6 @@ public enum FirmwarePatchSetCatalog {
         FirmwareGuestSystemPatchSet.arm64eX1CacheRemaining,
         FirmwareGuestSystemPatchSet.arm64eX1CIBarcode,
         FirmwareGuestSystemPatchSet.arm64eX1HomePopAccessibility,
-        "system-accessibilitysettingspopaccessibility-cfw-arm64e_x1",
-        "system-accessibilityuiservicepopaccessibility-cfw-arm64e_x1",
-        "system-accessibilityutilitiespopaccessibility-cfw-arm64e_x1",
-        "system-activityachievementsui-cfw-arm64e_x1",
-        "system-activitybridgesetup-cfw-arm64e_x1",
-        "system-activityringsui-cfw-arm64e_x1",
-        "system-activitysharing-cfw-arm64e_x1",
-        "system-activitysharingui-cfw-arm64e_x1",
-        "system-ambientsettingspopaccessibility-cfw-arm64e_x1",
-        "system-assistivetouchpopaccessibility-cfw-arm64e_x1",
-        "system-clarityboardpopaccessibility-cfw-arm64e_x1",
-        "system-fitnessapp-cfw-arm64e_x1",
-        "system-fitnessui-cfw-arm64e_x1",
-        "system-gaxspringboardserverpopaccessibility-cfw-arm64e_x1",
-        "system-gaxuiserverpopaccessibility-cfw-arm64e_x1",
-        "system-livespeechuiservicepopaccessibility-cfw-arm64e_x1",
-        "system-magnifierangelpopaccessibility-cfw-arm64e_x1",
-        "system-ntkcustomization-cfw-arm64e_x1",
-        "system-ntkpride2026facebundle-cfw-arm64e_x1",
-        "system-ntkultracubefacebundlecompanion-cfw-arm64e_x1",
-        "system-nanomailbridgesettings-cfw-arm64e_x1",
-        "system-nanomediabridgeui-cfw-arm64e_x1",
-        "system-nanopeoplebridgesettings-cfw-arm64e_x1",
-        "system-nanotimekitcompanion-cfw-arm64e_x1",
-        "system-schooltimesettingsui-cfw-arm64e_x1",
-        "system-speechrecognitioncommandandcontrolpopaccessibility-cfw-arm64e_x1",
-        "system-springboardpopaccessibility-cfw-arm64e_x1",
-        "system-springboardpopframework-cfw-arm64e_x1",
-        "system-swiftuipopaccessibility-cfw-arm64e_x1",
-        "system-systemstatusuipopaccessibility-cfw-arm64e_x1",
-        "system-uikitpopaccessibility-cfw-arm64e_x1",
-        "system-votaxuiservicepopaccessibility-cfw-arm64e_x1",
-        "system-voiceovertouchpopaccessibility-cfw-arm64e_x1",
-        "system-activity_widget-cfw-arm64e_x1",
-        "system-com_apple_nanotimekit_createwatchface-cfw-arm64e_x1",
-        "system-libdispatch-cfw-arm64e_x1_introspection",
-        "system-libbacktracerecording-cfw-arm64e_x1",
-        "system-libmainthreadchecker-cfw-arm64e_x1",
-        "system-librpac-cfw-arm64e_x1",
-        "system-libviewdebuggersupport-cfw-arm64e_x1",
-        "system-liblogredirect-cfw-arm64e_x1",
-        "system-libmtlhud-cfw-arm64e_x1",
-        "system-libglinterpose-cfw-arm64e_x1",
-        "system-libmetalmetricsinterpose-cfw-arm64e_x1",
-        "system-debughierarchyfoundation-cfw-arm64e_x1",
-        "system-gputoolscapture-cfw-arm64e_x1",
-        "system-gputoolsdiagnostics-cfw-arm64e_x1",
         "dyld-boot-iomfb_force_kern",
         "dyld-boot-iomfb_swapend",
         "dyld-boot-lockdown_mode",
@@ -367,7 +322,7 @@ public enum FirmwarePatchSetCatalog {
         "system-virtualaudio-cfw-speaker_raw_chains",
         "system-virtualaudio-cfw-speaker_route_throws",
         "system-virtualaudio-cfw-volume_mode_precondition",
-    ]
+    ]).union(FirmwareGuestSystemPatchSet.arm64eX1OptionalImages.map(\.identifier))
 
     /// The iOS 27 shared-cache patches a 27 userland needs on the 26.4 kernel,
     /// the display swap through the kernel among them. The Apple TV 4K keeps

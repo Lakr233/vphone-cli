@@ -142,7 +142,16 @@ public enum CustomFirmwareArm64eX1Audit {
         let wide = magic == 0xBFBA_FECA
         let stride = wide ? 32 : 20
         let count = Int(UInt32(bigEndian: data.loadLE(UInt32.self, at: 4)))
-        guard count > 0, count <= (data.count - 8) / stride else {
+        // CAFEBABE also opens Java class files, and a damaged non-X1 container
+        // is outside this audit. Only an X1 entry makes a bad table an error.
+        let readable = min(count, (data.count - 8) / stride)
+        let declaresX1 = (0..<readable).contains { index in
+            let entry = 8 + index * stride
+            return UInt32(bigEndian: data.loadLE(UInt32.self, at: entry)) == 0x0100_000C
+                && UInt32(bigEndian: data.loadLE(UInt32.self, at: entry + 4)) & 0x00FF_FFFF == 12
+        }
+        guard declaresX1 else { return false }
+        guard count == readable else {
             throw PatcherError.invalidFormat("truncated universal architecture table")
         }
         var found = false
