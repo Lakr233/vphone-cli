@@ -1855,10 +1855,17 @@ Apple's ROM and this patch. See `Firmware/openavb_boot_rom.md`.
 > then roothide + ellekit. Settings and seven other ad-hoc apps load
 > `TweakLoader → libinjector → roothideinit` and stay up with no injection crash.
 > A test tweak's `MSHookFunction` on the shared-cache `access` installs and fires
-> inside Settings without a crash, so inline hooks keep working. Not tested: an
-> app `vm_remap`-ing its own main-executable code (the case rows 13–17 were
-> validated on), iOS 26, and enabling both patch groups together. The standard
-> default stays rows 13–17. Historical evidence: `Research/Firmware/txm_selector24_cms_gate.md`.
+> inside Settings without a crash, so inline hooks keep working. But an app
+> `vm_remap`-ing its own main `__TEXT` (what rows 13–17 were validated on) is
+> **lost**: the remap's target reads `R--` under precheck, reproducing #831's
+> evidence, and this holds even when both patch groups are enabled — precheck
+> force-passes the walk as type 10, and type 10's mapping restriction denies the
+> self-remap independently of the legacy-bypass cause rows 13–17 fix. So the two
+> are a genuine either/or (injection XOR self-remap); enabling both behaves like
+> precheck alone with rows 13–17 dormant, and the preset should treat them as
+> mutually exclusive. iOS 26 is out of scope (rows 18–21 are iOS-27 gated). The
+> standard default stays rows 13–17; flipping it trades the injection regression
+> for a self-remap regression and is a policy choice. Historical evidence: `Research/Firmware/txm_selector24_cms_gate.md`.
 >
 > Test only on a freshly restored machine: `cfw install` and environment updates
 > never rewrite the booted TXM (`fw set-patches`: "LLB, TXM, DeviceTree: only a
