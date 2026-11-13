@@ -24,6 +24,9 @@ final class VPhoneHostShellRelay: @unchecked Sendable {
     private var closed = false
     private var pumping = false
     private var ended = false
+    /// Whether the last byte relayed to the client was a newline (or nothing
+    /// has been relayed yet): the status line starts on a line of its own.
+    private var atLineStart = true
 
     init(descriptor: Int32) {
         self.descriptor = descriptor
@@ -110,7 +113,9 @@ final class VPhoneHostShellRelay: @unchecked Sendable {
     }
 
     /// The last thing a client reads: how the session finished, on one line,
-    /// the way every other command on this socket answers.
+    /// the way every other command on this socket answers. A prompt the
+    /// session left unfinished gets a newline first, so the line is never
+    /// appended to it.
     func end(_ ending: VPhoneGuestShellChannel.Ending) {
         switch ending {
         case let .exited(status): writeLine(["ok": true, "exit": status])
@@ -141,14 +146,17 @@ final class VPhoneHostShellRelay: @unchecked Sendable {
     private func writeLine(_ object: [String: Any]) {
         guard var data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else { return }
         data.append(0x0A)
-        write(data)
+        write(data, startingLine: true)
     }
 
-    private func write(_ data: Data) {
-        guard !data.isEmpty else { return }
+    private func write(_ output: Data, startingLine: Bool = false) {
+        guard !output.isEmpty else { return }
         lock.lock()
         defer { lock.unlock() }
         guard !closed else { return }
+        var data = output
+        if startingLine, !atLineStart { data.insert(0x0A, at: 0) }
+        atLineStart = data.last == 0x0A
         data.withUnsafeBytes { buffer in
             guard let base = buffer.baseAddress else { return }
             var sent = 0

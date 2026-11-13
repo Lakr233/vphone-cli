@@ -43,7 +43,8 @@ Unknown `t`, or missing fields, give `{"ok":false,"error":"…"}`.
 `shell` is the one request with no single reply: the connection becomes the
 terminal. Every byte sent after the command line is input, everything the
 session writes comes back as it arrives, and one JSON line at the end says how
-it finished — `{"ok":true,"exit":0}`, `{"ok":true,"signal":2}`, or
+it finished, always starting on a line of its own (a newline comes first when
+the session's output did not end in one, such as an unfinished prompt) — `{"ok":true,"exit":0}`, `{"ok":true,"signal":2}`, or
 `{"ok":false,"error":"…"}` when no session could be opened.
 
 When the client's input ends, the terminal gets a `^D`, the way a keyboard
