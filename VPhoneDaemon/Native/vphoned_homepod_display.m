@@ -156,6 +156,7 @@ char *vp_homepod_display_copy_json(void) {
         NSMutableDictionary *result = [@{
             @"available": VPHomePodDevice ? @YES : @NO, @"configured": @(VPHomePodConfigured),
             @"state": VPHomePodState, @"message": VPHomePodError ?: (id)NSNull.null,
+            @"error": VPHomePodError ?: (id)NSNull.null,
             @"hardware_version": @(VPHomePodHardwareVersion), @"bit_depth": @(VPHomePodBitDepth),
             @"report_bit_depth": @16,
             @"display_count": @(VPHomePodDisplayCount),

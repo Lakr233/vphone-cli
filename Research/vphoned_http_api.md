@@ -984,6 +984,25 @@ panels an older agent cannot serve. icli failures reach the caller with
 icli's own error `code` (`failed`, `unavailable`, `device_locked`, …) and
 message.
 
+## Names from before the renames
+
+Methods and params follow one set of rules: failure text is `message`, every
+timeout is `timeout_ms` in milliseconds, `input.swipe` takes `from` and `to`.
+The names they had before still work, so older clients keep working;
+`methods.list` and this document name only today's (`GuestLegacyNames` in
+`GuestMethodSpec.swift` translates them before a request is admitted). An old
+name is dropped once it is translated, and when the request also sends the new
+name, so it is never refused as an unknown param.
+
+| Before | Today |
+| --- | --- |
+| `process.spawn`, `POST /v1/process/spawn` | `processes.spawn`, `POST /v1/processes/spawn` |
+| `timeout_seconds` (`processes.spawn`), `timeout` (`location.current`, `screen.unlock`, `script.eval`, `ui.wait`, `ui.wait_gone`), `timeout_s` and `poll_s` (`setup.settle`), all in seconds | `timeout_ms`, `poll_ms` in milliseconds; a request that sends both uses the new one |
+| `input.swipe {x1, y1, x2, y2}` | `input.swipe {from: [x, y], to: [x, y]}` |
+| result `error` of `bootstrap.status`, `homepod.display.state`, `network.resolve`, `script.eval` | `message`; `error` is still sent with the same text |
+| result `elapsed_s`, `poll_s`, `timeout_s` of `setup.settle` | `elapsed_ms`, `poll_ms`, `timeout_ms`; the seconds are still sent |
+| result `points` of `input.drag` | `count`; `points` is still sent |
+
 ## Method discovery
 
 `methods.list` takes no params and answers `{"methods": [...]}`: one object per

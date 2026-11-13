@@ -54,7 +54,7 @@ enum InputMethod: String, GuestMethod {
                        .optional("seconds", .number, "Duration of the drag in seconds; above 0, at most 60", default: 0.5, max: 60),
                        .optional("hold", .number, "Seconds to hold at the first point before moving, 0 to 60", default: 0.5, min: 0, max: 60),
                        .optional("steps", .integer, "Touch moves in total; at least one per segment, at most 2000", default: 20, min: 1, max: 2000),
-                       summary: "Press at the first point and drag through the given points, as when moving an icon.", result: [.required("count", .integer)])
+                       summary: "Press at the first point and drag through the given points, as when moving an icon.", result: [.required("count", .integer), .required("points", .integer)])
         case .inputTouchSequence: MethodSpec(.required("events", .array, "1 to 10000 objects with phase (down, move or up), x, y and optional delay_ms (0 to 60000)"),
                                                   .optional("normalized", .boolean, "True reads x and y as 0 to 1 fractions of the screen; false reads screen points", default: true),
                                                   summary: "Play a scripted multi-event touch sequence for custom gestures.", result: [.required("duration_ms", .integer),

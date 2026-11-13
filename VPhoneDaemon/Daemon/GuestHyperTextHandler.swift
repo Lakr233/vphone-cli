@@ -243,6 +243,7 @@ final class GuestHyperTextHandler: ChannelInboundHandler, RemovableChannelHandle
         case (.GET, "/v1/device/screen"): "device.screen"
         case (.GET, "/v1/apps"): "apps.list"
         case (.POST, "/v1/processes/spawn"): "processes.spawn"
+        case (.POST, "/v1/process/spawn"): "processes.spawn" // its name before the rename
         case (.POST, "/v1/apps/refresh"): "apps.refresh"
         case (.POST, "/v1/apps/launch"): "apps.launch"
         case (.POST, "/v1/apps/terminate"): "apps.terminate"

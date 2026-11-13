@@ -1073,7 +1073,9 @@ struct VPhoneLaunchpadControlCommands {
             guard let seconds = Double(text), (1 ... 60).contains(seconds) else {
                 throw VPhoneLaunchpadError("--timeout takes 1 to 60 seconds.")
             }
+            // `timeout` for a vphoned from before `timeout_ms`; a newer one takes `timeout_ms`.
             params["timeout_ms"] = seconds * 1000
+            params["timeout"] = seconds
         }
         let object: [String: Any] = ["t": "rpc", "method": "screen.unlock", "params": params]
         do {
