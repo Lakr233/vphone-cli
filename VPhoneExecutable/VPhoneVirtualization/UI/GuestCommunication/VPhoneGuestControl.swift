@@ -1174,7 +1174,12 @@ final class VPhoneGuestControl {
             (continuation: CheckedContinuation<VPhoneSocketResult, Never>) in
             device.connect(toPort: 1339) { continuation.resume(returning: VPhoneSocketResult($0)) }
         }
-        return VPhoneGuestStream(connection: try socket.result.get())
+        let connection = try socket.result.get()
+        // The pause `VPhoneHTTPTransaction` takes before its first write: a
+        // request written the instant a connection opens is sometimes lost,
+        // and the session's upgrade request is the first thing a stream sends.
+        try? await Task.sleep(for: .microseconds(Int(VPhoneHTTPTransaction.firstWriteDelayMicroseconds)))
+        return VPhoneGuestStream(connection: connection)
     }
 
     private func httpError(_ response: VPhoneHTTPResponse) throws -> ControlError {
@@ -1274,7 +1279,7 @@ private final class VPhoneHTTPTransaction: @unchecked Sendable {
     /// Per-read and per-write socket timeout.
     private static let socketTimeout: Duration = .seconds(120)
     /// How long a new connection waits before its request is written.
-    private static let firstWriteDelayMicroseconds: useconds_t = 2000
+    static let firstWriteDelayMicroseconds: useconds_t = 2000
 
     init(
         connection: VZVirtioSocketConnection,
