@@ -5,9 +5,9 @@ Cryptex는 게스트가 실행 중에 마운트하는 서명된 디스크 이미
 ## 시작하기 전에
 
 - `minimal` 프리셋으로 머신을 만들고, 새 머신의 패치 페이지에서 **Trusted darwinOS environment** 상자를 켭니다. `vphone-launchpad-cli`에서는 `--preset minimal --allow filesystem-exp-trusted_darwinos`입니다. 이 상자는 복원할 때만 적용됩니다. 기존 머신에서 켜려면 머신을 다시 만들어야 합니다.
-- iOS 26 또는 iOS 18 IPSW를 사용하세요. iOS 26.5와 cloudOS 26.5, iOS 18.6과 cloudOS 18.6 조합에서 동작합니다. iOS 27은 이 환경에서 부팅되지 않으므로, IPSW가 iOS 27이면 vphone-cli가 복원을 시작하기 전에 이 옵션을 거부합니다.
 - macOS Security Research 도구(PCC Virtual Research Environment)를 설치합니다. VM 창은 그 안의 `/System/Library/SecurityResearch/usr/bin/cryptexctl.research`로 cryptex를 빌드합니다.
 - 게스트에 네트워크가 필요합니다. cryptex를 설치할 때 Apple의 서명 서버에 이 게스트용 개인화를 요청합니다.
+- iOS에는 같은 릴리스의 cloudOS를 조합하세요. iOS 18.1~18.7.2, 26.1, 26.3~26.6, 27.2를 각각 해당 cloudOS와 조합해 확인했습니다. 다른 릴리스의 cloudOS에서는 `minimal` 게스트가 아예 부팅되지 않을 수 있습니다.
 
 이 환경에서 게스트는 Restricted Execution Mode를 적용하며, 연구용 보드 cloudOS(26.5~26.7)에서 실행되는 게스트는 개발자 모드를 켤 수 없습니다.
 

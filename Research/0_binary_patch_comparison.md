@@ -7533,9 +7533,12 @@ In environment 6 AMFI enables Developer Mode only in its research build; the
 research-board kernel mix takes AMFI from the release kernel, so a research-board
 guest has none (the note has the disassembly).
 
-iOS 27 does not boot in environment 6: dyld cannot mount the OS cryptex and
-launchd panics on libSystem (27.0.1 with cloudOS 26.4, 2026-11-12). `fw prepare`
-and the patcher refuse the box for iOS 27 and later (`trustedDarwinOSRefusal`).
+iOS 27.0.1 with cloudOS 26.4 panicked in environment 6 (dyld mounted no OS
+cryptex, launchd found no libSystem; 2026-11-12), and the box was refused for
+iOS 27 and later. That pairing boots a 26.4 TXM under iOS 27 binaries, which
+only `standard`'s TXM patches make work and `minimal` leaves stock. iOS 27.2
+with cloudOS 27.2 boots in environment 6 with cryptexes (2026-11-13), so the
+refusal is gone; the note has the versions checked.
 
 ## SPTM's secondary CPU tunable stops a multi-vCPU cloudOS 18 guest (2026-11-12)
 

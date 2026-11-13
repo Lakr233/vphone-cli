@@ -385,12 +385,44 @@ With the WKMS key refused (`cryptex7`/`cryptex8`, 2026-11-11, bundle
 | `cryptex.uninstall` | cryptexctl exits 1 without output after an uninstall that worked; the RPC takes `cryptexctl list` as the result |
 
 
-## iOS 27 does not boot (2026-11-12)
+## Versions checked (2026-11-13 and 14)
 
-iPhone17,3 iOS 27.0.1 (24A446) with cloudOS 26.4 (23E5207q), `minimal` with
-the box on, bundle 2.16.1-local.f9155a25: the restore succeeded
-(`Requesting Ap,OSEnvironment = 6`, cryptexctl staged through the temporary
-cloudOS restore), and the first boot panicked before launchd ran:
+Each pairing was a new machine, `vm create --preset minimal --allow
+filesystem-exp-trusted_darwinos --no-template`. Each test ran the same sequence:
+
+1. Restore with `Requesting Ap,OSEnvironment = 6`, then a first boot to vphoned
+   with libignition reporting `trusted-darwinos`.
+2. Install two cryptexes with `persist: true`: a shell script, read back, and a
+   launch daemon answering on TCP 7070.
+3. `system.reboot`; both cryptexes were mounted when vphoned answered again,
+   and the daemon answered with a new pid.
+4. `cryptex.uninstall` of both: nothing listed or kept, and the file and the
+   daemon gone.
+
+No machine logged a panic.
+
+| iPhone | cloudOS | Core Bundle |
+| --- | --- | --- |
+| iPhone11,6 18.1 (22B83) | 18.1 (22B83) | 2.17.1 + 27.2 support ¹ |
+| iPhone11,6 18.2.1 (22C161) | 18.2.1 (22C161) | 2.17.1 + 27.2 support ¹ |
+| iPhone11,6 18.3.1 (22D72) | 18.3.1 (22D72) | 2.17.1 + portable kmutil |
+| iPhone11,6 18.5 (22F76) | 18.5 (22F76) | 2.17.1 + portable kmutil |
+| iPhone11,6 18.6 (22G86) | 18.6 (22G86) | 2.17.1; again with 27.2 support |
+| iPhone11,6 18.7 (22H20) | 18.7 (22H20) | 2.17.1 + portable kmutil, the first boot of that recipe |
+| iPhone11,6 18.7.2 (22H124) | 18.7.2 (22H43) | 2.17.1 + portable kmutil |
+| iPhone17,3 26.1 (23B85) | 26.1 (23B85) | 2.17.1 + 27.2 support |
+| iPhone17,3 26.3 (23D127) | 26.3 (23D129) | 2.17.1 + 27.2 support |
+| iPhone17,3 26.4 (23E246) | 26.4 (23E244) | 2.17.1 + portable kmutil |
+| iPhone17,3 26.5 (23F77) | 26.5 (23F75) | 2.16.1 (2026-11-11, above); again with 27.2 support |
+| iPhone17,3 26.6 (23G71) | 26.6 (23G71) | 2.17.1 + portable kmutil |
+| iPhone17,3 27.2 (24B119) | 27.2 (24B115) | 2.17.1 + 27.2 support |
+
+¹ The serial log of these two first boots has no kernel output, so no
+libignition line; the restore asked for environment 6, and cryptexd accepted
+the cryptexes.
+
+iPhone17,3 iOS 27.0.1 (24A446) on cloudOS 26.4 (23E5207q), with bundle 2.16.1
+on 2026-11-12, restored, then panicked on its first boot before launchd ran:
 
 ```
 libignition: 1:   os environment      : trusted-darwinos
@@ -400,10 +432,11 @@ dyld[1]: dyld cache '(null)' not loaded: syscall to map cache into shared region
 panic(…):  initproc failed to start -- exit reason namespace 6 subcode 0x1 description: Library not loaded: /usr/lib/libSystem.B.dylib
 ```
 
-The same build with iOS 26.5 (23F77) / cloudOS 26.5 (23F75) restored, booted
-and answered `cryptex.list` (no panic in about 25 minutes). So iOS 27's dyld
-cannot mount the OS cryptex in environment 6. Until that is understood,
-`FirmwareRestoreImagePatchSet.trustedDarwinOSRefusal` refuses the patch for
-iOS 27 and later: `fw prepare` stops right after resolving the IPSWs, and
-the patcher stops before adding cryptexctl if the box was turned on after
-`fw prepare`.
+After that panic, `fw prepare` and the patcher refused the box for every
+iOS 27. That pairing differs from all the others: the guest boots cloudOS
+26.4's TXM (187.100.3) under iOS 27 binaries. That TXM rejects iOS 27's
+binaries (`txm_selector24_cms_gate.md`); only `standard`'s TXM patches make the
+pairing boot, and `minimal` leaves TXM stock. Whether the shared-cache mapping
+failed on the same TXM check was not shown. 27.2 with its own cloudOS boots,
+so the refusal is gone, and `minimal` is only expected to boot pairings where
+iOS and cloudOS come from the same release.
