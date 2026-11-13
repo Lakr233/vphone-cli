@@ -118,6 +118,7 @@
 			<string>dyld-boot-maxslide</string>
 			<string>dyld-boot-xpc_lwcr</string>
 			<string>dyld-cfw-camera</string>
+			<string>dyld-cfw-quartzcore_unrotated_framebuffer</string>
 			<string>dyld-cfw-metal_vertex_id_format</string>
 			<string>dyld-cfw-text_recognition_ane</string>
 			<string>dyld-cfw-gles_primitive_restart</string>

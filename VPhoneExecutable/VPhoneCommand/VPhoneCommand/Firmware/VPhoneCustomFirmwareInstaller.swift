@@ -2035,6 +2035,7 @@ struct VPhoneCustomFirmwareInstaller {
                 (FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap, "patch-arm64e-x1-bootstrap-cache", [dsc]),
                 (FirmwareGuestSystemPatchSet.arm64eX1CacheRemaining, "patch-arm64e-x1-cache", [dsc]),
                 ("dyld-boot-iomfb_force_kern", "patch-iomfb-force-kern", [dsc]),
+                (FirmwareGuestDisplayPatchSet.quartzCoreUnrotatedFramebuffer, "patch-quartzcore-unrotated-framebuffer", [dsc]),
                 ("dyld-boot-maxslide", "patch-dsc-maxslide", [dsc]),
                 ("dyld-boot-lsd_embedded_reg", "patch-lsd-embedded-reg", [dsc]),
                 ("dyld-boot-xpc_lwcr", "patch-xpc-lwcr", [dsc]),

@@ -103,6 +103,7 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
             VPhoneCustomFirmwarePrepareIOS16SurfaceCommand.self,
             VPhoneCustomFirmwarePrepareIOS16FramebufferCommand.self,
             VPhoneCustomFirmwarePatchIOMFBForceKernCommand.self,
+            VPhoneCustomFirmwarePatchQuartzCoreUnrotatedFramebufferCommand.self,
             VPhoneCustomFirmwarePatchDyldSharedCacheMaxSlideCommand.self,
             VPhoneCustomFirmwarePatchLSDEmbeddedRegCommand.self,
             VPhoneCustomFirmwarePatchXPCLWCRCommand.self,
