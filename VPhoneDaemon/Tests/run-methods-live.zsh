@@ -411,8 +411,9 @@ sl=$(rf "$ss" '.stdout | utf8bytelength')
 if [ "$(rf "$ss" '.stdout_truncated')" = false ] && [ "$(rf "$ss" '.stdout_total')" = "$sl" ] && [ "$(rf "$ss" '.capture_truncated')" = false ] \
    && [ "$(rf "$ss" '(.output_id // empty), (.output_dir // empty)')" = "" ]; then chk "13 short ps spawn: not truncated, no output_id or output_dir" ok
 else chk "13 short ps spawn: not truncated, no output_id or output_dir" bad "flags false, stdout_total $sl, no output_id/output_dir" "$(rf "$ss" '@json')"; fi
-# timed out: the spool is dropped, so no output_id or output_dir
-ts=$(rpc "{\"method\":\"processes.spawn\",\"params\":{\"executable\":\"ps\",\"arguments\":[\"-axwwo\",\"$pscols\"],\"timeout_ms\":100}}")
+# timed out: the spool is dropped, so no output_id or output_dir. `log stream` never ends by itself, so 100 ms always
+# times it out; a full ps listing can finish inside 100 ms on a fast guest.
+ts=$(rpc '{"method":"processes.spawn","params":{"executable":"log","arguments":["stream","--style","compact"],"timeout_ms":100}}')
 if [ "$(rf "$ts" '.timed_out')" = true ] && [ "$(rf "$ts" '(.output_id // empty), (.output_dir // empty)')" = "" ]; then chk "13 timed-out spawn has no output_id or output_dir" ok
 else chk "13 timed-out spawn has no output_id or output_dir" bad "timed_out true, no output_id/output_dir" "$(rf "$ts" '[.timed_out, .output_id, .output_dir] | @json')"; fi
 # default capture with a small max_output_bytes: the cut is not a capture truncation
