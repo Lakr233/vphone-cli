@@ -11,6 +11,10 @@ import VPhonePatchKit
 /// disposable directory inside the VM; only a complete tree is moved into
 /// place for the patch/restore steps to see.
 enum VPhoneFirmwarePreparer {
+    static func usesIOS17GPUTransport(version: String, device: VPhoneGuestDevice) -> Bool {
+        version == "17.7" && (device == .iPhone14_6 || device == .iPhone15_4)
+    }
+
     enum Error: Swift.Error, LocalizedError {
         case existingRestore(URL)
         case missingComponent(URL)
@@ -97,9 +101,12 @@ enum VPhoneFirmwarePreparer {
             device: productType,
             downloadConnections: downloadConnections,
         )
-        if phone.version.hasPrefix("17."),
-           !(phone.version == "17.7" && device.productType == "iPhone15,4" && cloud.version == "26.1") {
-            throw ValidationError("Experimental iOS 17 bring-up is limited to iPhone15,4 17.7 with cloudOS 26.1. Other pairings have not been validated.")
+        if phone.version.hasPrefix("17.") {
+            let iPhone15 = device == .iPhone15_4
+            let se3 = device == .iPhone14_6 && phone.build == "21H16" && cloud.build == "23B85"
+            guard phone.version == "17.7", cloud.version == "26.1", iPhone15 || se3 else {
+                throw ValidationError("Experimental iOS 17 bring-up supports iPhone15,4 17.7 with cloudOS 26.1 and iPhone14,6 17.7 (21H16) with cloudOS 26.1 (23B85).")
+            }
         }
         if phone.version.hasPrefix("16."),
            !(phone.version == "16.6.1" && device.productType == "iPhone15,2" && cloud.version == "26.1") {
@@ -200,19 +207,20 @@ enum VPhoneFirmwarePreparer {
            plan.isEnabled("system-extensions-boot-gpu_bundle") || plan.isEnabled(FirmwareRestoreImagePatchSet.gpuDriver)
         {
             let cachedDriver = cachedGPUDriver(for: cloud)
-            // iOS 18 cannot load a 26.x cloudOS driver. With its transport
-            // selected it takes the driver of its own release's cloudOS.
+            // Both legacy GPU clients use the measured cloudOS 18.6 driver.
             let ownReleaseDriver = plan.isEnabled(FirmwareGuestSystemPatchSet.ios18GPUTransport)
+                && (phone.version != "17.7" || usesIOS17GPUTransport(version: phone.version, device: device))
+            let driverRelease = phone.version == "17.7" ? "18.6" : VPhonePCCGPUDriver.release(phone.version)
             if let gpuDriverBundle {
                 print("[*] Staging GPU driver from local bundle...")
                 try VPhonePCCGPUDriver.stage(
                     from: gpuDriverBundle,
                     into: phoneTree,
-                    expectedPlatformVersion: ownReleaseDriver ? VPhonePCCGPUDriver.release(phone.version) : cloud.version,
+                    expectedPlatformVersion: ownReleaseDriver ? driverRelease : cloud.version,
                 )
             } else if ownReleaseDriver {
                 try stageIOS18GPUDriver(
-                    forVersion: phone.version,
+                    forVersion: driverRelease,
                     into: phoneTree,
                     staging: staging,
                     ipswCacheDirectory: ipswCacheDirectory,
