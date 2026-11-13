@@ -217,6 +217,13 @@ again (which needs the network; retried for a few minutes). Every cryptexctl run
 in vphoned goes through one serial queue, so two clients installing at the same
 time take turns as well. `cryptex.uninstall` forgets a kept cryptex.
 
+The identifier comes from the `.cxbd` itself: `CFBundleIdentifier` in the
+`ginf` of its one `Restore/Cryptex/<identifier>`. `install --print-info`
+starts with the identifier on cryptexctl 26.5, but cryptexctl 18.6 prints no
+identifier, and taking the identifier from that output left iOS 18 guests with
+an installed cryptex that was not kept ("installed, but not kept: cryptexctl
+named no identifier"; 2026-11-13).
+
 Tested on cryptex10 (iOS 26.5 23F77, cloudOS 26.5, bundle 2.16.1-local.7023417e,
 2026-11-11) with the same two cryptexes, both installed with `persist: true`:
 18 reboots (`system.reboot`) and one cold start, no panic. After each, both
