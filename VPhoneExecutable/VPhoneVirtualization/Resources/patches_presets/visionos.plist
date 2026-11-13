@@ -171,6 +171,41 @@
 			<string>system-homepod-exp-top_cap</string>
 			<string>system-homepod-exp-welcome</string>
 			<string>system-homepopaccessibility-cfw-arm64e_x1</string>
+			<string>system-accessibilitysettingspopaccessibility-cfw-arm64e_x1</string>
+			<string>system-accessibilityuiservicepopaccessibility-cfw-arm64e_x1</string>
+			<string>system-accessibilityutilitiespopaccessibility-cfw-arm64e_x1</string>
+			<string>system-activityachievementsui-cfw-arm64e_x1</string>
+			<string>system-activitybridgesetup-cfw-arm64e_x1</string>
+			<string>system-activityringsui-cfw-arm64e_x1</string>
+			<string>system-activitysharing-cfw-arm64e_x1</string>
+			<string>system-activitysharingui-cfw-arm64e_x1</string>
+			<string>system-ambientsettingspopaccessibility-cfw-arm64e_x1</string>
+			<string>system-assistivetouchpopaccessibility-cfw-arm64e_x1</string>
+			<string>system-clarityboardpopaccessibility-cfw-arm64e_x1</string>
+			<string>system-fitnessapp-cfw-arm64e_x1</string>
+			<string>system-fitnessui-cfw-arm64e_x1</string>
+			<string>system-gaxspringboardserverpopaccessibility-cfw-arm64e_x1</string>
+			<string>system-gaxuiserverpopaccessibility-cfw-arm64e_x1</string>
+			<string>system-livespeechuiservicepopaccessibility-cfw-arm64e_x1</string>
+			<string>system-magnifierangelpopaccessibility-cfw-arm64e_x1</string>
+			<string>system-ntkcustomization-cfw-arm64e_x1</string>
+			<string>system-ntkpride2026facebundle-cfw-arm64e_x1</string>
+			<string>system-ntkultracubefacebundlecompanion-cfw-arm64e_x1</string>
+			<string>system-nanomailbridgesettings-cfw-arm64e_x1</string>
+			<string>system-nanomediabridgeui-cfw-arm64e_x1</string>
+			<string>system-nanopeoplebridgesettings-cfw-arm64e_x1</string>
+			<string>system-nanotimekitcompanion-cfw-arm64e_x1</string>
+			<string>system-schooltimesettingsui-cfw-arm64e_x1</string>
+			<string>system-speechrecognitioncommandandcontrolpopaccessibility-cfw-arm64e_x1</string>
+			<string>system-springboardpopaccessibility-cfw-arm64e_x1</string>
+			<string>system-springboardpopframework-cfw-arm64e_x1</string>
+			<string>system-swiftuipopaccessibility-cfw-arm64e_x1</string>
+			<string>system-systemstatusuipopaccessibility-cfw-arm64e_x1</string>
+			<string>system-uikitpopaccessibility-cfw-arm64e_x1</string>
+			<string>system-votaxuiservicepopaccessibility-cfw-arm64e_x1</string>
+			<string>system-voiceovertouchpopaccessibility-cfw-arm64e_x1</string>
+			<string>system-activity_widget-cfw-arm64e_x1</string>
+			<string>system-com_apple_nanotimekit_createwatchface-cfw-arm64e_x1</string>
 			<string>system-libdispatch-cfw-arm64e_x1_introspection</string>
 			<string>system-libbacktracerecording-cfw-arm64e_x1</string>
 			<string>system-libmainthreadchecker-cfw-arm64e_x1</string>

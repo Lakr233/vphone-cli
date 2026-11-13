@@ -48,14 +48,15 @@ struct VPhoneCustomFirmwarePatchArm64eX1Command: ParsableCommand {
         abstract: "Lower X1 instructions in a supported standalone executable",
         discussion: """
         Supports dyld, launchd, fsck, mount, CIBarcode, SpringBoardHomePopAccessibility \
-        and the standalone debug libraries declared in the Guest System patch set. \
-        Debug libraries require a complete conversion. Re-attests modified code pages.
+        and the standalone debug libraries and accessibility plug-ins declared in \
+        the Guest System patch set. These optional images require a complete \
+        conversion. Re-attests modified code pages.
         """,
     )
     @Argument(transform: URL.init(fileURLWithPath:)) var binary: URL
     func run() throws {
         try requireUntruncatedMachO(at: binary)
-        let debugImage = FirmwareGuestSystemPatchSet.arm64eX1DebugImages.first {
+        let optionalImage = FirmwareGuestSystemPatchSet.arm64eX1OptionalImages.first {
             ($0.path as NSString).lastPathComponent == binary.lastPathComponent
         }
         let identifier: String
@@ -68,18 +69,18 @@ struct VPhoneCustomFirmwarePatchArm64eX1Command: ParsableCommand {
             identifier = FirmwareGuestSystemPatchSet.arm64eX1HomePopAccessibility
         case "CIBarcode": identifier = FirmwareGuestSystemPatchSet.arm64eX1CIBarcode
         default:
-            guard let debugImage else {
+            guard let optionalImage else {
                 throw ValidationError(
                     "X1 static lowering supports only dyld, launchd, fsck, mount, CIBarcode, "
-                        + "SpringBoardHomePopAccessibility and declared standalone debug libraries",
+                        + "SpringBoardHomePopAccessibility and declared standalone debug/accessibility images",
                 )
             }
-            identifier = debugImage.identifier
+            identifier = optionalImage.identifier
         }
         try CustomFirmwareArm64eX1.patch(
             fileAt: binary,
             identifier: identifier,
-            requireComplete: debugImage != nil,
+            requireComplete: optionalImage != nil,
             log: machOVerbLog,
         )
     }
@@ -749,6 +750,7 @@ enum VPhoneCustomFirmwareMachOVerbs {
             VPhoneCustomFirmwarePatchMobileactivationdCommand.self,
             VPhoneCustomFirmwarePatchLaunchdJetsamCommand.self,
             VPhoneCustomFirmwarePatchArm64eX1Command.self,
+            VPhoneCustomFirmwareAuditArm64eX1Command.self,
             VPhoneCustomFirmwarePatchWatchdogdCommand.self,
             VPhoneCustomFirmwarePatchVisionOSFramePacingCommand.self,
             VPhoneCustomFirmwarePatchDiskimagesiodCommand.self,
