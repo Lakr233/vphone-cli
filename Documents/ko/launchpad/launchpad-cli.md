@@ -107,7 +107,6 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 | `--slim on\|off`, `--trim …`, `--keep-languages …`, `--service-profile …`, `--remove-apps …`, `--keep-apps …` | `vphone-cli vm create`의 경량화 스위치. New Machine과 마찬가지로 Apple 계정은 trimmed 서비스 프로필과 함께 꺼집니다 |
 | `--accounts-off` | 받기는 하지만 아무것도 바꾸지 않습니다 |
 | `--ipsw <path>` | 선택 사항. New Machine의 ipsw 필드처럼, 이 경로로 kernelcache 믹스를 준비하는 2.12.0 번들에만 전달됩니다. 2.12.1 번들은 네이티브로 추출합니다 |
-| `--kmutil-ssh <user@host>` | New Machine의 macOS 빌더 필드처럼, iOS 18 게스트(`--device iPhone11,6`)의 kernel-first 믹스를 ssh로 링크하는 Mac. 그곳의 ssh와 sudo 암호는 인자가 아니라 항상 클라이언트의 `VPHONE_KMUTIL_SSH_PASSWORD`에서 가져옵니다 |
 | `--from <step>` | 생성을 시작할 때의 옵션으로 특정 단계(`findTemplate` … `firstBoot`)부터 다시 시도 |
 
 파서는 `--iphone-source`, `--cloudos-source`, `--cpu`, `--memory`, `--disk-size`, `--network`, `--keep-artifacts`, `--no-wait`도 받습니다. `vphone-launchpad-cli help`를 참고하세요.
@@ -126,7 +125,7 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 다음 두 경우에는 도우미를 통해 일부 단계를 root로 실행합니다.
 
 - `--preset minimal`(Minimal: 순정 부트 체인, 커널, TXM을 사용하고 복원 전에 시스템을 사용자화)도 경량화 없이 단독으로 복원되며, `fw patch`는 도우미를 통해 root로 실행됩니다. Userspace debugging 상자(`vphone-cli fw patches`의 Features 아래 `userspace-debugging`)는 그 상자가 나열하는 각 패치에 대한 `--allow`에 해당합니다. Trusted darwinOS environment 상자(`trusted-darwinos`, 즉 `--allow filesystem-exp-trusted_darwinos`)는 iPhone 또는 iPad를 trusted darwinOS로 복원하고 cloudOS의 cryptexctl을 추가하므로, 게스트가 실행 중일 때 cryptex를 설치할 수 있습니다(VM 창의 Apps › Install Cryptex…, [Cryptex](../machines/cryptexes.md) 참조). 상자 아래 설명에 그 영향이 적혀 있습니다. 이후 게스트는 Restricted Execution Mode를 강제하고, 리서치 보드 게스트(cloudOS 26.5~26.7)는 개발자 모드를 켤 수 없으며, 상자를 바꾼 내용은 다시 복원해야만 적용됩니다.
-- cloudOS에 vphone600 구성 요소가 없는 머신(해당 릴리스 자체의 cloudOS, Watch, iOS 18 게스트)은 `fw kernelcache`로 kernelcache 믹스를 준비하고 도우미가 root로 링크합니다.
+- cloudOS에 vphone600 구성 요소가 없는 머신(해당 릴리스 자체의 cloudOS, Watch, iOS 18 게스트)은 `fw kernelcache`가 사용자 권한으로 kernelcache 믹스를 빌드합니다. Core Bundle 2.17 이하에서는 준비만 하고 도우미가 root로 링크합니다.
 
 ### 패치 재정의
 

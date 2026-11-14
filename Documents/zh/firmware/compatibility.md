@@ -35,7 +35,7 @@ vphone-cli fw catalog
 之后的所有 cloudOS（2026-10-03 核查）都只列出 PCC 主板和 `vresearch101ap`：`SupportedProductTypes` 中已没有 `iPhone99,11`，也没有 `kernelcache.*.vphone600`、`sep-firmware.vphone600` 或 `DeviceTree.vphone600ap`。在这类 cloudOS 上由研究主板代替（Research Board 补丁集）：
 
 - `fw patch` 把研究主板的设备树和 SEP 转换为 vphone600 的版本，并按照该 kernelcache 的配方，用 vphone600 的虚拟化 kext 重新构建它的 kernelcache。
-- KDK 提取在本机原生完成；只有链接需要 root 权限（`vphone-cli fw kernelcache`）。见 [kernelcache 配方](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md)和[固件准备](firmware-preparation.md)。
+- KDK 提取和链接都以你的身份运行（`vphone-cli fw kernelcache`），链接使用构建该 kernelcache 时所用的 kmutil。见[kernelcache 配方](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md)和[固件准备](firmware-preparation.md)。
 - 没有配方覆盖的 cloudOS 会被 `fw prepare` 拒绝。
 - `fw catalog` 会在推荐的 cloudOS 旁列出每个 iOS 版本自己的 cloudOS，Launchpad 在 **Firmware**（固件）下提供它。
 
@@ -58,8 +58,8 @@ iOS 18.1 到 18.7.2 运行在各自版本的 cloudOS 上，用户空间来自 iP
 
 - 用 `vm create --device iPhone11,6` 创建。默认使用 Minimal 预设；`--preset standard` 已在 18.6 上验证。
 - `fw catalog --device iPhone11,6` 会列出这些版本。
-- 它们的内核是 kernel-first 布局。从 macOS 26.4 起，需要由另一台运行 macOS 15 或 26.0 到 26.3 的 Mac 或 macOS 虚拟机通过 ssh 链接组合（`VPHONE_KMUTIL_SSH`；见[固件准备](firmware-preparation.md)）。
-- Launchpad 以 iPhone XS Max 的名义提供它们，并以那台 Mac 作为 macOS 构建机。
+- 它们的内核是 kernel-first 布局，在任何 macOS 上都由 macOS 15 的 kmutil 链接（见[固件准备](firmware-preparation.md#链接组合的-kmutil)）。
+- Launchpad 以 iPhone XS Max 的名义提供它们。
 
 18.1、18.5 和 18.7.2 已在虚拟机上验证；其他四个配方尚未启动过。
 

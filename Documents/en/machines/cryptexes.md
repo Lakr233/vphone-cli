@@ -5,9 +5,9 @@ A cryptex is a signed disk image that the guest mounts while it runs, with a tru
 ## Before you start
 
 - Create the machine with the `minimal` preset and the **Trusted darwinOS environment** box on, on New Machine's Patches page. With `vphone-launchpad-cli`, that is `--preset minimal --allow filesystem-exp-trusted_darwinos`. The box takes effect only with a restore: turning it on for an existing machine means creating it again.
-- Use an iOS 26 or iOS 18 IPSW. iOS 26.5 with cloudOS 26.5 and iOS 18.6 with cloudOS 18.6 work. iOS 27 does not boot in this environment, so vphone-cli refuses the box with an iOS 27 IPSW before it restores anything.
 - Install the macOS Security Research tools (the PCC Virtual Research Environment). The VM window builds cryptexes with their `/System/Library/SecurityResearch/usr/bin/cryptexctl.research`.
 - The guest needs network. Installing a cryptex asks Apple's signing server to personalize it for this guest.
+- Pair iOS with the cloudOS of the same release. iOS 18.1 to 18.7.2, 26.1, 26.3 to 26.6 and 27.2, each with its own cloudOS, are checked. With a cloudOS of another release, a `minimal` guest may not boot at all.
 
 In this environment the guest enforces Restricted Execution Mode, and a guest on a research-board cloudOS (26.5 to 26.7) cannot turn on Developer Mode.
 

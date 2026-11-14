@@ -1,0 +1,98 @@
+From: vphone-cli
+Subject: [PATCH] entropy: mark a descriptor-written request as holding data
+
+The descriptor transport has a fifth operation, SET_HAS_DATA (5), the twin
+of the MMIO path's HAS_DATA status bit. A request written over the
+descriptor transport reads back as empty (HAS_DATA, op 3, returns 0) until
+it is sent. AVPBooter sends it after every write; OpenAVB did not.
+
+iBoot up to iOS 26 read the request without asking, so this never showed.
+The iOS 27 LLB asks HAS_DATA first, finds nothing, and panics
+("iBoot Panic: ...:73"). With SET_HAS_DATA sent, a 27.2 LLB logs the same
+lines as under AVPBooter and boots the kernel.
+
+---
+diff --git a/include/avp/platform/platform_entropy_transport_owner.h b/include/avp/platform/platform_entropy_transport_owner.h
+index 04ecf6d..4404df9 100644
+--- a/include/avp/platform/platform_entropy_transport_owner.h
++++ b/include/avp/platform/platform_entropy_transport_owner.h
+@@ -25,6 +25,7 @@ typedef enum {
+     PLATFORM_ENTROPY_DESCRIPTOR_IS_ENABLED = 2,
+     PLATFORM_ENTROPY_DESCRIPTOR_HAS_DATA = 3,
+     PLATFORM_ENTROPY_DESCRIPTOR_ENABLE = 4,
++    PLATFORM_ENTROPY_DESCRIPTOR_SET_HAS_DATA = 5,
+ } PlatformEntropyDescriptorOperation;
+ 
+ typedef struct {
+diff --git a/src/platform/platform_entropy_transport_owner.c b/src/platform/platform_entropy_transport_owner.c
+index afe1f50..d44332e 100644
+--- a/src/platform/platform_entropy_transport_owner.c
++++ b/src/platform/platform_entropy_transport_owner.c
+@@ -319,6 +319,12 @@ int platform_entropy_write_request(
+             (void *)input,
+             input_size
+         );
++        /* The descriptor twin of the MMIO path's HAS_DATA bit below. A
++         * written request reads back as holding nothing until this is
++         * sent: AVPBooter sends it with every non-empty write, and the
++         * iOS 27 LLB asks for it (HAS_DATA) before reading the request. */
++        platform_entropy_submit_command_descriptor(
++            request, PLATFORM_ENTROPY_DESCRIPTOR_SET_HAS_DATA, 0, 0);
+         return 0;
+     }
+     const PlatformEntropyRequestTransport transport =
+diff --git a/tests/platform/platform_entropy_transport_owner_tests.c b/tests/platform/platform_entropy_transport_owner_tests.c
+index 10c2684..7692b0e 100644
+--- a/tests/platform/platform_entropy_transport_owner_tests.c
++++ b/tests/platform/platform_entropy_transport_owner_tests.c
+@@ -84,9 +84,6 @@ static void descriptor_submit(
+         break;
+     case PLATFORM_ENTROPY_DESCRIPTOR_WRITE:
+         memcpy(stored, data, descriptor->data_size);
+-        if (has_data != 0) {
+-            *has_data = true;
+-        }
+         break;
+     case PLATFORM_ENTROPY_DESCRIPTOR_IS_ENABLED:
+         assert(enabled != 0 && descriptor->data_size == 1);
+@@ -100,6 +97,14 @@ static void descriptor_submit(
+         assert(enabled != 0);
+         *enabled = true;
+         break;
++    case PLATFORM_ENTROPY_DESCRIPTOR_SET_HAS_DATA:
++        /* Like the host: a written request holds nothing until this. */
++        assert(descriptor->data_physical_address == 0 &&
++            descriptor->data_size == 0);
++        if (has_data != 0) {
++            *has_data = true;
++        }
++        break;
+     }
+ }
+ 
+@@ -281,11 +286,15 @@ static void test_descriptor_transport(void) {
+     assert(memcmp(data, model.primary, sizeof(data)) == 0);
+ 
+     memset(data, 0x19, sizeof(data));
++    assert(!model.secondary_has_data);
+     assert(platform_entropy_write_request(
+         &platform_entropy_secondary_request, data, sizeof(data)) == 0);
+     assert(memcmp(data, model.secondary, sizeof(data)) == 0);
+     assert(model.last_descriptor.operation ==
+-        PLATFORM_ENTROPY_DESCRIPTOR_WRITE);
++        PLATFORM_ENTROPY_DESCRIPTOR_SET_HAS_DATA);
++    assert(model.secondary_has_data);
++    assert(platform_entropy_request_has_data(
++        &platform_entropy_secondary_request));
+     assert(platform_entropy_enable_request(
+         &platform_entropy_secondary_request) == 0);
+     assert(model.secondary_enabled);
+@@ -297,7 +306,7 @@ static void test_descriptor_transport(void) {
+     platform_entropy_set_control_flag_bit1();
+     assert(model.control == 0x83);
+     assert(model.progress == 0x000a0016);
+-    assert(model.submissions == 10);
++    assert(model.submissions == 14);
+ 
+     uint8_t handoff[PLATFORM_ENTROPY_HANDOFF_DATA_SIZE];
+     for (size_t index = 0; index < sizeof(handoff); ++index) {

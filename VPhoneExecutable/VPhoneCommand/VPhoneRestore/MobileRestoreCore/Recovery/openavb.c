@@ -50,7 +50,10 @@ enum {
 	OPENAVB_FLAG_IDENTITY = 1,
 	OPENAVB_PROBE_TIMEOUT_MS = 1000,
 	OPENAVB_TIMEOUT_MS = 5000,
-	/* iBoot records its link address as a 64-bit word at this offset. */
+	/* iBoot's start loads its link address with `ldr x1, =base`, the third
+	 * instruction; the literal sat at 0x300 up to iOS 26 and at 0x380 from 27
+	 * on, where 0x300 holds the version string. 0x300 is the fallback. */
+	IBOOT_LINK_BASE_LOAD = 0x8,
 	IBOOT_LINK_BASE_OFFSET = 0x300,
 	/* An iBSS runs at EL2 where the CPU offers it; the ROM keeps EL1 on its
 	 * own when it was entered at EL1, as it is under Virtualization.framework. */
@@ -199,6 +202,21 @@ static uint8_t *lzfse_decode(const uint8_t *payload, size_t size, size_t *decode
 	return NULL;
 }
 
+/* Where iBoot keeps its link address: the literal its start code loads, or
+ * IBOOT_LINK_BASE_OFFSET for an image that does not start that way. */
+static size_t iboot_link_base_offset(const uint8_t *raw, size_t size)
+{
+	const uint32_t insn = get_u32(raw + IBOOT_LINK_BASE_LOAD);
+	/* LDR (literal), 64-bit: 0x58000000 | imm19 << 5 | Rt. */
+	if ((insn & 0xff000000) == 0x58000000 && (insn & 0x00800000) == 0) {
+		const size_t literal = IBOOT_LINK_BASE_LOAD + (size_t)((insn >> 5) & 0x7ffff) * 4;
+		if (literal + 8 <= size) {
+			return literal;
+		}
+	}
+	return IBOOT_LINK_BASE_OFFSET;
+}
+
 int vphone_restore_openavb_ibss_identity(const void *image, size_t size, uint8_t header[VPHONE_OPENAVB_IDENTITY_SIZE], const char **reason)
 {
 	const char *ignored;
@@ -231,7 +249,7 @@ int vphone_restore_openavb_ibss_identity(const void *image, size_t size, uint8_t
 		*reason = "the decoded iBSS is too small to be iBoot";
 		return -1;
 	}
-	const uint64_t load_base = get_u64(raw + IBOOT_LINK_BASE_OFFSET);
+	const uint64_t load_base = get_u64(raw + iboot_link_base_offset(raw, raw_size));
 	if (load_base == 0 || (load_base & 0x3fff) != 0) {
 		free(raw);
 		*reason = "the decoded iBSS names no page-aligned link address";

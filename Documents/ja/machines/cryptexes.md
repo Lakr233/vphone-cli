@@ -5,9 +5,9 @@ Cryptex は、ゲストが実行中にマウントする署名済みディスク
 ## 始める前に
 
 - `minimal` プリセットでマシンを作成し、新規マシンの「パッチ」ページで **Trusted darwinOS environment** のボックスをオンにします。`vphone-launchpad-cli` では `--preset minimal --allow filesystem-exp-trusted_darwinos` です。このボックスは復元時にのみ有効になります。既存のマシンでオンにするには、マシンを作成し直す必要があります。
-- iOS 26 または iOS 18 の IPSW を使ってください。iOS 26.5 と cloudOS 26.5、iOS 18.6 と cloudOS 18.6 の組み合わせで動作します。iOS 27 はこの環境では起動しないため、IPSW が iOS 27 のとき、vphone-cli は復元を始める前にこのオプションを拒否します。
 - macOS Security Research ツール（PCC Virtual Research Environment）をインストールします。VM ウインドウは、その `/System/Library/SecurityResearch/usr/bin/cryptexctl.research` で cryptex をビルドします。
 - ゲストにはネットワークが必要です。cryptex をインストールするときに、Apple の署名サーバにこのゲスト用のパーソナライズを依頼します。
+- iOS には同じリリースの cloudOS を組み合わせてください。iOS 18.1〜18.7.2、26.1、26.3〜26.6、27.2 を、それぞれ対応する cloudOS と組み合わせて確認済みです。別のリリースの cloudOS では、`minimal` のゲストがまったく起動しないことがあります。
 
 この環境では、ゲストは Restricted Execution Mode を適用し、研究ボード用 cloudOS（26.5〜26.7）上のゲストはデベロッパモードをオンにできません。
 
