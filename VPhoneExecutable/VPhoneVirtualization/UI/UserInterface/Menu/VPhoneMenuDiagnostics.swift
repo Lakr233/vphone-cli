@@ -52,6 +52,8 @@ extension VPhoneMenuController {
         developerTunnelItem = tunnel
         menu.addItem(tunnel)
 
+        socks5Menu.attach(to: menu)
+
         let agentItem = NSMenuItem(title: "Guest Agent", action: nil, keyEquivalent: "")
         agentItem.image = menuSymbol("antenna.radiowaves.left.and.right")
         let agentMenu = NSMenu(title: "Guest Agent")
