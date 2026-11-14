@@ -14953,6 +14953,40 @@
         }
       }
     },
+    "Guest SOCKS5 Server" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guest SOCKS5 Server"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲストの SOCKS5 サーバ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게스트 SOCKS5 서버"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máy chủ SOCKS5 của máy khách"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "虚拟机 SOCKS5 服务器"
+          }
+        }
+      }
+    },
     "Guest Tools" : {
       "localizations" : {
         "en" : {

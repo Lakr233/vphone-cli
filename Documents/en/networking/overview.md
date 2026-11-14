@@ -50,6 +50,7 @@ The guest sees the link drop and come back. The same request is available on `vp
 
 ## See also
 
+- [Optional guest SOCKS5 server](../../../Addons/SOCKS5/README.md) for TCP connections and UDP datagrams through a NAT guest.
 - [Tunnel mode](tunnel.md): a Mac behind a VPN or proxy app
 - [MAC and IP addresses](addresses.md): the saved MAC, leases held by old MACs, fixed addresses
 - [Port forwarding](port-forwarding.md): carry a port on the Mac into the guest
