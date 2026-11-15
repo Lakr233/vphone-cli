@@ -38,6 +38,11 @@ jobs:
           zsh VPhoneDaemon/Tests/run-point-geometry-tests.sh \
             --icli .build/XcodeDaemon/SourcePackages/checkouts/icli
 
+      - name: Check RPC result schemas
+        run: |
+          zsh VPhoneDaemon/Tests/run-result-schema-check.sh \
+            --icli .build/XcodeDaemon/SourcePackages/checkouts/icli
+
       - name: Stage and verify worker
         run: |
           set -euo pipefail
