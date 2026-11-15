@@ -43,10 +43,27 @@ struct ConsoleTests {
         #expect(try String(contentsOf: url, encoding: .utf8) == "\n=== vm new ===\ncreated /x\noops\n")
     }
 
-    @Test func `lines from many threads all arrive whole`() {
+    @Test func `lines from many threads all arrive whole`() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
         let sink = Sink(); let console = VPhoneConsole(write: sink.write)
+        try console.setLog(url)
         DispatchQueue.concurrentPerform(iterations: 200) { console.line("line \($0)") }
+        try console.setLog(nil)
         let lines = sink.output.split(separator: "\n")
         #expect(lines.count == 200 && Set(lines).count == 200)
+        // The sink has its own lock, so the log file is what exercises the console's serialization.
+        let logged = try String(contentsOf: url, encoding: .utf8).split(separator: "\n")
+        #expect(logged.count == 200 && Set(logged).count == 200)
+    }
+
+    @Test func `the log file is private to its owner`() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let console = VPhoneConsole(write: { _, _ in })
+        try console.setLog(url)
+        try console.setLog(nil)
+        let mode = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
+        #expect(mode == 0o600)
     }
 }

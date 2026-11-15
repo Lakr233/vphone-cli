@@ -48,7 +48,7 @@ public final class VPhoneConsole: @unchecked Sendable {
             log = nil
             guard let url else { return }
             if !FileManager.default.fileExists(atPath: url.path) {
-                guard FileManager.default.createFile(atPath: url.path, contents: nil) else {
+                guard FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) else {
                     throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
                 }
             }
