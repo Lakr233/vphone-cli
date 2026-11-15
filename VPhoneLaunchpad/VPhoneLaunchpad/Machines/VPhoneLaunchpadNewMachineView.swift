@@ -41,12 +41,6 @@ struct VPhoneLaunchpadNewMachineView: View {
     @State private var usesOwnCloudOS = false
     /// The ipsw that stages a mix; vphone-cli does not ship one.
     @AppStorage("KernelcacheIPSW") private var kernelcacheIPSW = ""
-    /// The Mac that links an iOS 18 guest's kernel-first mix over ssh
-    /// (`user@host`), kept like the ipsw.
-    @AppStorage("KernelcacheBuilder") private var kernelcacheBuilderDestination = ""
-    /// Its password, for ssh and sudo there. Kept only while the sheet is
-    /// open, and by the creation that runs with it.
-    @State private var kernelcacheBuilderPassword = ""
     @State private var cpu = Self.defaultCPU
     @State private var memoryMB = Self.defaultMemoryMB
     @State private var diskSizeGB = Self.defaultDiskSizeGB
@@ -107,45 +101,14 @@ struct VPhoneLaunchpadNewMachineView: View {
 
     /// Whether `fw patch` rebuilds the kernelcache, which a 2.12.0 bundle
     /// stages with the ipsw (a 2.12.1 one extracts natively): on
-    /// the release's own cloudOS, always for a watch, whose kexts no cloudOS
-    /// kernelcache has, and for an iOS 18 guest, which boots its own release's
-    /// research board kernel.
+    /// the release's own cloudOS, and always for a watch, whose kexts no
+    /// cloudOS kernelcache has.
     private var rebuildsKernelcache: Bool {
-        ownCloudOS != nil || !usesCustomSources && (selectedGuest?.isWatch == true || linksKernelFirst)
+        ownCloudOS != nil || !usesCustomSources && selectedGuest?.isWatch == true
     }
 
     private var hasKernelcacheIPSW: Bool {
         FileManager.default.isExecutableFile(atPath: kernelcacheIPSW)
-    }
-
-    /// An iOS 18 guest from the catalog, whose kernelcache only the kmutil of
-    /// macOS 15 or 26.0 to 26.3 links.
-    private var linksKernelFirst: Bool {
-        !usesCustomSources && selectedGuest?.linksKernelFirst == true
-    }
-
-    /// The ssh builder that links it, when one is named.
-    private var kernelcacheBuilder: VPhoneLaunchpadKernelcacheBuilder? {
-        let destination = kernelcacheBuilderDestination.trimmingCharacters(in: .whitespaces)
-        guard linksKernelFirst, !destination.isEmpty else {
-            return nil
-        }
-        return VPhoneLaunchpadKernelcacheBuilder(destination: destination, password: kernelcacheBuilderPassword)
-    }
-
-    /// Why the builder stops Create: none named where this Mac links
-    /// kernel-last, or one that is not `user@host`.
-    private var kernelcacheBuilderProblem: String? {
-        guard linksKernelFirst else {
-            return nil
-        }
-        if let kernelcacheBuilder {
-            return VPhoneLaunchpadKernelcacheBuilder.isValid(kernelcacheBuilder.destination)
-                ? nil : String(localized: "Name the macOS builder as user@host.")
-        }
-        return VPhoneLaunchpadKernelcacheBuilder.hostNeedsBuilder
-            ? String(localized: "Name a Mac or macOS VM running macOS 15 or 26.0 to 26.3, with Remote Login on, as the macOS builder in Advanced Options: this Mac's kmutil cannot link iOS 18 kernels.")
-            : nil
     }
 
     private var effectiveName: String {
@@ -236,7 +199,6 @@ struct VPhoneLaunchpadNewMachineView: View {
     private var canCreate: Bool {
         nameProblem == nil && advancedProblem == nil && sources != nil && bundleVersion != nil
             && (!usesCustomSources || inspectedCustomSource == iphoneSource)
-            && kernelcacheBuilderProblem == nil
     }
 
     var body: some View {
@@ -489,19 +451,6 @@ struct VPhoneLaunchpadNewMachineView: View {
         } else if let own = ownCloudOS {
             Text("On its own cloudOS, \(own.name): the kernelcache is rebuilt, which asks for administrator access once.")
                 .foregroundStyle(.secondary)
-        } else if linksKernelFirst, let cloudOS = selectedPairing?.recommendedCloudOS.name {
-            if let kernelcacheBuilderProblem {
-                Text(kernelcacheBuilderProblem).foregroundStyle(.red)
-            } else {
-                Group {
-                    if let builder = kernelcacheBuilder {
-                        Text("With \(cloudOS): the kernelcache is rebuilt and linked on \(builder.destination), and the restore image asks for administrator access once.")
-                    } else {
-                        Text("With \(cloudOS): the kernelcache is rebuilt and linked on this Mac, and the restore image asks for administrator access once.")
-                    }
-                }
-                .foregroundStyle(.secondary)
-            }
         } else if rebuildsKernelcache, let cloudOS = selectedPairing?.recommendedCloudOS.name {
             Text("With \(cloudOS): the kernelcache is rebuilt with the watch's kexts, which asks for administrator access once.")
                 .foregroundStyle(.secondary)
@@ -691,11 +640,6 @@ struct VPhoneLaunchpadNewMachineView: View {
                 if rebuildsKernelcache {
                     sourceField("ipsw", $kernelcacheIPSW)
                 }
-                if linksKernelFirst {
-                    TextField("macOS builder", text: $kernelcacheBuilderDestination, prompt: Text("user@host"))
-                    SecureField("Password", text: $kernelcacheBuilderPassword, prompt: Text("None with ssh keys"))
-                        .disabled(kernelcacheBuilder == nil)
-                }
             }
         } header: {
             Text("Firmware")
@@ -704,8 +648,6 @@ struct VPhoneLaunchpadNewMachineView: View {
                 ? "These two files replace the device and version chosen on the basic page."
                 : ownCloudOS != nil
                 ? "On its own cloudOS the release boots its own kernel, rebuilt with the vphone600 virtualisation kexts: it is staged as you, and the helper links it as root. The ipsw (with `kernel extract --kdk`) is only needed by a 2.12.0 Core Bundle."
-                : linksKernelFirst
-                ? "iOS 18 boots its own release's kernel, rebuilt with the vphone600 kexts of cloudOS 26.1: it is staged as you (a 2.12.0 Core Bundle needs the ipsw with `kernel extract --kdk` for that). Only the kmutil of macOS 15 or 26.0 to 26.3 links it: from macOS 26.4 on, the macOS builder, a Mac or macOS VM with Remote Login on, links it over ssh as root there. The password is for ssh and sudo on it and is not saved; leave it empty with ssh keys and passwordless sudo."
                 : rebuildsKernelcache
                 ? "A watch boots the cloudOS kernel rebuilt with its own kexts: it is staged as you, and the helper links it as root. The ipsw (with `kernel extract --kdk`) is only needed by a 2.12.0 Core Bundle."
                 : "The device and version are chosen on the basic page; cloudOS goes with them.")
@@ -941,7 +883,6 @@ struct VPhoneLaunchpadNewMachineView: View {
             usesTemplate: usesTemplate,
             slimming: slimming,
             kernelcacheIPSW: rebuildsKernelcache && hasKernelcacheIPSW ? kernelcacheIPSW : nil,
-            kernelcacheBuilder: kernelcacheBuilder,
         )
         let pipeline = model.machines.create(options)
         model.machines.selection = [pipeline.machine]

@@ -11,7 +11,8 @@
 //      same way;
 //   3. keeps the recipe's bundle list: the base without its research-board-only
 //      kexts, plus the donor's virtualisation kexts;
-//   4. stages the bundles as a volume and links it with kmutil;
+//   4. stages the bundles as a volume and links it with the kmutil Apple's
+//      build of the base used (KernelCollectionToolchain), as the user;
 //   5. restores Apple's CPU subtype if the builder wrote another, branches
 //      straight past the auth stubs macOS 27's builder keeps
 //      (KernelCollectionStubCalls), checks every bundle was linked, and caches
@@ -20,6 +21,7 @@
 // The maps are research results: BinDiff symbolication against a symbolicated
 // KDK of the same family, plus verified fixes (see the README beside the
 // recipes). Extraction runs natively in this process; kmutil still performs the link.
+// Nothing here needs root.
 
 import Foundation
 import Img4tool
@@ -50,7 +52,8 @@ public final class KernelCacheMixer {
     }
 
     /// Bump when the steps change, so cached mixes are rebuilt.
-    static let revision = 6
+    /// 7: linked by the base's own kmutil release, not this Mac's.
+    static let revision = 7
 
     /// Legacy source-compatibility constant. Native extraction does not read it.
     public static let ipswEnvironmentVariable = "VPHONE_IPSW"
@@ -110,12 +113,17 @@ public final class KernelCacheMixer {
         let mixer = try KernelCacheMixer(recipes: .locate(), verbose: false)
         let state = try mixer.state(for: input)
         guard state != .mixed else { return }
-        guard try geteuid() == 0 || mixer.linksRemotely(input) else {
-            throw PatcherError.invalidFormat(linkInstructions(staged: state == .staged))
+        guard geteuid() != 0 else {
+            throw PatcherError.invalidFormat(linkInstructions)
         }
-        if state == .missing, geteuid() == 0 {
-            throw PatcherError.invalidFormat(linkInstructions(staged: false))
-        }
+        _ = try mixer.toolchainSource(for: input)
+    }
+
+    /// Where the kmutil that links `input` comes from; throws when none does.
+    func toolchainSource(for input: Input) throws -> KernelCollectionToolchain.Source {
+        let base = try base(for: input)
+        let version = try KernelCollectionToolchain.builderVersion(of: Self.payload(of: input.kernelcache))
+        return try KernelCollectionToolchain.check(version: version, base: base)
     }
 
     static func input(forRestoreTree restoreDir: URL) throws -> Input {
@@ -130,7 +138,7 @@ public final class KernelCacheMixer {
     public enum State: Equatable, Sendable {
         /// Linked: `fw patch` takes it from the cache.
         case mixed
-        /// Extracted and staged; linking it needs root.
+        /// Extracted and staged, not linked yet.
         case staged
         /// Neither yet.
         case missing
@@ -145,8 +153,8 @@ public final class KernelCacheMixer {
     }
 
     /// The mixed kernelcache (an IMG4 `krnl` container) for a research board
-    /// one: from the cache, linked from a staged volume (root), or staged and
-    /// linked from a volume staged by the invoking user.
+    /// one: from the cache, or staged and linked as the invoking user. Root
+    /// only reads a mix from the cache: it never runs the user's toolchain.
     public func mix(_ input: Input) throws -> Data {
         let (base, paths) = try locations(for: input)
         log("  [kc] base \(base.id) (\(base.productVersion)), donors \(base.donors.joined(separator: ", "))")
@@ -154,8 +162,8 @@ public final class KernelCacheMixer {
             log("  [kc] using the cached mix \(paths.mixed.path)")
             return data
         }
-        guard try geteuid() == 0 || linksRemotely(input) else {
-            throw PatcherError.invalidFormat(Self.linkInstructions(staged: Self.isStaged(paths.staged)))
+        guard geteuid() != 0 else {
+            throw PatcherError.invalidFormat(Self.linkInstructions)
         }
         if !Self.isStaged(paths.staged) {
             try stage(input)
@@ -171,9 +179,10 @@ public final class KernelCacheMixer {
         let (base, paths) = try locations(for: input)
         guard !FileManager.default.fileExists(atPath: paths.mixed.path), !Self.isStaged(paths.staged) else { return }
         guard geteuid() != 0 else {
-            throw PatcherError.invalidFormat("Stage the kernelcache as your user first with `vphone-cli fw kernelcache <vm>`, then run `sudo vphone-cli fw kernelcache <vm> --link-only`. Extraction writes to the invoking user's cache; root only links a staged volume.")
+            throw PatcherError.invalidFormat(Self.linkInstructions)
         }
-        let location = try KernelCollectionBuilder.location(for: base)
+        // Refuse a base no kmutil links before anything is extracted.
+        _ = try toolchainSource(for: input)
         let donors = try base.donors.map { try recipes.donor(id: $0) }
 
         let fm = FileManager.default
@@ -208,45 +217,35 @@ public final class KernelCacheMixer {
         try fm.removeItem(at: work)
         try Data(KDKExtraction.revision.utf8).write(to: paths.staged.appending(path: "extractor.version"))
         try Data().write(to: paths.staged.appending(path: Self.stagedMarker))
-        // Under sudo, so the user's later runs can replace it.
-        if geteuid() == 0 {
-            try VPhoneHostFilePermissions.makeAccessible(at: cacheDirectory)
-        }
-        if case .remote = location {
-            log("  [kc] staged")
-        } else {
-            log("  [kc] staged; linking needs root")
-        }
+        log("  [kc] staged")
     }
 
-    /// Links a staged volume, as root, and caches the result:
-    /// the volume is copied into a directory only root can reach, with nothing
-    /// in it that points outside, and kmutil links that copy.
+    /// Links a staged volume with the kmutil the base names, as the user,
+    /// and caches the result.
     @discardableResult
     public func link(_ input: Input) throws -> Data {
         let (base, paths) = try locations(for: input)
         if let data = try cachedMix(at: paths.mixed), !data.isEmpty {
             return data
         }
-        let location = try KernelCollectionBuilder.location(for: base)
-        if case .host = location, geteuid() != 0 {
-            throw PatcherError.invalidFormat(Self.linkInstructions(staged: Self.isStaged(paths.staged)))
+        guard geteuid() != 0 else {
+            throw PatcherError.invalidFormat(Self.linkInstructions)
         }
         guard Self.isStaged(paths.staged) else {
-            throw PatcherError.fileNotFound("the staged \(base.id) kernelcache volume in \(paths.staged.path); run `vphone-cli fw kernelcache` as your user first")
+            throw PatcherError.fileNotFound("the staged \(base.id) kernelcache volume in \(paths.staged.path); run `vphone-cli fw kernelcache` first")
         }
-
         let payload = try Self.payload(of: input.kernelcache)
-        if case let .remote(builder) = location {
-            return try linkRemotely(base: base, paths: paths, payload: payload, builder: builder)
-        }
-        let copy = try KernelCacheVolumeCopy(
-            staged: paths.staged.appending(path: "volume"), kdk: base.kernel.kdk, pathLength: Self.buildRootLength(of: payload),
+        let version = try KernelCollectionToolchain.builderVersion(of: payload)
+        let toolchain = try KernelCollectionToolchain.prepare(
+            version: version, base: base, cache: cacheDirectory.appending(path: "kmutil"), log: log,
         )
-        defer { copy.remove() }
-        log("  [kc] linking with kmutil")
+        log("  [kc] linking with kmutil \(version) of macOS \(toolchain.manifest.macOS) (\(toolchain.manifest.build))")
         let identifiers = try base.kextIdentifiers()
-        let kmutilLog = copy.root.appending(path: "kmutil.log")
+        let work = paths.staged.appending(path: "link")
+        try? FileManager.default.removeItem(at: work)
+        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: work) }
+        let kmutilLog = work.appending(path: "kmutil.log")
         // Beside the mix, whether the link worked or not: kmutil leaves out a
         // kext it does not accept without failing.
         defer {
@@ -255,53 +254,13 @@ public final class KernelCacheMixer {
             }
         }
         var output = try KernelCollectionBuilder.link(
-            volume: copy.volume, kernel: copy.kernel, identifiers: identifiers, log: kmutilLog,
-        )
-        output = try finalize(output, original: payload, identifiers: identifiers, work: copy.root)
-        try storeMix(output, at: paths.mixed)
-        log("  [kc] mixed kernelcache: \(output.count) bytes, cached at \(paths.mixed.path)")
-        return output
-    }
-
-    /// Links the staged volume on the Mac `VPHONE_KMUTIL_SSH` names. Root there
-    /// links what it is sent, so this side needs no root: the stage is checked
-    /// for links outside it and sent as it is.
-    func linkRemotely(
-        base: KernelCacheBase, paths: (mixed: URL, staged: URL), payload: Data, builder: RemoteKernelCollectionBuilder,
-    ) throws -> Data {
-        guard geteuid() != 0 else {
-            throw PatcherError.invalidFormat("Remote linking does not need local root. Run `vphone-cli fw kernelcache <vm>` as your user with VPHONE_KMUTIL_SSH set, then run the privileged firmware step.")
-        }
-        let volume = paths.staged.appending(path: "volume")
-        try KernelCacheVolumeCopy.checkLinks(in: volume, kdk: base.kernel.kdk)
-        let work = paths.staged.appending(path: "link")
-        try? FileManager.default.removeItem(at: work)
-        try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: work) }
-        let kmutilLog = work.appending(path: "kmutil.log")
-        defer {
-            if let text = try? Data(contentsOf: kmutilLog) {
-                try? storeMix(text, at: paths.mixed.deletingPathExtension().appendingPathExtension("kmutil.log"))
-            }
-        }
-        let identifiers = try base.kextIdentifiers()
-        var output = try builder.link(
-            staged: volume, kernel: "Library/Developer/KDKs/\(base.kernel.kdk)/System/Library/Kernels/kernel",
-            identifiers: identifiers, pathLength: Self.buildRootLength(of: payload), work: work, log: kmutilLog,
+            staged: paths.staged.appending(path: "volume"), kdk: base.kernel.kdk, identifiers: identifiers,
+            pathLength: Self.buildRootLength(of: payload), toolchain: toolchain, log: kmutilLog,
         )
         output = try finalize(output, original: payload, identifiers: identifiers, work: work)
         try storeMix(output, at: paths.mixed)
         log("  [kc] mixed kernelcache: \(output.count) bytes, cached at \(paths.mixed.path)")
         return output
-    }
-
-    /// Whether `input` is linked by another Mac over ssh, which needs no root here.
-    public func linksRemotely(_ input: Input) throws -> Bool {
-        let (base, _) = try locations(for: input)
-        if case .remote = try KernelCollectionBuilder.location(for: base) {
-            return true
-        }
-        return false
     }
 
     // MARK: - Cache
@@ -361,7 +320,7 @@ public final class KernelCacheMixer {
         let relative = String(url.path.dropFirst(cache.count + 1))
         let (directory, leaf) = try root.parent(of: relative, create: true)
         try directory.writeFile(leaf, contents: data, mode: 0o644, owner: user.map { ($0.uid, $0.gid) })
-        // Under sudo, so the user's later runs, which link over ssh, can store here too.
+        // Under sudo, so the user's later runs can store here too.
         if geteuid() == 0 {
             var current = root
             try current.setPermissions(mode: 0o777, owner: user.map { ($0.uid, $0.gid) })
@@ -372,12 +331,7 @@ public final class KernelCacheMixer {
         }
     }
 
-    public static func linkInstructions(staged: Bool) -> String {
-        let link = "sudo vphone-cli fw kernelcache <vm>"
-        return staged
-            ? "the kernelcache mix is staged; linking it needs root (kmutil only reads kexts owned by root). Run `\(link)`, or this command with sudo."
-            : "the kernelcache mix is not built yet. Stage it as your user with `vphone-cli fw kernelcache <vm>`, then link it with `\(link) --link-only`."
-    }
+    public static let linkInstructions = "the kernelcache mix is not built yet, and root does not build it. Build it as your user with `vphone-cli fw kernelcache <vm>`, then run this again."
 
     // MARK: - Steps
 

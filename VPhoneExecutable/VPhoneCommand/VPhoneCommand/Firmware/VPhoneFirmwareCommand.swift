@@ -401,14 +401,14 @@ struct VPhoneFirmwarePatchCommand: ParsableCommand {
                 into: tools,
             )
         }
-        // A research board kernelcache is mixed beforehand (`fw kernelcache`),
-        // since linking it needs root; root builds it here if need be.
-        if geteuid() != 0, !selection.blockedPatches.contains(FirmwareResearchBoardPatchSet.kernelMix),
+        // A research board kernelcache is mixed as the user (`fw kernelcache`,
+        // or here); root only takes the mix from the cache.
+        if geteuid() == 0, !selection.blockedPatches.contains(FirmwareResearchBoardPatchSet.kernelMix),
            let input = try FirmwarePipeline(vmDirectory: directory, variant: .jb).researchBoardKernelcache()
         {
             let state = try KernelCacheMixer(recipes: .locate()).state(for: input)
             if state != .mixed {
-                throw ValidationError(KernelCacheMixer.linkInstructions(staged: state == .staged).replacingOccurrences(of: "<vm>", with: name))
+                throw ValidationError(KernelCacheMixer.linkInstructions.replacingOccurrences(of: "<vm>", with: name))
             }
         }
 
@@ -758,19 +758,19 @@ extension VPhoneLibraryOption {
 // MARK: - kernelcache
 
 /// Builds the kernelcache mix of a VM on a cloudOS without vphone600
-/// components, in two steps: native extraction stages the volume as the user
-/// and linking runs kmutil as root. `fw patch`
-/// then takes the mix from the cache. See KernelCacheMixer.
+/// components: native extraction stages the volume and the kmutil Apple linked
+/// the base with links it, both as the user (no root). `fw patch` then takes
+/// the mix from the cache. See KernelCacheMixer and KernelCollectionToolchain.
 struct VPhoneFirmwareKernelcacheCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "kernelcache",
-        abstract: "Build a research board VM's kernelcache mix: stage it natively as yourself, link it with sudo",
+        abstract: "Build a research board VM's kernelcache mix (as yourself, no sudo)",
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "VM name") var name: String?
     @Flag(help: ArgumentHelp(
-        "Only link a staged volume; never stage (the Launchpad helper's root run)",
+        "Only link a staged volume; never stage (kept for older Launchpad builds)",
         visibility: .hidden,
     ))
     var linkOnly = false
@@ -778,8 +778,25 @@ struct VPhoneFirmwareKernelcacheCommand: ParsableCommand {
     var ipsw: String?
     @Option(name: .customLong("work-parent"), help: ArgumentHelp("Private kernelcache work directory", visibility: .hidden))
     var workParent = "/private/var/tmp"
+    @Option(help: ArgumentHelp(
+        "Mix this research board kernelcache instead of a VM's (recipe work); a donor the guest IPSW ships is read beside it",
+        valueName: "path", visibility: .hidden,
+    ))
+    var kernelcache: String?
+    @Option(help: ArgumentHelp("The guest family of --kernelcache", visibility: .hidden))
+    var guest = "iPhone"
 
     func run() throws {
+        if let kernelcache {
+            let url = URL(fileURLWithPath: kernelcache)
+            let input = try KernelCacheMixer.Input(
+                kernelcache: Data(contentsOf: url, options: .mappedIfSafe), guest: guest, restoreTree: url.deletingLastPathComponent(),
+            )
+            let mixer = try KernelCacheMixer(recipes: .locate())
+            let data = try mixer.mix(input)
+            print("[+] The kernelcache mix is ready (\(data.count) bytes).")
+            return
+        }
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
         let bundle = try lib.library.bundle(named: name)
         let workspace = try geteuid() == 0 ? FirmwarePatchWorkspace(machine: bundle.url, workParent: workParent) : nil
@@ -794,31 +811,14 @@ struct VPhoneFirmwareKernelcacheCommand: ParsableCommand {
             print("[+] The kernelcache mix is ready; `fw patch` takes it from the cache.")
             return
         }
-        if geteuid() == 0 {
-            if state == .missing {
-                guard !linkOnly else {
-                    throw ValidationError("\(name)'s kernelcache mix is not staged. Stage it first, as yourself: vphone-cli fw kernelcache \(name)")
-                }
-                try mixer.stage(input, ipsw: ipsw)
-            }
-            try mixer.link(input)
-            print("[+] The kernelcache mix is ready; `fw patch` takes it from the cache.")
-            return
-        }
-        // Another Mac's kmutil (VPHONE_KMUTIL_SSH) links as root there.
-        let remote = try mixer.linksRemotely(input)
-        guard !linkOnly || remote else {
-            throw ValidationError("Linking the kernelcache mix needs root. Run this command with sudo.")
+        guard geteuid() != 0 else {
+            throw ValidationError("\(name)'s kernelcache mix is not built, and root does not build it. Run this as yourself: vphone-cli fw kernelcache \(name)")
         }
         if state == .missing {
             guard !linkOnly else {
                 throw ValidationError("\(name)'s kernelcache mix is not staged. Stage it first: vphone-cli fw kernelcache \(name)")
             }
             try mixer.stage(input, ipsw: ipsw)
-        }
-        guard remote else {
-            print("[+] Staged. Link it with: sudo vphone-cli fw kernelcache \(name)")
-            return
         }
         try mixer.link(input)
         print("[+] The kernelcache mix is ready; `fw patch` takes it from the cache.")

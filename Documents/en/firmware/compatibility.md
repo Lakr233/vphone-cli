@@ -35,7 +35,7 @@ Use the cloudOS 26.4 beta (`26.4-23E5207q`) unless you have a reason not to. It 
 Every later cloudOS (checked on 2026-10-03) lists only the PCC boards and `vresearch101ap`: `iPhone99,11` is gone from `SupportedProductTypes`, and there is no `kernelcache.*.vphone600`, `sep-firmware.vphone600` or `DeviceTree.vphone600ap`. On such a cloudOS the research board stands in (the Research Board patch set):
 
 - `fw patch` turns the research board's device tree and SEP into vphone600's and rebuilds its kernelcache with the vphone600 virtualization kexts, from a recipe for that kernelcache.
-- KDK extraction is native; only the link needs root (`vphone-cli fw kernelcache`). See [the kernelcache recipes](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md) and [Firmware preparation](firmware-preparation.md).
+- KDK extraction and the link run as you (`vphone-cli fw kernelcache`), the link with the kmutil the kernelcache was built with. See [the kernelcache recipes](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md) and [Firmware preparation](firmware-preparation.md).
 - `fw prepare` refuses a cloudOS that no recipe covers.
 - `fw catalog` lists each iOS release's own cloudOS beside the recommended one, and Launchpad offers it under **Firmware**.
 
@@ -58,8 +58,8 @@ iOS 18.1 to 18.7.2 run on their own release's cloudOS, with the userland of the 
 
 - Create them with `vm create --device iPhone11,6`. The Minimal preset is the default; `--preset standard` was checked on 18.6.
 - `fw catalog --device iPhone11,6` lists the releases.
-- Their kernels are kernel-first. From macOS 26.4 on, another Mac or a macOS VM running macOS 15 or 26.0 to 26.3 links the mix over ssh (`VPHONE_KMUTIL_SSH`; see [Firmware preparation](firmware-preparation.md)).
-- Launchpad offers them as the iPhone XS Max, with that Mac as the macOS builder.
+- Their kernels are kernel-first, linked on any macOS by the kmutil of macOS 15 (see [Firmware preparation](firmware-preparation.md#the-kmutil-that-links-the-mix)).
+- Launchpad offers them as the iPhone XS Max.
 
 18.1, 18.5 and 18.7.2 are checked on VMs; the other four recipes have not been booted yet.
 

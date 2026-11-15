@@ -107,20 +107,12 @@ if words.isEmpty || ["help", "-h", "--help"].contains(words[0]) {
     exit(words.isEmpty ? 1 : 0)
 }
 
-var request: VPhoneLaunchpadControlRequest
+let request: VPhoneLaunchpadControlRequest
 do {
     request = try VPhoneLaunchpadControlRequest.parse(words, foreground: &foreground)
 } catch {
     fail(error.message, detail: error.detail)
 }
-// The ssh builder's password comes from this environment, never an argument,
-// and goes only over the same-user socket.
-if request.command == "vm.create", request.option("kmutil-ssh") != nil,
-   let password = ProcessInfo.processInfo.environment["VPHONE_KMUTIL_SSH_PASSWORD"], !password.isEmpty
-{
-    request.options[VPhoneLaunchpadControlRequest.kmutilSSHPasswordOption] = password
-}
-
 let fd = connectControl() ?? launchAndConnect(foreground: foreground)
 
 guard var line = try? JSONEncoder().encode(request) else {

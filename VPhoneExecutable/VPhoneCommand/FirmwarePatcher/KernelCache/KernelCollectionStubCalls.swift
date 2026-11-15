@@ -156,7 +156,8 @@ enum KernelCollectionStubCalls {
             throw PatcherError.invalidFormat("the auth stub at 0x\(String(stub, radix: 16)) imports from another collection")
         }
         let target = collection.baseAddress + (raw & 0x3FFF_FFFF)
-        guard collection.segments.contains(where: { $0.name == "__TEXT_EXEC" && $0.contains(target) }) else {
+        // iOS 27 kexts also import the kernel's `__bootcode` (strcmp), in __TEXT_BOOT_EXEC.
+        guard collection.segments.contains(where: { ["__TEXT_EXEC", "__TEXT_BOOT_EXEC"].contains($0.name) && $0.contains(target) }) else {
             throw PatcherError.invalidFormat("the auth stub at 0x\(String(stub, radix: 16)) points outside the collection's code (0x\(String(target, radix: 16)))")
         }
         return target

@@ -279,19 +279,9 @@ nonisolated struct VPhoneLaunchpadFirmwareCatalog: Decodable, Sendable {
         /// The guest family identifier, including homePod and watch.
         let family: String
         let pairings: [Pairing]
-        /// `kernel-first` for a device whose kernelcache mix only the kmutil
-        /// of macOS 15 or 26.0 to 26.3 links, from a bundle that has one.
-        var kernelcacheLayout: String?
 
         var id: String {
             productType
-        }
-
-        /// The iOS 18 research board guest: every pairing rebuilds a
-        /// kernel-first kernelcache, which from macOS 26.4 on another Mac links
-        /// over ssh (`VPhoneLaunchpadKernelcacheBuilder`).
-        var linksKernelFirst: Bool {
-            kernelcacheLayout == "kernel-first"
         }
 
         var isPad: Bool {
