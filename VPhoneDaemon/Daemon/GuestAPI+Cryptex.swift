@@ -109,10 +109,10 @@ extension GuestAPI {
     }
 
     /// Keep an installed cryptex: its `.cxbd` to personalize again, and the
-    /// personalized copy, which is tried first. `--print-info` starts with
-    /// the identifier.
+    /// personalized copy, which is tried first.
     private static func keepCryptex(bundle: URL, signed: URL, variant: String, output: String) throws {
-        let identifier = output.split(whereSeparator: \.isNewline).first.map(String.init)?
+        let identifier = cryptexIdentifier(in: bundle)
+            ?? output.split(whereSeparator: \.isNewline).first.map(String.init)?
             .trimmingCharacters(in: .whitespaces) ?? ""
         guard !identifier.isEmpty, !identifier.contains("/"), !identifier.hasPrefix(".") else {
             throw GuestAPIError.operationFailed("installed, but not kept: cryptexctl named no identifier")
@@ -126,6 +126,21 @@ extension GuestAPI {
         try fileManager.copyItem(at: signed, to: personalized.appendingPathComponent("bundle.cxbd.signed"))
         let record = try PropertyListSerialization.data(fromPropertyList: ["identifier": identifier, "variant": variant], format: .xml, options: 0)
         try record.write(to: directory.appendingPathComponent("record.plist"))
+    }
+
+    /// The identifier a `.cxbd` declares: `CFBundleIdentifier` in the `ginf`
+    /// of its one `Restore/Cryptex/<identifier>`. `install --print-info`
+    /// starts with it on cryptexctl 26.5, not on cryptexctl 18.6.
+    private static func cryptexIdentifier(in bundle: URL) -> String? {
+        let cryptexes = bundle.appendingPathComponent("Restore/Cryptex")
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: cryptexes.path))?
+            .filter { !$0.hasPrefix(".") } ?? []
+        guard names.count == 1,
+              let data = FileManager.default.contents(atPath: cryptexes.appendingPathComponent(names[0]).appendingPathComponent("ginf").path),
+              let info = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              let identifier = info["CFBundleIdentifier"] as? String, !identifier.isEmpty
+        else { return nil }
+        return identifier
     }
 
     private static func forgetCryptex(_ identifier: String) {
