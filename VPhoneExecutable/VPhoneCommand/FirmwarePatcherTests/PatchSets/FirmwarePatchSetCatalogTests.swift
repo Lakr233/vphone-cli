@@ -700,16 +700,16 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test
-    func `The iOS 18 GPU transport follows the measured OS pair`() throws {
+    func `The legacy GPU transport follows the measured OS pairs`() throws {
         let patch = FirmwareGuestSystemPatchSet.ios18GPUTransport
-        for base in ["18.1", "18.5", "18.6", "18.6.2", "18.7.2", "26.1", "unknown"] {
+        for base in ["17.6", "17.7", "18.1", "18.5", "18.6", "18.6.2", "18.7.2", "26.1", "unknown"] {
             for cloud in ["18.6", "26.1", "26.4", "unknown"] {
                 let plan = try VPhonePatchPlan.resolve(
                     preset: FirmwarePatchSetCatalog.standardPreset,
                     patchSets: FirmwarePatchSetCatalog.bundled,
                     iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
                 )
-                let supported = (base == "18.6" || base == "18.6.2") && cloud == "26.1"
+                let supported = ["17.7", "18.6", "18.6.2"].contains(base) && cloud == "26.1"
                 #expect(plan.isEnabled(patch) == supported, "\(base)/\(cloud)")
             }
         }
