@@ -5,6 +5,7 @@
 // Historical note: this file replaces the old Python firmware patcher implementation.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Base class for kernel patchers providing shared infrastructure.
@@ -125,7 +126,7 @@ open class KernelPatcherBase {
         buffer.writeBytes(at: offset, bytes: patchBytes)
 
         if verbose {
-            print("  0x\(String(format: "%06X", offset)): \(beforeStr) → \(afterStr)  [\(description)]")
+            VPhoneConsole.shared.line("  0x\(String(format: "%06X", offset)): \(beforeStr) → \(afterStr)  [\(description)]")
         }
     }
 

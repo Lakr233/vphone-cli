@@ -4,6 +4,7 @@
 // Historical note: derived from the legacy Python firmware patcher during the Swift migration.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Patcher for TXM trustcache bypass.
@@ -80,7 +81,7 @@ public class TXMPatcher: BufferedPatcher {
         patches.append(record)
 
         if verbose {
-            print("  0x\(String(format: "%06X", offset)): \(beforeStr) → \(afterStr)  [\(description)]")
+            VPhoneConsole.shared.line("  0x\(String(format: "%06X", offset)): \(beforeStr) → \(afterStr)  [\(description)]")
         }
     }
 }

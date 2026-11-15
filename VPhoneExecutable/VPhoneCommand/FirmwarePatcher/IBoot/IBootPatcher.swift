@@ -13,6 +13,7 @@
 // Each patch method is defined as an extension in its own file under IBoot/Patches/.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Patcher for iBoot components (iBSS, iBEC, LLB).
@@ -141,7 +142,7 @@ public class IBootPatcher: BufferedPatcher {
         patches.append(record)
 
         if verbose {
-            print(String(format: "  0x%06X: %@ → %@  [%@]", offset, beforeStr, afterStr, description))
+            VPhoneConsole.shared.line(String(format: "  0x%06X: %@ → %@  [%@]", offset, beforeStr, afterStr, description))
         }
     }
 
@@ -165,7 +166,7 @@ public class IBootPatcher: BufferedPatcher {
         patches.append(record)
 
         if verbose {
-            print(String(format: "  0x%06X: → %@  [%@]", offset, repr(txt), description))
+            VPhoneConsole.shared.line(String(format: "  0x%06X: → %@  [%@]", offset, repr(txt), description))
         }
     }
 

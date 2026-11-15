@@ -36,11 +36,20 @@ public protocol BufferedPatcher: Patcher {
     var patchedData: Data { get }
 }
 
+// MARK: - Log sink
+
+/// Where a patcher's verbose lines go. VPhonePatchKit imports only Foundation, so the
+/// app points this at its reporting channel; the default is plain `print`.
+public enum VPhonePatchLog {
+    // Set once before patching starts, read afterwards; no lock needed.
+    nonisolated(unsafe) public static var write: @Sendable (String) -> Void = { print($0) }
+}
+
 public extension Patcher {
     /// Log a message if verbose mode is enabled.
     func log(_ message: String) {
         if verbose {
-            print(message)
+            VPhonePatchLog.write(message)
         }
     }
 

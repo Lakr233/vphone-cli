@@ -545,7 +545,7 @@ public final class KernelCacheMixer {
 
     func log(_ message: String) {
         if verbose {
-            print(message)
+            VPhoneConsole.shared.line(message)
         }
     }
 }

@@ -171,6 +171,7 @@ public final class FirmwarePipeline {
         self.blockedPatches = blockedPatches
         self.allowedPatches = allowedPatches
         self.loader = loader ?? ContainerFirmwareLoader()
+        VPhonePatchLog.write = { VPhoneConsole.shared.line($0) }
     }
 
     // MARK: - Pipeline Execution
@@ -577,7 +578,7 @@ public final class FirmwarePipeline {
 
     func log(_ message: String) {
         if verbose {
-            print(message)
+            VPhoneConsole.shared.line(message)
         }
     }
 }
