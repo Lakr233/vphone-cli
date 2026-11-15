@@ -92,6 +92,7 @@ func semanticGeometryTests() throws {
         { SemanticInputWitness.truncated = true },
         { changeMonitor(["elements_available": false]) },
         { changeMonitor(["elements_truncated": true]) },
+        { changeMonitor(["elements_truncated": 0]) },
         { changeMonitor(["application_scenes": []]) },
         { let row = (LayoutWitness.layout["monitors"] as! [[String: Any]])[0]
           let scenes = row["application_scenes"] as! [[String: Any]]

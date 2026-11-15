@@ -43,6 +43,12 @@ static void checkOwner(id owner, BOOL expectedAvailable) {
     layout.elements = @[[VPTestScene new], owner];
     NSMutableDictionary *row = [NSMutableDictionary dictionary];
     vpLayoutApplicationScenes(layout, @"com.example.reader", row, [NSMutableDictionary dictionary]);
+    for (NSString *key in @[@"elements_available", @"elements_truncated"]) {
+        if (!row[key] || CFGetTypeID((__bridge CFTypeRef)row[key]) != CFBooleanGetTypeID()) {
+            fprintf(stderr, "%s must be a CFBoolean, not a boxed C integer\n", key.UTF8String);
+            exit(EXIT_FAILURE);
+        }
+    }
     BOOL available = [row[@"elements_available"] boolValue];
     NSArray *scenes = row[@"application_scenes"];
     if (available != expectedAvailable

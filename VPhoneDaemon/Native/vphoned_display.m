@@ -126,8 +126,9 @@ static void vpLayoutApplicationScenes(id layout, NSString *bundle, NSMutableDict
                                        NSMutableDictionary *failures) {
     id elements = vpLayoutObject(layout, @"elements", failures);
     BOOL available = [elements isKindOfClass:NSArray.class];
+    BOOL truncated = available && [elements count] > 128;
     row[@"elements_available"] = @(available);
-    row[@"elements_truncated"] = @(available && [elements count] > 128);
+    row[@"elements_truncated"] = @(truncated);
     if (!available || [elements count] > 128) return;
     NSMutableArray *scenes = [NSMutableArray array];
     for (id element in elements) {

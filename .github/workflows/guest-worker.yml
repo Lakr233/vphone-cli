@@ -1,0 +1,103 @@
+name: guest-worker
+
+on:
+  push:
+    paths:
+      - 'VPhoneDaemon/**'
+      - '.github/workflows/guest-worker.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  worker:
+    runs-on: xcode-27
+    defaults:
+      run:
+        shell: zsh {0}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Native layout regressions
+        run: zsh VPhoneDaemon/Tests/run-display-layout-tests.sh
+
+      - name: Build iOS worker
+        run: |
+          set -euo pipefail
+          mkdir -p .build
+          xcodebuild -project VPhoneDaemon/VPhoneDaemon.xcodeproj \
+            -scheme vphoned -configuration Release -sdk iphoneos \
+            -derivedDataPath .build/XcodeDaemon -jobs 4 \
+            CODE_SIGNING_ALLOWED=NO SUPPORTS_MACCATALYST=NO \
+            EFFECTIVE_PLATFORM_NAME=-iphoneos build 2>&1 | tee .build/guest-worker-build.log
+
+      - name: Semantic and point geometry regressions
+        run: |
+          zsh VPhoneDaemon/Tests/run-point-geometry-tests.sh \
+            --icli .build/XcodeDaemon/SourcePackages/checkouts/icli
+
+      - name: Stage and verify worker
+        run: |
+          set -euo pipefail
+          output=.build/guest-worker
+          mkdir -p "$output/Licenses"
+          cp .build/XcodeDaemon/Build/Products/Release-iphoneos/vphoned "$output/vphoned"
+          # Match the iOS worker's compatibility-library and signing contract
+          # in StageBundle.sh. This artifact contains no host or other-platform binaries.
+          if nm -u "$output/vphoned" | grep '_swift_initBorrow' >/dev/null; then
+            print -u2 'Worker requires _swift_initBorrow, unavailable on 26.x guests'
+            exit 1
+          fi
+          span=$(xcrun swift-stdlib-tool --print --scan-executable "$output/vphoned" \
+            --platform iphoneos | grep '/libswiftCompatibilitySpan.dylib$')
+          cp "$span" "$output/libswiftCompatibilitySpan.dylib"
+          install_name_tool -add_rpath /usr/lib/vphone "$output/vphoned"
+          codesign --force --sign - "$output/libswiftCompatibilitySpan.dylib"
+          codesign --force --sign - --entitlements VPhoneDaemon/Configuration/VPhoneDaemon.entitlements "$output/vphoned"
+          codesign --verify --strict "$output/vphoned"
+          codesign --verify --strict "$output/libswiftCompatibilitySpan.dylib"
+          [[ " $(lipo -archs "$output/vphoned") " == *' arm64 '* ]]
+          rpaths=$(otool -l "$output/vphoned" | awk '$2 == "LC_RPATH" { p=1; next } p && $1 == "path" { print $2; p=0 }')
+          [[ "${rpaths%%$'\n'*}" == /usr/lib/swift && "$rpaths" == *$'\n/usr/lib/vphone' ]]
+          otool -L "$output/vphoned" | awk 'NR > 1 {print $1}' | grep -Fx '@rpath/libswiftCompatibilitySpan.dylib'
+          cp VPhoneDaemon/Configuration/vphoned.plist "$output/"
+          cp VPhoneDaemon/VPhoneDaemon.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved "$output/Package.resolved"
+          cp LICENSE "$output/Licenses/vphone-cli.txt"
+          cp VPhoneExecutable/VPhoneVirtualization/Resources/Licenses/Swift-Apache-2.0-with-Runtime-Library-Exception.txt "$output/Licenses/"
+          zsh scripts/stage-package-notices.zsh "$output/Licenses/packages" \
+            VPhoneDaemon/VPhoneDaemon.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved .build/XcodeDaemon/SourcePackages \
+            VPhoneExecutable/VPhoneCommand/VPhoneCommand.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved .build/XcodeSignGuest-Release/SourcePackages
+          zsh scripts/stage-package-notices.zsh --check "$output/Licenses/packages" --require-notices
+          xcodebuild -version > "$output/toolchain.txt"
+          xcrun swift --version >> "$output/toolchain.txt"
+          otool -l "$output/vphoned" > "$output/load-commands.txt"
+          codesign -d --entitlements :- "$output/vphoned" > "$output/entitlements.plist"
+          jq -n --arg commit "$GITHUB_SHA" --arg repository "$GITHUB_REPOSITORY" \
+            --arg run_id "$GITHUB_RUN_ID" --arg attempt "$GITHUB_RUN_ATTEMPT" \
+            --arg sdk "$(xcrun --sdk iphoneos --show-sdk-version)" \
+            --arg worker_sha256 "$(shasum -a 256 "$output/vphoned" | awk '{print $1}')" \
+            --arg span_sha256 "$(shasum -a 256 "$output/libswiftCompatibilitySpan.dylib" | awk '{print $1}')" \
+            --arg icli_revision "$(git -C .build/XcodeDaemon/SourcePackages/checkouts/icli rev-parse HEAD)" \
+            '{commit:$commit,repository:$repository,run_id:$run_id,attempt:$attempt,sdk:$sdk,
+              configuration:"Release",platform:"iphoneos",signing:"ad-hoc",
+              worker_sha256:$worker_sha256,span_sha256:$span_sha256,icli_revision:$icli_revision}' \
+            > "$output/provenance.json"
+          ditto -c -k --keepParent "$output" ".build/guest-worker-$GITHUB_SHA.zip"
+
+      - name: Upload worker
+        uses: actions/upload-artifact@v4
+        with:
+          name: guest-worker-${{ github.sha }}
+          path: .build/guest-worker-${{ github.sha }}.zip
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guest-worker-log-${{ github.sha }}
+          path: .build/guest-worker-build.log
+          if-no-files-found: ignore
