@@ -406,6 +406,16 @@ public final class FirmwarePipeline {
                 throw staleFirmwareError(component: component.name, underlying: error)
             }
 
+            let shown = (replacementRecord.map { [$0] } ?? []) + componentRecords
+            if !verbose, !shown.isEmpty {
+                VPhoneConsole.shared.keep(
+                    FirmwarePatchSummary.rows(component: component.name, records: shown) { id in
+                        plan?.declaration(coveringRecord: id).map { ($0.identifier, $0.title) }
+                    },
+                    log: FirmwarePatchSummary.logLines(component: component.name, records: shown),
+                )
+            }
+
             if let replacementRecord {
                 // Already in place; the patchers' result, if any, is saved into it.
                 if !componentRecords.isEmpty {
