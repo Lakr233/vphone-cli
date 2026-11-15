@@ -23,6 +23,8 @@ Set the Mac client's SOCKS5 endpoint to the guest's `en0` IPv4 address and port 
 
 The installer builds HEV from a checksum-pinned source release with the iPhoneOS SDK, uploads the executable and license notices through the VM's control socket, and installs a per-user launch agent for this machine.
 
+To verify UDP relay, run `swift Addons/SOCKS5/Tests/UDPAssociate.swift <guest-ip> 1080` on the Mac. The test uses a temporary UDP echo endpoint on the Mac to check both an announced client port and the all-zero client endpoint allowed by RFC 1928.
+
 To uninstall, start the VM and run the command below. Do this before moving or renaming its machine directory, which identifies its launch agent.
 
 ```sh

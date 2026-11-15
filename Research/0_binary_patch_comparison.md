@@ -1,5 +1,7 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+The [optional guest SOCKS5 add-on](../Addons/SOCKS5/README.md) applies its UDP association fix to the HEV source at build time. It runs on the existing guest firmware.
+
 > **SE 3 iOS 18.6.2 pairing and driver extraction (2026-11-12).** The SE
 > catalog uses cloudOS 26.1 and the existing iOS 18.6 GPU transport. Fresh
 > preparation can take the 18.6 driver directly from the PCC OS image when

@@ -69,6 +69,7 @@ expected=aecff4c35d7ffa6458ff55512b04d00c1d102ddc3fbee466534a9b1876022da4
 [[ $(shasum -a 256 "$archive" | cut -d ' ' -f 1) == "$expected" ]] || { print -u2 "Unexpected HEV source archive checksum."; exit 1; }
 tar -xJf "$archive" -C "$working"
 source_dir="$working/hev-socks5-server-$version"
+patch -s -F 0 -d "$source_dir" -p1 -i "$addon_dir/hev-udp-associate.patch"
 make -C "$source_dir" -j4 CC='xcrun --sdk iphoneos clang' PP='xcrun --sdk iphoneos clang' \
   AR='xcrun --sdk iphoneos ar' STRIP='xcrun --sdk iphoneos strip' \
   CFLAGS='-arch arm64 -miphoneos-version-min=15.0' LFLAGS='-arch arm64 -miphoneos-version-min=15.0' exec
