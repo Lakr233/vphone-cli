@@ -61,6 +61,8 @@ struct FirmwarePatchSummaryTests {
             return row.last!.text
         }
         #expect(after(record("a", after: "nop", now: [1, 2, 3])) == "nop")
+        #expect(after(record("a", after: "nop ")) == "nop")
+        #expect(after(record("a", after: " ", now: [1, 2, 3])) == "010203")
         #expect(after(record("a", now: Array("Loaded LLB".utf8) + [0])) == "\"Loaded LLB\"")
         #expect(after(record("a", now: [0xfc, 0x09, 0, 0])) == "2556")
         #expect(after(record("a", now: [0x20, 0, 0, 0])) == "32")

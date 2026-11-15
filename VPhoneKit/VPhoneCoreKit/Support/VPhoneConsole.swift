@@ -14,6 +14,12 @@ public struct VPhoneConsoleSpan: Sendable, Equatable {
     }
 }
 
+public struct VPhoneConsoleLogError: Error, CustomStringConvertible {
+    public let path: String
+    public let reason: String
+    public var description: String { "Cannot use \(path) as the log file: \(reason)." }
+}
+
 /// The terminal descriptor the signal handler shows the cursor on; -1 when no screen is up.
 nonisolated(unsafe) private var screenSignalTerminal: Int32 = -1
 
@@ -43,7 +49,7 @@ public final class VPhoneConsole: @unchecked Sendable {
     private static let defaultWrite: @Sendable (String, VPhoneConsoleStream) -> Void = { text, stream in
         switch stream {
         case .output: Swift.print(text, terminator: "")
-        case .error: FileHandle.standardError.write(Data(text.utf8))
+        case .error: try? FileHandle.standardError.write(contentsOf: Data(text.utf8))
         }
     }
 
@@ -62,7 +68,9 @@ public final class VPhoneConsole: @unchecked Sendable {
                      to stream: VPhoneConsoleStream = .output, terminator: String = "\n") {
         lock.withLock {
             // One screen row per text line; a newline inside a row would break the redraw.
-            for piece in screen == nil ? [] : text.split(separator: "\n") { screen?.line(String(piece), kind) }
+            // A plain line on standard error is a warning; as a detail the next line would replace it.
+            let shown = kind == .plain && stream == .error ? .warning : kind
+            for piece in screen == nil ? [] : text.split(separator: "\n") { screen?.line(String(piece), shown) }
             emit(text + terminator, stream)
         }
     }
@@ -77,18 +85,43 @@ public final class VPhoneConsole: @unchecked Sendable {
     }
 
     /// Appends every plain-mode byte (both streams) to this file too. nil turns it off.
+    /// Under sudo the path may be in a directory others can write, so a symlink is never
+    /// followed, an existing file must be a singly linked regular file of the user the run
+    /// is for, and only a file created here is handed to the invoking user.
     public func setLog(_ url: URL?) throws {
         try lock.withLock {
             try? log?.close()
             log = nil
             guard let url else { return }
-            if !FileManager.default.fileExists(atPath: url.path) {
-                guard FileManager.default.createFile(atPath: url.path, contents: nil, attributes: [.posixPermissions: 0o600]) else {
-                    throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
-                }
+            let invoker = VPhoneInvokingUser.current
+            var created = true
+            var fd = open(url.path, O_WRONLY | O_APPEND | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+            if fd < 0, errno == EEXIST {
+                created = false
+                // O_NONBLOCK: a FIFO without a reader fails here instead of hanging; fstat refuses it below.
+                fd = open(url.path, O_WRONLY | O_APPEND | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK)
             }
-            let handle = try FileHandle(forWritingTo: url)
-            try handle.seekToEnd()
+            guard fd >= 0 else { throw VPhoneConsoleLogError(path: url.path, reason: String(cString: strerror(errno))) }
+            let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
+            if created {
+                if let invoker, fchown(fd, invoker.uid, invoker.gid) != 0 {
+                    throw VPhoneConsoleLogError(path: url.path, reason: String(cString: strerror(errno)))
+                }
+            } else {
+                var info = stat()
+                let reason: String? = if fstat(fd, &info) != 0 {
+                    String(cString: strerror(errno))
+                } else if info.st_mode & S_IFMT != S_IFREG {
+                    "not a regular file"
+                } else if info.st_nlink != 1 {
+                    "it has \(info.st_nlink) hard links"
+                } else if info.st_uid != invoker?.uid ?? geteuid() {
+                    "owned by another user (uid \(info.st_uid))"
+                } else {
+                    nil
+                }
+                if let reason { throw VPhoneConsoleLogError(path: url.path, reason: reason) }
+            }
             log = handle
         }
     }

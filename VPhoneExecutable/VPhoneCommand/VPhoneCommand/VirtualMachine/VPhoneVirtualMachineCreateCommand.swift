@@ -235,6 +235,20 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
     }
 
     func run() throws {
+        // Opened first: a bad path fails before any work, and the file holds every line.
+        try VPhoneConsole.shared.setLog(log.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) })
+        defer { try? VPhoneConsole.shared.setLog(nil) }
+        do {
+            try create()
+        } catch {
+            // The top level prints this text to standard error; the log gets it as well.
+            let message = VPhoneCommand.fullMessage(for: error)
+            if !message.isEmpty { VPhoneConsole.shared.keep([], log: [message]) }
+            throw error
+        }
+    }
+
+    private func create() throws {
         let resources = VPhoneResources.resolve()
         let (patchPreset, networkMode, unlocks) = try checkOptions()
         let templateUse: VPhoneVirtualMachineCreator.TemplateUse = if let template {
@@ -321,7 +335,6 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
             bootstrapLayout: bootstrap,
             slimming: slimming.resolve(),
             showsScreen: suppressesScreen != true && VPhoneConsole.usesScreen(isTerminal: isatty(STDOUT_FILENO) != 0, verbosity: VPhoneVerbosity(count: verboseCount)),
-            logURL: log.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) },
         ))
     }
 }

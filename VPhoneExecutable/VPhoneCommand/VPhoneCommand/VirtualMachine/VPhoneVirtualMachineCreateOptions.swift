@@ -57,8 +57,6 @@ public extension VPhoneVirtualMachineCreator {
         public var slimming: VPhoneMachineTemplateSlimming
         /// Draw the progress screen on the terminal instead of the plain log.
         public var showsScreen: Bool
-        /// Also append the plain output to this file.
-        public var logURL: URL?
 
         public init(
             name: String,
@@ -84,7 +82,6 @@ public extension VPhoneVirtualMachineCreator {
             bootstrapLayout: String? = nil,
             slimming: VPhoneMachineTemplateSlimming = VPhoneTemplateSlimmingRequest.defaultSlimming,
             showsScreen: Bool = false,
-            logURL: URL? = nil,
         ) {
             self.name = name
             self.iphoneSource = iphoneSource
@@ -109,7 +106,6 @@ public extension VPhoneVirtualMachineCreator {
             self.bootstrapLayout = bootstrapLayout
             self.slimming = slimming
             self.showsScreen = showsScreen
-            self.logURL = logURL
         }
     }
 }

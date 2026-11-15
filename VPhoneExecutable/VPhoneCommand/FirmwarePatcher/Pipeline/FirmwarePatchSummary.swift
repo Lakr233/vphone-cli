@@ -91,6 +91,7 @@ enum FirmwarePatchSummary {
     }
 
     private static func value(_ disasm: String, _ bytes: Data) -> String? {
+        let disasm = disasm.trimmingCharacters(in: .whitespacesAndNewlines)
         if !disasm.isEmpty { return disasm }
         guard !bytes.isEmpty else { return nil }
         let trimmed = bytes.last == 0 ? bytes.dropLast() : bytes[...]

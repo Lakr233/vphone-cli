@@ -67,6 +67,53 @@ struct ConsoleTests {
         #expect(mode == 0o600)
     }
 
+    @Test func `a symlink log path is refused and its target is not written`() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let target = dir.appendingPathComponent("target"), link = dir.appendingPathComponent("link")
+        try Data("kept".utf8).write(to: target)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        let console = VPhoneConsole(write: { _, _ in })
+        #expect(throws: (any Error).self) { try console.setLog(link) }
+        console.line("x")
+        #expect(try String(contentsOf: target, encoding: .utf8) == "kept")
+    }
+
+    @Test func `a log file with two hard links is refused`() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("file"), other = dir.appendingPathComponent("other")
+        try Data().write(to: file)
+        try FileManager.default.linkItem(at: file, to: other)
+        let console = VPhoneConsole(write: { _, _ in })
+        let error = #expect(throws: (any Error).self) { try console.setLog(file) }
+        #expect("\(error!)".contains(file.path))
+    }
+
+    @Test func `an existing log file of this user is appended to`() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data("old\n".utf8).write(to: url)
+        let console = VPhoneConsole(write: { _, _ in })
+        try console.setLog(url)
+        console.line("new")
+        try console.setLog(nil)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "old\nnew\n")
+    }
+
+    @Test func `a plain line on standard error stays on the screen as a warning`() {
+        let frames = Sink(); let console = VPhoneConsole(write: { _, _ in })
+        console.startScreen(title: "t", pendingPhases: ["vm new"], frame: { frames.write($0, .output) })
+        console.phase("vm new")
+        console.line("warning: x", to: .error)
+        console.line("next"); console.line("and next")
+        let before = frames.output.count
+        console.finishScreen(error: nil)
+        #expect(String(frames.output.dropFirst(before)).contains(" ! warning: x"))
+    }
+
     @Test func `the screen is used only on a terminal at default verbosity`() {
         #expect(VPhoneConsole.usesScreen(isTerminal: true, verbosity: .quiet))
         #expect(!VPhoneConsole.usesScreen(isTerminal: false, verbosity: .quiet))

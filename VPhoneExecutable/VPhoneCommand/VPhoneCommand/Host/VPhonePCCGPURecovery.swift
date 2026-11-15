@@ -101,7 +101,11 @@ enum VPhonePCCGPURecovery {
             udid: VPhoneRestoreOperations.resolveUDID(bundle: vm),
             erase: true,
             ticketPath: nil,
-            onEvent: VPhoneRestoreConsole.handler(level: .info),
+            onEvent: VPhoneRestoreConsole.handler(
+                level: .info,
+                write: { VPhoneConsole.shared.line($0, to: $1 ? .error : .output) },
+                progress: { VPhoneConsole.shared.activity($0, fraction: $1) },
+            ),
         )
         dfu.terminate()
         _ = dfu.waitUntilExit()
