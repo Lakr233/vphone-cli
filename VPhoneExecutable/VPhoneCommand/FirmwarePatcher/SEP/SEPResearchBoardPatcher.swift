@@ -10,7 +10,9 @@
 //
 // The firmware stores each app in two parts (text, then data), located by the
 // root argument object that follows the "Built by legion2P" banner: an app's
-// name field sits 0x78 bytes after the offsets and sizes of its two parts.
+// name field sits 0x78 bytes after the offsets and sizes of its two parts
+// (0x80 from cloudOS 27, whose entries gained a field before the name). The
+// distance whose first part is a Mach-O is the one used.
 //
 // The switch table lies in `__text`. From cloudOS 26.4 on, SEPD's FIPS self
 // test checks an HMAC-SHA256 of `__text` with an all-zero key, stored in
@@ -123,6 +125,10 @@ public final class SEPResearchBoardPatcher: BufferedPatcher {
         }
     }
 
+    /// How far before an app's name its part offsets lie: before cloudOS 27, then from 27 on.
+    static let entryDistances = [0x78, 0x80]
+    static let machOMagic64: UInt32 = 0xFEED_FACF
+
     /// `image` is indexed from 0, as a ``BinaryBuffer``'s data is.
     static func application(named name: String, in image: Data) throws -> Application {
         guard let banner = image.range(of: Data("Built by legion2P".utf8)),
@@ -130,16 +136,20 @@ public final class SEPResearchBoardPatcher: BufferedPatcher {
         else {
             throw PatcherError.patchSiteNotFound("SEP: no \(name) in the root argument object")
         }
-        let entry = field.lowerBound - 0x78
-        func value(_ slot: Int) -> Int {
-            Int(image.loadLE(UInt32.self, at: entry + slot * 8))
+        for distance in entryDistances {
+            let entry = field.lowerBound - distance
+            guard entry >= 0 else { continue }
+            func value(_ slot: Int) -> Int {
+                Int(image.loadLE(UInt32.self, at: entry + slot * 8))
+            }
+            let part1 = value(0) ..< value(0) + value(1)
+            let part2 = value(2) ..< value(2) + value(3)
+            guard part1.count >= 4, part1.upperBound <= image.count, part2.upperBound <= image.count,
+                  image.loadLE(UInt32.self, at: part1.lowerBound) == machOMagic64
+            else { continue }
+            return Application(part1: part1, part2: part2)
         }
-        let part1 = value(0) ..< value(0) + value(1)
-        let part2 = value(2) ..< value(2) + value(3)
-        guard entry >= 0, part1.upperBound <= image.count, part2.upperBound <= image.count else {
-            throw PatcherError.invalidFormat("SEP: \(name)'s parts lie outside the image")
-        }
-        return Application(part1: part1, part2: part2)
+        throw PatcherError.invalidFormat("SEP: \(name)'s entry has no parts starting with a Mach-O header")
     }
 
     // MARK: - Dispatch Table

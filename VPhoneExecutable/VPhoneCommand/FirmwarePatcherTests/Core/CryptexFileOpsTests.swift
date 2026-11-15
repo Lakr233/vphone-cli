@@ -323,6 +323,27 @@ struct CryptexFileOpsTests {
         #expect(try makePatcher(scratch).parseEditTime(mtree: mtree, since: since) == "1792405582936736187")
     }
 
+    @Test(arguments: [
+        ".               type=dir nlink=19 size=608 time=1792721395.079186477\n",
+        ".               type=dir nlink=19 \\\n                size=608 time=1792721395.079186477\n",
+    ])
+    func `the fast mtree path takes the root's time in whole seconds`(root: String) throws {
+        // 27.2, 2026-11-13: "Found remapper time of: 1792721395" for a root
+        // at 1792721395.079186477, whatever was edited after it, and the seal
+        // used "Timestamp set by B+I is 1792721395000000000".
+        let scratch = try makeScratch()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        let mtree = try writeMtree(root: root, in: scratch)
+        #expect(try makePatcher(scratch).parseRootTime(mtree: mtree) == "1792721395000000000")
+    }
+
+    @Test func `restores from iOS 27 on take the fast mtree path`() {
+        #expect(!CryptexFilesystemPatcher.usesFastMtree(productVersion: "26.5"))
+        #expect(!CryptexFilesystemPatcher.usesFastMtree(productVersion: "18.6"))
+        #expect(CryptexFilesystemPatcher.usesFastMtree(productVersion: "27.2"))
+        #expect(CryptexFilesystemPatcher.usesFastMtree(productVersion: "27.2.1"))
+    }
+
     @Test func `the max size comes back as the string diskutil wants back`() throws {
         #expect(try CryptexFilesystemPatcher.maxResizeSize(
             fromDiskutilPlist: Self.sizesPlist,

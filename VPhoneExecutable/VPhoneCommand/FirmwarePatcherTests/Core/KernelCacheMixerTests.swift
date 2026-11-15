@@ -76,7 +76,7 @@ struct KernelCacheMixerTests {
         let bases = try Self.recipes.bases()
         #expect(bases.map(\.id) == [
             "18.1_22B83", "18.2.1_22C161", "18.3.1_22D72", "18.5_22F76", "18.6_22G86", "18.7.2_22H124", "18.7_22H20",
-            "26.4_23E246", "26.5_23F77", "26.6_23G71", "26.7_23H20", "homepod_26.5_23L471", "watch_26.4_23T240",
+            "26.4_23E246", "26.5_23F77", "26.6_23G71", "26.7_23H20", "27.2_24B119", "homepod_26.5_23L471", "watch_26.4_23T240",
         ])
         for base in bases {
             #expect(FileManager.default.fileExists(atPath: base.symbolsURL.path), "\(base.id)")

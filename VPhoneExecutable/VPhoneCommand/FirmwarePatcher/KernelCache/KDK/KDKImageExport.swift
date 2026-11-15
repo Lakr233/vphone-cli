@@ -268,11 +268,21 @@ struct KDKImageExport {
                               load.bytes.le(UInt32.self, pos + 4) == 68,
                               pos + 8 + 272 <= load.bytes.count else { throw invalid("unexpected ARM thread state") }
                         let registers = pos + 8
-                        if load.bytes[registers ..< registers + 256].allSatisfy({ $0 == 0 }),
+                        // An iOS 27 collection's thread also carries x16, the start of the kernel's
+                        // __TEXT_EXEC (the kmutil of macOS 27 writes it). A standalone kernel has
+                        // none, and kmutil refuses one that keeps the collection's addresses
+                        // ("LC_UNIXTHREAD entry is out of range"): clear it and remap pc.
+                        let x16 = registers + 16 * 8
+                        let textExec = mappings.first { $0.original.name == "__TEXT_EXEC" }?.original.address
+                        let x16Value = load.bytes.le(UInt64.self, x16)
+                        if load.bytes[registers ..< x16].allSatisfy({ $0 == 0 }),
+                           load.bytes[x16 + 8 ..< registers + 256].allSatisfy({ $0 == 0 }),
                            load.bytes[registers + 264 ..< registers + 272].allSatisfy({ $0 == 0 }),
+                           x16Value == 0 || x16Value == textExec,
                            let pc = try? remap(load.bytes.le(UInt64.self, registers + 256))
                         {
                             load.bytes.setLE(pc, at: registers + 256)
+                            load.bytes.setLE(UInt64(0), at: x16)
                         }
                         pos += 280
                     }

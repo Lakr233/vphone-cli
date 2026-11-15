@@ -16,10 +16,22 @@ struct OpenAVBIdentityTests {
     /// An iBoot-shaped image: the link base at 0x300 in filler that
     /// compresses, large enough to decode past the first buffer the decoder
     /// is offered.
-    private func iBootImage(base: UInt64 = 0x7006_C000, size: Int = 3 << 20) -> Data {
+    /// With `literal`, the image starts as iBoot 27 does: its third
+    /// instruction is `ldr x1, =base` from `literal`, and 0x300 holds the
+    /// version string.
+    private func iBootImage(base: UInt64 = 0x7006_C000, size: Int = 3 << 20, literal: Int? = nil) -> Data {
         var image = (0 ..< size).map { UInt8(truncatingIfNeeded: ($0 >> 6) ^ ($0 >> 13)) }
+        let at = literal ?? 0x300
         for i in 0 ..< 8 {
-            image[0x300 + i] = UInt8(truncatingIfNeeded: base >> (8 * i))
+            image[at + i] = UInt8(truncatingIfNeeded: base >> (8 * i))
+        }
+        if let literal {
+            // LDR x1, literal (pc-relative, from 0x8).
+            let ldr = UInt32(0x5800_0001) | UInt32((literal - 0x8) / 4) << 5
+            for i in 0 ..< 4 {
+                image[0x8 + i] = UInt8(truncatingIfNeeded: ldr >> (8 * i))
+            }
+            image.replaceSubrange(0x300 ..< 0x310, with: Array("iBoot-20457.42.5".utf8))
         }
         return Data(image)
     }
@@ -113,6 +125,12 @@ struct OpenAVBIdentityTests {
         let wrapped = identity(of: img4(wrapping: container))
         #expect(bare.status == 0)
         #expect(bare.header == wrapped.header)
+    }
+
+    @Test func `the link address is the literal iBoot's start loads, as in iOS 27`() {
+        let result = identity(of: im4p(payload: lzfse(iBootImage(literal: 0x380))))
+        #expect(result.status == 0)
+        #expect(u64(result.header, 0x20) == 0x7006_C000)
     }
 
     // MARK: - Refusals
