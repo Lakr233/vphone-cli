@@ -94,6 +94,7 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
         help: "Keep the prepared restore tree after installation. Downloaded IPSWs always stay in the IPSW cache.",
     )
     var keepArtifacts = false
+    @Option(name: .customLong("log"), help: "Also write the plain output to this file.") var log: String?
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
     var verboseCount: Int
 
@@ -320,6 +321,7 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
             bootstrapLayout: bootstrap,
             slimming: slimming.resolve(),
             showsScreen: suppressesScreen != true && VPhoneConsole.usesScreen(isTerminal: isatty(STDOUT_FILENO) != 0, verbosity: VPhoneVerbosity(count: verboseCount)),
+            logURL: log.map { URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) },
         ))
     }
 }

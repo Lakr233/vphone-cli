@@ -103,6 +103,7 @@ public final class VPhoneConsole: @unchecked Sendable {
         lock.withLock {
             guard screen == nil else { return }
             let fd = dup(STDOUT_FILENO)
+            guard fd >= 0 else { return } // no terminal to draw on: stay in plain mode
             terminal = fd
             frameOut = frame ?? { Self.writeAll($0, to: fd) }
             screen = VPhoneConsoleScreen(title: title, pendingPhases: pendingPhases, startedAt: Self.now())

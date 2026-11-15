@@ -106,6 +106,10 @@ public struct VPhoneVirtualMachineCreator {
     public func run(_ options: Options) throws {
         // A patcher built without a FirmwarePipeline must not print past the screen either.
         VPhonePatchLog.write = { VPhoneConsole.shared.line($0) }
+        // Before the screen, so the file holds everything; opened first so a bad path fails before any work.
+        try VPhoneConsole.shared.setLog(options.logURL)
+        defer { try? VPhoneConsole.shared.setLog(nil) }
+        if let logURL = options.logURL { try VPhoneInvokingUser.current?.restoreOwnership(at: logURL) }
         guard options.showsScreen else { return try create(options) }
         let pending = options.template == .none
             ? ["vm new", "fw prepare", "fw patch", "Restore phase", "CFW install (host-mount)"]
