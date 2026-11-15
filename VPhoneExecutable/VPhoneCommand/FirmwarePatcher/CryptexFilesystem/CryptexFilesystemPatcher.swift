@@ -66,7 +66,7 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
                 try? FileManager.default.removeItem(at: tmp)
             }
         } else {
-            fputs("warning: filesystem patch image is still attached; left VM work files in \(restoreDir.path)\n", stderr)
+            VPhoneConsole.shared.line("warning: filesystem patch image is still attached; left VM work files in \(restoreDir.path)", .warning, to: .error)
         }
     }
 
@@ -124,7 +124,7 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
 
     @discardableResult
     public func apply() throws -> Int {
-        print("Merging filesystems…")
+        VPhoneConsole.shared.line("Merging filesystems…", .step)
         let (unencryptedImage, aeaImage) = try mergeFilesystems()
         defer {
             if attachedDevices.isEmpty {
@@ -132,17 +132,17 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
             }
         }
 
-        print("Creating trustcache…")
+        VPhoneConsole.shared.line("Creating trustcache…", .step)
         let trustcachePath = try createTrustcache(filesystem: unencryptedImage)
 
-        print("Creating mtree…")
+        VPhoneConsole.shared.line("Creating mtree…", .step)
         // The restore gets the image as encrypted above, so whatever changes
         // from here on is what its mtree finds different (see parseEditTime).
         let editStart = Date()
         let didEdit = try removeSpecificSystemFiles(filesystem: unencryptedImage)
         let mtreePath = try createMtree(filesystem: unencryptedImage)
 
-        print("Creating digest database and root hash…")
+        VPhoneConsole.shared.line("Creating digest database and root hash…", .step)
         // The merged image was shrunk to its minimum size. With a remap,
         // apfs_sealvolume copies the whole fsroot tree first and fails with
         // ENOSPC (exit 65) in the space that is left.
@@ -184,7 +184,7 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
         let osDmgPath = try decryptAeaFile(restoreDir.appending(path: osPath))
         let newDmgPath = restoreDir.appending(path: "new-filesystem.dmg")
 
-        print("- Converting OS image…")
+        VPhoneConsole.shared.line("- Converting OS image…", .step)
         let tmpDir = try createTmpDir()
         let targetImagePath = tmpDir.appending(path: "disk.dmg")
         do {
@@ -197,32 +197,32 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
             defer { try? detachImage(deviceNode: targetDevice) }
 
             if guestFamily != .watch {
-                print("- Merging App OS cryptex…")
+                VPhoneConsole.shared.line("- Merging App OS cryptex…", .step)
                 try copyCryptex(targetMount: targetMount, appOS: true)
 
-                print("- Merging System OS cryptex…")
+                VPhoneConsole.shared.line("- Merging System OS cryptex…", .step)
                 try copyCryptex(targetMount: targetMount, systemOS: true)
 
-                print("- Fixing dyld cache…")
+                VPhoneConsole.shared.line("- Fixing dyld cache…", .step)
                 try addDyldSymlinks(targetMount: targetMount)
             }
 
             if gate.isEnabled(FirmwareRestoreImagePatchSet.gpuDriver) {
-                print("- Fixing GPU driver…")
+                VPhoneConsole.shared.line("- Fixing GPU driver…", .step)
                 try addGpuDriver(targetMount: targetMount)
             }
             if gate.isEnabled(FirmwareRestoreImagePatchSet.surfaceCompression), isIOS18 {
-                print("- Turning off CoreAnimation's surface compression (iOS 18)…")
+                VPhoneConsole.shared.line("- Turning off CoreAnimation's surface compression (iOS 18)…", .step)
                 try addCoreAnimationDefaults(targetMount: targetMount)
             }
 
             if gate.isEnabled(FirmwareRestoreImagePatchSet.mobileActivation) {
-                print("- Patching mobile activation…")
+                VPhoneConsole.shared.line("- Patching mobile activation…", .step)
                 try patchMobileActivation(targetMount: targetMount)
             }
 
             if gate.isEnabled(FirmwareRestoreImagePatchSet.vphoned) {
-                print("- Adding vphoned…")
+                VPhoneConsole.shared.line("- Adding vphoned…", .step)
                 try addVphoned(targetMount: targetMount)
                 try injectLaunchDaemons(targetMount: targetMount)
             }
@@ -233,23 +233,23 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
                 try editGuestFile(CustomFirmwareBluetoothVirtualController.relativePath, targetMount: targetMount, mode: 0o644) { file in
                     try CustomFirmwareBluetoothVirtualController.patch(at: file)
                 }
-                print("  [+] \(CustomFirmwareBluetoothVirtualController.feature) on")
+                VPhoneConsole.shared.line("  [+] \(CustomFirmwareBluetoothVirtualController.feature) on", .note)
             }
             if gate.isEnabled(FirmwareRestoreImagePatchSet.watchAudio), applies(FirmwareRestoreImagePatchSet.watchAudio) {
-                print("- Adding the watch speaker…")
+                VPhoneConsole.shared.line("- Adding the watch speaker…", .step)
                 try addWatchAudio(targetMount: targetMount)
                 try patchWatchAudioBudget(targetMount: targetMount)
             }
             if gate.isEnabled(FirmwareRestoreImagePatchSet.debugserver) {
-                print("- Re-signing debugserver for in-guest attach…")
+                VPhoneConsole.shared.line("- Re-signing debugserver for in-guest attach…", .step)
                 try patchDebugserver(targetMount: targetMount)
             }
             if gate.isEnabled(FirmwareRestoreImagePatchSet.launchdJetsam) {
-                print("- Patching launchd's jetsam panic guard…")
+                VPhoneConsole.shared.line("- Patching launchd's jetsam panic guard…", .step)
                 try patchLaunchdJetsam(targetMount: targetMount)
             }
             if trustedDarwinOS {
-                print("- Adding cryptexctl for trusted darwinOS…")
+                VPhoneConsole.shared.line("- Adding cryptexctl for trusted darwinOS…", .step)
                 try addCryptexctl(targetMount: targetMount)
             }
             if gate.isEnabled(FirmwareRestoreImagePatchSet.internalReleaseType), applies(FirmwareRestoreImagePatchSet.internalReleaseType) {
@@ -263,7 +263,7 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
             throw VPhonePatchKit.PatcherError.patchVerificationFailed("The filesystem image is still attached. Detach it, then try again.")
         }
 
-        print("- Finalizing merged image…")
+        VPhoneConsole.shared.line("- Finalizing merged image…", .step)
         try shrinkImage(dmg: targetImagePath)
         try convertToUDRWImage(input: targetImagePath, output: newDmgPath)
         try? FileManager.default.removeItem(at: targetImagePath)

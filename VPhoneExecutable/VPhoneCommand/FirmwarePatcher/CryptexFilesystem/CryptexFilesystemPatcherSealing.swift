@@ -100,7 +100,7 @@ extension CryptexFilesystemPatcher {
         </dict>
         </plist>
         """
-        print("Modification time: \(remap ? modificationTime : "none")")
+        VPhoneConsole.shared.line("Modification time: \(remap ? modificationTime : "none")")
         FileManager.default.createFile(atPath: mtreeRemapPath.path, contents: remapContent.data(using: .utf8))
 
         let sealvolume = try identifyApfsSealvolume()
@@ -116,8 +116,8 @@ extension CryptexFilesystemPatcher {
             // apfs_sealvolume says why it rejects a volume only in its log
             // (exit 65 = EX_DATAERR), which goes with the temporary directory.
             let log = (try? String(contentsOf: sealLogPath, encoding: .utf8)) ?? ""
-            print("apfs_sealvolume log (last 60 lines):")
-            print(log.split(separator: "\n", omittingEmptySubsequences: false).suffix(60).joined(separator: "\n"))
+            VPhoneConsole.shared.line("apfs_sealvolume log (last 60 lines):")
+            VPhoneConsole.shared.line(log.split(separator: "\n", omittingEmptySubsequences: false).suffix(60).joined(separator: "\n"))
             throw error
         }
         return (digestDbPath, rootHashPath)
@@ -298,15 +298,15 @@ extension CryptexFilesystemPatcher {
         if trustedDarwinOS {
             let before = cache.entries.count
             cache = cache.allowingBothRestrictedExecutionPhases()
-            print("  [+] Restricted Execution Mode: all \(cache.entries.count) entries allowed in both phases (\(before - cache.entries.count) duplicates dropped)")
+            VPhoneConsole.shared.line("  [+] Restricted Execution Mode: all \(cache.entries.count) entries allowed in both phases (\(before - cache.entries.count) duplicates dropped)", .note)
         }
         try IM4P(fourcc: container.fourcc, description: container.description, payload: cache.payload)
             .data.write(to: trustCache)
         let categorized = cache.entries.filter { $0.constraintCategory != 0 }.count
-        print("  [+] Constraint categories for \(categorized) of \(cache.entries.count) trust cache entries")
+        VPhoneConsole.shared.line("  [+] Constraint categories for \(categorized) of \(cache.entries.count) trust cache entries", .note)
         for entry in cache.entries where resignedCDHashes[entry.cdHash] != nil {
             let hex = entry.cdHash.map { String(format: "%02x", $0) }.joined()
-            print("  [+] Re-signed cdhash \(hex) (hash type \(entry.hashType)): category \(entry.constraintCategory)")
+            VPhoneConsole.shared.line("  [+] Re-signed cdhash \(hex) (hash type \(entry.hashType)): category \(entry.constraintCategory)", .note)
         }
     }
 }

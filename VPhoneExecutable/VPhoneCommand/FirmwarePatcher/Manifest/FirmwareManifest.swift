@@ -84,13 +84,13 @@ public enum FirmwareManifest {
         let iErase = try findIPhoneErase(iPhoneIdentities, deviceClass: device.deviceClass)
 
         if verbose {
-            print("  cloudOS vresearch101ap: release=#\(prod), research=#\(res)")
+            VPhoneConsole.shared.line("  cloudOS vresearch101ap: release=#\(prod), research=#\(res)", .note)
             if (vp, vpr) == (prod, res) {
-                print("  cloudOS vphone600ap:    none, the research board stands in")
+                VPhoneConsole.shared.line("  cloudOS vphone600ap:    none, the research board stands in", .note)
             } else {
-                print("  cloudOS vphone600ap:    release=#\(vp), research=#\(vpr)")
+                VPhoneConsole.shared.line("  cloudOS vphone600ap:    release=#\(vp), research=#\(vpr)", .note)
             }
-            print("  \(device.productType) erase: #\(iErase)")
+            VPhoneConsole.shared.line("  \(device.productType) erase: #\(iErase)", .note)
         }
 
         // Build the single DFU erase identity.
@@ -133,12 +133,12 @@ public enum FirmwareManifest {
         // Write output.
         try writePlist(buildManifest, to: iPhoneDir.appendingPathComponent("BuildManifest.plist"))
         if verbose {
-            print("  wrote BuildManifest.plist")
+            VPhoneConsole.shared.line("  wrote BuildManifest.plist", .note)
         }
 
         try writePlist(restore, to: iPhoneDir.appendingPathComponent("Restore.plist"))
         if verbose {
-            print("  wrote Restore.plist")
+            VPhoneConsole.shared.line("  wrote Restore.plist", .note)
         }
     }
 
@@ -298,7 +298,7 @@ public enum FirmwareManifest {
         var separated = identity
         separated["Manifest"] = manifest
         if verbose {
-            print("  \(device.productType): installed DeviceTree -> \(guestDeviceTreePath)")
+            VPhoneConsole.shared.line("  \(device.productType): installed DeviceTree -> \(guestDeviceTreePath)", .note)
         }
         return separated
     }

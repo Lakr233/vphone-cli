@@ -62,7 +62,7 @@ extension CryptexFilesystemPatcher {
             try setMode(0o644, at: path)
         }
 
-        print("  [+] /\(relative)")
+        VPhoneConsole.shared.line("  [+] /\(relative)", .note)
 
         try patchWatchAudioGraphs(targetMount: targetMount)
         try patchWatchAudioRoutingGates(targetMount: targetMount)
@@ -124,8 +124,8 @@ extension CryptexFilesystemPatcher {
     func patchWatchAudioBudget(targetMount: String) throws {
         let version = try getProductVersion()
         guard CustomFirmwareWatchAudioBudget.supports(VPhoneVersion(version)) else {
-            print("  [!] Watch audio budget: Playback audio class fix not verified on \(version), so not applied")
-            print("      Local-speaker Playback sessions will fail the MediaExperience power budget")
+            VPhoneConsole.shared.line("  [!] Watch audio budget: Playback audio class fix not verified on \(version), so not applied", .note)
+            VPhoneConsole.shared.line("      Local-speaker Playback sessions will fail the MediaExperience power budget", .note)
             return
         }
         

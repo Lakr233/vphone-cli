@@ -149,7 +149,7 @@ extension CryptexFilesystemPatcher {
         // disk7s1 → disk7: `0` makes the container take all of its physical store.
         let container = volume.replacingOccurrences(of: #"s[0-9]+$"#, with: "", options: .regularExpression)
         _ = try runProcess("/usr/sbin/diskutil", ["apfs", "resizeContainer", container, "0"])
-        print("  [+] Grew \(dmg.lastPathComponent)'s container past diskutil's limit by \(bytes) bytes")
+        VPhoneConsole.shared.line("  [+] Grew \(dmg.lastPathComponent)'s container past diskutil's limit by \(bytes) bytes", .note)
     }
 
     /// Whether `diskutil image attach` reported a partition map (a

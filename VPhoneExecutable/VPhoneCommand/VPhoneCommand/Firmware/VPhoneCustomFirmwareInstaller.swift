@@ -177,7 +177,7 @@ struct VPhoneCustomFirmwareInstaller {
             guard mode == .full else {
                 throw Self.restoreImageRefusal(mode)
             }
-            print("[cfw] The restore installed this VM's customised system; nothing to install.")
+            VPhoneConsole.shared.line("[cfw] The restore installed this VM's customised system; nothing to install.")
             recordGuestReceipt(live: [], notApplicable: [], in: bundleDirectory, owner: invokingUser.map { ($0.uid, $0.gid) })
             return
         }
@@ -3304,7 +3304,7 @@ struct VPhoneCustomFirmwareInstaller {
             print("[!] \(VPhonePatchPresetStore.planFileName) is unreadable; applying every guest patch")
             return nil
         }
-        print("[*] Patch preset: \(plan.presetIdentifier)  (\(plan.enabledPatches.count) patches on)")
+        VPhoneConsole.shared.line("[*] Patch preset: \(plan.presetIdentifier)  (\(plan.enabledPatches.count) patches on)", .step)
         return plan
     }
 

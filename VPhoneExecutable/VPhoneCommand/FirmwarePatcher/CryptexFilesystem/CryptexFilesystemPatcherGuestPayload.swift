@@ -56,7 +56,7 @@ extension CryptexFilesystemPatcher {
     func patchLaunchdJetsam(targetMount: String) throws {
         try editGuestFile("sbin/launchd", targetMount: targetMount, mode: 0o755) { file in
             try thinToArm64e(file)
-            try CustomFirmwareJetsamPatcher.patch(fileAt: file, log: { print("  \($0)") })
+            try CustomFirmwareJetsamPatcher.patch(fileAt: file, log: { VPhoneConsole.shared.line("  \($0)", .note) })
             try setMode(0o755, at: file)
 
             try VPhoneSigner.sign(
@@ -64,7 +64,7 @@ extension CryptexFilesystemPatcher {
                 options: guestSigningOptions(identifier: "com.apple.xpc.launchd"),
             )
         }
-        print("  [+] Patched launchd's jetsam panic guard")
+        VPhoneConsole.shared.line("  [+] Patched launchd's jetsam panic guard", .note)
     }
 
     func injectLaunchDaemons(targetMount: String) throws {
@@ -77,7 +77,7 @@ extension CryptexFilesystemPatcher {
                 try dropNRDUpdated(fromLaunchdCache: file)
             }
         }
-        print("  [+] Injected vphoned")
+        VPhoneConsole.shared.line("  [+] Injected vphoned", .note)
         try resignLaunchdCache(targetMount: targetMount)
     }
 
@@ -100,7 +100,7 @@ extension CryptexFilesystemPatcher {
         guard jobs.removeValue(forKey: Self.nrdUpdatedJob) != nil else { return }
         cache["LaunchDaemons"] = jobs
         try CustomFirmwareDaemons.savePlist(cache, to: file)
-        print("  [+] Left out com.apple.mobile.NRDUpdated (trusted darwinOS: its update-brain trust cache panics TXM)")
+        VPhoneConsole.shared.line("  [+] Left out com.apple.mobile.NRDUpdated (trusted darwinOS: its update-brain trust cache panics TXM)", .note)
     }
 
     /// Sign the edited `launchd.plist` as Apple signs it, so the stock
@@ -127,13 +127,13 @@ extension CryptexFilesystemPatcher {
         try target.replaceFile(CustomFirmwareDetachedSignature.launchdCacheSignaturePath,
                                fromFileAt: file, mode: 0o644, owner: (0, 80))
         for cdHash in original {
-            print("  [+] Apple's launchd.plist.sig: cdhash \(cdHash.map { String(format: "%02x", $0) }.joined())")
+            VPhoneConsole.shared.line("  [+] Apple's launchd.plist.sig: cdhash \(cdHash.map { String(format: "%02x", $0) }.joined())", .note)
         }
         for hash in try CustomFirmwareDetachedSignature.codeDirectoryHashes(in: signature) {
             if !original.isEmpty, !original.contains(hash.cdhash) {
                 resignedCDHashes[hash.cdhash] = original
             }
-            print("  [+] Signed launchd.plist: cdhash \(hash.cdhash.map { String(format: "%02x", $0) }.joined()) (hash type \(hash.hashType))")
+            VPhoneConsole.shared.line("  [+] Signed launchd.plist: cdhash \(hash.cdhash.map { String(format: "%02x", $0) }.joined()) (hash type \(hash.hashType))", .note)
         }
     }
 
@@ -180,7 +180,7 @@ extension CryptexFilesystemPatcher {
         }
         let confined = try VPhoneConfinedDirectory.pin(absolutePath: targetMount)
         try confined.replaceFile(VPhonePCCCryptexctl.guestPath, fromFileAt: staged, mode: 0o755, owner: (0, 0))
-        print("  [+] /\(VPhonePCCCryptexctl.guestPath)")
+        VPhoneConsole.shared.line("  [+] /\(VPhonePCCCryptexctl.guestPath)", .note)
     }
 
     /// SystemVersion.plist's ReleaseType becomes Internal, and the os_variant
@@ -299,7 +299,7 @@ extension CryptexFilesystemPatcher {
         }
         // No --identifier: codesign keeps the one the bundle already carries.
         _ = try runProcess("/usr/bin/codesign", ["-f", "-s", "-", "--timestamp=none", bundle.path])
-        print("  [+] GPU driver retargeted to \(platform == MachOBuildPlatform.watchOS ? "watchOS" : "platform \(platform)")")
+        VPhoneConsole.shared.line("  [+] GPU driver retargeted to \(platform == MachOBuildPlatform.watchOS ? "watchOS" : "platform \(platform)")", .note)
     }
 
     /// A watch's binaries are universal (arm64_32 and arm64e); the VM runs the
@@ -344,7 +344,7 @@ extension CryptexFilesystemPatcher {
         let target = try VPhoneConfinedDirectory.pin(absolutePath: targetMount)
         let relative = CustomFirmwareDebugserver.guestPath
         guard try target.isRegularFile(relative) else {
-            print("  [!] debugserver absent in the merged image; re-sign skipped")
+            VPhoneConsole.shared.line("  [!] debugserver absent in the merged image; re-sign skipped", .note)
             return
         }
         try editGuestFile(relative, targetMount: targetMount, mode: 0o755) { file in
@@ -363,7 +363,7 @@ extension CryptexFilesystemPatcher {
                 options: VPhoneSignOptions(entitlements: entitlements, style: .appleAdHoc),
             )
         }
-        print("  [+] Re-signed debugserver with task_for_pid-allow")
+        VPhoneConsole.shared.line("  [+] Re-signed debugserver with task_for_pid-allow", .note)
     }
 
     /// Path-based patchers only see this private copy. Guest symlinks cannot

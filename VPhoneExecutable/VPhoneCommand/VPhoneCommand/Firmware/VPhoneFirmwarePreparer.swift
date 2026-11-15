@@ -83,14 +83,14 @@ enum VPhoneFirmwarePreparer {
         let staleOriginals = bundle.url
             .appendingPathComponent(VPhoneBundleOperations.firmwareOriginalsDirectoryName)
         if fm.fileExists(atPath: staleOriginals.path) {
-            print("[*] Removing boot-chain originals kept for the previous firmware...")
+            VPhoneConsole.shared.line("[*] Removing boot-chain originals kept for the previous firmware...", .step)
             try fm.removeItem(at: staleOriginals)
         }
         // The same for a userland staged from an OTA: `cfw install` extracts it
         // whenever it is there and its patch is on.
         let bundleUserland = bundle.url.appendingPathComponent(VPhoneOTAArchive.userlandDirectoryName, isDirectory: true)
         if fm.fileExists(atPath: bundleUserland.path) {
-            print("[*] Removing the OTA userland staged for the previous firmware...")
+            VPhoneConsole.shared.line("[*] Removing the OTA userland staged for the previous firmware...", .step)
             try fm.removeItem(at: bundleUserland)
         }
 
@@ -167,7 +167,7 @@ enum VPhoneFirmwarePreparer {
         defer {
             let entries = (try? fm.contentsOfDirectory(atPath: staging.path)) ?? []
             if entries.contains(where: { $0.hasPrefix(".pcc-system-") || $0.hasPrefix(".pcc-restoration-") }) {
-                fputs("warning: PCC mount may still be active; left staging at \(staging.path)\n", stderr)
+                VPhoneConsole.shared.line("warning: PCC mount may still be active; left staging at \(staging.path)", .warning, to: .error)
             } else {
                 try? fm.removeItem(at: staging)
             }
@@ -175,9 +175,9 @@ enum VPhoneFirmwarePreparer {
         try fm.createDirectory(at: phoneTree, withIntermediateDirectories: false)
         try fm.createDirectory(at: cloudTree, withIntermediateDirectories: false)
 
-        print("[*] Extracting \(restored.productType) IPSW...")
+        VPhoneConsole.shared.line("[*] Extracting \(restored.productType) IPSW...", .step)
         try VPhoneArchiveExtractor.extract(phone.file, into: phoneTree, options: .intoHostDirectory)
-        print("[*] Extracting cloudOS IPSW...")
+        VPhoneConsole.shared.line("[*] Extracting cloudOS IPSW...", .step)
         try VPhoneArchiveExtractor.extract(cloud.file, into: cloudTree, options: .intoHostDirectory)
 
         try makeUserWritable(phoneTree)
@@ -195,7 +195,7 @@ enum VPhoneFirmwarePreparer {
         // whose kernelcache `fw patch` rebuilds from a recipe.
         if FirmwarePipeline.researchBoardStandsIn(restoreDir: phoneTree) {
             let recipe = try KernelCacheMixer.recipe(forRestoreTree: phoneTree)
-            print("[+] No vphone600 components in this cloudOS: the research board stands in, kernelcache recipe \(recipe.id)")
+            VPhoneConsole.shared.line("[+] No vphone600 components in this cloudOS: the research board stands in, kernelcache recipe \(recipe.id)", .done)
             // `vm create` would otherwise stop only at `fw patch`, after the GPU restore.
             if checksKernelcacheMix {
                 try KernelCacheMixer.checkMixable(restoreTree: phoneTree)
@@ -220,7 +220,7 @@ enum VPhoneFirmwarePreparer {
                 && (phone.version != "17.7" || usesIOS17GPUTransport(version: phone.version, device: device))
             let driverRelease = phone.version == "17.7" ? "18.6" : VPhonePCCGPUDriver.release(phone.version)
             if let gpuDriverBundle {
-                print("[*] Staging GPU driver from local bundle...")
+                VPhoneConsole.shared.line("[*] Staging GPU driver from local bundle...", .step)
                 try VPhonePCCGPUDriver.stage(
                     from: gpuDriverBundle,
                     into: phoneTree,
@@ -239,9 +239,9 @@ enum VPhoneFirmwarePreparer {
                 into: phoneTree,
                 expectedPlatformVersion: cloud.version,
             )) != nil {
-                print("[+] GPU driver reused from cloudOS \(cloud.version) (\(cloud.build)) cache")
+                VPhoneConsole.shared.line("[+] GPU driver reused from cloudOS \(cloud.version) (\(cloud.build)) cache", .done)
             } else {
-                print("[*] Restoring cloudOS in a temporary vphone VM to extract its GPU driver...")
+                VPhoneConsole.shared.line("[*] Restoring cloudOS in a temporary vphone VM to extract its GPU driver...", .step)
                 try VPhonePCCGPURecovery.stage(
                     cloudOSDirectory: cloudTree,
                     into: phoneTree,
@@ -251,13 +251,13 @@ enum VPhoneFirmwarePreparer {
                 do {
                     try storeGPUDriver(VPhonePCCGPUDriver.stagedBundle(in: phoneTree), at: cachedDriver)
                 } catch {
-                    fputs("warning: could not cache the GPU driver at \(cachedDriver.path): \(error.localizedDescription)\n", stderr)
+                    VPhoneConsole.shared.line("warning: could not cache the GPU driver at \(cachedDriver.path): \(error.localizedDescription)", .warning, to: .error)
                 }
             }
 
             let source = resources.gpuCompilerPlugin
             guard fm.fileExists(atPath: source.path) else { throw Error.missingComponent(source) }
-            print("[*] Merging bundled GPU compiler plugin...")
+            VPhoneConsole.shared.line("[*] Merging bundled GPU compiler plugin...", .step)
             let pluginName = "libAppleParavirtCompilerPluginIOGPUFamily.dylib"
             let destinationPlugin = VPhonePCCGPUDriver.stagedBundle(in: phoneTree).appendingPathComponent(pluginName)
             if fm.fileExists(atPath: destinationPlugin.path) {
@@ -266,13 +266,13 @@ enum VPhoneFirmwarePreparer {
             try fm.copyItem(at: source, to: destinationPlugin)
             try fm.setAttributes([.posixPermissions: NSNumber(value: 0o755)], ofItemAtPath: destinationPlugin.path)
         } else {
-            print("[*] GPU bundle is off for this guest; skipping driver recovery and compiler plugin staging")
+            VPhoneConsole.shared.line("[*] GPU bundle is off for this guest; skipping driver recovery and compiler plugin staging", .step)
         }
 
         // The restore image patches reseal the merged system with the macOS
         // tool of the same version, which `fw patch` finds in the tree.
         if plan.isEnabled(FirmwareRestoreImagePatchSet.cryptexMerge) {
-            print("[*] Staging apfs_sealvolume for \(phone.version)...")
+            VPhoneConsole.shared.line("[*] Staging apfs_sealvolume for \(phone.version)...", .step)
             try VPhoneFirmwareSealToolCommand.stage(
                 version: phone.version,
                 into: phoneTree.appendingPathComponent(".tools"),
@@ -295,17 +295,17 @@ enum VPhoneFirmwarePreparer {
                 .appendingPathComponent(VPhonePCCCryptexctl.name)
             do {
                 if fm.isExecutableFile(atPath: staged.path) {
-                    print("[+] cryptexctl staged from cloudOS restored for its GPU driver")
+                    VPhoneConsole.shared.line("[+] cryptexctl staged from cloudOS restored for its GPU driver", .done)
                 } else if fm.isExecutableFile(atPath: cached.path) {
                     try VPhonePCCCryptexctl.stage(file: cached, into: phoneTree)
-                    print("[+] cryptexctl reused from cloudOS \(cloud.version) (\(cloud.build)) cache")
+                    VPhoneConsole.shared.line("[+] cryptexctl reused from cloudOS \(cloud.version) (\(cloud.build)) cache", .done)
                 } else {
-                    print("[*] Staging cryptexctl from cloudOS \(cloud.version) for trusted darwinOS...")
+                    VPhoneConsole.shared.line("[*] Staging cryptexctl from cloudOS \(cloud.version) for trusted darwinOS...", .step)
                     do {
                         try VPhonePCCCryptexctl.stage(cloudOSDirectory: cloudTree, into: phoneTree)
                     } catch where required {
-                        print("[*] \(error.localizedDescription)")
-                        print("[*] Restoring cloudOS in a temporary vphone VM to take its cryptexctl...")
+                        VPhoneConsole.shared.line("[*] \(error.localizedDescription)", .step)
+                        VPhoneConsole.shared.line("[*] Restoring cloudOS in a temporary vphone VM to take its cryptexctl...", .step)
                         try VPhonePCCGPURecovery.stage(
                             cloudOSDirectory: cloudTree,
                             into: phoneTree,
@@ -322,11 +322,11 @@ enum VPhoneFirmwarePreparer {
                         try fm.copyItem(at: staged, to: cached)
                         try VPhoneHostFilePermissions.makeAccessible(at: cached)
                     } catch {
-                        fputs("warning: could not cache cryptexctl at \(cached.path): \(error.localizedDescription)\n", stderr)
+                        VPhoneConsole.shared.line("warning: could not cache cryptexctl at \(cached.path): \(error.localizedDescription)", .warning, to: .error)
                     }
                 }
             } catch where !required {
-                print("[*] cryptexctl not staged (\(error.localizedDescription)). Only the trusted darwinOS environment needs it; a restore tree prepared with it turned on gets it from a cloudOS restore.")
+                VPhoneConsole.shared.line("[*] cryptexctl not staged (\(error.localizedDescription)). Only the trusted darwinOS environment needs it; a restore tree prepared with it turned on gets it from a cloudOS restore.", .step)
             }
         }
 
@@ -334,10 +334,10 @@ enum VPhoneFirmwarePreparer {
         // on the same volume. One rename exposes the complete restore tree.
         guard !fm.fileExists(atPath: destination.path) else { throw Error.existingRestore(destination) }
         try fm.moveItem(at: phoneTree, to: destination)
-        print("[+] Restore tree ready: \(destination.path)")
+        VPhoneConsole.shared.line("[+] Restore tree ready: \(destination.path)", .done)
         if ota != nil {
             try fm.moveItem(at: userland, to: bundleUserland)
-            print("[+] OTA userland ready: \(bundleUserland.path)")
+            VPhoneConsole.shared.line("[+] OTA userland ready: \(bundleUserland.path)", .done)
         }
         try recordGuestDevice(device, in: bundle)
     }
@@ -364,11 +364,11 @@ enum VPhoneFirmwarePreparer {
         // Remote IPSWs go to one cache shared by every machine; keeping them
         // inside the machine downloaded both again for each new one (#513).
         // Local IPSWs are read in place and are never copied into the cache.
-        print("[*] Resolving iPhone IPSW...")
+        VPhoneConsole.shared.line("[*] Resolving iPhone IPSW...", .step)
         let phone = try resolve(
             iPhoneSource, in: ipswCacheDirectory, connections: downloadConnections, label: "downloading iPhone IPSW",
         )
-        print("[*] Resolving cloudOS IPSW...")
+        VPhoneConsole.shared.line("[*] Resolving cloudOS IPSW...", .step)
         let cloud = try resolve(
             cloudOSSource, in: ipswCacheDirectory, connections: downloadConnections, label: "downloading cloudOS IPSW",
         )
@@ -384,7 +384,7 @@ enum VPhoneFirmwarePreparer {
         try checkIPhoneName(iPhoneSource, archive: phone, device: restored)
         let device = base == nil ? restored : wanted ?? restored
         let over = base.map { " over the \($0.productName) IPSW" } ?? ""
-        print("[+] \(device.productType) \(phone.version) (\(phone.build))\(over); cloudOS \(cloud.version) (\(cloud.build))")
+        VPhoneConsole.shared.line("[+] \(device.productType) \(phone.version) (\(phone.build))\(over); cloudOS \(cloud.version) (\(cloud.build))", .done)
         return (phone, cloud, device)
     }
 
@@ -412,7 +412,7 @@ enum VPhoneFirmwarePreparer {
         guard source != nil || release != nil else {
             throw ValidationError("The firmware catalog has no \(device.productType) OTA for build \(build). Pass the device's full OTA of that build with --ota-source, and its key with --ota-key.")
         }
-        print("[*] Resolving \(device.productType) OTA...")
+        VPhoneConsole.shared.line("[*] Resolving \(device.productType) OTA...", .step)
         let bar = VPhoneProgressBar(label: "downloading OTA")
         let file = try vphoneRunBlocking {
             try await VPhoneOTAArchive.resolve(
@@ -437,7 +437,7 @@ enum VPhoneFirmwarePreparer {
                 throw ValidationError("HomePod OTA userland preparation requires HomePod Software 27.2 or later in the 27 series.")
             }
         }
-        print("[+] \(device.productType) OTA \(identity.version) (\(identity.build)): \(file.path)")
+        VPhoneConsole.shared.line("[+] \(device.productType) OTA \(identity.version) (\(identity.build)): \(file.path)", .done)
         return (file, key, identity.version, identity.build)
     }
 
@@ -449,7 +449,7 @@ enum VPhoneFirmwarePreparer {
         restoreTree: URL,
         userland: URL,
     ) throws {
-        print("[*] Staging \(device.productType) device tree and userland from the OTA...")
+        VPhoneConsole.shared.line("[*] Staging \(device.productType) device tree and userland from the OTA...", .step)
         let flash = restoreTree.appendingPathComponent(
             (device.boardDeviceTreePath as NSString).deletingLastPathComponent,
             isDirectory: true,
@@ -465,7 +465,7 @@ enum VPhoneFirmwarePreparer {
             requireFullUpdate: device.family == .homePod,
         ) { name in
             if VPhoneOTAArchive.isChunkName(name) {
-                print("    \(name)")
+                VPhoneConsole.shared.line("    \(name)", .note)
             }
         }
         if device.family == .homePod {
@@ -473,7 +473,7 @@ enum VPhoneFirmwarePreparer {
             try PropertyListSerialization.data(fromPropertyList: metadata, format: .xml, options: 0)
                 .write(to: userland.appendingPathComponent("Version.plist"), options: .atomic)
         }
-        print("[+] \(staged.deviceTree.lastPathComponent) and \(staged.chunks.count) payload chunks staged")
+        VPhoneConsole.shared.line("[+] \(staged.deviceTree.lastPathComponent) and \(staged.chunks.count) payload chunks staged", .done)
     }
 
     /// Resolves one source, with a progress bar while it downloads. Launchpad
@@ -508,7 +508,7 @@ enum VPhoneFirmwarePreparer {
         else { return }
         try updated.write(to: configURL)
         let screen = updated.screenConfig
-        print("[+] Guest device: \(device.productName) (\(device.productType)), display \(screen.width)x\(screen.height) @ \(screen.pixelsPerInch) ppi")
+        VPhoneConsole.shared.line("[+] Guest device: \(device.productName) (\(device.productType)), display \(screen.width)x\(screen.height) @ \(screen.pixelsPerInch) ppi", .done)
     }
 
     // MARK: - GPU driver cache
@@ -546,14 +546,14 @@ enum VPhoneFirmwarePreparer {
                 .appendingPathComponent(build, isDirectory: true)
                 .appendingPathComponent(VPhonePCCGPUDriver.name, isDirectory: true)
             if (try? VPhonePCCGPUDriver.stage(from: driver, into: phoneTree, expectedPlatformVersion: release)) != nil {
-                print("[+] iOS \(release) GPU driver reused from cloudOS \(build) cache")
+                VPhoneConsole.shared.line("[+] iOS \(release) GPU driver reused from cloudOS \(build) cache", .done)
                 return
             }
         }
         guard let option = VPhoneFirmwareCatalog.iOS18CloudOS(forVersion: version) else {
             throw ValidationError("No known cloudOS \(release) supplies a GPU driver iOS \(version) can load. Pass one with --gpu-driver-bundle, or block \(FirmwareGuestSystemPatchSet.ios18GPUTransport).")
         }
-        print("[*] Resolving \(option.name) for the iOS \(release) GPU driver...")
+        VPhoneConsole.shared.line("[*] Resolving \(option.name) for the iOS \(release) GPU driver...", .step)
         let archive = try resolve(
             option.url, in: ipswCacheDirectory, connections: downloadConnections, label: "downloading \(option.name)",
         )
@@ -561,18 +561,18 @@ enum VPhoneFirmwarePreparer {
         try fm.createDirectory(at: tree, withIntermediateDirectories: false)
         try VPhoneArchiveExtractor.extract(archive.file, into: tree, options: .intoHostDirectory)
         let image = tree.appending(path: try FirmwarePipeline.manifestComponentPath("OS", in: tree))
-        print("[*] Trying the \(option.name) OS image for its GPU driver...")
+        VPhoneConsole.shared.line("[*] Trying the \(option.name) OS image for its GPU driver...", .step)
         if try VPhonePCCGPUDriver.stage(fromSystemImage: image, into: phoneTree, expectedPlatformVersion: archive.version) {
-            print("[+] GPU driver extracted from the PCC OS image without a temporary restore")
+            VPhoneConsole.shared.line("[+] GPU driver extracted from the PCC OS image without a temporary restore", .done)
         } else {
-            print("[*] Restoring \(option.name) in a temporary vphone VM to extract its GPU driver...")
+            VPhoneConsole.shared.line("[*] Restoring \(option.name) in a temporary vphone VM to extract its GPU driver...", .step)
             try VPhonePCCGPURecovery.stage(cloudOSDirectory: tree, into: phoneTree, expectedPlatformVersion: archive.version)
         }
         let cached = cachedGPUDriver(for: archive, in: cacheDirectory)
         do {
             try storeGPUDriver(VPhonePCCGPUDriver.stagedBundle(in: phoneTree), at: cached)
         } catch {
-            fputs("warning: could not cache the GPU driver at \(cached.path): \(error.localizedDescription)\n", stderr)
+            VPhoneConsole.shared.line("warning: could not cache the GPU driver at \(cached.path): \(error.localizedDescription)", .warning, to: .error)
         }
     }
 

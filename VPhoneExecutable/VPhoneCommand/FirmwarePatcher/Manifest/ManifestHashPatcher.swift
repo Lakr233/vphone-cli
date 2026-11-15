@@ -157,7 +157,7 @@ public final class ManifestHashPatcher: BufferedPatcher {
             throw PatcherError.invalidFormat("Unable to decrypt \(url.lastPathComponent): \(result.stderr)")
         }
         if verbose {
-            print("  [manifest] hashed the decrypted \(url.lastPathComponent)")
+            VPhoneConsole.shared.line("  [manifest] hashed the decrypted \(url.lastPathComponent)", .note)
         }
 
         var hasher = SHA384()

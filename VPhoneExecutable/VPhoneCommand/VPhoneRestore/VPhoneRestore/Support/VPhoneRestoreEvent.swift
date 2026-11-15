@@ -106,6 +106,13 @@ public enum VPhoneRestoreConsole {
     public static func handler(
         level: VPhoneRestoreLogLevel = .info,
         showsProgress: Bool = false,
+        write: @escaping @Sendable (String, _ isError: Bool) -> Void = { text, isError in
+            if isError {
+                FileHandle.standardError.write(Data("\(text)\n".utf8))
+            } else {
+                print(text)
+            }
+        },
     ) -> VPhoneRestoreEventHandler {
         let lock = NSLock()
         return { event in
@@ -116,11 +123,7 @@ public enum VPhoneRestoreConsole {
                 guard !line.isEmpty else { return }
                 lock.lock()
                 defer { lock.unlock() }
-                if messageLevel == .error {
-                    FileHandle.standardError.write(Data("\(line)\n".utf8))
-                } else {
-                    print(line)
-                }
+                write(line, messageLevel == .error)
             case let .progress(step, fraction):
                 guard showsProgress else { return }
                 lock.lock()

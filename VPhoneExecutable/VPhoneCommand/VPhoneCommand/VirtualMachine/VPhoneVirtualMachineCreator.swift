@@ -135,26 +135,26 @@ public struct VPhoneVirtualMachineCreator {
             }
             // Named on purpose, so used; but not silently.
             for reason in VPhoneMachineTemplateKeys.staleReasons(template) {
-                print("warning: template \(template.identifier) is stale: \(reason)")
+                VPhoneConsole.shared.line("warning: template \(template.identifier) is stale: \(reason)", .warning)
             }
             try cloneFromTemplate(template, options: options, outputs: outputs)
         case .automatic:
             if options.keepArtifacts {
                 // A template never keeps it: ~11 GB pinned for the template's
                 // whole life, which no clone can use.
-                print("warning: --keep-artifacts keeps the restore tree only with --no-template; "
-                    + "a template build always removes it")
+                VPhoneConsole.shared.line("warning: --keep-artifacts keeps the restore tree only with --no-template; "
+                    + "a template build always removes it", .warning)
             }
             let template = try templateForCreate(options, outputs: outputs)
             try cloneFromTemplate(template, options: options, outputs: outputs)
         }
 
         try outputs.finish()
-        print("\n=== Done ===")
+        VPhoneConsole.shared.phase("Done")
         if options.skipsFirstBoot {
-            print("CFW VM created; its first boot was skipped. Guest user environment is untouched.")
+            VPhoneConsole.shared.line("CFW VM created; its first boot was skipped. Guest user environment is untouched.")
         } else {
-            print(options.bootstrapLayout == nil
+            VPhoneConsole.shared.line(options.bootstrapLayout == nil
                 ? "CFW VM created; vphoned connected. Guest user environment is untouched."
                 : "CFW VM created; vphoned connected and the \(options.bootstrapLayout!) bootstrap and its packages installed.")
         }
@@ -165,7 +165,7 @@ public struct VPhoneVirtualMachineCreator {
     /// The full pipeline into the machine itself: `vm new`, firmware, restore,
     /// CFW and the first boot check. What `vm create` always did.
     private func createIndependent(_ options: Options, outputs: VPhoneCreatedOutputs) throws {
-        print("\n=== vm new ===")
+        VPhoneConsole.shared.phase("vm new")
         let spec = VPhoneBundleOperations.NewBundleConfiguration(
             name: options.name,
             cpuCount: options.cpuCount,
@@ -176,12 +176,12 @@ public struct VPhoneVirtualMachineCreator {
         )
         let bundle = try VPhoneBundleOperations.create(spec, in: library)
         outputs.add(bundle.url)
-        print("created \(bundle.url.path)")
+        VPhoneConsole.shared.line("created \(bundle.url.path)")
 
         try buildGuest(at: bundle.url, options: options, keepsRestoreTree: options.keepArtifacts, outputs: outputs)
         try applySettings(options)
         if !options.skipsFirstBoot {
-            print("\n=== First boot check ===")
+            VPhoneConsole.shared.phase("First boot check")
             try runBootAnalysis(bundleURL: bundle.url, bootstrapLayout: options.bootstrapLayout, verbosity: options.verbosity)
         }
     }
@@ -203,23 +203,23 @@ public struct VPhoneVirtualMachineCreator {
             VPhoneVirtualMachinePatchSelection(presetIdentifier: options.patchPreset),
             forVM: bundleURL,
         )
-        print("\n=== fw prepare ===")
+        VPhoneConsole.shared.phase("fw prepare")
         try runFWPrepare(options: options, bundleURL: bundleURL)
 
-        print("\n=== fw patch ===")
+        VPhoneConsole.shared.phase("fw patch")
         try runFWPatch(presetIdentifier: options.patchPreset, bundleURL: bundleURL, verbosity: v)
 
-        print("\n=== Restore phase ===")
+        VPhoneConsole.shared.phase("Restore phase")
         try runRestorePhase(bundleURL: bundleURL, verbosity: v)
 
-        print("[*] Waiting 5s for cleanup before CFW install...")
+        VPhoneConsole.shared.line("[*] Waiting 5s for cleanup before CFW install...", .step)
         Thread.sleep(forTimeInterval: 5)
         // Under sudo the steps above created the bundle as root, but the CFW
         // installer only accepts a VM folder, Disk.img and restore tree owned
         // by the invoking user. Hand this run's own bundle back first (the
         // same descriptor-relative walk as the final fixup).
         try outputs.handBack(bundleURL)
-        print("\n=== CFW install (host-mount) ===")
+        VPhoneConsole.shared.phase("CFW install (host-mount)")
         try runCustomFirmwareInstall(
             options: options,
             bundleURL: bundleURL,
@@ -230,7 +230,7 @@ public struct VPhoneVirtualMachineCreator {
         if !keepsRestoreTree, let bundle = try? VPhoneBundle.load(at: bundleURL),
            let removed = try? VPhoneRestoreInfo.removeBuiltFirmware(fromBundle: bundle)
         {
-            print("[+] Removed built firmware \(removed)/ to save space (--keep-artifacts to keep)")
+            VPhoneConsole.shared.line("[+] Removed built firmware \(removed)/ to save space (--keep-artifacts to keep)", .done)
         }
     }
 
@@ -245,8 +245,8 @@ public struct VPhoneVirtualMachineCreator {
             unlocksAtStartup: options.unlocksAtStartup,
         )
         let manifest = bundle.manifest
-        print("[+] \(bundle.name): \(manifest.cpuCount) CPU, \(manifest.memorySize / (1024 * 1024)) MB, "
-            + "network \(manifest.networkConfig.mode.rawValue), unlock at startup \(manifest.unlocksScreenAtStartup ? "on" : "off")")
+        VPhoneConsole.shared.line("[+] \(bundle.name): \(manifest.cpuCount) CPU, \(manifest.memorySize / (1024 * 1024)) MB, "
+            + "network \(manifest.networkConfig.mode.rawValue), unlock at startup \(manifest.unlocksScreenAtStartup ? "on" : "off")", .done)
     }
 
     // MARK: - Templates
@@ -259,7 +259,7 @@ public struct VPhoneVirtualMachineCreator {
         guard let phoneSource = options.iphoneSource, let cloudSource = options.cloudosSource else {
             throw ValidationError("Specify both iPhone and cloudOS IPSW sources when running without a terminal.")
         }
-        print("\n=== Template ===")
+        VPhoneConsole.shared.phase("Template")
         let slimming = Self.templateSlimming(options)
         guard slimming.problems.isEmpty else {
             throw ValidationError("Cannot build this template: \(slimming.problems.joined(separator: "; ")). Pass --trim none.")
@@ -286,9 +286,9 @@ public struct VPhoneVirtualMachineCreator {
                 slimming: slimming,
             )
             if let found = try VPhoneMachineTemplates.template(for: key, in: library) {
-                print("[*] Template key \(key.identifier): \(key.summary)")
+                VPhoneConsole.shared.line("[*] Template key \(key.identifier): \(key.summary)", .step)
                 if builds.origin == .template, let source = builds.template {
-                    print("[*] Builds from template \(source), recorded with the same IPSW sources; nothing downloaded")
+                    VPhoneConsole.shared.line("[*] Builds from template \(source), recorded with the same IPSW sources; nothing downloaded", .step)
                 }
                 return try requireCurrent(found)
             }
@@ -310,7 +310,7 @@ public struct VPhoneVirtualMachineCreator {
             diskSizeGB: options.diskSizeGB,
             slimming: slimming,
         )
-        print("[*] Template key \(key.identifier): \(key.summary)")
+        VPhoneConsole.shared.line("[*] Template key \(key.identifier): \(key.summary)", .step)
 
         if let found = try VPhoneMachineTemplates.template(for: key, in: library) {
             return try requireCurrent(found)
@@ -319,7 +319,7 @@ public struct VPhoneVirtualMachineCreator {
         do {
             lock = try VPhoneMachineTemplates.lock(key.identifier, in: library, wait: false)
         } catch VPhoneMachineTemplateError.busy {
-            print("[*] Another create is building template \(key.identifier); waiting for it...")
+            VPhoneConsole.shared.line("[*] Another create is building template \(key.identifier); waiting for it...", .step)
             lock = try VPhoneMachineTemplates.lock(key.identifier, in: library, wait: true)
         }
         defer { lock.release() }
@@ -345,7 +345,7 @@ public struct VPhoneVirtualMachineCreator {
         guard reasons.isEmpty else {
             throw VPhoneMachineTemplateError.stale(identifier: template.identifier, reasons: reasons)
         }
-        print("[+] Using template \(template.identifier), built \(template.record.created.formatted(.iso8601))")
+        VPhoneConsole.shared.line("[+] Using template \(template.identifier), built \(template.record.created.formatted(.iso8601))", .done)
         return template
     }
 
@@ -360,7 +360,7 @@ public struct VPhoneVirtualMachineCreator {
         options: Options,
         outputs: VPhoneCreatedOutputs,
     ) throws -> VPhoneMachineTemplate {
-        print("\n=== Template build \(key.identifier) ===")
+        VPhoneConsole.shared.phase("Template build \(key.identifier)")
         let build = try VPhoneMachineTemplates.beginBuild(key, in: library)
         outputs.add(build.stagingURL)
         do {
@@ -375,7 +375,7 @@ public struct VPhoneVirtualMachineCreator {
                 sepromSource: VPhoneBundleOperations.defaultSEPROMSource(),
             )
             let bundle = try VPhoneBundleOperations.create(spec, in: build.library)
-            print("created \(bundle.url.path)")
+            VPhoneConsole.shared.line("created \(bundle.url.path)")
             let bundleVersion = VPhoneBundleVersion.current()
             try VPhoneMachineTemplates.writeRecord(
                 VPhoneMachineTemplateRecord(
@@ -396,7 +396,7 @@ public struct VPhoneVirtualMachineCreator {
             // A template never keeps the restore tree, whatever
             // --keep-artifacts says; freeze removes it too, this says so.
             if let tree = try VPhoneMachineTemplates.removeRestoreTree(of: VPhoneBundle.load(at: bundle.url)) {
-                print("[+] Removed built firmware \(tree)/ (a template never keeps it)")
+                VPhoneConsole.shared.line("[+] Removed built firmware \(tree)/ (a template never keeps it)", .done)
             }
 
             // Offline trim of the System volume, after cfw install. Each
@@ -405,7 +405,7 @@ public struct VPhoneVirtualMachineCreator {
             // key, and a trim whose orig-fs snapshot was not deleted.
             let trim = try VPhoneSystemTrimSpec(keyValue: key.slimming.trimTier)
             if trim.tier != .none {
-                print("\n=== Offline trim ===")
+                VPhoneConsole.shared.phase("Offline trim")
                 try VPhoneMachineTemplateTrimmer.trim(
                     VPhoneBundle.load(at: bundle.url),
                     label: key.identifier,
@@ -419,7 +419,7 @@ public struct VPhoneVirtualMachineCreator {
             // the service profile and the removed apps. It leaves trimTier
             // as the trim recorded it.
             if key.slimming.setupBoot {
-                print("\n=== Template setup boot ===")
+                VPhoneConsole.shared.phase("Template setup boot")
                 // With a window, as the first-boot check: this is the guest's
                 // first boot (see runBootAnalysis).
                 try VPhoneTemplateSetupRun.run(
@@ -437,14 +437,14 @@ public struct VPhoneVirtualMachineCreator {
             try outputs.handBack(build.stagingURL)
             let template = try VPhoneMachineTemplates.freeze(build)
             outputs.replace(build.stagingURL, with: template.url)
-            print("[+] Template \(template.identifier) frozen at \(template.url.path)")
+            VPhoneConsole.shared.line("[+] Template \(template.identifier) frozen at \(template.url.path)", .done)
             return template
         } catch {
-            print("[-] Template build failed; left at \(build.stagingURL.path).")
+            VPhoneConsole.shared.line("[-] Template build failed; left at \(build.stagingURL.path).", .failure)
             if error is VPhoneTemplateSetupFailure {
-                print("    Retry its setup boot with: vphone-cli vm template setup \(build.stagingURL.lastPathComponent)")
+                VPhoneConsole.shared.line("    Retry its setup boot with: vphone-cli vm template setup \(build.stagingURL.lastPathComponent)", .note)
             }
-            print("    Remove it with: vphone-cli vm template delete \(build.stagingURL.lastPathComponent)")
+            VPhoneConsole.shared.line("    Remove it with: vphone-cli vm template delete \(build.stagingURL.lastPathComponent)", .note)
             throw error
         }
     }
@@ -452,7 +452,7 @@ public struct VPhoneVirtualMachineCreator {
     /// The new machine, cloned from `template` with a new identity, given the
     /// requested settings and booted once to check vphoned answers.
     private func cloneFromTemplate(_ template: VPhoneMachineTemplate, options: Options, outputs: VPhoneCreatedOutputs) throws {
-        print("\n=== Clone from template \(template.identifier) ===")
+        VPhoneConsole.shared.phase("Clone from template \(template.identifier)")
         let clone = try VPhoneMachineTemplates.cloneMachine(from: template, to: options.name, in: library)
         outputs.add(clone.url)
         do {
@@ -467,10 +467,10 @@ public struct VPhoneVirtualMachineCreator {
             try? FileManager.default.removeItem(at: clone.url)
             throw error
         }
-        print("[+] \(clone.name) cloned from template \(template.identifier) with a new identity "
-            + "(it shares SEP and Data volume keys with every machine from this template)")
+        VPhoneConsole.shared.line("[+] \(clone.name) cloned from template \(template.identifier) with a new identity "
+            + "(it shares SEP and Data volume keys with every machine from this template)", .done)
         if !options.skipsFirstBoot {
-            print("\n=== First boot check ===")
+            VPhoneConsole.shared.phase("First boot check")
             try runBootAnalysis(bundleURL: clone.url, bootstrapLayout: options.bootstrapLayout, verbosity: options.verbosity)
         }
     }
@@ -488,7 +488,7 @@ public struct VPhoneVirtualMachineCreator {
     /// secret environment values — callers pass only key names.
     private func trace(_ msg: String, _ v: VPhoneVerbosity) {
         guard v.tracesInternals else { return }
-        print("[trace] \(msg)")
+        VPhoneConsole.shared.line("[trace] \(msg)")
     }
 
     // MARK: - nested-VM preflight
@@ -526,7 +526,7 @@ public struct VPhoneVirtualMachineCreator {
             checksKernelcacheMix: true,
             bundle: bundle, resources: resources,
         )
-        print("[+] Firmware prepared (iPhone + cloudOS merged into bundle).")
+        VPhoneConsole.shared.line("[+] Firmware prepared (iPhone + cloudOS merged into bundle).", .done)
     }
 
     private func runFWPatch(
@@ -567,14 +567,14 @@ public struct VPhoneVirtualMachineCreator {
                 forVM: bundleURL,
             )
         }
-        print("[fw patch] applied \(records.count) CFW patches (preset \(presetIdentifier))")
+        VPhoneConsole.shared.line("[fw patch] applied \(records.count) CFW patches (preset \(presetIdentifier))", .done)
     }
 
     // MARK: - restore phase
 
     private func runRestorePhase(bundleURL: URL, verbosity v: VPhoneVerbosity) throws {
         let configURL = bundleURL.appendingPathComponent("config.plist")
-        print("[*] Starting DFU boot in background...")
+        VPhoneConsole.shared.line("[*] Starting DFU boot in background...", .step)
         // Guest serial is never teed during `vm create` (echo: false); the
         // managed process still reads it internally for panic/prompt matching.
         let (dfuExe, dfuArgs) = try requireLauncher().plan(["--config", configURL.path, "--dfu"])
@@ -584,7 +584,7 @@ public struct VPhoneVirtualMachineCreator {
         defer { dfu.terminate() }
 
         let (udid, ecid) = try loadDeviceIdentity(bundleURL: bundleURL)
-        print("[+] Device identity loaded: UDID=\(udid) ECID=0x\(ecid)")
+        VPhoneConsole.shared.line("[+] Device identity loaded: UDID=\(udid) ECID=0x\(ecid)", .done)
         // `loadDeviceIdentity` has already held this to ^[0-9A-F]{16}$, so the
         // parse cannot fail; it is here because the backend takes the number.
         let ecidValue = try VPhoneRestoreIdentity.parseECID(ecid)
@@ -596,8 +596,8 @@ public struct VPhoneVirtualMachineCreator {
         // in this process; the second device discovery can then fail. The
         // standalone `restore --get-shsh` command remains available when a
         // ticket file is needed for an offline restore.
-        let onEvent = VPhoneRestoreConsole.handler(level: v.restoreLogLevel)
-        print("[*] Restoring...")
+        let onEvent = VPhoneRestoreConsole.handler(level: v.restoreLogLevel, write: { VPhoneConsole.shared.line($0, to: $1 ? .error : .output) })
+        VPhoneConsole.shared.line("[*] Restoring...", .step)
         trace("in-process VPhoneRestoreService.restore udid=\(udid) ecid=0x\(ecid) erase=true", v)
         do {
             try VPhoneRestoreService.restore(
@@ -617,16 +617,16 @@ public struct VPhoneVirtualMachineCreator {
 
         // wait_for_post_restore_reboot: a plain case-insensitive 'panic' grep —
         // distinct from (narrower than) BOOT_PANIC_REGEX used elsewhere.
-        print("[*] Restore complete; waiting up to 30s for reboot/panic before stopping DFU...")
+        VPhoneConsole.shared.line("[*] Restore complete; waiting up to 30s for reboot/panic before stopping DFU...", .step)
         let dfuOutcome = dfu.waitForOutput(matching: "(?i)panic|kernel panic", timeout: 30)
         trace("DFU managed-process outcome: \(dfuOutcome)", v)
         switch dfuOutcome {
         case .matched:
-            print("[+] Panic marker observed; stopping DFU now.")
+            VPhoneConsole.shared.line("[+] Panic marker observed; stopping DFU now.", .done)
         case .exited:
-            print("[*] DFU process exited during post-restore reboot window.")
+            VPhoneConsole.shared.line("[*] DFU process exited during post-restore reboot window.", .step)
         case .timedOut:
-            print("[*] No panic marker observed in 30s; stopping DFU anyway.")
+            VPhoneConsole.shared.line("[*] No panic marker observed in 30s; stopping DFU anyway.", .step)
         }
         // `defer` above terminates the DFU process on every exit path.
     }
@@ -638,17 +638,18 @@ public struct VPhoneVirtualMachineCreator {
         guard let bundle = try? VPhoneBundle.load(at: bundleURL),
               let info = VPhoneRestoreInfo.derive(fromBundle: bundle)
         else {
-            print("[!] Could not record restore versions (metadata not found)")
+            VPhoneConsole.shared.line("[!] Could not record restore versions (metadata not found)", .warning)
             return
         }
         do {
             try info.write(toBundle: bundle)
-            print(
+            VPhoneConsole.shared.line(
                 "[+] Recorded versions: iOS \(info.ios.version) (\(info.ios.build)), "
                     + "cloudOS \(info.cloudOS.version) (\(info.cloudOS.build))",
+             .done,
             )
         } catch {
-            print("[!] Could not write restore-info.json: \(error)")
+            VPhoneConsole.shared.line("[!] Could not write restore-info.json: \(error)", .warning)
         }
     }
 
@@ -698,10 +699,10 @@ public struct VPhoneVirtualMachineCreator {
     /// to the attempt. What is gone is the python process per attempt: the same
     /// wait is now one `irecv_open_with_ecid_and_attempts` poll per round.
     private func waitForRecovery(ecid: UInt64?, verbosity v: VPhoneVerbosity) throws {
-        print("[*] Waiting for recovery/DFU endpoint...")
+        VPhoneConsole.shared.line("[*] Waiting for recovery/DFU endpoint...", .step)
         for _ in 1 ... 90 {
             if let device = try? VPhoneRestoreService.recoveryProbe(ecid: ecid, timeout: 2) {
-                print("[+] Device endpoint is reachable")
+                VPhoneConsole.shared.line("[+] Device endpoint is reachable", .done)
                 trace("recovery-probe: \(device.productType ?? "device") in \(device.mode)", v)
                 return
             }
@@ -721,11 +722,11 @@ public struct VPhoneVirtualMachineCreator {
         trace("native CFW install for \(bundleURL.path)", v)
         let code = try VPhoneCustomFirmwareInstaller.elevate(bundle: bundleURL, resources: resources)
         guard code == 0 else { throw VPhoneVirtualMachineCreationError.cfwInstallFailed(code) }
-        print("[+] CFW installed.")
+        VPhoneConsole.shared.line("[+] CFW installed.", .done)
         if let bundle = try? VPhoneBundle.load(at: bundleURL),
            let info = try? VPhoneRestoreInfo.recordVariant("jb", toBundle: bundle), info.variant != nil
         {
-            print("[+] Recorded variant jb, device \(info.device ?? "?")")
+            VPhoneConsole.shared.line("[+] Recorded variant jb, device \(info.device ?? "?")", .done)
         }
     }
 
@@ -750,50 +751,50 @@ public struct VPhoneVirtualMachineCreator {
         while Date() < deadline {
             switch vm.waitForOutput(matching: "(?i:\(VPhoneBootPatterns.panicRegex))", timeout: 0) {
             case .matched:
-                print("[-] Boot analysis: panic detected, stopping VM.")
+                VPhoneConsole.shared.line("[-] Boot analysis: panic detected, stopping VM.", .failure)
                 throw VPhoneVirtualMachineCreationError.bootAnalysisPanic
             case let .exited(code):
-                print("[-] Boot analysis: VM process exited before success marker.")
+                VPhoneConsole.shared.line("[-] Boot analysis: VM process exited before success marker.", .failure)
                 throw VPhoneVirtualMachineCreationError.bootAnalysisExited(code)
             case .timedOut:
                 break
             }
             if VPhoneControlSocket.ping(socketPath: socketPath) {
-                print("[+] First boot: vphoned ping succeeded.")
+                VPhoneConsole.shared.line("[+] First boot: vphoned ping succeeded.", .done)
                 if let bootstrapLayout {
                     try installBootstrap(layout: bootstrapLayout, socketPath: socketPath)
                     if !vm.interrupt(waitingUpTo: 30) {
-                        print("warning: the guest did not shut down within 30 s; stopping it")
+                        VPhoneConsole.shared.line("warning: the guest did not shut down within 30 s; stopping it", .warning)
                     }
                 }
                 return
             }
             Thread.sleep(forTimeInterval: 1)
         }
-        print("[-] Boot analysis timeout (300s); stopping VM.")
+        VPhoneConsole.shared.line("[-] Boot analysis timeout (300s); stopping VM.", .failure)
         throw VPhoneVirtualMachineCreationError.bootAnalysisTimeout
     }
 
     /// vphoned's `bootstrap.install`, then `bootstrap.packages`: Irisin, then
     /// the first packages through irisin-cli's Bootstrap Install.
     private func installBootstrap(layout: String, socketPath: String) throws {
-        print("\n=== Bootstrap (\(layout)) ===")
+        VPhoneConsole.shared.phase("Bootstrap (\(layout))")
         let irisin = try followBootstrap("bootstrap.install", params: ["layout": layout], socketPath: socketPath, within: 900) {
             $0["packages"] == nil
         }
-        print("[+] Irisin \(irisin["version"] as? String ?? "") installed in \(irisin["jbroot"] as? String ?? "")")
+        VPhoneConsole.shared.line("[+] Irisin \(irisin["version"] as? String ?? "") installed in \(irisin["jbroot"] as? String ?? "")", .done)
         if let warning = irisin["service_start_warning"] as? String {
-            print("warning: \(warning)")
+            VPhoneConsole.shared.line("warning: \(warning)", .warning)
         }
 
-        print("\n=== Bootstrap packages ===")
+        VPhoneConsole.shared.phase("Bootstrap packages")
         let packages = try followBootstrap("bootstrap.packages", params: [:], socketPath: socketPath, within: 1800) {
             $0["packages"] != nil
         }
         if let skipped = packages["skipped"] as? String {
-            print("note: no packages installed: \(skipped)")
+            VPhoneConsole.shared.line("note: no packages installed: \(skipped)")
         } else {
-            print("[+] Installed \((packages["packages"] as? [String] ?? []).joined(separator: ", ")) with Bootstrap Install")
+            VPhoneConsole.shared.line("[+] Installed \((packages["packages"] as? [String] ?? []).joined(separator: ", ")) with Bootstrap Install", .done)
         }
     }
 
@@ -813,7 +814,7 @@ public struct VPhoneVirtualMachineCreator {
         } catch let error as VPhoneGuestCallError where error.kind == .refused {
             throw VPhoneVirtualMachineCreationError.bootstrapFailed(error.message)
         } catch let error as VPhoneGuestCallError {
-            print("    no reply yet (\(error.message)); waiting for the guest to finish")
+            VPhoneConsole.shared.line("    no reply yet (\(error.message)); waiting for the guest to finish", .note)
         }
         while Date() < deadline {
             if let status = try? VPhoneHostAutomationProbe.rpc("bootstrap.status", params: [:], socketPath: socketPath, timeout: 10),
@@ -899,7 +900,7 @@ private final class VPhoneCreatedOutputs {
         if let invokingUser, !ownershipRestored {
             for output in outputs {
                 do { try invokingUser.restoreOwnership(at: output) } catch {
-                    fputs("warning: could not restore ownership of \(output.path): \(error)\n", stderr)
+                    VPhoneConsole.shared.line("warning: could not restore ownership of \(output.path): \(error)", .warning, to: .error)
                 }
             }
             for directory in directories {
@@ -909,7 +910,7 @@ private final class VPhoneCreatedOutputs {
         if !permissionsRestored {
             for output in outputs {
                 do { try VPhoneHostFilePermissions.makeAccessible(at: output) } catch {
-                    fputs("warning: could not set permissions on \(output.path): \(error)\n", stderr)
+                    VPhoneConsole.shared.line("warning: could not set permissions on \(output.path): \(error)", .warning, to: .error)
                 }
             }
             for directory in directories {
