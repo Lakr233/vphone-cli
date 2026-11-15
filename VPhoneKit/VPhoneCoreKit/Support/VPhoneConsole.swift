@@ -3,6 +3,16 @@ import Foundation
 
 public enum VPhoneConsoleKind: Sendable { case plain, step, done, note, warning, failure }
 public enum VPhoneConsoleStream: Sendable { case output, error }
+public enum VPhoneConsoleTint: Sendable { case plain, bold, dim, red, green, yellow }
+
+public struct VPhoneConsoleSpan: Sendable, Equatable {
+    public var text: String
+    public var tint: VPhoneConsoleTint
+    public init(_ text: String, _ tint: VPhoneConsoleTint = .plain) {
+        self.text = text
+        self.tint = tint
+    }
+}
 
 /// The terminal descriptor the signal handler shows the cursor on; -1 when no screen is up.
 nonisolated(unsafe) private var screenSignalTerminal: Int32 = -1
@@ -23,6 +33,7 @@ public final class VPhoneConsole: @unchecked Sendable {
     private var terminal: Int32 = -1
     private var timer: DispatchSourceTimer?
     private var drawnRows = 0
+    private var ruled = false
     private var savedActions: [(Int32, sigaction)] = []
 
     init(write: @escaping @Sendable (String, VPhoneConsoleStream) -> Void = VPhoneConsole.defaultWrite) {
@@ -108,6 +119,7 @@ public final class VPhoneConsole: @unchecked Sendable {
             frameOut = frame ?? { Self.writeAll($0, to: fd) }
             screen = VPhoneConsoleScreen(title: title, pendingPhases: pendingPhases, startedAt: Self.now())
             drawnRows = 0
+            ruled = false
             installSignalHandlers(terminal: fd)
             frameOut?("\u{1B}[?25l")
             draw()
@@ -146,10 +158,51 @@ public final class VPhoneConsole: @unchecked Sendable {
             terminal = -1
             screen = nil
             self.frameOut = nil
+            ruled = false
         }
     }
 
+    // MARK: - Keeping rows
+
+    /// Screen mode: `rows` are written once above the progress area and stay on the terminal.
+    /// Plain mode: nothing is written to the terminal. `log` lines (one per element, a newline
+    /// is added) are appended to the log file in both modes.
+    public func keep(_ rows: [[VPhoneConsoleSpan]], log lines: [String]) {
+        lock.withLock {
+            try? log?.write(contentsOf: Data(lines.map { $0 + "\n" }.joined().utf8))
+            guard screen != nil, let frameOut else { return }
+            let width = terminalSize().width
+            var text = drawnRows > 0 ? "\u{1B}[\(drawnRows)A" : ""
+            text += "\r\u{1B}[J"
+            for row in rows { text += Self.render(row, limit: max(0, width - 1)) + "\n" }
+            frameOut(text)
+            drawnRows = 0
+            ruled = true
+            draw()
+        }
+    }
+
+    private static func render(_ spans: [VPhoneConsoleSpan], limit: Int) -> String {
+        var left = limit
+        var out = ""
+        let cut = spans.reduce(0) { $0 + $1.text.count } > limit
+        for span in spans where left > 0 {
+            var text = String(span.text.prefix(cut ? left - 1 : left))
+            left -= text.count
+            if cut, left == 1 || text.count < span.text.count { text += "…"; left = 0 }
+            let code = [.bold: "1", .dim: "2", .red: "31", .green: "32", .yellow: "33"][span.tint]
+            out += code.map { "\u{1B}[\($0)m\(text)\u{1B}[0m" } ?? text
+        }
+        return out
+    }
+
     // MARK: - Private
+
+    private func terminalSize() -> (width: Int, height: Int) {
+        var size = winsize()
+        let sized = ioctl(terminal, TIOCGWINSZ, &size) == 0 && size.ws_col > 0 && size.ws_row > 0
+        return sized ? (Int(size.ws_col), Int(size.ws_row)) : (80, 24)
+    }
 
     private func emit(_ text: String, _ stream: VPhoneConsoleStream) {
         lock.withLock {
@@ -161,13 +214,13 @@ public final class VPhoneConsole: @unchecked Sendable {
     /// Called with the lock held: moves up over the previous frame, clears below, writes this one.
     private func draw() {
         guard let screen, let frameOut else { return }
-        var size = winsize()
-        let sized = ioctl(terminal, TIOCGWINSZ, &size) == 0 && size.ws_col > 0 && size.ws_row > 0
-        let rows = screen.frame(at: Self.now(), width: sized ? Int(size.ws_col) : 80, height: sized ? Int(size.ws_row) : 24)
+        let (width, height) = terminalSize()
+        let rows = screen.frame(at: Self.now(), width: width, height: height - (ruled ? 2 : 0))
         var text = drawnRows > 0 ? "\u{1B}[\(drawnRows)A" : ""
         text += "\r\u{1B}[J"
+        if ruled { text += "\n\u{1B}[2m" + String(repeating: "─", count: max(0, width - 1)) + "\u{1B}[0m\n" }
         for (i, row) in rows.enumerated() { text += Self.coloured(row, isTitle: i == 0) + "\n" }
-        drawnRows = rows.count
+        drawnRows = rows.count + (ruled ? 2 : 0)
         frameOut(text)
     }
 

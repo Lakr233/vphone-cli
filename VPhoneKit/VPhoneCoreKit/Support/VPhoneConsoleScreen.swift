@@ -91,10 +91,11 @@ struct VPhoneConsoleScreen {
 
     // MARK: - Text
 
-    /// Leading blanks, one leading marker, and a trailing "..." or "…" are removed.
+    /// Leading blanks, one leading marker, one leading "[tag] ", and a trailing "..." or "…" are removed.
     static func displayText(_ text: String) -> String {
         var s = Substring(text.drop { $0 == " " || $0 == "\t" })
         if let m = markers.first(where: { s.hasPrefix($0) }) { s = s.dropFirst(m.count) }
+        if s.hasPrefix("["), let end = s.range(of: "] ") { s = s[end.upperBound...] }
         if s.hasSuffix("...") { s = s.dropLast(3) } else if s.hasSuffix("…") { s = s.dropLast() }
         return String(s)
     }
@@ -113,13 +114,14 @@ struct VPhoneConsoleScreen {
     func frame(at now: TimeInterval, width: Int, height: Int) -> [String] {
         let spin = String(Self.spinner[Int(max(0, now) * 10) % Self.spinner.count])
         var rows: [(text: String, drop: Drop)] = []
+        let nameWidth = max(17, phases.map(\.name.count).max() ?? 0)
 
         let total = Self.clock((finishedAt ?? now) - startedAt)
         let room = width - 1 - title.count - total.count
         rows.append((title + String(repeating: " ", count: max(2, room)) + total, .keep))
 
         for p in phases {
-            let name = Self.pad(p.name, 17)
+            let name = Self.pad(p.name, nameWidth)
             let time = Self.padLeft(Self.clock((p.state == .active ? now : p.endedAt) - p.startedAt), 5)
             switch p.state {
             case .pending:

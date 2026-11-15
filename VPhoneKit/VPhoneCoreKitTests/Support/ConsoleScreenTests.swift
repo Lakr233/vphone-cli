@@ -15,6 +15,19 @@ struct ConsoleScreenTests {
         #expect(VPhoneConsoleScreen.displayText("plain text") == "plain text")
     }
 
+    @Test func `display text drops a leading tag`() {
+        #expect(VPhoneConsoleScreen.displayText("[fw patch] applied 38 CFW patches") == "applied 38 CFW patches")
+        #expect(VPhoneConsoleScreen.displayText("[+] [fw patch] done") == "done")
+        #expect(VPhoneConsoleScreen.displayText("[tag]") == "[tag]")
+    }
+
+    @Test func `phase names share one column`() {
+        var s = VPhoneConsoleScreen(title: "t", pendingPhases: [], startedAt: 0)
+        s.phase("vm new", at: 0); s.phase("CFW install (host-mount)", at: 5); s.phase("last", at: 65)
+        let f = s.frame(at: 66, width: 100, height: 40)
+        #expect(f[1].range(of: "0:05")!.lowerBound.utf16Offset(in: f[1]) == f[2].range(of: "1:00")!.lowerBound.utf16Offset(in: f[2]))
+    }
+
     @Test func `finished phases collapse to one line with their summary`() {
         var s = baseline()
         s.phase("vm new", at: 0); s.line("created /x", .plain)

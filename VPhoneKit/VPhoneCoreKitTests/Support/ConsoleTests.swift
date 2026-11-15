@@ -87,4 +87,47 @@ struct ConsoleTests {
         #expect(frames.output.contains("vm new") && frames.output.hasSuffix("\u{1B}[?25h"))
         #expect(try String(contentsOf: url, encoding: .utf8) == "\n=== vm new ===\ncreated /x\n")
     }
+
+    @Test func `keep writes rows once above the frame and logs the detail`() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let sink = Sink(); let console = VPhoneConsole(write: sink.write)
+        try console.setLog(url)
+        let frames = Sink()
+        console.startScreen(title: "t", pendingPhases: ["vm new"], frame: { frames.write($0, .output) })
+        let before = frames.output
+        console.keep([[VPhoneConsoleSpan("   LLB", .bold)],
+                      [VPhoneConsoleSpan("     ~ ", .yellow), VPhoneConsoleSpan("Serial label")]],
+                     log: ["[patches] LLB", "  0x0412A1: a → b  [llb-cfw-serial_label]"])
+        let after = String(frames.output.dropFirst(before.count))
+        console.finishScreen(error: nil)
+        try console.setLog(nil)
+        let kept = "\u{1B}[1m   LLB\u{1B}[0m\n\u{1B}[33m     ~ \u{1B}[0mSerial label\n"
+        #expect(after.contains(kept))
+        #expect(after.components(separatedBy: kept)[1].contains(String(repeating: "─", count: 79)))
+        #expect(!after.components(separatedBy: kept)[1].contains("Serial label"))
+        #expect(sink.output.isEmpty && sink.error.isEmpty)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "[patches] LLB\n  0x0412A1: a → b  [llb-cfw-serial_label]\n")
+    }
+
+    @Test func `keep in plain mode writes only to the log`() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let sink = Sink(); let console = VPhoneConsole(write: sink.write)
+        console.keep([[VPhoneConsoleSpan("row")]], log: ["nothing"])
+        try console.setLog(url)
+        console.keep([[VPhoneConsoleSpan("row")]], log: ["detail"])
+        try console.setLog(nil)
+        #expect(sink.output.isEmpty && sink.error.isEmpty)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "detail\n")
+    }
+
+    @Test func `a kept row wider than the terminal is cut`() {
+        let frames = Sink(); let console = VPhoneConsole(write: { _, _ in })
+        console.startScreen(title: "t", pendingPhases: [], frame: { frames.write($0, .output) })
+        console.keep([[VPhoneConsoleSpan(String(repeating: "x", count: 120))]], log: [])
+        console.finishScreen(error: nil)
+        #expect(frames.output.contains(String(repeating: "x", count: 78) + "…\n"))
+        #expect(!frames.output.contains(String(repeating: "x", count: 79)))
+    }
 }
