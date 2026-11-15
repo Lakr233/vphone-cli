@@ -7127,6 +7127,20 @@ removes the store at startup when it was created before the marker, then stops
 iconservicesagent; the Data volume is out of the host's reach. No Apple binary
 change.
 
+**Safari (2026-11-13).** An iPhone SE 3 on iOS 18.6.2 (22G100) and cloudOS
+26.1 (23B85) still showed black page content with the iOS 18 GPU transport
+installed. The accessibility tree exposed the page and text written by
+JavaScript. Disabling GPU-process DOM rendering exposed the page background
+but no text. Disabling GraphicsLayer accelerated drawing restored text.
+Disabling GPU-process canvas rendering restored the blue rectangle drawn by
+the test page's 2D canvas.
+
+`system-systemhook-cfw-ios18_safari_software_rendering` is selected by
+`standard` for the iOS 18.6 / cloudOS 26.1 pairing. Its system-volume marker
+lets SystemHook supply the two overrides in MobileSafari's volatile argument
+domain at startup. Blocking the patch removes the marker on the next CFW
+environment update. See the [Safari validation in the transport notes](Guest/ios18_gpu_transport.md#safari).
+
 ## Re-sealing through the shared CodeResources (2026-11-05)
 
 No new patch identifier and no new bytes in an Apple binary. Every installer

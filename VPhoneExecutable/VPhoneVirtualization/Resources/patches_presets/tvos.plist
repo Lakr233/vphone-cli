@@ -214,6 +214,7 @@
 			<string>system-paravirt_gpu-cfw-compiler_cache</string>
 			<string>system-systemhook-cfw-gles_upper_left</string>
 			<string>system-systemhook-cfw-ios18_gpu_transport</string>
+			<string>system-systemhook-cfw-ios18_safari_software_rendering</string>
 			<string>system-systemhook-cfw-metal_cache_reuse</string>
 			<string>system-systemversion-cfw-build_version</string>
 			<string>system-virtiosound-cfw-hal_plugin</string>

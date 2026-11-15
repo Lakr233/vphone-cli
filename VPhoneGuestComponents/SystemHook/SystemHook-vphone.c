@@ -20,6 +20,7 @@ static int vpInXPCProxy;
 static int vpInBootstrap;
 extern void vpInstallSurfaceAdapter(void);
 extern void vpInstallIOS18GPUTransport(void);
+extern void vpUseIOS18SafariSoftwareRendering(void);
 
 static int vpIsBootstrapPath(const char *path, const char *root) {
     if (path && strncmp(path, "/var/jb/", 8) == 0)
@@ -274,6 +275,9 @@ __attribute__((constructor)) static void vpLogProcess(void) {
 
     if (vpInXPCProxy || getpid() == 1 || vpInjectionDisabled(*_NSGetEnviron()))
         return;
+    if (vpPathHasSuffix(path, "/MobileSafari.app/MobileSafari") &&
+        access("/usr/lib/vphone-ios18-safari-software", F_OK) == 0)
+        vpUseIOS18SafariSoftwareRendering();
     const char *name = strrchr(path, '/');
     name = name ? name + 1 : path;
     if (strcmp(name, "vphoned") == 0 || strcmp(name, "logd") == 0 ||
