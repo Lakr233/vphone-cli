@@ -47,6 +47,8 @@ public enum FirmwareGuestSystemPatchSet {
     public static let glesUpperLeftMarker = "/usr/lib/vphone-gles-upper-left"
     public static let ios18GPUTransport = "system-systemhook-cfw-ios18_gpu_transport"
     public static let ios18GPUTransportMarker = "/usr/lib/vphone-ios18-gpu"
+    public static let ios18SafariSoftwareRendering = "system-systemhook-cfw-ios18_safari_software_rendering"
+    public static let ios18SafariSoftwareRenderingMarker = "/usr/lib/vphone-ios18-safari-software"
     public static let ios17Wallpaper = "system-wallpaper-cfw-ios17_image_assets"
     public static let ios17WallpaperPath = "/Library/Wallpaper/Collections/iOS_17~iphone.wallpaperCollection/Wallpapers"
     public static let metalVertexIDFormat = "dyld-cfw-metal_vertex_id_format"
@@ -863,6 +865,16 @@ public enum FirmwareGuestSystemPatchSet {
                 target: .guestFile(path: ios18GPUTransportMarker),
                 applicability: VPhonePatchApplicability(
                     iOSBase: .oneOf([.release(major: 17, minor: 7), .release(major: 18, minor: 6)]),
+                    cloudOS: .release(major: 26, minor: 1),
+                ),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios18SafariSoftwareRendering,
+                title: "iOS 18 Safari software rendering",
+                summary: "Uses software backing stores and 2D Canvas in MobileSafari on iOS 18.6 with cloudOS 26.1 to prevent blank web content.",
+                target: .guestFile(path: ios18SafariSoftwareRenderingMarker),
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .release(major: 18, minor: 6),
                     cloudOS: .release(major: 26, minor: 1),
                 ),
             ),

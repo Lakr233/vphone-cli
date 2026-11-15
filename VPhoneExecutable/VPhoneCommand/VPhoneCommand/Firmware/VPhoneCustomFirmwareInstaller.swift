@@ -1410,6 +1410,7 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.glesUpperLeft
                     && identifier != FirmwareGuestSystemPatchSet.glesDepthClip
                     && identifier != FirmwareGuestSystemPatchSet.ios18GPUTransport
+                    && identifier != FirmwareGuestSystemPatchSet.ios18SafariSoftwareRendering
                     && identifier != FirmwareGuestSystemPatchSet.ios17Wallpaper
                     && identifier != FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
                     && identifier != FirmwareGuestSystemPatchSet.visionOSSkipBuddy
@@ -3005,6 +3006,17 @@ struct VPhoneCustomFirmwareInstaller {
                 live.insert(gpuTransportPatch)
             } else {
                 try system.removeItem(gpuTransportMarker)
+            }
+        }
+
+        let safariRenderingPatch = FirmwareGuestSystemPatchSet.ios18SafariSoftwareRendering
+        let safariRenderingMarker = String(FirmwareGuestSystemPatchSet.ios18SafariSoftwareRenderingMarker.dropFirst())
+        isolate([safariRenderingPatch]) {
+            if guestDevice.family == .iPhone && on(safariRenderingPatch) {
+                try system.writeFile(safariRenderingMarker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
+                live.insert(safariRenderingPatch)
+            } else {
+                try system.removeItem(safariRenderingMarker)
             }
         }
 
