@@ -472,11 +472,13 @@ Cancelled and replaced sweeps reject queued callbacks from the old generation.
 The timing helper is covered by `make -C VPhoneGuestComponents test-hinge-sweep`;
 these deterministic checks do not establish application watchdog behavior.
 
-Installing a new `libvphonehinge.dylib` with `environment.install` reports
-`reboot_required: true`. The installer verifies and atomically replaces the
-file, but the running backboardd keeps its original mapping. Cleanly restart
-the guest to activate the replacement; the installer does not restart
-backboardd or disrupt its HID connection.
+Installing a new `libvphonehinge.dylib` or `libvphonefolddisplay.dylib` with
+`environment.install` reports `reboot_required: true`, even when the installer
+restores the root filesystem to read-only. The installer verifies and atomically
+replaces the file, but the running backboardd keeps its original mapping.
+Cleanly restart the guest to activate the replacement; the installer does not restart
+backboardd or disrupt its HID connection. FoldDisplay clients also keep their
+initial display type and scale, so a clean restart refreshes those values.
 
 Live evidence from duotest-m5 (2026-10-24): the virtual hinge service
 enumerated in backboardd (service_id reported, `dispatched` counting), and
