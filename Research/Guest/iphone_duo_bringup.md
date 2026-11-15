@@ -5696,3 +5696,44 @@ the wallpaper.
 
 This time Launchpad's `vm create` restored the VM without the iBEC
 failure, at a host load average of about 20.
+
+## Binding semantic input to the active app scene (2026-11-15)
+
+An inner display can expose AX points in 951 x 669 coordinates while the
+capture-derived Icli fallback reports 678 x 466. A selector can still find
+the element at (587, 48), then normalize its activation point against the
+wrong display and tap a different control. An element at x=900 can disappear
+from the visible AX list before selection. These dimensions are regression
+fixtures, not runtime constants.
+
+The flat tree, semantic tap and element wait handlers now use
+Icli 1.0's synchronous `withInterfaceGeometry` scope. A bounded FrontBoard
+observation supplies the active geometry and the requested application's
+scenes. The handler requires a verified foreground bundle and unique PID,
+one identified scene within both display coordinate bounds, and a complete
+scene inventory. AX list results must report that PID. A second observation
+must confirm the same process, scene and display before results are accepted
+or a tap is sent. Activation points outside that scene are refused.
+An unreadable scene owner invalidates the inventory, including any matching
+scene already collected. Only a successfully read nil owner is treated as a
+non-app element. Missing getters, incompatible ABIs, exceptions and malformed
+owner values cannot establish scene uniqueness.
+
+Each wait poll obtains a new binding. A transition during a query is refused;
+the observations do not provide an atomic OS scene lock. Missing, ambiguous
+or unoriented scene geometry also refuses semantic operations. Explicit
+point input retains its existing unknown-orientation fallback. Point hit
+testing (`ui.element_at`), capture, OCR, normalized input and the opt-in nested
+diagnostic tree keep their existing coordinate contracts. Icli's point hit
+test does not return the queried PID, so it cannot provide the ownership
+check required for this binding.
+
+`VPhoneDaemon/Tests/run-point-geometry-tests.sh --icli <pinned-checkout>`
+compiles the real handlers, pinned Icli selector functions and C coordinate
+conversion with AX/HID boundary fixtures. It covers the wrong-tap regression,
+right-edge selection, ownership changes, ambiguous scenes, and fresh geometry
+between wait polls. Running it with `--input-source` set to the previous
+handler fails the (587, 48) conversion assertion. The native admission test
+also exercises both layout entry points sharing one bounded admission slot.
+These checks do not establish the private API's behavior or tap delivery in
+a running guest; the native build and a guest cover/inner A/B remain required.

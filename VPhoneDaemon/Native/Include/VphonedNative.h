@@ -260,6 +260,10 @@ NSDictionary<NSString *, id> * _Nonnull vp_display_modes(void);
 /// already running; its monitor remains owned until main-thread cleanup.
 /// No foreground app, scene or atomic epoch is inferred.
 NSDictionary<NSString *, id> * _Nonnull vp_display_layout(void);
+/// The same bounded observation, including all layout scenes matching the
+/// supplied bundle. The caller must verify foreground process ownership.
+/// An unreadable or capped scene inventory cannot establish uniqueness.
+NSDictionary<NSString *, id> * _Nonnull vp_display_layout_for_application(NSString * _Nonnull bundle);
 /// Raw pixels for a uniquely bound active display, without resizing or rotation.
 /// The response deadline does not release admission while a private call runs.
 /// Matching metadata is not an atomic epoch or proof of content/color fidelity.

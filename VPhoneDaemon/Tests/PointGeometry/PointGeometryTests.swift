@@ -18,9 +18,6 @@ enum GuestAPI {
     static func touchPhaseCode(_ phase: TouchPhase) -> Int32 { switch phase { case .down: 0; case .move: 1; case .up: 3 } }
 }
 
-/// `GuestAPI.liveObservation` defaults to the real foreground lookup, which this harness does not link.
-func frontmostApp() -> [String: Any] { [:] }
-
 func layout(orientation: Int = 4) -> [String: Any] {
     let sideways = orientation == 3 || orientation == 4
     func rect(_ width: Double, _ height: Double) -> [String: Any] { ["x": 0, "y": 0, "width": width, "height": height] }
@@ -132,8 +129,8 @@ func rejects(_ operation: () throws -> Void) {
         precondition(edge["phase"] as? String == "down" && edge["edge"] as? Int == 1)
         rejects { _ = try GuestAPI.executeTouch(["phase": "down", "edge": 1, "normalized": false]) }
         _ = try GuestAPI.executeInput(.inputButton, ["name": "home"])
-        _ = try GuestAPI.executeInterface(.uiTree, [:])
-        precondition(LayoutWitness.reads == before, "normalized, native or AX operations acquired point geometry")
+        _ = try GuestAPI.executeInterface(.uiTree, ["nested": true])
+        precondition(LayoutWitness.reads == before, "normalized, native or nested AX operations acquired point geometry")
         let state = GuestAPI.activeScreenState()
         precondition(state["available"] as? Bool == false && state["width"] == nil && state["orientation"] == nil)
         precondition(state["locked"] as? Bool == true && state["screen_off"] as? Bool == false)
@@ -153,5 +150,6 @@ func rejects(_ operation: () throws -> Void) {
         rejects { _ = try GuestAPI.withActivePointGeometry { throw IcliError.failed("input failed") } }
         precondition(!icli_interface_geometry_current(nil), "input error leaked geometry")
         print("Active point handlers, screen state and geometry refusal checks passed")
+        try semanticGeometryTests()
     }
 }
