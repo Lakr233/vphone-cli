@@ -1,4 +1,5 @@
 import Foundation
+import VPhoneCoreKit
 
 // MARK: - VPhoneProgressBar
 
@@ -39,6 +40,11 @@ final class VPhoneProgressBar: @unchecked Sendable {
     }
 
     func update(done: Int64, total: Int64) {
+        if VPhoneConsole.shared.isScreenActive {
+            // The screen owns the terminal; the bar becomes its activity line.
+            VPhoneConsole.shared.activity(label, fraction: total > 0 ? Double(done) / Double(total) : nil)
+            return
+        }
         guard mode != .off else { return }
         self.total = total
         updated = true

@@ -46,6 +46,17 @@ struct ConsoleScreenTests {
         #expect(s.frame(at: 1, width: 100, height: 40).contains { $0.contains("Restore phase") && $0.contains("32%") })
     }
 
+    @Test func `a fraction that is not finite shows no bar and one out of range is clamped`() {
+        func row(_ f: Double) -> String {
+            var s = baseline(); s.phase("Restore phase", at: 0)
+            s.activity("upload filesystem", fraction: f)
+            return s.frame(at: 1, width: 100, height: 40).first { $0.contains("Restore phase") }!
+        }
+        for f in [Double.nan, .infinity, -.infinity] { #expect(!row(f).contains("░") && !row(f).contains("%")) }
+        #expect(row(-0.5).hasSuffix(String(repeating: "░", count: 16) + " 0%"))
+        #expect(row(1.7).hasSuffix(String(repeating: "█", count: 16) + " 100%"))
+    }
+
     @Test func `a phase that was not announced appears when it starts`() {
         var s = VPhoneConsoleScreen(title: "t", pendingPhases: [], startedAt: 0)
         s.phase("Template build k", at: 0)

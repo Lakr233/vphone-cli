@@ -55,6 +55,8 @@ public extension VPhoneVirtualMachineCreator {
         /// What a template built for this create is slimmed of; part of the
         /// key it is looked up by.
         public var slimming: VPhoneMachineTemplateSlimming
+        /// Draw the progress screen on the terminal instead of the plain log.
+        public var showsScreen: Bool
 
         public init(
             name: String,
@@ -79,6 +81,7 @@ public extension VPhoneVirtualMachineCreator {
             skipsFirstBoot: Bool = false,
             bootstrapLayout: String? = nil,
             slimming: VPhoneMachineTemplateSlimming = VPhoneTemplateSlimmingRequest.defaultSlimming,
+            showsScreen: Bool = false,
         ) {
             self.name = name
             self.iphoneSource = iphoneSource
@@ -102,6 +105,7 @@ public extension VPhoneVirtualMachineCreator {
             self.skipsFirstBoot = skipsFirstBoot
             self.bootstrapLayout = bootstrapLayout
             self.slimming = slimming
+            self.showsScreen = showsScreen
         }
     }
 }

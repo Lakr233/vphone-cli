@@ -92,6 +92,7 @@ public enum VPhoneRestoreConsole {
     ///   - showsProgress: whether `[step]  42%` lines are printed. Off by
     ///     default — idevicerestore already narrates its phases through the log
     ///     channel, and the progress callback fires often enough to bury it.
+    ///   - progress: given each step's name and fraction, whatever `showsProgress` is.
     ///
     /// Writes are serialized: the levelled channel holds idevicerestore's own
     /// mutex, but the captured `printf` channel does not, and two threads
@@ -113,6 +114,7 @@ public enum VPhoneRestoreConsole {
                 print(text)
             }
         },
+        progress: (@Sendable (String, Double) -> Void)? = nil,
     ) -> VPhoneRestoreEventHandler {
         let lock = NSLock()
         return { event in
@@ -125,6 +127,7 @@ public enum VPhoneRestoreConsole {
                 defer { lock.unlock() }
                 write(line, messageLevel == .error)
             case let .progress(step, fraction):
+                progress?(step.name, fraction)
                 guard showsProgress else { return }
                 lock.lock()
                 defer { lock.unlock() }

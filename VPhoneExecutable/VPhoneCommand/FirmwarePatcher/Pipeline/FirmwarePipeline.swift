@@ -328,6 +328,8 @@ public final class FirmwarePipeline {
         plan: VPhonePatchPlan?,
     ) throws -> [PatchRecord] {
         var allRecords: [PatchRecord] = []
+        let patchedCount = components.count { !$0.patcherFactories.isEmpty || $0.replacement != nil }
+        var patchedSoFar = 0
 
         for component in components {
             let baseDir = component.inRestoreDir ? restoreDir : vmDirectory
@@ -354,6 +356,8 @@ public final class FirmwarePipeline {
                 }
                 continue
             }
+            patchedSoFar += 1
+            VPhoneConsole.shared.activity(component.name, done: patchedSoFar, of: patchedCount)
             let fileURL = try findFile(in: baseDir, patterns: component.searchPatterns, label: component.name)
 
             log("\n\(String(repeating: "=", count: 60))")

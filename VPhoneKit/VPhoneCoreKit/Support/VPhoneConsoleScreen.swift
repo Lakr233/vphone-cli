@@ -130,8 +130,11 @@ struct VPhoneConsoleScreen {
                 rows.append((" ✗ \(name) \(time)", .keep))
             case .active:
                 var row = " \(spin) \(name) \(time)"
-                if let f = p.fraction ?? p.count.map({ $0.total > 0 ? Double($0.done) / Double($0.total) : 0 }) {
-                    let filled = min(16, max(0, Int((f * 16).rounded())))
+                // A non-finite fraction is no fraction; a finite one is held to 0...1.
+                if let f = (p.fraction ?? p.count.map({ $0.total > 0 ? Double($0.done) / Double($0.total) : 0 }))
+                    .flatMap({ $0.isFinite ? min(1, max(0, $0)) : nil })
+                {
+                    let filled = Int((f * 16).rounded())
                     row += "  " + String(repeating: "█", count: filled) + String(repeating: "░", count: 16 - filled) + " "
                     row += p.count.map { "\($0.done)/\($0.total)" } ?? "\(Int((f * 100).rounded()))%"
                 }

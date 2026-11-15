@@ -66,4 +66,25 @@ struct ConsoleTests {
         let mode = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
         #expect(mode == 0o600)
     }
+
+    @Test func `the screen is used only on a terminal at default verbosity`() {
+        #expect(VPhoneConsole.usesScreen(isTerminal: true, verbosity: .quiet))
+        #expect(!VPhoneConsole.usesScreen(isTerminal: false, verbosity: .quiet))
+        #expect(!VPhoneConsole.usesScreen(isTerminal: true, verbosity: .info))
+    }
+
+    @Test func `while the screen is active plain text goes to the log, not the terminal`() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let sink = Sink(); let console = VPhoneConsole(write: sink.write)
+        try console.setLog(url)
+        let frames = Sink()
+        console.startScreen(title: "t", pendingPhases: ["vm new"], frame: { frames.write($0, .output) })
+        console.phase("vm new"); console.line("created /x")
+        console.finishScreen(error: nil)
+        try console.setLog(nil)
+        #expect(sink.output.isEmpty && sink.error.isEmpty)
+        #expect(frames.output.contains("vm new") && frames.output.hasSuffix("\u{1B}[?25h"))
+        #expect(try String(contentsOf: url, encoding: .utf8) == "\n=== vm new ===\ncreated /x\n")
+    }
 }

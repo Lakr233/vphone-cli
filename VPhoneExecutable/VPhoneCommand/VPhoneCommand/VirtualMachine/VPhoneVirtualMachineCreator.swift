@@ -3,6 +3,7 @@ import FirmwarePatcher
 import Foundation
 import VPhoneArchiveKit
 import VPhoneCoreKit
+import VPhonePatchKit
 import VPhoneRestore
 
 // MARK: - VPhoneVirtualMachineCreationError
@@ -103,6 +104,24 @@ public struct VPhoneVirtualMachineCreator {
     /// identifier. A clone takes a fraction of a second and needs neither
     /// root nor an IPSW.
     public func run(_ options: Options) throws {
+        // A patcher built without a FirmwarePipeline must not print past the screen either.
+        VPhonePatchLog.write = { VPhoneConsole.shared.line($0) }
+        guard options.showsScreen else { return try create(options) }
+        let pending = options.template == .none
+            ? ["vm new", "fw prepare", "fw patch", "Restore phase", "CFW install (host-mount)"]
+            + (options.skipsFirstBoot ? [] : ["First boot check"])
+            : []
+        VPhoneConsole.shared.startScreen(title: "vphone-cli vm create \(options.name)", pendingPhases: pending)
+        do {
+            try create(options)
+        } catch {
+            VPhoneConsole.shared.finishScreen(error: error)
+            throw error
+        }
+        VPhoneConsole.shared.finishScreen(error: nil)
+    }
+
+    private func create(_ options: Options) throws {
         // Fail fast on a nested-VM host — PV=3 guest boot can't nest, and the whole
         // create pipeline (download + patch + restore) is wasted otherwise. Mirrors
         // the host preflight that precedes VM launch.
@@ -596,7 +615,11 @@ public struct VPhoneVirtualMachineCreator {
         // in this process; the second device discovery can then fail. The
         // standalone `restore --get-shsh` command remains available when a
         // ticket file is needed for an offline restore.
-        let onEvent = VPhoneRestoreConsole.handler(level: v.restoreLogLevel, write: { VPhoneConsole.shared.line($0, to: $1 ? .error : .output) })
+        let onEvent = VPhoneRestoreConsole.handler(
+            level: v.restoreLogLevel,
+            write: { VPhoneConsole.shared.line($0, to: $1 ? .error : .output) },
+            progress: { VPhoneConsole.shared.activity($0, fraction: $1) },
+        )
         VPhoneConsole.shared.line("[*] Restoring...", .step)
         trace("in-process VPhoneRestoreService.restore udid=\(udid) ecid=0x\(ecid) erase=true", v)
         do {

@@ -112,7 +112,8 @@ struct VPhoneVirtualMachineCreateBulkCommand: ParsableCommand {
                     try VPhoneBundleOperations.delete(bundleNamed: machine.name, in: machine.library)
                     print("[-] Deleted the existing \(machine.name)")
                 }
-                let command = try VPhoneVirtualMachineCreateCommand.parse(machine.arguments)
+                var command = try VPhoneVirtualMachineCreateCommand.parse(machine.arguments)
+                command.suppressesScreen = true
                 try command.run()
                 created.append(machine.name)
             } catch {

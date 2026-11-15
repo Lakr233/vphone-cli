@@ -101,6 +101,10 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
     /// Validation reads it once; explicit device selection always takes precedence.
     private var inferredProductType: String?
 
+    /// Set by `vm create-bulk`, which runs each create with the plain output only.
+    /// Optional, like the property above, so argument parsing leaves it alone.
+    var suppressesScreen: Bool?
+
     private var selectedGuest: VPhoneGuestDevice? {
         VPhoneGuestDevice.named(device ?? inferredProductType)
     }
@@ -315,6 +319,7 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
             skipsFirstBoot: skipFirstBoot,
             bootstrapLayout: bootstrap,
             slimming: slimming.resolve(),
+            showsScreen: suppressesScreen != true && VPhoneConsole.usesScreen(isTerminal: isatty(STDOUT_FILENO) != 0, verbosity: VPhoneVerbosity(count: verboseCount)),
         ))
     }
 }
