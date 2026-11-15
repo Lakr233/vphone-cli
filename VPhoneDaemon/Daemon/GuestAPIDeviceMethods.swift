@@ -52,6 +52,7 @@ enum DeviceMethod: String, GuestMethod {
                                               .required("developer_mode", .object),
                                               .required("device_name", .object),
                                               .required("host", .string),
+                                              .required("ios_build", .string),
                                               .required("ios_version", .string),
                                               .required("jailbreak", .object),
                                               .required("kernel", .string),
@@ -65,6 +66,7 @@ enum DeviceMethod: String, GuestMethod {
                                               .required("screen", .object),
                                               .required("storage", .object),
                                               .required("sysname", .string),
+                                              .required("udid", .string),
                                               .required("uptime_seconds", .number),
                                               .required("volume", .number)])
         case .deviceNetwork: MethodSpec(summary: "List the guest's network interface addresses", result: [.required("addresses", .array)])

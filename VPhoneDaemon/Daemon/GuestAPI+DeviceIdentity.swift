@@ -145,6 +145,17 @@ extension GuestAPI {
         return ["udid": udid ?? NSNull(), "path": path]
     }
 
+    /// The UDID a host sees: the override when set, else the guest's own, shaped
+    /// as usbmuxd lists it (the 8-character chip ID, a dash, then the ECID).
+    /// Empty when the guest has neither.
+    static func effectiveUDID() -> String {
+        if let override = udidState()["udid"] as? String { return override }
+        guard let own = vp_usb_own_serial() else { return "" }
+        defer { free(own) }
+        let serial = String(cString: own)
+        return "\(serial.prefix(8))-\(serial.dropFirst(8))"
+    }
+
     private static func readUDIDConfiguration(_ path: String) -> [String: Any]? {
         guard let data = FileManager.default.contents(atPath: path) else { return nil }
         return try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
