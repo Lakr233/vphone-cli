@@ -506,11 +506,18 @@ test-accelerometer:
 # The hinge's transport and, on a Mac whose IOKit has them, the host-control
 # dictionaries serialized, read back and wrapped in a vendor-defined event as
 # the guest library does.
-test-hinge:
+test-hinge: test-hinge-sweep
 	@mkdir -p $(OUT)
 	xcrun --sdk macosx clang -fobjc-arc -Wall -Wextra -Werror -IHinge \
 		-o $(OUT)/HingeTests Tests/HingeTests.m -framework Foundation
 	@$(OUT)/HingeTests
+
+.PHONY: test-hinge-sweep
+test-hinge-sweep:
+	@mkdir -p $(OUT)
+	$(CC) -std=c11 -Wall -Wextra -Werror -o $(OUT)/HingeSweepTests \
+		Tests/HingeSweepTests.c Hinge/VPhoneHingeSweep.c -lm
+	@$(OUT)/HingeSweepTests
 
 $(ATTITUDE): $(ATTITUDE_SOURCES) $(ATTITUDE_INPUTS) | $(STAGE)/attitude
 	$(CLANG) -arch arm64e -miphoneos-version-min=18.0 -Os -fobjc-arc \
