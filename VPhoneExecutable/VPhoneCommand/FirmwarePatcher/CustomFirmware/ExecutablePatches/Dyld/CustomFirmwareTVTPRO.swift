@@ -1,5 +1,6 @@
 import Foundation
 import MachOKit
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Apple dyld enables TPRO mappings from kernel Apple parameters, while its
@@ -9,7 +10,7 @@ import VPhonePatchKit
 /// intact. Both dyld images must be changed and reverted by the caller.
 public enum CustomFirmwareTVTPRO {
     public static let patchID = "system-dyld-exp-tv_tpro"
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
     public enum Outcome: String, Sendable { case patched, wouldPatch, alreadyPatched }
     public struct Site: Sendable {
         public let key: String

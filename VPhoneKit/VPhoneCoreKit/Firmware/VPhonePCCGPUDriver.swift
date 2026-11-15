@@ -63,7 +63,7 @@ public enum VPhonePCCGPUDriver {
             if detached {
                 try? fm.removeItem(at: work)
             } else {
-                fputs("warning: PCC GPU image may still be attached; left \(work.path)\n", stderr)
+                VPhoneConsole.shared.line("warning: PCC GPU image may still be attached; left \(work.path)", to: .error)
             }
         }
         let disk: URL
@@ -113,7 +113,7 @@ public enum VPhonePCCGPUDriver {
             try fm.removeItem(at: destination)
         }
         try fm.copyItem(at: source, to: destination)
-        print("[+] GPU driver staged: \(destination.path)")
+        VPhoneConsole.shared.line("[+] GPU driver staged: \(destination.path)")
     }
 
     /// A point release's driver names the SDK it was built with: cloudOS

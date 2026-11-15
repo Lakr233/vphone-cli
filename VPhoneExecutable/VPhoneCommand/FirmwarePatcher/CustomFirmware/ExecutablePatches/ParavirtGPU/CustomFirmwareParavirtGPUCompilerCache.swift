@@ -12,10 +12,11 @@
 
 import CryptoKit
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 public enum CustomFirmwareParavirtGPUCompilerCache {
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
     static let selector = "setupCompiler"
     static let compilerSelector = "initWithTargetData:cacheUUID:pluginPath:device:compilerFlags:"
 

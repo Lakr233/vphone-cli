@@ -52,6 +52,7 @@
 // verify conditional routing, preserved null handling, dry-run and idempotence.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Routes public swap trampolines to kern or virt according to the connection.

@@ -191,7 +191,7 @@ public enum VPhoneAPFSSnapshot {
         imageAt url: URL,
         newPrefix: String = defaultNewPrefix,
         dryRun: Bool = false,
-        log: (String) -> Void = { print($0) },
+        log: (String) -> Void = { VPhoneConsole.shared.line($0) },
     ) throws -> Report {
         let fd = open(url.path, dryRun ? O_RDONLY : O_RDWR)
         guard fd >= 0 else { throw VPhoneAPFSSnapshotError.cannotOpen(url, errno: errno) }
@@ -209,7 +209,7 @@ public enum VPhoneAPFSSnapshot {
         url: URL,
         newPrefix: String = defaultNewPrefix,
         dryRun: Bool = false,
-        log: (String) -> Void = { print($0) },
+        log: (String) -> Void = { VPhoneConsole.shared.line($0) },
     ) throws -> Report {
         let newPrefixBytes = Array(newPrefix.utf8)
         guard newPrefixBytes.count == oldPrefix.count else {

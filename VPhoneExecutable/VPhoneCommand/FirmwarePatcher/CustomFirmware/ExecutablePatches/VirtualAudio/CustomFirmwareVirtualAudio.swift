@@ -180,6 +180,7 @@
 // "nothing to do" on every other build, so their bytes never move.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Turns VirtualAudio's `No default VAD present` exception into a no-op
@@ -274,7 +275,7 @@ public enum CustomFirmwareVirtualAudio {
     public static let deviceStateNullGatePatchID = "system-virtualaudio-cfw-device_state_null_gate"
 
     /// Where progress goes when the caller does not say.
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
 
     // MARK: - Results
 

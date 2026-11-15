@@ -88,7 +88,7 @@ final class VPhoneTemplateSetupVirtualMachine: VPhoneTemplateSetupMachine {
         try boot.validate()
         let (executable, arguments) = launcher.plan(boot.bootArguments)
         if verbosity.tracesInternals {
-            print("[trace] spawn \(executable.path) \(arguments.joined(separator: " ")) (guest serial: off)")
+            VPhoneConsole.shared.line("[trace] spawn \(executable.path) \(arguments.joined(separator: " ")) (guest serial: off)")
         }
         let process = VPhoneManagedProcess(executable, arguments, cwd: bundle.url, echo: false)
         try process.start()
@@ -171,23 +171,23 @@ enum VPhoneTemplateSetupRun {
     static func report(_ outcome: VPhoneTemplateSetupOutcome) {
         let order = VPhoneTemplateSetupStep.allCases
         let times = order.compactMap { step in outcome.durations[step].map { "\(step.rawValue) \(Int($0.rounded())) s" } }
-        print("[+] Setup boot done: \(times.joined(separator: ", "))")
-        print("    snapshots deleted: \(outcome.deletedSnapshots.isEmpty ? "none left" : outcome.deletedSnapshots.joined(separator: ", "))")
+        VPhoneConsole.shared.line("[+] Setup boot done: \(times.joined(separator: ", "))")
+        VPhoneConsole.shared.line("    snapshots deleted: \(outcome.deletedSnapshots.isEmpty ? "none left" : outcome.deletedSnapshots.joined(separator: ", "))")
         var services = outcome.serviceProfile
         if !outcome.serviceGroups.isEmpty {
             services += " +" + outcome.serviceGroups.joined(separator: ",")
         }
-        print("    services: \(services)\(outcome.serviceProfile == "none" ? "" : " (\(outcome.servicesOwned) owned)")")
-        print("    apps removed: \(outcome.removedApps.isEmpty ? "none" : outcome.removedApps.joined(separator: ", "))")
+        VPhoneConsole.shared.line("    services: \(services)\(outcome.serviceProfile == "none" ? "" : " (\(outcome.servicesOwned) owned)")")
+        VPhoneConsole.shared.line("    apps removed: \(outcome.removedApps.isEmpty ? "none" : outcome.removedApps.joined(separator: ", "))")
         if !outcome.clearedCrashReports.isEmpty {
-            print("    crash reports cleared: \(VPhoneTemplateSetupBoot.summarizeCrashReports(outcome.clearedCrashReports))")
+            VPhoneConsole.shared.line("    crash reports cleared: \(VPhoneTemplateSetupBoot.summarizeCrashReports(outcome.clearedCrashReports))")
         }
         let retried = outcome.retriedUnregistrations.sorted { $0.key < $1.key }
         if !retried.isEmpty {
-            print("    unregistered after retries: \(retried.map { "\($0.key) (\($0.value) attempts)" }.joined(separator: ", "))")
+            VPhoneConsole.shared.line("    unregistered after retries: \(retried.map { "\($0.key) (\($0.value) attempts)" }.joined(separator: ", "))")
         }
         for warning in outcome.warnings {
-            print("    warning: \(warning)")
+            VPhoneConsole.shared.line("    warning: \(warning)")
         }
     }
 }

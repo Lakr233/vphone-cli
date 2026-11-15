@@ -95,6 +95,7 @@
 // re-attested afterwards, exactly as the other shared-cache patchers do.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Forces `checkTrustAndAuthorization` in `libmis.dylib` to return success, so
@@ -246,7 +247,7 @@ public enum DyldSharedCacheMISTrustAuthPatcher {
     }
 
     /// Where progress goes when the caller does not say.
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
 
     // MARK: - Patching
 

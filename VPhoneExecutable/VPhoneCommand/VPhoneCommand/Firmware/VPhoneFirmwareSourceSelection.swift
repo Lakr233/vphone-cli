@@ -8,7 +8,7 @@ enum VPhoneFirmwareSourceSelection {
     }
 
     private static func err(_ s: String) {
-        FileHandle.standardError.write(Data((s + "\n").utf8))
+        VPhoneConsole.shared.line(s, to: .error)
     }
 
     /// Resolve `vm create`'s iPhone/cloudOS sources, prompting on a TTY for

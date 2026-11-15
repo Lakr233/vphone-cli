@@ -3,6 +3,7 @@
 // Historical note: derived from the legacy Python firmware patcher during the Swift migration.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// CFW-variant patcher for iBoot images.
@@ -28,7 +29,7 @@ public final class IBootCustomFirmwarePatcher: IBootPatcher {
 
         if stringOffsets.isEmpty {
             if verbose {
-                print("  [-] iBSS CFW:no refs to 'boot-nonce'")
+                VPhoneConsole.shared.line("  [-] iBSS CFW:no refs to 'boot-nonce'")
             }
             return false
         }
@@ -46,7 +47,7 @@ public final class IBootCustomFirmwarePatcher: IBootPatcher {
 
         if addOffsets.isEmpty {
             if verbose {
-                print("  [-] iBSS CFW:no ADRP+ADD refs to 'boot-nonce'")
+                VPhoneConsole.shared.line("  [-] iBSS CFW:no ADRP+ADD refs to 'boot-nonce'")
             }
             return false
         }
@@ -104,7 +105,7 @@ public final class IBootCustomFirmwarePatcher: IBootPatcher {
 
                 guard let patchBytes = ARM64Encoder.encodeB(from: scan, to: target) else {
                     if verbose {
-                        print(String(format: "  [-] iBSS CFW:encodeB out of range at 0x%X → 0x%X", scan, target))
+                        VPhoneConsole.shared.line(String(format: "  [-] iBSS CFW:encodeB out of range at 0x%X → 0x%X", scan, target))
                     }
                     scan += 4
                     continue
@@ -129,7 +130,7 @@ public final class IBootCustomFirmwarePatcher: IBootPatcher {
                 patches.append(record)
 
                 if verbose {
-                    print(String(
+                    VPhoneConsole.shared.line(String(
                         format: "  0x%06X: %@ → %@  [ibss-boot-skip_generate_nonce]",
                         scan,
                         beforeStr,
@@ -141,7 +142,7 @@ public final class IBootCustomFirmwarePatcher: IBootPatcher {
         }
 
         if verbose {
-            print("  [-] iBSS CFW:generate_nonce branch pattern not found")
+            VPhoneConsole.shared.line("  [-] iBSS CFW:generate_nonce branch pattern not found")
         }
         return false
     }

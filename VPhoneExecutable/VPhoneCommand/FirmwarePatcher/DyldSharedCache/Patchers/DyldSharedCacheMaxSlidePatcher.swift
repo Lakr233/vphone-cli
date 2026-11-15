@@ -50,6 +50,7 @@
 // layout is refused rather than written into blind.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Zeroes `dyld_cache_header.maxSlide` when the cache would otherwise overflow
@@ -256,7 +257,7 @@ public enum DyldSharedCacheMaxSlidePatcher {
         let header = try readHeader(from: chunks, at: headerVMA, chunkName: mainChunkName)
 
         if verbose {
-            print(
+            VPhoneConsole.shared.line(
                 "  [.] \(mainChunkName): start=\(hex(header.sharedRegionStart)) "
                     + "size=\(hex(header.sharedRegionSize)) maxSlide=\(hex(header.maxSlide))",
             )
@@ -289,7 +290,7 @@ public enum DyldSharedCacheMaxSlidePatcher {
         let fits = combined <= kernelRegionSize
         if fits, !force {
             if verbose {
-                print(
+                VPhoneConsole.shared.line(
                     "      [=] fits: span+maxSlide \(hex(combined)) <= "
                         + "region \(hex(kernelRegionSize)); no change",
                 )
@@ -306,7 +307,7 @@ public enum DyldSharedCacheMaxSlidePatcher {
         }
         guard header.maxSlide != 0 else {
             if verbose {
-                print("      [=] maxSlide already 0; no change")
+                VPhoneConsole.shared.line("      [=] maxSlide already 0; no change")
             }
             return try Result(
                 outcome: .alreadyZero,
@@ -324,7 +325,7 @@ public enum DyldSharedCacheMaxSlidePatcher {
             : .overflow(combined: combined, region: kernelRegionSize)
         let reason = outcome.reason ?? ""
         if verbose {
-            print(
+            VPhoneConsole.shared.line(
                 "      [+] \(reason); \(dryRun ? "would set" : "set") "
                     + "maxSlide \(hex(header.maxSlide)) -> 0x0",
             )
@@ -348,7 +349,7 @@ public enum DyldSharedCacheMaxSlidePatcher {
             // function is kept identical to the Python's, so a `--dry-run` of
             // one can be diffed against a `--dry-run` of the other.
             if verbose {
-                print("  [+] DSC maxSlide patch complete")
+                VPhoneConsole.shared.line("  [+] DSC maxSlide patch complete")
             }
             return Result(
                 outcome: outcome,
@@ -377,7 +378,7 @@ public enum DyldSharedCacheMaxSlidePatcher {
         let reattestation = try DyldSharedCacheCodeSignature.reattestRecordedWrites(in: chunks, log: log)
 
         if verbose {
-            print("  [+] DSC maxSlide patch complete")
+            VPhoneConsole.shared.line("  [+] DSC maxSlide patch complete")
         }
         return Result(
             outcome: outcome,

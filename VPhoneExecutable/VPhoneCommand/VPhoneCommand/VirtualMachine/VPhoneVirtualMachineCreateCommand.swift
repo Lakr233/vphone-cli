@@ -264,7 +264,7 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
                     downloadURLs: VPhoneFirmwareSourceSelection.restoreURLs(forDevice: lookup),
                 )
                 iphone = release.url
-                print("[+] IPSW: \(release.version) (\(release.build)) \(release.url)")
+                VPhoneConsole.shared.line("[+] IPSW: \(release.version) (\(release.build)) \(release.url)")
                 if cloudos == nil {
                     let recommended = VPhoneFirmwareCatalog.recommendedCloudOS(
                         forDevice: selectedDevice ?? VPhoneFirmwareCatalog.device,
@@ -272,7 +272,7 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
                         url: release.url,
                     )
                     cloudos = recommended.url
-                    print("[+] cloudOS: \(recommended.name), recommended for \(release.version)")
+                    VPhoneConsole.shared.line("[+] cloudOS: \(recommended.name), recommended for \(release.version)")
                 }
             }
             // Prompt for any firmware component not supplied on the command line,

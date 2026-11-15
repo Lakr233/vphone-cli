@@ -44,6 +44,7 @@
 // is accepted by the JB's always-true AMFI cdhash-trust patch.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Forces `-[_LSDModifyClient clientIsEntitledForEmbeddedRegistrationOperations]`
@@ -132,7 +133,7 @@ public enum DyldSharedCacheLSDEmbeddedRegPatcher {
 
     /// Where progress goes when the caller does not say. The Python prints to
     /// stdout and `cfw_install*.sh` captures that, so this does too.
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
 
     // MARK: - Patching
 

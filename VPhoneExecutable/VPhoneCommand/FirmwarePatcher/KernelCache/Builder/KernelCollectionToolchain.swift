@@ -302,11 +302,11 @@ struct KernelCollectionToolchain {
             }
             let entry = try zip.entry(endingWith: path)
             let megabytes = entry.compressedSize >> 20
-            print("  [kc] downloading \(path) (\(megabytes) MB) from macOS \(release.macOS)")
+            VPhoneConsole.shared.line("  [kc] downloading \(path) (\(megabytes) MB) from macOS \(release.macOS)")
             let step = Progress(total: entry.compressedSize)
             try await zip.download(entry, to: encrypted) { done, total in
                 if let percent = step.advance(to: done) {
-                    print("  [kc] \(percent)% of \(total >> 20) MB")
+                    VPhoneConsole.shared.line("  [kc] \(percent)% of \(total >> 20) MB")
                 }
             }
         }

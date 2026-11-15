@@ -11,13 +11,14 @@
 
 import Foundation
 import MachOKit
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Selects MediaExperience's existing virtual-device budget policy on a watch VM.
 public enum CustomFirmwareWatchAudioBudget {
     public static let patchID = "filesystem-exp-watch_audio"
     public static let imagePath = "/System/Library/PrivateFrameworks/MediaExperience.framework/MediaExperience"
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
 
     static func supports(_ version: VPhoneVersion?) -> Bool {
         version?.major == 26 && version?.minor == 4

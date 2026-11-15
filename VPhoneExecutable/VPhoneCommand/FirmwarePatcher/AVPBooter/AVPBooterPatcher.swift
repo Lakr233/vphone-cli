@@ -12,6 +12,7 @@
 //   5. Patch that instruction to `mov x0, #0`.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Patcher for AVPBooter DGST bypass.
@@ -60,7 +61,7 @@ public final class AVPBooterPatcher: BufferedPatcher {
             buffer.writeBytes(at: record.fileOffset, bytes: record.patchedBytes)
         }
         if verbose, !patches.isEmpty {
-            print("\n  [\(patches.count) AVPBooter patch(es) applied]")
+            VPhoneConsole.shared.line("\n  [\(patches.count) AVPBooter patch(es) applied]")
         }
         return patches.count
     }
@@ -153,7 +154,7 @@ public final class AVPBooterPatcher: BufferedPatcher {
         patches.append(record)
 
         if verbose {
-            print(String(
+            VPhoneConsole.shared.line(String(
                 format: "  0x%06X: %@ → %@  [avpbooter-boot-dgst_bypass]",
                 fileOff,
                 beforeStr,

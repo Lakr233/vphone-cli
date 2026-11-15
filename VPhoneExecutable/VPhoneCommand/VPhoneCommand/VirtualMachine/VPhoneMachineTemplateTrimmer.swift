@@ -30,7 +30,7 @@ enum VPhoneMachineTemplateTrimmer {
         label: String,
         spec: VPhoneSystemTrimSpec,
         newRecord: VPhoneMachineTemplateRecord?,
-        log: (String) -> Void = { print($0) },
+        log: (String) -> Void = { VPhoneConsole.shared.line($0) },
     ) throws -> VPhoneSystemTrimResult {
         try requireTrimmable(bundle, label: label, spec: spec)
         if spec.tier == .none {

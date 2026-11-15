@@ -70,6 +70,7 @@
 // pulled off a device that already carries the NeutrinoCore patches.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// The camera-related patches applied to the SystemOS cryptex's shared cache.
@@ -184,7 +185,7 @@ public enum DyldSharedCacheCameraPatcher {
     /// Where diagnostics go when the caller does not say. The Python prints its
     /// progress to stdout and `cfw_install_exp.sh` logs it, so silence is not
     /// the default here either.
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
 
     /// Apply both families — the `cfw.py patch-camera-dsc` path.
     ///

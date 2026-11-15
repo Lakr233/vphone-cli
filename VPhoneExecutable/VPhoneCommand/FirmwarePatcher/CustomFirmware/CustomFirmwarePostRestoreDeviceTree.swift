@@ -29,6 +29,7 @@
 
 import Foundation
 import Img4tool
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Rewrites the three restore-fatal identity properties in a
@@ -311,21 +312,21 @@ public enum CustomFirmwarePostRestoreDeviceTree {
 
         let (container, im4p, compression, blob) = try openDeviceTree(data, path: url.path)
         if verbose {
-            print("  [.] \(url.path): \(container.isIMG4 ? "IMG4" : "IM4P")  desc='\(im4p.description)'  "
+            VPhoneConsole.shared.line("  [.] \(url.path): \(container.isIMG4 ? "IMG4" : "IM4P")  desc='\(im4p.description)'  "
                 + "payload_compression=\(compression.rawValue)")
-            print("  [.] DT blob: \(blob.count) bytes")
+            VPhoneConsole.shared.line("  [.] DT blob: \(blob.count) bytes")
         }
 
         let (newBlob, changes, expectedSize) = try transform(blob)
         guard !changes.isEmpty else {
             if verbose {
-                print("  [.] \(url.path): DT already in target state — no change")
+                VPhoneConsole.shared.line("  [.] \(url.path): DT already in target state — no change")
             }
             return Outcome(changes: [], wrote: false, outputSize: data.count)
         }
         if verbose {
             for change in changes {
-                print("  [+] \(change.property): '\(change.before)' -> '\(change.after)'")
+                VPhoneConsole.shared.line("  [+] \(change.property): '\(change.before)' -> '\(change.after)'")
             }
         }
         guard newBlob.count == expectedSize else {
@@ -343,18 +344,18 @@ public enum CustomFirmwarePostRestoreDeviceTree {
         let output = try container.rebuilt(im4pBytes: newIM4P.data)
 
         if verbose {
-            print("  [.] output size: \(output.count) bytes (was \(data.count))")
+            VPhoneConsole.shared.line("  [.] output size: \(output.count) bytes (was \(data.count))")
         }
         if dryRun {
             if verbose {
-                print("  [.] dry-run — not writing back")
+                VPhoneConsole.shared.line("  [.] dry-run — not writing back")
             }
             return Outcome(changes: changes, wrote: false, outputSize: output.count)
         }
 
         try output.write(to: url)
         if verbose {
-            print("  [+] wrote \(url.path)")
+            VPhoneConsole.shared.line("  [+] wrote \(url.path)")
         }
         return Outcome(changes: changes, wrote: true, outputSize: output.count)
     }

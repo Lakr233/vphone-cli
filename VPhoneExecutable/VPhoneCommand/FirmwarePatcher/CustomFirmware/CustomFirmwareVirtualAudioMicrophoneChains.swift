@@ -24,6 +24,7 @@
 // `Research/Guest/virtio_sound_microphone.md`.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Points every `<mic>_general` configuration in a `graph_configurations.plist`
@@ -127,25 +128,25 @@ public enum CustomFirmwareVirtualAudioMicrophoneChains {
             changed.append(name)
             configurations[name] = general
             if verbose {
-                print("  [+] \(url.lastPathComponent): \(name) takes the tunings of \(sibling)")
+                VPhoneConsole.shared.line("  [+] \(url.lastPathComponent): \(name) takes the tunings of \(sibling)")
             }
         }
 
         if paired.isEmpty {
             if verbose {
-                print("  [.] \(url.lastPathComponent): no general microphone chain has a measurement sibling")
+                VPhoneConsole.shared.line("  [.] \(url.lastPathComponent): no general microphone chain has a measurement sibling")
             }
             return .noPairs
         }
         if changed.isEmpty {
             if verbose {
-                print("  [.] \(url.lastPathComponent): \(paired.count) microphone chains already on measurement tunings")
+                VPhoneConsole.shared.line("  [.] \(url.lastPathComponent): \(paired.count) microphone chains already on measurement tunings")
             }
             return .alreadyMeasurementChains(paired)
         }
         if dryRun {
             if verbose {
-                print("  [.] dry-run — not writing back")
+                VPhoneConsole.shared.line("  [.] dry-run — not writing back")
             }
             return .dryRun(changed: changed)
         }
@@ -223,7 +224,7 @@ public enum CustomFirmwareVirtualAudioMicrophoneChains {
                 effects[effectIndex]["aupreset"] = preset
                 changes.append(GainChange(effect: name, before: before))
                 if verbose {
-                    print("  [+] \(url.lastPathComponent): \(name) global gain \(before) dB -> 0 dB")
+                    VPhoneConsole.shared.line("  [+] \(url.lastPathComponent): \(name) global gain \(before) dB -> 0 dB")
                 }
             }
             strips[stripIndex]["effects"] = effects
@@ -231,13 +232,13 @@ public enum CustomFirmwareVirtualAudioMicrophoneChains {
 
         if changes.isEmpty {
             if verbose {
-                print("  [.] \(url.lastPathComponent): no equalizer gain to remove")
+                VPhoneConsole.shared.line("  [.] \(url.lastPathComponent): no equalizer gain to remove")
             }
             return []
         }
         if dryRun {
             if verbose {
-                print("  [.] dry-run — not writing back")
+                VPhoneConsole.shared.line("  [.] dry-run — not writing back")
             }
             return changes
         }

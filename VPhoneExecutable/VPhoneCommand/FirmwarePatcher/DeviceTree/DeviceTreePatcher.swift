@@ -115,7 +115,7 @@ public final class DeviceTreePatcher: BufferedPatcher {
             buffer.data = rebuiltData
         }
         if verbose, !patches.isEmpty {
-            print("\n  [\(patches.count) DeviceTree patch(es) applied]")
+            VPhoneConsole.shared.line("\n  [\(patches.count) DeviceTree patch(es) applied]")
         }
         return patches.count
     }
@@ -454,7 +454,7 @@ public final class DeviceTreePatcher: BufferedPatcher {
             patches.append(record)
 
             if verbose {
-                print(String(
+                VPhoneConsole.shared.line(String(
                     format: "  0x%06X: %@ → %@  [%@]",
                     prop.valueOffset,
                     originalBytes.hex,
@@ -511,7 +511,7 @@ public final class DeviceTreePatcher: BufferedPatcher {
         for existing in parent.children {
             if nodeName(existing) == patch.nodeName {
                 if verbose {
-                    print("  -      : /\(patch.parentPath.joined(separator: "/"))/\(patch.nodeName) already present, skipping  [\(patch.patchID)]")
+                    VPhoneConsole.shared.line("  -      : /\(patch.parentPath.joined(separator: "/"))/\(patch.nodeName) already present, skipping  [\(patch.patchID)]")
                 }
                 return
             }
@@ -564,7 +564,7 @@ public final class DeviceTreePatcher: BufferedPatcher {
         ))
 
         if verbose {
-            print("  +node  : /\(patch.parentPath.joined(separator: "/"))/\(patch.nodeName)  (\(newNode.properties.count) props, \(serialized.count)B)  [\(patch.patchID)]")
+            VPhoneConsole.shared.line("  +node  : /\(patch.parentPath.joined(separator: "/"))/\(patch.nodeName)  (\(newNode.properties.count) props, \(serialized.count)B)  [\(patch.patchID)]")
         }
     }
 }

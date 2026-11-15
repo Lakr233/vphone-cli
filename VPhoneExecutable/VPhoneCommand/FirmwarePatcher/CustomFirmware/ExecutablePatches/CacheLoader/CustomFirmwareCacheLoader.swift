@@ -58,6 +58,7 @@
 // first page-in of the patched page.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// NOPs the `launchd_unsecure_cache=` gate in `/usr/libexec/launchd_cache_loader`.
@@ -94,7 +95,7 @@ public enum CustomFirmwareCacheLoaderPatcher {
 
     /// Where progress goes when the caller does not say. The Python prints to
     /// stdout and `cfw_install*.sh` captures that, so this does too.
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
 
     // MARK: - Patching
 

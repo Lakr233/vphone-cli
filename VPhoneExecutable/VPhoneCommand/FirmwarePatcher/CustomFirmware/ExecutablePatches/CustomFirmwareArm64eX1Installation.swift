@@ -24,7 +24,7 @@ public enum CustomFirmwareArm64eX1Installation {
         enabled: Bool,
         priorApplied: Bool,
         sealBundle: (String) throws -> Void,
-        log: (String) -> Void = { print($0) },
+        log: (String) -> Void = { VPhoneConsole.shared.line($0) },
     ) throws -> Outcome {
         let backupPath = path + ".bak"
         if !enabled, !priorApplied, try !system.exists(backupPath) { return .inactive }

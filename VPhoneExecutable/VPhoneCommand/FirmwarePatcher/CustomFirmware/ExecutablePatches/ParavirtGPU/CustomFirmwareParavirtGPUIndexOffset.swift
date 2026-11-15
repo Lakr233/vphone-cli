@@ -51,10 +51,11 @@
 // resolve and is refused unchanged.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 public enum CustomFirmwareParavirtGPUIndexOffset {
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
 
     /// One compact-command selection: the command it avoids and the one it
     /// takes instead. Sizes are the bytes `getCommandBytes:forCommand:` reserves.

@@ -2,6 +2,7 @@
 
 import CryptoKit
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 // MARK: - Shared State
@@ -136,7 +137,7 @@ final class RestoreRamDiskSealPatcher: BufferedPatcher {
         records = [record]
 
         if verbose {
-            print("  apfs_sealvolume cdhash: \(originalCDHash.hex) → \(patchedCDHash.hex)")
+            VPhoneConsole.shared.line("  apfs_sealvolume cdhash: \(originalCDHash.hex) → \(patchedCDHash.hex)")
         }
         return [record]
     }
@@ -426,7 +427,7 @@ final class RestoreTrustCacheSealPatcher: BufferedPatcher {
         )
         records = [record]
         if verbose {
-            print("  RestoreTrustCache cdhash: \(oldHash.hex) → \(newHash.hex)")
+            VPhoneConsole.shared.line("  RestoreTrustCache cdhash: \(oldHash.hex) → \(newHash.hex)")
         }
         return [record]
     }

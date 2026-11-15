@@ -22,6 +22,7 @@
 // itself only ever sees a staged copy.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Rewrites every `speaker_*` entry in a `graph_configurations.plist` from
@@ -101,7 +102,7 @@ public enum CustomFirmwareVirtualAudioGraphConfigurations {
         let speakerNames = configurations.keys.filter { $0.hasPrefix("speaker_") }.sorted()
         guard !speakerNames.isEmpty else {
             if verbose {
-                print("  [.] \(url.lastPathComponent): no speaker configuration, left as it is")
+                VPhoneConsole.shared.line("  [.] \(url.lastPathComponent): no speaker configuration, left as it is")
             }
             return .alreadyGraphChains([])
         }
@@ -134,20 +135,20 @@ public enum CustomFirmwareVirtualAudioGraphConfigurations {
 
         if changed.isEmpty {
             if verbose {
-                print("  [.] \(url.lastPathComponent): \(speakerNames.count) speaker chains already '\(graphChainType)'")
+                VPhoneConsole.shared.line("  [.] \(url.lastPathComponent): \(speakerNames.count) speaker chains already '\(graphChainType)'")
             }
             return .alreadyGraphChains(speakerNames)
         }
 
         if verbose {
             for name in changed {
-                print("  [+] \(url.lastPathComponent): \(name) chainType '\(speakerChainType)' -> '\(graphChainType)'")
+                VPhoneConsole.shared.line("  [+] \(url.lastPathComponent): \(name) chainType '\(speakerChainType)' -> '\(graphChainType)'")
             }
         }
 
         if dryRun {
             if verbose {
-                print("  [.] dry-run — not writing back")
+                VPhoneConsole.shared.line("  [.] dry-run — not writing back")
             }
             return .dryRun(changed: changed)
         }
@@ -210,7 +211,7 @@ public enum CustomFirmwareVirtualAudioGraphConfigurations {
         }
         guard let raw = configurations[rawSpeakerConfiguration] else {
             if verbose {
-                print("  [.] \(url.lastPathComponent): no '\(rawSpeakerConfiguration)' configuration, left as it is")
+                VPhoneConsole.shared.line("  [.] \(url.lastPathComponent): no '\(rawSpeakerConfiguration)' configuration, left as it is")
             }
             return []
         }
@@ -241,19 +242,19 @@ public enum CustomFirmwareVirtualAudioGraphConfigurations {
             configurations[name] = entry
             changed.append(name)
             if verbose {
-                print("  [+] \(url.lastPathComponent): \(name) takes the chain of \(rawSpeakerConfiguration)")
+                VPhoneConsole.shared.line("  [+] \(url.lastPathComponent): \(name) takes the chain of \(rawSpeakerConfiguration)")
             }
         }
 
         if changed.isEmpty {
             if verbose {
-                print("  [.] \(url.lastPathComponent): speaker chains already '\(rawSpeakerConfiguration)'")
+                VPhoneConsole.shared.line("  [.] \(url.lastPathComponent): speaker chains already '\(rawSpeakerConfiguration)'")
             }
             return []
         }
         if dryRun {
             if verbose {
-                print("  [.] dry-run — not writing back")
+                VPhoneConsole.shared.line("  [.] dry-run — not writing back")
             }
             return changed
         }

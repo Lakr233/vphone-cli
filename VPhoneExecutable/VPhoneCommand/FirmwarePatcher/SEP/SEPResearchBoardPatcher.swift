@@ -21,6 +21,7 @@
 
 import CryptoKit
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 public final class SEPResearchBoardPatcher: BufferedPatcher {
@@ -106,7 +107,7 @@ public final class SEPResearchBoardPatcher: BufferedPatcher {
         for record in patches {
             buffer.data.replaceSubrange(record.fileOffset ..< record.fileOffset + record.patchedBytes.count, with: record.patchedBytes)
             if verbose {
-                print(String(format: "  0x%06X: %@ → %@  [%@]", record.fileOffset, record.originalBytes.hex, record.patchedBytes.hex, record.patchID))
+                VPhoneConsole.shared.line(String(format: "  0x%06X: %@ → %@  [%@]", record.fileOffset, record.originalBytes.hex, record.patchedBytes.hex, record.patchID))
             }
         }
         return patches.count

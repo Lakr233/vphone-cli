@@ -16,6 +16,7 @@
 // downgrade.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Merges the mach-lookup global-name exceptions Campo needs into an
@@ -106,7 +107,7 @@ public enum CustomFirmwareMachLookupExceptions {
         try output.write(to: url)
 
         if verbose {
-            print("  [+] mach-lookup exception count: \(merged.count) (+\(added.count) added)")
+            VPhoneConsole.shared.line("  [+] mach-lookup exception count: \(merged.count) (+\(added.count) added)")
         }
         return Outcome(total: merged.count, added: added.count)
     }

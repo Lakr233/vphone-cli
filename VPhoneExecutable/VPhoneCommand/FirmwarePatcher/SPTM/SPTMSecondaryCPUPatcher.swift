@@ -31,6 +31,7 @@
 // skips the tunable. See Research/0_binary_patch_comparison.md.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 public final class SPTMSecondaryCPUPatcher: BufferedPatcher {
@@ -93,7 +94,7 @@ public final class SPTMSecondaryCPUPatcher: BufferedPatcher {
         )
         patches.append(record)
         if verbose {
-            print(String(format: "  0x%06X: %@ → %@  [%@]", offset, record.beforeDisasm, record.afterDisasm, record.patchDescription))
+            VPhoneConsole.shared.line(String(format: "  0x%06X: %@ → %@  [%@]", offset, record.beforeDisasm, record.afterDisasm, record.patchDescription))
         }
         return patches
     }
@@ -107,7 +108,7 @@ public final class SPTMSecondaryCPUPatcher: BufferedPatcher {
             buffer.writeBytes(at: record.fileOffset, bytes: record.patchedBytes)
         }
         if verbose, !patches.isEmpty {
-            print("\n  [\(patches.count) SPTM patches applied]")
+            VPhoneConsole.shared.line("\n  [\(patches.count) SPTM patches applied]")
         }
         return patches.count
     }

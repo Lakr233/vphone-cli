@@ -51,6 +51,7 @@
 //     `reattest: false` to reproduce the reference's bytes exactly.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 public enum CustomFirmwareSeputil {
@@ -83,7 +84,7 @@ public enum CustomFirmwareSeputil {
 
     /// Default sink for the progress lines, matching the other patchers.
     public static let stderrLog: @Sendable (String) -> Void = { line in
-        FileHandle.standardError.write(Data((line + "\n").utf8))
+        VPhoneConsole.shared.line(line, to: .error)
     }
 
     // MARK: - Site

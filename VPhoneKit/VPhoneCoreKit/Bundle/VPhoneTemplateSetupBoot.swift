@@ -379,7 +379,7 @@ public final class VPhoneTemplateSetupBoot {
         machine: VPhoneTemplateSetupMachine,
         plan: VPhoneTemplateSetupPlan,
         clock: VPhoneTemplateSetupClock = VPhoneSystemClock(),
-        log: @escaping (String) -> Void = { print($0) },
+        log: @escaping (String) -> Void = { VPhoneConsole.shared.line($0) },
     ) {
         self.machine = machine
         self.plan = plan

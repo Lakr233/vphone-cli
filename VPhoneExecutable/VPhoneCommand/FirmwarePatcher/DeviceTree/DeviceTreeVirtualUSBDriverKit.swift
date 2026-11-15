@@ -42,7 +42,7 @@ extension DeviceTreePatcher {
             description: "Enable DriverKit for the virtual USB touchscreen",
         ))
         if verbose {
-            print("  =prop : /product/supports-driverkit \((change.before ?? Data()).hex) → \(change.after.hex)  [\(Self.virtualUSBDriverKitPatch)]")
+            VPhoneConsole.shared.line("  =prop : /product/supports-driverkit \((change.before ?? Data()).hex) → \(change.after.hex)  [\(Self.virtualUSBDriverKitPatch)]")
         }
     }
 }

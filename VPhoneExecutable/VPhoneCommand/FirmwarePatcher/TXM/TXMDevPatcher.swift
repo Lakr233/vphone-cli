@@ -3,6 +3,7 @@
 // Historical note: derived from the legacy Python firmware patcher during the Swift migration.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Dev-variant patcher for TXM images.
@@ -320,7 +321,7 @@ public final class TXMDevPatcher: TXMPatcher {
                    ops.count == 2, ops[1].type == .immediate, ops[1].imm == 0x7E51
                 {
                     let next = disasm.disassembleOne(in: buffer.data, at: off + 4)
-                    print("  [·] TXM: selector 0x7e51 at \(String(format: "%06X", off)); next: \(next.map { "\($0.mnemonic) \($0.operandString)" } ?? "decode-fail")")
+                    VPhoneConsole.shared.line("  [·] TXM: selector 0x7e51 at \(String(format: "%06X", off)); next: \(next.map { "\($0.mnemonic) \($0.operandString)" } ?? "decode-fail")")
                 }
                 continue
             }

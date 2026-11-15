@@ -3,6 +3,7 @@
 // Part of IBootPatcher; see IBootPatcher.swift for the patch schedule by mode.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 extension IBootPatcher {
@@ -49,7 +50,7 @@ extension IBootPatcher {
         }
 
         if verbose {
-            print("  [-] panic bypass: pattern not found")
+            VPhoneConsole.shared.line("  [-] panic bypass: pattern not found")
         }
     }
 }

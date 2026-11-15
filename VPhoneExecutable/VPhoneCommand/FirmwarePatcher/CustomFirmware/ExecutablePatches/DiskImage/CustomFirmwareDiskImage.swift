@@ -72,6 +72,7 @@
 // file on its own.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Forces `-[DIDiskArb isMountCompleteWithExpectedCount:diskTracker:]` to
@@ -169,7 +170,7 @@ public enum CustomFirmwareDiskImage {
 
     /// Where progress goes when the caller does not say. The Python prints to
     /// stdout and `cfw_install*.sh` captures that, so this does too.
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
 
     // MARK: - Patching
 

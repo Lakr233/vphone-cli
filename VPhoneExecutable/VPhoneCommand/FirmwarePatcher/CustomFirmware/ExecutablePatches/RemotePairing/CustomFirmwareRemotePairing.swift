@@ -1,4 +1,5 @@
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 public enum CustomFirmwareRemotePairing {
@@ -15,7 +16,7 @@ public enum CustomFirmwareRemotePairing {
         for (index, site) in sites.enumerated() {
             let before = data.subdata(in: site.offset ..< site.offset + 4)
             let status = before == ARM64.movW0_0 ? "=" : dryRun ? "." : "+"
-            print("  [\(status)] local-connection check at 0x\(String(site.address, radix: 16)) (file 0x\(String(site.offset, radix: 16))): \(site.instruction) -> mov w0, #0")
+            VPhoneConsole.shared.line("  [\(status)] local-connection check at 0x\(String(site.address, radix: 16)) (file 0x\(String(site.offset, radix: 16))): \(site.instruction) -> mov w0, #0")
             guard before != ARM64.movW0_0 else { continue }
             records.append(PatchRecord(
                 patchID: "\(patchID).\(index + 1)",

@@ -53,6 +53,7 @@
 // Python's exact bytes.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Forces `-[DeviceType should_hactivate]` to return YES, so the guest
@@ -75,7 +76,7 @@ public enum CustomFirmwareMobileActivation {
 
     /// Where progress goes when the caller does not say. The Python prints to
     /// stdout and `cfw_install*.sh` captures that, so this does too.
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
 
     // MARK: - Results
 

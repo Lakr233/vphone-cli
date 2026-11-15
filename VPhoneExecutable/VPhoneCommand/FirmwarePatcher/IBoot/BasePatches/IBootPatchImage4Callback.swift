@@ -3,6 +3,7 @@
 // Part of IBootPatcher; see IBootPatcher.swift for the patch schedule by mode.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 extension IBootPatcher {
@@ -52,7 +53,7 @@ extension IBootPatcher {
 
         if candidates.isEmpty {
             if verbose {
-                print("  [-] image4 callback: pattern not found")
+                VPhoneConsole.shared.line("  [-] image4 callback: pattern not found")
             }
             return
         }

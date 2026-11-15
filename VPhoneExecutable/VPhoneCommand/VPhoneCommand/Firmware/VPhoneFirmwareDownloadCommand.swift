@@ -89,7 +89,7 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
         }
         let destination = output.appendingPathComponent("apfs_sealvolume_\(version)")
         if FileManager.default.fileExists(atPath: destination.path) {
-            print("apfs_sealvolume_\(version) already present")
+            VPhoneConsole.shared.line("apfs_sealvolume_\(version) already present")
             return
         }
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
@@ -98,7 +98,7 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
         var attached = false
         defer {
             if attached {
-                fputs("warning: restore ramdisk is still mounted; left it at \(ramdisk.path)\n", stderr)
+                VPhoneConsole.shared.line("warning: restore ramdisk is still mounted; left it at \(ramdisk.path)", to: .error)
             } else {
                 try? FileManager.default.removeItem(at: ramdisk.deletingLastPathComponent())
             }
@@ -110,7 +110,7 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
         try Self.run("/usr/bin/codesign", ["--force", "--sign", "-", destination.path])
         try VPhoneHostFilePermissions.makeAccessible(at: destination)
         try VPhoneHostFilePermissions.makeDirectoryAccessible(at: output)
-        print("  Downloaded: \(destination.path)")
+        VPhoneConsole.shared.line("  Downloaded: \(destination.path)")
     }
 
     @discardableResult
@@ -136,7 +136,7 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
         else {
             throw ValidationError("The seal tool restore image must come from Apple's HTTPS CDN.")
         }
-        print("  macOS \(release.version) (\(release.build))")
+        VPhoneConsole.shared.line("  macOS \(release.version) (\(release.build))")
 
         let zip = try await VPhoneRemoteZip.open(release.url)
         let manifestEntry = try zip.entry(endingWith: "BuildManifest.plist")
@@ -163,7 +163,7 @@ struct VPhoneFirmwareSealToolCommand: ParsableCommand {
                 "none of \(identities.count) build identities names a RestoreRamDisk",
             )
         }
-        print("  ramdisk: \(path)")
+        VPhoneConsole.shared.line("  ramdisk: \(path)")
 
         let im4p = try await zip.read(zip.entry(endingWith: path))
         let work = output.appendingPathComponent(".vphone-sealtool-\(UUID().uuidString)")

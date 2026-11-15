@@ -3,6 +3,7 @@
 // Historical note: derived from the legacy Python firmware patcher during the Swift migration.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Base class for CFW kernel patching, extending KernelPatcherBase with:
@@ -66,7 +67,7 @@ public class KernelCustomFirmwarePatcherBase: KernelPatcherBase {
         }
 
         if verbose {
-            print("[*] Symbol table: \(symbols.count) symbols resolved")
+            VPhoneConsole.shared.line("[*] Symbol table: \(symbols.count) symbols resolved")
         }
     }
 
@@ -270,7 +271,7 @@ public class KernelCustomFirmwarePatcherBase: KernelPatcherBase {
         let result = funcs.count == 1 ? funcs.first! : -1
         procSecurityPolicyOff = result
         if verbose, result >= 0 {
-            print("  [+] _proc_security_policy at 0x\(String(format: "%X", result)) (PRIV_GLOBAL_PROC_INFO anchor)")
+            VPhoneConsole.shared.line("  [+] _proc_security_policy at 0x\(String(format: "%X", result)) (PRIV_GLOBAL_PROC_INFO anchor)")
         }
         return result >= 0 ? result : nil
     }

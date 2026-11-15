@@ -34,10 +34,11 @@
 // alone. A driver laid out otherwise is refused unchanged.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 public enum CustomFirmwareParavirtGPUPrimitiveRestart {
-    public static let stdoutLog: @Sendable (String) -> Void = { print($0) }
+    public static let stdoutLog: @Sendable (String) -> Void = { VPhoneConsole.shared.line($0) }
 
     static let method = "-[PGSerializerRenderCommandEncoder setPrimitiveRestartEnabled:index:]"
     static let commandSize: UInt32 = 0x08

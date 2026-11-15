@@ -69,6 +69,7 @@
 // `codesign -v`.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 public enum CustomFirmwareJetsamPatcher {
@@ -187,7 +188,7 @@ public enum CustomFirmwareJetsamPatcher {
         fileAt url: URL,
         dryRun: Bool = false,
         reattest: Bool = false,
-        log: ((String) -> Void)? = { FileHandle.standardError.write(Data(($0 + "\n").utf8)) },
+        log: ((String) -> Void)? = { VPhoneConsole.shared.line($0, to: .error) },
     ) throws -> Outcome {
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw PatcherError.fileNotFound(url.path)

@@ -1,6 +1,7 @@
 // Static ARM64E_X1 lowering for the boot closure and standalone guest libraries.
 
 import Foundation
+import VPhoneCoreKit
 import os
 import MachO
 import VPhonePatchKit
@@ -635,11 +636,11 @@ public enum CustomFirmwareArm64eX1 {
                        unvisitedExamples: Array(examples.prefix(16))), slots)
     }
 
-    public static func patch(fileAt url: URL, log: (String) -> Void = { print($0) }) throws {
+    public static func patch(fileAt url: URL, log: (String) -> Void = { VPhoneConsole.shared.line($0) }) throws {
         try patch(fileAt: url, identifier: FirmwareGuestSystemPatchSet.arm64eX1DyldBootstrap, log: log)
     }
 
-    public static func patch(fileAt url: URL, identifier: String, requireComplete: Bool = false, log: (String) -> Void = { print($0) }) throws {
+    public static func patch(fileAt url: URL, identifier: String, requireComplete: Bool = false, log: (String) -> Void = { VPhoneConsole.shared.line($0) }) throws {
         var data = try Data(contentsOf: url)
         let (result, slots) = try requireComplete
             ? lowerCompletelyAndReattest(&data, identifier: identifier)

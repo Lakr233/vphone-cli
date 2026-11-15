@@ -3,6 +3,7 @@
 // Part of IBootPatcher; see IBootPatcher.swift for the patch schedule by mode.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 extension IBootPatcher {
@@ -23,21 +24,21 @@ extension IBootPatcher {
 
         guard let fmtOff = findBootArgsFmt() else {
             if verbose {
-                print("  [-] boot-args: format string not found")
+                VPhoneConsole.shared.line("  [-] boot-args: format string not found")
             }
             return
         }
 
         guard let (adrpOff, addOff) = findBootArgsAdrp(fmtOff: fmtOff) else {
             if verbose {
-                print("  [-] boot-args: ADRP+ADD x2 not found")
+                VPhoneConsole.shared.line("  [-] boot-args: ADRP+ADD x2 not found")
             }
             return
         }
 
         guard let newOff = findStringSlot(length: newArgsData.count) else {
             if verbose {
-                print("  [-] boot-args: no NUL slot")
+                VPhoneConsole.shared.line("  [-] boot-args: no NUL slot")
             }
             return
         }
@@ -48,7 +49,7 @@ extension IBootPatcher {
         // Re-encode ADRP x2 → new page
         guard let newAdrp = ARM64Encoder.encodeADRP(rd: 2, pc: UInt64(adrpOff), target: UInt64(newOff)) else {
             if verbose {
-                print("  [-] boot-args: ADRP encoding out of range")
+                VPhoneConsole.shared.line("  [-] boot-args: ADRP encoding out of range")
             }
             return
         }
@@ -58,7 +59,7 @@ extension IBootPatcher {
         let imm12 = UInt32(newOff & 0xFFF)
         guard let newAdd = ARM64Encoder.encodeAddImm12(rd: 2, rn: 2, imm12: imm12) else {
             if verbose {
-                print("  [-] boot-args: ADD encoding out of range")
+                VPhoneConsole.shared.line("  [-] boot-args: ADD encoding out of range")
             }
             return
         }

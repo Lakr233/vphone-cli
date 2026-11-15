@@ -3,6 +3,7 @@
 // Part of IBootPatcher; see IBootPatcher.swift for the patch schedule by mode.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 extension IBootPatcher {
@@ -34,7 +35,7 @@ extension IBootPatcher {
 
         guard !hashGetters.isEmpty, !bitGetters.isEmpty else {
             if verbose {
-                print("  [-] bootx precondition: hash-getter or bit-getter pattern absent")
+                VPhoneConsole.shared.line("  [-] bootx precondition: hash-getter or bit-getter pattern absent")
             }
             return
         }
@@ -42,7 +43,7 @@ extension IBootPatcher {
         let panicBlocks = enumeratePanicBlocks(hashGetters: hashGetters)
         if panicBlocks.isEmpty {
             if verbose {
-                print("  [-] bootx precondition: no panic-shaped call blocks")
+                VPhoneConsole.shared.line("  [-] bootx precondition: no panic-shaped call blocks")
             }
             return
         }
@@ -82,15 +83,15 @@ extension IBootPatcher {
         if gates.isEmpty {
             // 26.4+ construct; genuinely absent on previous iBoot versions.
             if verbose {
-                print("  [.] bootx precondition: construct not present (pre-26.4 iBoot) — skipping")
+                VPhoneConsole.shared.line("  [.] bootx precondition: construct not present (pre-26.4 iBoot) — skipping")
             }
             return
         }
         if gates.count > 1 {
             if verbose {
-                print("  [-] bootx precondition: ambiguous (\(gates.count) candidates)")
+                VPhoneConsole.shared.line("  [-] bootx precondition: ambiguous (\(gates.count) candidates)")
                 for g in gates.sorted() {
-                    print(String(format: "      0x%X", g))
+                    VPhoneConsole.shared.line(String(format: "      0x%X", g))
                 }
             }
             return

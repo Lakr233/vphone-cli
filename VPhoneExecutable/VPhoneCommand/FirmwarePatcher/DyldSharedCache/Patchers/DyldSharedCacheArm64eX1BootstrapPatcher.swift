@@ -2,6 +2,7 @@ import CryptoKit
 import Foundation
 import MachOKit
 import Synchronization
+import VPhoneCoreKit
 import VPhonePatchKit
 
 public enum DyldSharedCacheArm64eX1BootstrapPatcher {
@@ -72,7 +73,7 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
         captureUndo: Bool = false,
         onUndo: (DyldSharedCacheUndoLog) -> Void = { _ in },
         planCache: DyldSharedCacheArm64eX1PlanCache? = nil,
-        log: @escaping (String) -> Void = { print($0) },
+        log: @escaping (String) -> Void = { VPhoneConsole.shared.line($0) },
     ) throws {
         try lower(
             directory: directory, dryRun: dryRun, captureUndo: captureUndo, onUndo: onUndo, log: log,
@@ -103,7 +104,7 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
         captureUndo: Bool = false,
         onUndo: (DyldSharedCacheUndoLog) -> Void = { _ in },
         planCache: DyldSharedCacheArm64eX1PlanCache? = nil,
-        log: @escaping (String) -> Void = { print($0) },
+        log: @escaping (String) -> Void = { VPhoneConsole.shared.line($0) },
     ) throws {
         try lower(
             directory: directory, dryRun: dryRun, captureUndo: captureUndo, onUndo: onUndo, log: log,

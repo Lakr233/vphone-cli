@@ -68,7 +68,7 @@ public enum VPhonePCCCryptexctl {
             try fm.removeItem(at: destination)
         }
         try fm.copyItem(at: source, to: destination)
-        print("[+] cryptexctl staged: \(destination.path)")
+        VPhoneConsole.shared.line("[+] cryptexctl staged: \(destination.path)")
     }
 
     /// Stage a cryptexctl taken from this cloudOS build before.

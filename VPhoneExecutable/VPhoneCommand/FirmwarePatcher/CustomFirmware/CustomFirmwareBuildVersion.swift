@@ -19,6 +19,7 @@
 // is told the target build and rewrites it.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// Rewrites `ProductBuildVersion` in a `SystemVersion.plist`, preserving the
@@ -96,19 +97,19 @@ public enum CustomFirmwareBuildVersion {
 
         if currentString == target {
             if verbose {
-                print("  [.] \(url.path): \(key) already = '\(target)'")
+                VPhoneConsole.shared.line("  [.] \(url.path): \(key) already = '\(target)'")
             }
             return .alreadyTarget(target)
         }
 
         if verbose {
-            print("  [+] \(url.path): \(key) '\(currentString)' -> '\(target)'")
+            VPhoneConsole.shared.line("  [+] \(url.path): \(key) '\(currentString)' -> '\(target)'")
         }
         plist[key] = target
 
         if dryRun {
             if verbose {
-                print("  [.] dry-run — not writing back")
+                VPhoneConsole.shared.line("  [.] dry-run — not writing back")
             }
             return .dryRun(from: currentString, to: target)
         }

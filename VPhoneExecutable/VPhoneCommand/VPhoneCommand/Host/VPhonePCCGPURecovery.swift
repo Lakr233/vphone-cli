@@ -58,7 +58,7 @@ enum VPhonePCCGPURecovery {
             if !diskMayBeAttached {
                 try? fm.removeItem(at: temporaryLibrary)
             } else {
-                fputs("warning: PCC disk image may still be attached; left \(temporaryLibrary.path)\n", stderr)
+                VPhoneConsole.shared.line("warning: PCC disk image may still be attached; left \(temporaryLibrary.path)", to: .error)
             }
         }
 
@@ -94,7 +94,7 @@ enum VPhonePCCGPURecovery {
         }
         guard reachable else { throw Error.recoveryTimedOut }
 
-        print("[*] Restoring cloudOS to temporary vphone VM (ECID 0x\(VPhoneRestoreIdentity.formatECID(ecid)))...")
+        VPhoneConsole.shared.line("[*] Restoring cloudOS to temporary vphone VM (ECID 0x\(VPhoneRestoreIdentity.formatECID(ecid)))...")
         try VPhoneRestoreService.restore(
             vmDir: vm.url,
             ecid: ecid,
@@ -200,7 +200,7 @@ enum VPhonePCCGPURecovery {
                     }
                     try fm.removeItem(at: mountToClean)
                 } catch {
-                    fputs("warning: left PCC mount directory at \(mountToClean.path): \(error)\n", stderr)
+                    VPhoneConsole.shared.line("warning: left PCC mount directory at \(mountToClean.path): \(error)", to: .error)
                 }
             }
         }
@@ -259,7 +259,7 @@ enum VPhonePCCGPURecovery {
         }
         diskAttached = false
         diskMayBeAttached = false
-        print(gpuDriver ? "[+] GPU driver staged from cloudOS restored by vphone-cli" : "[+] cryptexctl staged from cloudOS restored by vphone-cli")
+        VPhoneConsole.shared.line(gpuDriver ? "[+] GPU driver staged from cloudOS restored by vphone-cli" : "[+] cryptexctl staged from cloudOS restored by vphone-cli")
     }
 
     @discardableResult

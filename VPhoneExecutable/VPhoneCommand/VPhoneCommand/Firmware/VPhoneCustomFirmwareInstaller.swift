@@ -366,7 +366,7 @@ struct VPhoneCustomFirmwareInstaller {
             do {
                 try removeWorkDirectory(work)
             } catch {
-                fputs("warning: left CFW work directory at \(work.url.path): \(error)\n", stderr)
+                VPhoneConsole.shared.line("warning: left CFW work directory at \(work.url.path): \(error)", to: .error)
             }
         }
         try requireFreeSpace(at: [bundlePath, work.url.path])
@@ -515,7 +515,7 @@ struct VPhoneCustomFirmwareInstaller {
         try mountGuestVolume("\(container)s1", at: system)
         xartMounted = true
         try mountGuestVolume("\(container)s3", at: xart)
-        print("[*] \(mode.summary.capitalized): \(bundle.lastPathComponent)")
+        VPhoneConsole.shared.line("[*] \(mode.summary.capitalized): \(bundle.lastPathComponent)")
         // The identifiers whose bytes are live in the guest after this run, for
         // the receipt. Each step that applies or reverts a guest patch adds to
         // it, so what it holds at the end is exactly the `Guest` part.
@@ -723,18 +723,18 @@ struct VPhoneCustomFirmwareInstaller {
                 if let invokingUser { try invokingUser.withUserCredentials(record) }
                 else { try record() }
             } catch {
-                fputs("warning: could not record completed guest installation: \(error)\n", stderr)
+                VPhoneConsole.shared.line("warning: could not record completed guest installation: \(error)", to: .error)
             }
         }
         switch mode {
         case .full:
             if liveGuest.contains("system-vphoned-boot-install") {
-                print("[+] CFW system install complete; vphoned is installed, no package bootstrap was staged")
+                VPhoneConsole.shared.line("[+] CFW system install complete; vphoned is installed, no package bootstrap was staged")
             } else {
-                print("[+] CFW system install complete; vphoned is not installed")
+                VPhoneConsole.shared.line("[+] CFW system install complete; vphoned is not installed")
             }
         case .environmentOnly:
-            print("[+] Guest environment updated; start the VM to pick it up")
+            VPhoneConsole.shared.line("[+] Guest environment updated; start the VM to pick it up")
         case .kernelUpdate:
             break // handled by runKernelUpdate
         }
@@ -787,7 +787,7 @@ struct VPhoneCustomFirmwareInstaller {
         let work = try makeWorkDirectory()
         defer {
             do { try removeWorkDirectory(work) } catch {
-                fputs("warning: left CFW work directory at \(work.url.path): \(error)\n", stderr)
+                VPhoneConsole.shared.line("warning: left CFW work directory at \(work.url.path): \(error)", to: .error)
             }
         }
         try requireFreeSpace(at: [bundlePath, work.url.path])
@@ -854,7 +854,7 @@ struct VPhoneCustomFirmwareInstaller {
             throw ValidationError("Unable to find the VM's Preboot volume. Restore the VM, then install CFW again.")
         }
 
-        print("[*] \(mode.summary.capitalized): \(bundle.lastPathComponent)")
+        VPhoneConsole.shared.line("[*] \(mode.summary.capitalized): \(bundle.lastPathComponent)")
         let mount = work.file("preboot")
         _ = try work.directory.directory("preboot", create: true, mode: 0o700)
         var prebootMounted = false
@@ -887,13 +887,13 @@ struct VPhoneCustomFirmwareInstaller {
             guard let newBytes = try CustomFirmwarePostRestoreDeviceTree.kernelcacheReplacingPayload(
                 prebootIMG4: current, patchedKernelcache: patched,
             ) else {
-                print("  [.] Preboot kernelcache already matches the patched one — no change")
+                VPhoneConsole.shared.line("  [.] Preboot kernelcache already matches the patched one — no change")
                 return false
             }
             let staged = work.file("kernelcache.new")
             try newBytes.write(to: staged)
             try root.replaceFile(kernelcache, fromFileAt: staged, mode: meta.st_mode & 0o7777, owner: (meta.st_uid, meta.st_gid))
-            print("  [+] Preboot kernelcache replaced (\(current.count) -> \(newBytes.count) bytes), manifest kept")
+            VPhoneConsole.shared.line("  [+] Preboot kernelcache replaced (\(current.count) -> \(newBytes.count) bytes), manifest kept")
             return true
         }()
 
@@ -914,7 +914,7 @@ struct VPhoneCustomFirmwareInstaller {
             in: bundleDirectory,
             owner: invokingUser.map { ($0.uid, $0.gid) },
         )
-        print("[+] Guest kernel updated; start the VM to boot the re-patched kernelcache")
+        VPhoneConsole.shared.line("[+] Guest kernel updated; start the VM to boot the re-patched kernelcache")
     }
 
     /// The patched kernelcache (a bare IM4P) to install into Preboot, for the
@@ -956,7 +956,7 @@ struct VPhoneCustomFirmwareInstaller {
                         + "Run `fw patch` with the restore tree in place, then update the kernel again.",
                 )
             }
-            print("  [*] kernelcache mix taken from the restore tree (as `fw patch` last patched it)")
+            VPhoneConsole.shared.line("  [*] kernelcache mix taken from the restore tree (as `fw patch` last patched it)")
             return (data, Set(plan?.enabledPatches ?? []))
         }
         let selection = (try? bundleDirectory.readData(VPhonePatchPresetStore.selectionFileName))
@@ -992,7 +992,7 @@ struct VPhoneCustomFirmwareInstaller {
                 iOSBase: plan?.iOSBaseVersion.flatMap(VPhoneVersion.init),
                 cloudOS: plan?.cloudOSVersion.flatMap(VPhoneVersion.init),
             )
-            print("  [*] kernelcache re-patched from \(VPhoneBundleOperations.firmwareOriginalsDirectoryName)"
+            VPhoneConsole.shared.line("  [*] kernelcache re-patched from \(VPhoneBundleOperations.firmwareOriginalsDirectoryName)"
                 + (changed ? "" : " (preset leaves every kernel patch off)"))
             return try (Data(contentsOf: copy), Set(pipeline.resolvedPlan?.enabled ?? []))
         }
@@ -1001,7 +1001,7 @@ struct VPhoneCustomFirmwareInstaller {
         if let restore = try? restoreTree(in: bundleDirectory, path: bundlePath, owner: owner),
            let data = try? restore.readData("kernelcache.research.vphone600")
         {
-            print("  [*] kernelcache taken from the restore tree")
+            VPhoneConsole.shared.line("  [*] kernelcache taken from the restore tree")
             return (data, Set(plan?.enabledPatches ?? []))
         }
         throw ValidationError(
@@ -1057,7 +1057,7 @@ struct VPhoneCustomFirmwareInstaller {
                 owner: owner,
             )
         } catch {
-            fputs("warning: could not record the kernelcache receipt: \(error)\n", stderr)
+            VPhoneConsole.shared.line("warning: could not record the kernelcache receipt: \(error)", to: .error)
         }
     }
 
@@ -1107,7 +1107,7 @@ struct VPhoneCustomFirmwareInstaller {
                 owner: owner,
             )
         } catch {
-            fputs("warning: could not record the guest patch receipt: \(error)\n", stderr)
+            VPhoneConsole.shared.line("warning: could not record the guest patch receipt: \(error)", to: .error)
         }
     }
 
@@ -1161,7 +1161,7 @@ struct VPhoneCustomFirmwareInstaller {
                 try clear()
             }
         } catch {
-            fputs("warning: could not mark the install as in progress: \(error)\n", stderr)
+            VPhoneConsole.shared.line("warning: could not mark the install as in progress: \(error)", to: .error)
         }
     }
 
@@ -1284,7 +1284,7 @@ struct VPhoneCustomFirmwareInstaller {
                 var fs = statfs()
                 if statfs(path, &fs) == 0 {
                     capacity = Int64(fs.f_bavail) * Int64(fs.f_bsize)
-                    fputs("warning: Volume at \(path) reported 0 available space via resource keys, using statfs fallback: \(capacity / (1024 * 1024 * 1024)) GiB\n", stderr)
+                    VPhoneConsole.shared.line("warning: Volume at \(path) reported 0 available space via resource keys, using statfs fallback: \(capacity / (1024 * 1024 * 1024)) GiB", to: .error)
                 }
             }
             guard capacity > requiredGiB * 1024 * 1024 * 1024 else {
@@ -1420,7 +1420,7 @@ struct VPhoneCustomFirmwareInstaller {
                     && !FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches.contains(identifier)
             }
             guard plan.isEnabled(identifier) else {
-                print("  [·] \(identifier): off in preset \(plan.presetIdentifier)")
+                VPhoneConsole.shared.line("  [·] \(identifier): off in preset \(plan.presetIdentifier)")
                 return false
             }
             return true
@@ -1441,7 +1441,7 @@ struct VPhoneCustomFirmwareInstaller {
                 try body()
             } catch {
                 failures.append(contentsOf: ids)
-                print("  [!] \(ids.joined(separator: ", ")): patch step failed, left in its prior state: \(error)")
+                VPhoneConsole.shared.line("  [!] \(ids.joined(separator: ", ")): patch step failed, left in its prior state: \(error)")
                 for id in ids where priorGuest.contains(id) {
                     live.insert(id)
                 }
@@ -1474,9 +1474,9 @@ struct VPhoneCustomFirmwareInstaller {
                     }
                     live.insert(identifier)
                 } else if try revertMachO(system: system, work: work, path: path, bundle: bundle) {
-                    print("  [+] \(identifier): restored \(path) from backup")
+                    VPhoneConsole.shared.line("  [+] \(identifier): restored \(path) from backup")
                 } else if priorGuest.contains(identifier) {
-                    print("  [!] \(identifier): off now but no backup to revert; leaving the patched binary (not revertible)")
+                    VPhoneConsole.shared.line("  [!] \(identifier): off now but no backup to revert; leaving the patched binary (not revertible)")
                     live.insert(identifier)
                 }
             }
@@ -1497,7 +1497,7 @@ struct VPhoneCustomFirmwareInstaller {
                 }
                 live.insert(identifier)
             } else if priorGuest.contains(identifier) {
-                print("  [!] \(identifier): off now, but the swapped userland cannot be reverted without a restore")
+                VPhoneConsole.shared.line("  [!] \(identifier): off now, but the swapped userland cannot be reverted without a restore")
                 live.insert(identifier)
             }
         }
@@ -1506,7 +1506,7 @@ struct VPhoneCustomFirmwareInstaller {
             // disk/SEP/NVRAM snapshot can reverse a completed system update.
             live.insert(FirmwareGuestSystemPatchSet.otaUserland)
             if !on(FirmwareGuestSystemPatchSet.otaUserland) {
-                print("  [!] full OTA System update is not reverted by deselection; restore the stopped machine snapshot to roll back")
+                VPhoneConsole.shared.line("  [!] full OTA System update is not reverted by deselection; restore the stopped machine snapshot to roll back")
             }
         }
 
@@ -1612,7 +1612,7 @@ struct VPhoneCustomFirmwareInstaller {
                 throw error
             } catch {
                 failures.append(image.identifier)
-                print("  [!] \(image.identifier): patch step failed, left in its prior state: \(error)")
+                VPhoneConsole.shared.line("  [!] \(image.identifier): patch step failed, left in its prior state: \(error)")
                 if priorGuest.contains(image.identifier) { live.insert(image.identifier) }
             }
         }
@@ -1650,7 +1650,7 @@ struct VPhoneCustomFirmwareInstaller {
             // Expected: the preflight looks for the plain arm64e cache file,
             // and every iOS 27 guest ships a chunked X1 cache the later cache
             // stage measures directly. Nothing to report.
-            print("  [·] shared region check skipped: the cache is not a plain \(cacheArchitecture) file")
+            VPhoneConsole.shared.line("  [·] shared region check skipped: the cache is not a plain \(cacheArchitecture) file")
         }
 
         if guestDevice.hasPlainArm64Userland {
@@ -1706,7 +1706,7 @@ struct VPhoneCustomFirmwareInstaller {
                     } else {
                         try system.removeItem(marker)
                     }
-                    print("  [+] visionOS ForceNoBuddy policy \(enabled ? "enabled" : "removed; original key will be restored") by UID 501 on boot")
+                    VPhoneConsole.shared.line("  [+] visionOS ForceNoBuddy policy \(enabled ? "enabled" : "removed; original key will be restored") by UID 501 on boot")
                 }
             }
         }
@@ -1721,7 +1721,7 @@ struct VPhoneCustomFirmwareInstaller {
                                   verb: "patch-visionos-frame-pacing", backupSafe: backupSafe(pacing))
                     live.insert(pacing)
                 } else if try revertCopy(of: path, in: system) {
-                    print("  [+] \(pacing): restored wakeboardd from backup")
+                    VPhoneConsole.shared.line("  [+] \(pacing): restored wakeboardd from backup")
                 } else if priorGuest.contains(pacing) {
                     throw ValidationError("The visionOS frame pacing patch has no wakeboardd backup; cannot safely restore it.")
                 }
@@ -1754,7 +1754,7 @@ struct VPhoneCustomFirmwareInstaller {
                         fromPropertyList: journal, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
                     try system.writeFile(cachePath, contents: PropertyListSerialization.data(
                         fromPropertyList: cache, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
-                    print("  [+] visionOS panic-on-crash policy \(enabled ? "removed" : "restored"): \(changed.joined(separator: ", "))")
+                    VPhoneConsole.shared.line("  [+] visionOS panic-on-crash policy \(enabled ? "removed" : "restored"): \(changed.joined(separator: ", "))")
                     if enabled { live.insert(visionPolicy) }
                 }
             }
@@ -1786,7 +1786,7 @@ struct VPhoneCustomFirmwareInstaller {
                         fromPropertyList: journal, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
                     try system.writeFile(path, contents: PropertyListSerialization.data(
                         fromPropertyList: domain, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
-                    print("  [+] visionOS UXM feature fields \(enabled ? "set to legacy" : "restored"): \(changed.joined(separator: ", "))")
+                    VPhoneConsole.shared.line("  [+] visionOS UXM feature fields \(enabled ? "set to legacy" : "restored"): \(changed.joined(separator: ", "))")
                     if enabled { live.insert(visionUXM) }
                 }
             }
@@ -1821,7 +1821,7 @@ struct VPhoneCustomFirmwareInstaller {
                         fromPropertyList: journal, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
                     try system.writeFile(path, contents: PropertyListSerialization.data(
                         fromPropertyList: domain, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
-                    print("  [+] visionOS environment feature \(enabled ? "enabled" : "restored"): \(changed.joined(separator: ", "))")
+                    VPhoneConsole.shared.line("  [+] visionOS environment feature \(enabled ? "enabled" : "restored"): \(changed.joined(separator: ", "))")
                     if enabled { live.insert(visionEnvironments) }
                 }
             }
@@ -1844,7 +1844,7 @@ struct VPhoneCustomFirmwareInstaller {
                 live.insert(staging)
             } else if guestDevice.family == .homePod || priorGuest.contains(staging) {
                 if try revertMachO(system: system, work: work, path: executable) {
-                    print("  [+] \(staging): restored cryptexd from backup")
+                    VPhoneConsole.shared.line("  [+] \(staging): restored cryptexd from backup")
                 } else if priorGuest.contains(staging) {
                     // Keep the dependency while a patched daemon still needs it.
                     live.insert(staging)
@@ -2044,7 +2044,7 @@ struct VPhoneCustomFirmwareInstaller {
                     let metadata = try Data(contentsOf: staged)
                     try system.writeFile(surfaceMarker, contents: metadata, mode: 0o644, owner: Self.guestOwner)
                     live.insert(surface)
-                    print("  [+] \(surface): installed UUID-checked display adapter metadata")
+                    VPhoneConsole.shared.line("  [+] \(surface): installed UUID-checked display adapter metadata")
                 } else {
                     try system.removeItem(surfaceMarker)
                 }
@@ -2089,7 +2089,7 @@ struct VPhoneCustomFirmwareInstaller {
                 try installTextRecognitionModels(system: system)
                 textRecognitionModels = true
             } else if try CustomFirmwareTextRecognitionModels.uninstall(system: system) {
-                print("  [+] \(textRecognition): removed the TextRecognition model sources it added")
+                VPhoneConsole.shared.line("  [+] \(textRecognition): removed the TextRecognition model sources it added")
             }
         }
         if textRecognitionModels || plan?.isEnabled(textRecognition) != true {
@@ -2112,7 +2112,7 @@ struct VPhoneCustomFirmwareInstaller {
             } catch {
                 guard FirmwareGuestPatchResolution.isUnsupportedGLESLayout(error) else { throw error }
                 unavailableGLES.insert(id)
-                print("  [·] \(id): unsupported binary layout; no writes: \(error)")
+                VPhoneConsole.shared.line("  [·] \(id): unsupported binary layout; no writes: \(error)")
             }
         }
         if on(cacheKey) {
@@ -2179,9 +2179,9 @@ struct VPhoneCustomFirmwareInstaller {
         preservedGLES = policy.preserved
         live.formUnion(priorGuest.intersection(preservedGLES))
         if !preservedGLES.isEmpty {
-            print("  [·] GLES update prerequisites unavailable; preserving the installed GPU, compiler, renderer and cache group.")
+            VPhoneConsole.shared.line("  [·] GLES update prerequisites unavailable; preserving the installed GPU, compiler, renderer and cache group.")
         } else if skippedGLES.contains(depthClip) {
-            print("  [·] GLES signed depth clipping skipped as a pair; renderer and compiler retain the unconverted depth convention.")
+            VPhoneConsole.shared.line("  [·] GLES signed depth clipping skipped as a pair; renderer and compiler retain the unconverted depth convention.")
         }
         try applyDyldPatches(
             dyld.filter { !preservedGLES.contains($0.id) },
@@ -2217,9 +2217,9 @@ struct VPhoneCustomFirmwareInstaller {
                 )
                 live.insert(bluetoothID)
             } else if try revertCopy(of: bluetoothPath, in: system) {
-                print("  [+] \(bluetoothID): restored the Bluetooth feature flags")
+                VPhoneConsole.shared.line("  [+] \(bluetoothID): restored the Bluetooth feature flags")
             } else if priorGuest.contains(bluetoothID) {
-                print("  [!] \(bluetoothID): no backup to revert (not revertible)")
+                VPhoneConsole.shared.line("  [!] \(bluetoothID): no backup to revert (not revertible)")
                 live.insert(bluetoothID)
             }
         }
@@ -2236,9 +2236,9 @@ struct VPhoneCustomFirmwareInstaller {
                 )
                 live.insert(locationdID)
             } else if try revertCopy(of: locationdPath, in: system) {
-                print("  [+] \(locationdID): restored CoreLocation feature flags")
+                VPhoneConsole.shared.line("  [+] \(locationdID): restored CoreLocation feature flags")
             } else if priorGuest.contains(locationdID) {
-                print("  [!] \(locationdID): no backup to revert (not revertible)")
+                VPhoneConsole.shared.line("  [!] \(locationdID): no backup to revert (not revertible)")
                 live.insert(locationdID)
             }
         }
@@ -2270,9 +2270,9 @@ struct VPhoneCustomFirmwareInstaller {
                     }
                 }
                 if reverted {
-                    print("  [+] \(jetsamID): restored the jetsam properties")
+                    VPhoneConsole.shared.line("  [+] \(jetsamID): restored the jetsam properties")
                 } else if priorGuest.contains(jetsamID) {
-                    print("  [!] \(jetsamID): no backup to revert (not revertible)")
+                    VPhoneConsole.shared.line("  [!] \(jetsamID): no backup to revert (not revertible)")
                     live.insert(jetsamID)
                 }
             }
@@ -2299,7 +2299,7 @@ struct VPhoneCustomFirmwareInstaller {
                     reverted = true
                 }
                 if !reverted, priorGuest.contains(buildID) {
-                    print("  [!] \(buildID): off now but no backup to revert (not revertible)")
+                    VPhoneConsole.shared.line("  [!] \(buildID): off now but no backup to revert (not revertible)")
                     live.insert(buildID)
                 }
             }
@@ -2352,7 +2352,7 @@ struct VPhoneCustomFirmwareInstaller {
                 if let xart {
                     try renameGigalocker(xart: xart)
                 } else {
-                    print("  [·] system-gigalocker-boot-rename: xART not mounted; left as installed")
+                    VPhoneConsole.shared.line("  [·] system-gigalocker-boot-rename: xART not mounted; left as installed")
                 }
                 live.insert("system-gigalocker-boot-rename")
             }
@@ -2375,9 +2375,9 @@ struct VPhoneCustomFirmwareInstaller {
                     }
                     gpuBundleReinstalled = true
                 } else {
-                    print("  [·] system-extensions-boot-gpu_bundle: no restore tree; GPU bundle left as installed")
+                    VPhoneConsole.shared.line("  [·] system-extensions-boot-gpu_bundle: no restore tree; GPU bundle left as installed")
                     if !guestDevice.usesTVOS, try refreshGPUCompilerPlugin(system: system) {
-                        print("  [+] system-extensions-boot-gpu_bundle: compiler plugin updated from this bundle")
+                        VPhoneConsole.shared.line("  [+] system-extensions-boot-gpu_bundle: compiler plugin updated from this bundle")
                     }
                 }
                 live.insert("system-extensions-boot-gpu_bundle")
@@ -2476,10 +2476,10 @@ struct VPhoneCustomFirmwareInstaller {
                     live.insert(patch.id)
                 }
             } else if try revertMachO(system: system, work: work, path: gpuDriver, bundle: gpuBundle) {
-                print("  [+] \(gpuDriver) restored from backup (GPU driver patches off)")
+                VPhoneConsole.shared.line("  [+] \(gpuDriver) restored from backup (GPU driver patches off)")
             } else if !gpuBundleReinstalled {
                 for patch in gpuDriverPatches where priorGuest.contains(patch.id) {
-                    print("  [!] \(patch.id): off now but no backup to revert; leaving the patched driver (not revertible)")
+                    VPhoneConsole.shared.line("  [!] \(patch.id): off now but no backup to revert; leaving the patched driver (not revertible)")
                     live.insert(patch.id)
                 }
             }
@@ -2505,9 +2505,9 @@ struct VPhoneCustomFirmwareInstaller {
                 try patchWatchdog(system: system, work: work)
                 live.insert("system-watchdogd-exp-hv_vmm_cache")
             } else if try revertMachO(system: system, work: work, path: "usr/libexec/watchdogd") {
-                print("  [+] system-watchdogd-exp-hv_vmm_cache: restored watchdogd from backup")
+                VPhoneConsole.shared.line("  [+] system-watchdogd-exp-hv_vmm_cache: restored watchdogd from backup")
             } else if priorGuest.contains("system-watchdogd-exp-hv_vmm_cache") {
-                print("  [!] system-watchdogd-exp-hv_vmm_cache: off now but no backup to revert (not revertible)")
+                VPhoneConsole.shared.line("  [!] system-watchdogd-exp-hv_vmm_cache: off now but no backup to revert (not revertible)")
                 live.insert("system-watchdogd-exp-hv_vmm_cache")
             }
         }
@@ -2520,7 +2520,7 @@ struct VPhoneCustomFirmwareInstaller {
         } else {
             isolate([FirmwareGuestSystemPatchSet.virtioSoundDriver]) {
                 if try revertVirtioSoundDriver(system: system) {
-                    print("  [+] \(FirmwareGuestSystemPatchSet.virtioSoundDriver): removed the virtio sound driver")
+                    VPhoneConsole.shared.line("  [+] \(FirmwareGuestSystemPatchSet.virtioSoundDriver): removed the virtio sound driver")
                 }
             }
         }
@@ -2546,7 +2546,7 @@ struct VPhoneCustomFirmwareInstaller {
             try detachSharedFiles(system: system, bundle: virtualAudioBundle)
             if !virtualAudioOn.isEmpty {
                 guard try system.isRegularFile(virtualAudioBinary) else {
-                    print("  [·] VirtualAudio: not on this VM, left out")
+                    VPhoneConsole.shared.line("  [·] VirtualAudio: not on this VM, left out")
                     return
                 }
                 try patchMachO(
@@ -2558,10 +2558,10 @@ struct VPhoneCustomFirmwareInstaller {
                     live.insert(patch.id)
                 }
             } else if try revertMachO(system: system, work: work, path: virtualAudioBinary, bundle: virtualAudioBundle) {
-                print("  [+] VirtualAudio restored from backup (all speaker/mute patches off)")
+                VPhoneConsole.shared.line("  [+] VirtualAudio restored from backup (all speaker/mute patches off)")
             } else {
                 for patch in virtualAudio where priorGuest.contains(patch.id) {
-                    print("  [!] \(patch.id): off now but no VirtualAudio backup to revert (not revertible)")
+                    VPhoneConsole.shared.line("  [!] \(patch.id): off now but no VirtualAudio backup to revert (not revertible)")
                     live.insert(patch.id)
                 }
             }
@@ -2592,7 +2592,7 @@ struct VPhoneCustomFirmwareInstaller {
                 }
             } else if !hadGraphBackup {
                 for entry in graphGroup where priorGuest.contains(entry.id) {
-                    print("  [!] \(entry.id): off now but no tuning-plist backup to revert (not revertible)")
+                    VPhoneConsole.shared.line("  [!] \(entry.id): off now but no tuning-plist backup to revert (not revertible)")
                     live.insert(entry.id)
                 }
             }
@@ -2623,7 +2623,7 @@ struct VPhoneCustomFirmwareInstaller {
                     try system.writeFile(marker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
                     live.insert(visionIPC)
                     visionIPCInstalled = true
-                    print("  [+] \(visionIPC): installed scoped native UXM/Polaris IPC adapter")
+                    VPhoneConsole.shared.line("  [+] \(visionIPC): installed scoped native UXM/Polaris IPC adapter")
                 } else if hadMarker {
                     guard try revertMachO(system: system, work: work, path: "sbin/launchd") else {
                         if priorGuest.contains(visionIPC) { live.insert(visionIPC) }
@@ -2661,17 +2661,17 @@ struct VPhoneCustomFirmwareInstaller {
                                    preserveEntitlements: true, injectedDylibPath: "/vp")
                     try system.writeFile(personaMarker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
                     live.insert(personaPatch)
-                    print("  [+] \(personaPatch): installed scoped HomePod UserManager adapter")
+                    VPhoneConsole.shared.line("  [+] \(personaPatch): installed scoped HomePod UserManager adapter")
                     if jetsam {
                         live.insert(launchdJetsam)
-                        print("  [+] \(launchdJetsam): patched into HomePod launchd")
+                        VPhoneConsole.shared.line("  [+] \(launchdJetsam): patched into HomePod launchd")
                     }
                 } else {
                     if on(launchdJetsam) {
-                        print("  [!] \(launchdJetsam): HomePod patches launchd only with \(personaPatch); skipped")
+                        VPhoneConsole.shared.line("  [!] \(launchdJetsam): HomePod patches launchd only with \(personaPatch); skipped")
                     }
                     if try revertMachO(system: system, work: work, path: "sbin/launchd") {
-                        print("  [+] \(personaPatch): restored HomePod launchd from backup")
+                        VPhoneConsole.shared.line("  [+] \(personaPatch): restored HomePod launchd from backup")
                     } else if priorGuest.contains(personaPatch) {
                         live.insert(personaPatch)
                         throw ValidationError("HomePod persona compatibility has no launchd backup; cannot safely remove its library.")
@@ -2723,10 +2723,10 @@ struct VPhoneCustomFirmwareInstaller {
                     }
                 }
                 try system.removeItem(portsMarker)
-                print("  [+] launchd patches: restored sbin/launchd from backup")
+                VPhoneConsole.shared.line("  [+] launchd patches: restored sbin/launchd from backup")
             } else {
                 for identifier in [launchdJetsam, launchdX1, launchdPorts] where priorGuest.contains(identifier) {
-                    print("  [!] \(identifier): off now but no backup to revert; leaving launchd patched (not revertible)")
+                    VPhoneConsole.shared.line("  [!] \(identifier): off now but no backup to revert; leaving launchd patched (not revertible)")
                     live.insert(identifier)
                 }
                 if !priorGuest.contains(launchdPorts) { try system.removeItem(portsMarker) }
@@ -2763,10 +2763,10 @@ struct VPhoneCustomFirmwareInstaller {
                         try system.writeFile(marker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
                         live.insert(rule.id)
                         let caller = rule.id == FirmwareGuestSystemPatchSet.visionOSEnvironmentIPC ? "RealityEnvironment" : "backboardd"
-                        print("  [+] \(rule.id): enabled only \(caller)'s lookup of \(rule.service)")
+                        VPhoneConsole.shared.line("  [+] \(rule.id): enabled only \(caller)'s lookup of \(rule.service)")
                     } else if try system.exists(marker) {
                         try system.removeItem(marker)
-                        print("  [+] \(rule.id): removed its independent enable marker")
+                        VPhoneConsole.shared.line("  [+] \(rule.id): removed its independent enable marker")
                     }
                 }
             }
@@ -2800,7 +2800,7 @@ struct VPhoneCustomFirmwareInstaller {
                 live.insert(adHocInstall)
             } else if isHomePod || priorGuest.contains(adHocInstall) {
                 if try revertMachO(system: system, work: work, path: executable) {
-                    print("  [+] \(adHocInstall): restored installd from backup")
+                    VPhoneConsole.shared.line("  [+] \(adHocInstall): restored installd from backup")
                 } else if priorGuest.contains(adHocInstall) {
                     live.insert(adHocInstall)
                     throw ValidationError("HomePod ad-hoc installation has no installd backup; cannot safely remove its library.")
@@ -2821,9 +2821,9 @@ struct VPhoneCustomFirmwareInstaller {
                     live.insert("system-debugserver-cfw-install")
                 }
             } else if try revertMachO(system: system, work: work, path: "usr/libexec/debugserver") {
-                print("  [+] system-debugserver-cfw-install: restored debugserver from backup")
+                VPhoneConsole.shared.line("  [+] system-debugserver-cfw-install: restored debugserver from backup")
             } else if priorGuest.contains("system-debugserver-cfw-install") {
-                print("  [!] system-debugserver-cfw-install: off now but no backup to revert (not revertible)")
+                VPhoneConsole.shared.line("  [!] system-debugserver-cfw-install: off now but no backup to revert (not revertible)")
                 live.insert("system-debugserver-cfw-install")
             }
         }
@@ -2835,9 +2835,9 @@ struct VPhoneCustomFirmwareInstaller {
                         live.insert("system-campo-cfw-entitlements")
                     }
                 } else if try revertMachO(system: system, work: work, path: "Applications/Campo.app/Campo") {
-                    print("  [+] system-campo-cfw-entitlements: restored Campo from backup")
+                    VPhoneConsole.shared.line("  [+] system-campo-cfw-entitlements: restored Campo from backup")
                 } else if priorGuest.contains("system-campo-cfw-entitlements") {
-                    print("  [!] system-campo-cfw-entitlements: off now but no backup to revert (not revertible)")
+                    VPhoneConsole.shared.line("  [!] system-campo-cfw-entitlements: off now but no backup to revert (not revertible)")
                     live.insert("system-campo-cfw-entitlements")
                 }
             }
@@ -2857,7 +2857,7 @@ struct VPhoneCustomFirmwareInstaller {
                     live.insert(homeViewDisplay)
                     throw ValidationError("BreadBoard has no executable backup; cannot restore its original entitlements.")
                 }
-                print("  [+] \(homeViewDisplay): restored BreadBoard from backup")
+                VPhoneConsole.shared.line("  [+] \(homeViewDisplay): restored BreadBoard from backup")
             }
         }
 
@@ -2873,7 +2873,7 @@ struct VPhoneCustomFirmwareInstaller {
                     live.insert(homeViewProfile)
                     throw ValidationError("userprofilesd has no executable backup; cannot restore its original entitlements.")
                 }
-                print("  [+] \(homeViewProfile): restored userprofilesd from backup")
+                VPhoneConsole.shared.line("  [+] \(homeViewProfile): restored userprofilesd from backup")
             }
         }
 
@@ -2887,9 +2887,9 @@ struct VPhoneCustomFirmwareInstaller {
                 )
                 live.insert(tvLegacySetup)
             } else if try revertCopy(of: tvSetupFlags, in: system) {
-                print("  [+] \(tvLegacySetup): restored CompanionServices feature flags")
+                VPhoneConsole.shared.line("  [+] \(tvLegacySetup): restored CompanionServices feature flags")
             } else if priorGuest.contains(tvLegacySetup) {
-                print("  [!] \(tvLegacySetup): no backup to revert (not revertible)")
+                VPhoneConsole.shared.line("  [!] \(tvLegacySetup): no backup to revert (not revertible)")
                 live.insert(tvLegacySetup)
             }
         }
@@ -2910,7 +2910,7 @@ struct VPhoneCustomFirmwareInstaller {
                 live.insert(tvSetupFocus)
             } else {
                 if try revertMachO(system: system, work: work, path: executable, bundle: "Applications/Setup.app", preserveEntitlements: true) {
-                    print("  [+] \(tvSetupFocus): restored Setup from backup")
+                    VPhoneConsole.shared.line("  [+] \(tvSetupFocus): restored Setup from backup")
                 } else if priorGuest.contains(tvSetupFocus) {
                     live.insert(tvSetupFocus)
                     throw ValidationError("TV setup focus adapter has no Setup backup; cannot safely remove its library.")
@@ -2933,9 +2933,9 @@ struct VPhoneCustomFirmwareInstaller {
                     live.insert(tvSetupLookup)
                 }
             } else if try revertMachO(system: system, work: work, path: tvSetupBackground) {
-                print("  [+] \(tvSetupLookup): restored SetupBackground from backup")
+                VPhoneConsole.shared.line("  [+] \(tvSetupLookup): restored SetupBackground from backup")
             } else if priorGuest.contains(tvSetupLookup) {
-                print("  [!] \(tvSetupLookup): off now but no backup to revert (not revertible)")
+                VPhoneConsole.shared.line("  [!] \(tvSetupLookup): off now but no backup to revert (not revertible)")
                 live.insert(tvSetupLookup)
             }
         }
@@ -2945,12 +2945,12 @@ struct VPhoneCustomFirmwareInstaller {
             // received it. Platform Protobox profiles ignore that exception.
             let proxy = "System/Library/PrivateFrameworks/InstallCoordination.framework/Support/installcoordination_proxy"
             if priorGuest.contains(personaPatch), try revertMachO(system: system, work: work, path: proxy) {
-                print("  [+] \(personaPatch): restored proxy before enabling launchd compatibility")
+                VPhoneConsole.shared.line("  [+] \(personaPatch): restored proxy before enabling launchd compatibility")
             }
             if version.hasPrefix("27."), on(personaPatch) {
                 try system.writeFile(personaMarker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
                 live.insert(personaPatch)
-                print("  [+] \(personaPatch): enabled scoped UserManager lookup")
+                VPhoneConsole.shared.line("  [+] \(personaPatch): enabled scoped UserManager lookup")
             } else {
                 try system.removeItem(personaMarker)
             }
@@ -2998,7 +2998,7 @@ struct VPhoneCustomFirmwareInstaller {
                 let driver = info?["DTPlatformVersion"] as? String ?? "unknown"
                 guard VPhonePCCGPUDriver.release(driver) == "18.6" else {
                     try system.removeItem(gpuTransportMarker)
-                    print("  [!] \(gpuTransportPatch): the installed GPU driver is for \(driver); run fw prepare again to stage the cloudOS 18.6 driver")
+                    VPhoneConsole.shared.line("  [!] \(gpuTransportPatch): the installed GPU driver is for \(driver); run fw prepare again to stage the cloudOS 18.6 driver")
                     return
                 }
                 // Written once: vphoned drops the icons IconServices stored
@@ -3006,7 +3006,7 @@ struct VPhoneCustomFirmwareInstaller {
                 let marker = Data((version == "17.7" ? "2\n" : "1\n").utf8)
                 if (try? system.readData(gpuTransportMarker)) != marker {
                     try system.writeFile(gpuTransportMarker, contents: marker, mode: 0o644, owner: Self.guestOwner)
-                    print("  [+] \(gpuTransportPatch): on over the iOS \(driver) GPU driver")
+                    VPhoneConsole.shared.line("  [+] \(gpuTransportPatch): on over the iOS \(driver) GPU driver")
                 }
                 live.insert(gpuTransportPatch)
             } else {
@@ -3039,7 +3039,7 @@ struct VPhoneCustomFirmwareInstaller {
         }
 
         if !failures.isEmpty {
-            print("[!] \(failures.count) guest patch(es) failed and were left in their prior state: \(Set(failures).sorted().joined(separator: ", "))")
+            VPhoneConsole.shared.line("[!] \(failures.count) guest patch(es) failed and were left in their prior state: \(Set(failures).sorted().joined(separator: ", "))")
             if strict {
                 throw ValidationError("OTA compatibility patches failed; the private disk clone was discarded: \(Set(failures).sorted().joined(separator: ", "))")
             }
@@ -3107,7 +3107,7 @@ struct VPhoneCustomFirmwareInstaller {
             do {
                 try patch("patch-dsc-undo-words", [dsc, "--undo-log", undoAbsolute])
             } catch {
-                print("  [!] dyld undo log: keeping the X1 page runs as they are: \(error)")
+                VPhoneConsole.shared.line("  [!] dyld undo log: keeping the X1 page runs as they are: \(error)")
             }
         }
         let undoWords = DyldSharedCacheUndoLog.wordsPath(forLog: undoRelative)
@@ -3131,17 +3131,17 @@ struct VPhoneCustomFirmwareInstaller {
                         try patch(entry.verb, entry.args + ["--undo-log", undoAbsolute, "--undo-id", entry.id])
                     } catch {
                         failures.append(entry.id)
-                        print("  [!] \(entry.id): re-running the applied patch failed, left as it was: \(error)")
+                        VPhoneConsole.shared.line("  [!] \(entry.id): re-running the applied patch failed, left as it was: \(error)")
                         try requireBootstrap(entry.id, error: error)
                     }
                 } else if let undoLog, undoLog.hasOutdatedImplementation(of: entry.id) {
-                    print("  [*] \(entry.id): an earlier implementation is applied; reverting it and applying the current one")
+                    VPhoneConsole.shared.line("  [*] \(entry.id): an earlier implementation is applied; reverting it and applying the current one")
                     do {
                         try patch("patch-dsc-revert", [dsc, "--undo-log", undoAbsolute, "--patch", entry.id])
                     } catch {
                         failures.append(entry.id)
                         live.insert(entry.id)
-                        print("  [!] \(entry.id): reverting the earlier implementation failed, left as it was: \(error)")
+                        VPhoneConsole.shared.line("  [!] \(entry.id): reverting the earlier implementation failed, left as it was: \(error)")
                         try requireBootstrap(entry.id, error: error)
                         continue
                     }
@@ -3149,7 +3149,7 @@ struct VPhoneCustomFirmwareInstaller {
                         try patch(entry.verb, entry.args + ["--undo-log", undoAbsolute, "--undo-id", entry.id])
                     } catch {
                         failures.append(entry.id)
-                        print("  [!] \(entry.id): the earlier implementation was reverted but the current one failed; the cache is unpatched for it: \(error)")
+                        VPhoneConsole.shared.line("  [!] \(entry.id): the earlier implementation was reverted but the current one failed; the cache is unpatched for it: \(error)")
                         try requireBootstrap(entry.id, error: error)
                         continue
                     }
@@ -3161,14 +3161,14 @@ struct VPhoneCustomFirmwareInstaller {
                     live.insert(entry.id)
                 } catch {
                     failures.append(entry.id)
-                    print("  [!] \(entry.id): dyld patch failed; inspect the error for recovery details: \(error)")
+                    VPhoneConsole.shared.line("  [!] \(entry.id): dyld patch failed; inspect the error for recovery details: \(error)")
                     try requireBootstrap(entry.id, error: error)
                 }
             case (false, true):
                 if recorded.contains(entry.id) {
                     revertable.append(entry.id)
                 } else {
-                    print("  [!] \(entry.id): off now but the dyld undo log has no record (patched before the undo log existed); not revertible")
+                    VPhoneConsole.shared.line("  [!] \(entry.id): off now but the dyld undo log has no record (patched before the undo log existed); not revertible")
                     live.insert(entry.id)
                 }
             case (false, false):
@@ -3180,7 +3180,7 @@ struct VPhoneCustomFirmwareInstaller {
                 try patch("patch-dsc-revert", [dsc, "--undo-log", undoAbsolute] + revertable.flatMap { ["--patch", $0] })
             } catch {
                 failures.append(contentsOf: revertable)
-                print("  [!] dyld revert failed, left in prior state: \(error)")
+                VPhoneConsole.shared.line("  [!] dyld revert failed, left in prior state: \(error)")
                 for id in revertable {
                     live.insert(id)
                 }
@@ -3197,7 +3197,7 @@ struct VPhoneCustomFirmwareInstaller {
         let journal = try CustomFirmwareTextRecognitionModels.readJournal(system: system)
         let models = try CustomFirmwareTextRecognitionModels.plan(system: system, host: host, journal: journal)
         try CustomFirmwareTextRecognitionModels.install(models, system: system, journal: journal, owner: Self.guestOwner)
-        print("  [+] TextRecognition E5 sources from the host: \(models.models.joined(separator: ", "))")
+        VPhoneConsole.shared.line("  [+] TextRecognition E5 sources from the host: \(models.models.joined(separator: ", "))")
     }
 
     /// Restore a guest Mach-O from its `.bak`, re-sealing the bundle it lives in
@@ -3273,7 +3273,7 @@ struct VPhoneCustomFirmwareInstaller {
                 allowed: Set(selection.allowedPatches),
             )
         else {
-            print("[!] Preset \(plan.presetIdentifier) does not resolve from bundled sets; applying the plan as recorded")
+            VPhoneConsole.shared.line("[!] Preset \(plan.presetIdentifier) does not resolve from bundled sets; applying the plan as recorded")
             return plan
         }
         let planEnabled = Set(plan.enabledPatches)
@@ -3282,10 +3282,10 @@ struct VPhoneCustomFirmwareInstaller {
             selectionEnabled: resolved.enabled,
         )
         for added in effective.subtracting(planEnabled).sorted() {
-            print("[*] \(added): on in the current selection, newer than this VM's patch plan")
+            VPhoneConsole.shared.line("[*] \(added): on in the current selection, newer than this VM's patch plan")
         }
         for dropped in planEnabled.subtracting(effective).sorted() {
-            print("[*] \(dropped): off in the current selection; the guest half will revert it")
+            VPhoneConsole.shared.line("[*] \(dropped): off in the current selection; the guest half will revert it")
         }
         plan.enabledPatches = effective.sorted()
         return plan
@@ -3294,14 +3294,14 @@ struct VPhoneCustomFirmwareInstaller {
     /// The plan `fw patch` wrote into the VM, or nil when it never ran with one.
     private func readPatchPlan(in bundleDirectory: VPhoneConfinedDirectory) -> VPhoneVirtualMachinePatchPlan? {
         guard let data = try? bundleDirectory.readData(VPhonePatchPresetStore.planFileName) else {
-            print("[*] No patch plan recorded; applying every guest patch")
+            VPhoneConsole.shared.line("[*] No patch plan recorded; applying every guest patch")
             return nil
         }
         guard let plan = try? PropertyListDecoder().decode(
             VPhoneVirtualMachinePatchPlan.self,
             from: data,
         ) else {
-            print("[!] \(VPhonePatchPresetStore.planFileName) is unreadable; applying every guest patch")
+            VPhoneConsole.shared.line("[!] \(VPhonePatchPresetStore.planFileName) is unreadable; applying every guest patch")
             return nil
         }
         VPhoneConsole.shared.line("[*] Patch preset: \(plan.presetIdentifier)  (\(plan.enabledPatches.count) patches on)", .step)
@@ -3345,7 +3345,7 @@ struct VPhoneCustomFirmwareInstaller {
             let manifest = work.file("iPhone-BuildManifest.plist")
             try restore.readData("iPhone-BuildManifest.plist").write(to: manifest)
             guard case let .cryptex(paths) = try CustomFirmwareDaemons.filesystemLayout(buildManifest: manifest) else {
-                print("[*] Monolithic tvOS system image: no cryptex files to install")
+                VPhoneConsole.shared.line("[*] Monolithic tvOS system image: no cryptex files to install")
                 return
             }
             // Root attaches and decrypts only private copies of the images,
@@ -3457,7 +3457,7 @@ struct VPhoneCustomFirmwareInstaller {
         }
         try detachImage(at: mount)
         attached = false
-        print("  [+] OTA target system-app programs staged; encrypted Data was not mounted")
+        VPhoneConsole.shared.line("  [+] OTA target system-app programs staged; encrypted Data was not mounted")
     }
 
     /// Open a manifest-named image inside the restore tree without following
@@ -3610,7 +3610,7 @@ struct VPhoneCustomFirmwareInstaller {
         let chunkList = try ota.readData(VPhoneOTAArchive.chunkListName)
         if [FirmwareGuestSystemPatchSet.tvOTAUserland, FirmwareGuestSystemPatchSet.homePodOTAUserland].contains(identifier),
            try system.isRegularFile(marker), try system.readData(marker) == chunkList {
-            print("  [·] \(identifier): userland already in place")
+            VPhoneConsole.shared.line("  [·] \(identifier): userland already in place")
             return
         }
         let chunks = try ota.entries()
@@ -3641,7 +3641,7 @@ struct VPhoneCustomFirmwareInstaller {
             }
             try VPhoneOTAArchive.validatePayloadPaths(chunks.map { work.file($0) }, hardLinks: linkList)
         }
-        print("  [*] \(identifier): replacing the System volume with \(chunks.count) OTA payload chunks")
+        VPhoneConsole.shared.line("  [*] \(identifier): replacing the System volume with \(chunks.count) OTA payload chunks")
         for entry in try system.entries() {
             _ = try system.removeItem(entry)
         }
@@ -3652,11 +3652,11 @@ struct VPhoneCustomFirmwareInstaller {
         }
         if let linkList {
             let count = try VPhoneOTAArchive.installHardLinks(linkList, in: system)
-            print("  [+] \(identifier): installed \(count) OTA hard links")
+            VPhoneConsole.shared.line("  [+] \(identifier): installed \(count) OTA hard links")
             try work.directory.removeItem(VPhoneOTAArchive.hardLinkListName)
         }
         try system.writeFile(marker, contents: chunkList, mode: 0o644, owner: Self.guestOwner)
-        print("  [+] \(identifier): userland extracted")
+        VPhoneConsole.shared.line("  [+] \(identifier): userland extracted")
     }
 
     /// The OTA supplies the complete HomePod System; its original 27.0 IPSW
@@ -3729,7 +3729,7 @@ struct VPhoneCustomFirmwareInstaller {
             try system.replaceFile(path, fromFileAt: staged, mode: 0o755, owner: Self.guestOwner)
         }
         try sealGuestBundle(system: system, bundle: gpu)
-        print("  [+] GPU driver retargeted to \(platform == MachOBuildPlatform.visionOS ? "visionOS" : "tvOS")")
+        VPhoneConsole.shared.line("  [+] GPU driver retargeted to \(platform == MachOBuildPlatform.visionOS ? "visionOS" : "tvOS")")
     }
 
     /// IOHIDUserDevice reserves IOClass. The shim supplies MiniDisplay's class
@@ -3955,7 +3955,7 @@ struct VPhoneCustomFirmwareInstaller {
             }
             let path = "usr/lib/\(name)"
             if narrow, try !system.exists(path) {
-                print("  [·] \(path): not on this VM, left out")
+                VPhoneConsole.shared.line("  [·] \(path): not on this VM, left out")
                 continue
             }
             let shipped = try VPhoneGuestBinaries.resolve(name)
@@ -3968,7 +3968,7 @@ struct VPhoneCustomFirmwareInstaller {
             try installLibraryAlias(system: system, alias: "vh", target: "/usr/lib/launchdhook-vphone.dylib")
         }
         if tvOS {
-            print("  [+] Environment hooks retargeted to tvOS: \(VPhoneGuestEnvironment.tvLibraries.joined(separator: ", "))")
+            VPhoneConsole.shared.line("  [+] Environment hooks retargeted to tvOS: \(VPhoneGuestEnvironment.tvLibraries.joined(separator: ", "))")
         } else {
             try installMISFixDefaults(system: system)
         }
@@ -4004,7 +4004,7 @@ struct VPhoneCustomFirmwareInstaller {
             removed = true
         }
         if removed {
-            print("  [+] system-launchdaemons-boot-environment: removed the TV environment hooks")
+            VPhoneConsole.shared.line("  [+] system-launchdaemons-boot-environment: removed the TV environment hooks")
         }
     }
 
@@ -4048,9 +4048,9 @@ struct VPhoneCustomFirmwareInstaller {
             info["CFBundleSupportedPlatforms"] = ["AppleTVOS"]
             try system.writeFile(infoPath, contents: PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0), mode: 0o644, owner: Self.guestOwner)
             try sealGuestBundle(system: system, bundle: target)
-            print("  [+] Virtio sound driver retargeted to tvOS")
+            VPhoneConsole.shared.line("  [+] Virtio sound driver retargeted to tvOS")
         }
-        print("  [+] /\(target)")
+        VPhoneConsole.shared.line("  [+] /\(target)")
     }
 
     /// A symlink at the volume root, so a load command in a binary with little
@@ -4083,7 +4083,7 @@ struct VPhoneCustomFirmwareInstaller {
             // The iOS 17 desktop selection owns this executable and its backup.
             if preserveSpringBoard && path == "System/Library/CoreServices/SpringBoard.app/SpringBoard" { continue }
             try system.rename("\(path).bak", to: path)
-            print("  [+] \(path): restored the original, libmisfix is inserted at spawn")
+            VPhoneConsole.shared.line("  [+] \(path): restored the original, libmisfix is inserted at spawn")
         }
         if try system.isSymlink("mf"), try system.readLink("mf") == "/usr/lib/libmisfix.dylib" {
             try system.removeItem("mf")
@@ -4099,7 +4099,7 @@ struct VPhoneCustomFirmwareInstaller {
         let name = "libmisfix.plist"
         let path = "usr/lib/\(name)"
         guard try !system.exists(path) else {
-            print("  [·] \(path): already present, left as it is")
+            VPhoneConsole.shared.line("  [·] \(path): already present, left as it is")
             return
         }
         let source = try VPhoneGuestBinaries.resolve(name)
@@ -4181,11 +4181,11 @@ struct VPhoneCustomFirmwareInstaller {
         var rewriteIdentity = false
         if includeIdentity {
             if guestDevice.presentsBoard {
-                print("  [·] \(identity): skipped, the device tree already presents \(guestDevice.productType)")
+                VPhoneConsole.shared.line("  [·] \(identity): skipped, the device tree already presents \(guestDevice.productType)")
             } else {
                 rewriteIdentity = enabled(identity)
                 if !rewriteIdentity {
-                    print("  [·] \(identity): off in the current selection")
+                    VPhoneConsole.shared.line("  [·] \(identity): off in the current selection")
                 }
             }
         } else if priorGuest.contains(identity) {
@@ -4245,7 +4245,7 @@ struct VPhoneCustomFirmwareInstaller {
         repairGroup.append((FirmwareGuestSystemPatchSet.prebootMicrophoneArray, "patch-dt-microphone-array", []))
         let repairsOn = repairGroup.filter { enabled($0.id) }
         for off in repairGroup where !enabled(off.id) {
-            print("  [·] \(off.id): off in the current selection")
+            VPhoneConsole.shared.line("  [·] \(off.id): off in the current selection")
         }
 
         let buildID = "system-systemversion-cfw-build_version"
@@ -4294,7 +4294,7 @@ struct VPhoneCustomFirmwareInstaller {
                     let staged = work.file("\(fourcc).new")
                     try updated.write(to: staged)
                     try root.replaceFile(path, fromFileAt: staged, mode: meta.st_mode & 0o7777, owner: (meta.st_uid, meta.st_gid))
-                    print("  [+] OTA Preboot \(label) updated; personalized manifest retained")
+                    VPhoneConsole.shared.line("  [+] OTA Preboot \(label) updated; personalized manifest retained")
                 }
                 let kernels = try root.entries().compactMap { name -> String? in
                     let path = "\(name)/System/Library/Caches/com.apple.kernelcaches/kernelcache"
@@ -4402,7 +4402,7 @@ struct VPhoneCustomFirmwareInstaller {
             }
         } else if !backupSafe {
             for repair in repairGroup where priorGuest.contains(repair.id) {
-                print("  [!] \(repair.id): off now but no device-tree backup to revert (not revertible)")
+                VPhoneConsole.shared.line("  [!] \(repair.id): off now but no device-tree backup to revert (not revertible)")
                 live.insert(repair.id)
             }
         }
@@ -4453,7 +4453,7 @@ struct VPhoneCustomFirmwareInstaller {
             )
         }
         try board.directory.copyFile(from: board.name, to: board.name, in: work.directory)
-        print("[*] Board device tree: \(board.path)")
+        VPhoneConsole.shared.line("[*] Board device tree: \(board.path)")
         return work.file(board.name)
     }
 
@@ -4508,29 +4508,29 @@ struct VPhoneCustomFirmwareInstaller {
             case .none, .kept:
                 return
             case .unidentified:
-                print("\(skipped) \(originals) has no \(tree), and the VM folder does not say which IPSW it was made from. Copy \(device.boardDeviceTreePath) from that IPSW into \(bundle.path)/\(originals)/<restore tree>/Firmware/all_flash/, then run this again.")
+                VPhoneConsole.shared.line("\(skipped) \(originals) has no \(tree), and the VM folder does not say which IPSW it was made from. Copy \(device.boardDeviceTreePath) from that IPSW into \(bundle.path)/\(originals)/<restore tree>/Firmware/all_flash/, then run this again.")
                 return
             case let .recover(found):
                 firmware = found
             }
             let directories = VPhoneBoardDeviceTree.searchDirectories(forVirtualMachineAt: bundle)
             let fix = "Put that IPSW in \(directories[0].path), or copy its \(device.boardDeviceTreePath) to \(bundle.path)/\(firmware.keptPath), then run this again."
-            print("[*] \(originals) has no \(tree); looking for the \(device.productType) \(firmware.version) (\(firmware.build)) IPSW in \(directories.map(\.path).joined(separator: ", "))")
+            VPhoneConsole.shared.line("[*] \(originals) has no \(tree); looking for the \(device.productType) \(firmware.version) (\(firmware.build)) IPSW in \(directories.map(\.path).joined(separator: ", "))")
             let recover = { () throws -> (source: VPhoneBoardDeviceTree.Source, path: String)? in
                 guard let source = VPhoneBoardDeviceTree.find(firmware, in: directories) else { return nil }
                 return try (source, VPhoneBoardDeviceTree.store(source, for: firmware, in: bundleDirectory))
             }
             do {
                 guard let recovered = try invokingUser.map({ try $0.withUserCredentials(recover) }) ?? recover() else {
-                    print("\(skipped) no IPSW for \(device.productType) \(firmware.version) (\(firmware.build)) was found, and \(originals) has no \(tree). \(fix)")
+                    VPhoneConsole.shared.line("\(skipped) no IPSW for \(device.productType) \(firmware.version) (\(firmware.build)) was found, and \(originals) has no \(tree). \(fix)")
                     return
                 }
-                print("[+] Board device tree recovered: \(recovered.source.member) from \(recovered.source.archive.path), kept as \(recovered.path)")
+                VPhoneConsole.shared.line("[+] Board device tree recovered: \(recovered.source.member) from \(recovered.source.archive.path), kept as \(recovered.path)")
             } catch {
-                print("\(skipped) \(tree) could not be kept in \(originals): \(error). \(fix)")
+                VPhoneConsole.shared.line("\(skipped) \(tree) could not be kept in \(originals): \(error). \(fix)")
             }
         } catch {
-            print("\(skipped) \(bundle.path)/\(originals) could not be read: \(error). Copy \(device.boardDeviceTreePath) from the VM's IPSW into \(originals)/<restore tree>/Firmware/all_flash/, then run this again.")
+            VPhoneConsole.shared.line("\(skipped) \(bundle.path)/\(originals) could not be read: \(error). Copy \(device.boardDeviceTreePath) from the VM's IPSW into \(originals)/<restore tree>/Firmware/all_flash/, then run this again.")
         }
     }
 
@@ -4640,7 +4640,7 @@ struct VPhoneCustomFirmwareInstaller {
     ) throws -> Bool {
         let tunings = "Library/Audio/Tunings"
         guard try system.exists(tunings), try system.isDirectory(tunings) else {
-            print("  [·] \(tunings): not on this VM, left out")
+            VPhoneConsole.shared.line("  [·] \(tunings): not on this VM, left out")
             return false
         }
         var patched = 0
@@ -4661,7 +4661,7 @@ struct VPhoneCustomFirmwareInstaller {
             }
         }
         if patched == 0 {
-            print("  [·] \(tunings): no graph_configurations.plist under any tuning set, left out")
+            VPhoneConsole.shared.line("  [·] \(tunings): no graph_configurations.plist under any tuning set, left out")
             return false
         }
         return true
@@ -4779,10 +4779,10 @@ struct VPhoneCustomFirmwareInstaller {
         )
         let chunks = try DyldSharedCacheChunkSet(directory: cacheDirectory, architecture: "arm64", captureUndo: enabled)
         func patchStandalone(_ staged: URL) throws {
-            try CustomFirmwareTVTPRO.patchStandalone(fileAt: staged, log: { print($0) })
+            try CustomFirmwareTVTPRO.patchStandalone(fileAt: staged, log: { VPhoneConsole.shared.line($0) })
         }
         func patchCache(dryRun: Bool = false) throws -> Bool {
-            return try CustomFirmwareTVTPRO.patchCache(in: chunks, dryRun: dryRun, log: { print($0) }).outcome == .alreadyPatched
+            return try CustomFirmwareTVTPRO.patchCache(in: chunks, dryRun: dryRun, log: { VPhoneConsole.shared.line($0) }).outcome == .alreadyPatched
         }
         if enabled {
             if try !system.exists(backup) { try system.copyFile(from: path, to: backup) }
@@ -4806,8 +4806,8 @@ struct VPhoneCustomFirmwareInstaller {
         }
         try CustomFirmwareTVTPROInstallation.restorePair {
             guard let undo, hasUndo else { return }
-            let spans = try undo.restore(patchIDs: [identifier], in: cacheDirectory, log: { print($0) })
-            let attestation = try DyldSharedCacheCodeSignature.reattest(in: chunks, modifiedSpans: spans, log: { print($0) })
+            let spans = try undo.restore(patchIDs: [identifier], in: cacheDirectory, log: { VPhoneConsole.shared.line($0) })
+            let attestation = try DyldSharedCacheCodeSignature.reattest(in: chunks, modifiedSpans: spans, log: { VPhoneConsole.shared.line($0) })
             guard attestation.isFullyAttested else {
                 throw ValidationError("\(identifier): restored cache pages could not be fully re-attested; keeping the undo record.")
             }
@@ -4818,7 +4818,7 @@ struct VPhoneCustomFirmwareInstaller {
             guard let undo, hasUndo else { return }
             try system.writeFile(undoPath, contents: undo.removing(patchIDs: [identifier]).encoded(), mode: 0o644, owner: Self.guestOwner)
         }
-        print("  [+] \(identifier): restored standalone and cached dyld")
+        VPhoneConsole.shared.line("  [+] \(identifier): restored standalone and cached dyld")
         return false
     }
 
@@ -4882,7 +4882,7 @@ struct VPhoneCustomFirmwareInstaller {
         let original = try system.isRegularFile("\(executable).bak") ? "\(executable).bak" : executable
         guard try CustomFirmwareBundleSeal.executable(system.readData(original), isSealedWith: pristine) else { return }
         try system.overwriteFile(seal, contents: pristine)
-        print("  [+] \(seal): restored the seal \(links - 1) other bundles share")
+        VPhoneConsole.shared.line("  [+] \(seal): restored the seal \(links - 1) other bundles share")
     }
 
     /// The bundle's main executable, from its Info.plist, or nil.
@@ -4906,7 +4906,7 @@ struct VPhoneCustomFirmwareInstaller {
         label: String,
     ) throws -> URL? {
         guard try system.isRegularFile(path) else {
-            print("[!] \(label) absent; entitlement patch skipped")
+            VPhoneConsole.shared.line("[!] \(label) absent; entitlement patch skipped")
             return nil
         }
         let name = (path as NSString).lastPathComponent
@@ -4934,7 +4934,7 @@ struct VPhoneCustomFirmwareInstaller {
             let source = try VPhoneSigner.entitlements(ofFileAt: staged)
             .first(where: { !$0.isEmpty })
         else {
-            print("[!] debugserver has no readable entitlements; patch skipped")
+            VPhoneConsole.shared.line("[!] debugserver has no readable entitlements; patch skipped")
             return false
         }
         let data = try CustomFirmwareDebugserver.attachEntitlements(from: source)
@@ -4978,7 +4978,7 @@ struct VPhoneCustomFirmwareInstaller {
             let source = try VPhoneSigner.entitlements(ofFileAt: staged)
             .first(where: { !$0.isEmpty })
         else {
-            print("[!] Campo has no readable entitlements; patch skipped")
+            VPhoneConsole.shared.line("[!] Campo has no readable entitlements; patch skipped")
             return false
         }
         let ent = work.file("Campo.entitlements")
@@ -5123,10 +5123,10 @@ struct VPhoneCustomFirmwareInstaller {
         let result = try VPhoneProcessRunner.runCapturing(URL(fileURLWithPath: path), arguments)
         if !quiet {
             if !result.stdout.isEmpty {
-                print(result.stdout, terminator: "")
+                VPhoneConsole.shared.line(result.stdout, terminator: "")
             }
             if !result.stderr.isEmpty {
-                fputs(result.stderr, stderr)
+                VPhoneConsole.shared.line(result.stderr, to: .error, terminator: "")
             }
         }
         guard result.succeeded else {

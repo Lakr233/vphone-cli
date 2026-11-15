@@ -800,7 +800,7 @@ extension DeviceTreePatcher {
                 description: "Set /device-tree/product/audio as on \(device.productType)",
             ))
             if verbose {
-                print("  =node  : /product/audio as on \(device.productType) (\(change.after.count)B)  [\(Self.iPadAudioPatch)]")
+                VPhoneConsole.shared.line("  =node  : /product/audio as on \(device.productType) (\(change.after.count)B)  [\(Self.iPadAudioPatch)]")
             }
         }
         for edit in try Self.guestEdits(from: source) {
@@ -842,7 +842,7 @@ extension DeviceTreePatcher {
                 description: description,
             ))
             if verbose {
-                print("  \(after == nil ? "-prop " : "=prop "): /\(path) \(before.hex) → \((after ?? Data()).hex)  [\(edit.patchID)]")
+                VPhoneConsole.shared.line("  \(after == nil ? "-prop " : "=prop "): /\(path) \(before.hex) → \((after ?? Data()).hex)  [\(edit.patchID)]")
             }
         }
     }
@@ -861,7 +861,7 @@ extension DeviceTreePatcher {
             description: "Remove /device-tree/product/haptics, which no VM has the hardware for",
         ))
         if verbose {
-            print("  -node  : /product/haptics, no actuator or haptic server on a VM (\(removed.count)B)  [\(Self.hapticsPatch)]")
+            VPhoneConsole.shared.line("  -node  : /product/haptics, no actuator or haptic server on a VM (\(removed.count)B)  [\(Self.hapticsPatch)]")
         }
     }
 
@@ -888,7 +888,7 @@ extension DeviceTreePatcher {
             description: "Remove the island notch location: \(device.productName) has no Dynamic Island",
         ))
         if verbose {
-            print("  -prop  : /product/island-notch-location, no Dynamic Island on \(device.productName)  [\(Self.islandNotchLocationPatch)]")
+            VPhoneConsole.shared.line("  -prop  : /product/island-notch-location, no Dynamic Island on \(device.productName)  [\(Self.islandNotchLocationPatch)]")
         }
     }
 
@@ -931,7 +931,7 @@ extension DeviceTreePatcher {
             description: "Set /device-tree/product/watch-companion = 1",
         ))
         if verbose {
-            print("  =prop  : /product/watch-companion = 1, the VM syscfg has no waco  [\(Self.watchCompanionPatch)]")
+            VPhoneConsole.shared.line("  =prop  : /product/watch-companion = 1, the VM syscfg has no waco  [\(Self.watchCompanionPatch)]")
         }
     }
 
@@ -1170,7 +1170,7 @@ extension DeviceTreePatcher {
                 description: "Remove /device-tree/product/audio/\(name), which needs a microphone array no VM has",
             ))
             if verbose {
-                print("  -prop  : /product/audio/\(name) \(value.hex) → absent  [\(Self.microphoneArrayPatch)]")
+                VPhoneConsole.shared.line("  -prop  : /product/audio/\(name) \(value.hex) → absent  [\(Self.microphoneArrayPatch)]")
             }
         }
     }

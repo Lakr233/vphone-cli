@@ -3,6 +3,7 @@
 // Part of IBootPatcher; see IBootPatcher.swift for the patch schedule by mode.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 extension IBootPatcher {
@@ -113,7 +114,7 @@ extension IBootPatcher {
 
     private func emitGateBranch(_ gate: (off: Int, target: Int), id: String, description: String) {
         guard let bInsn = ARM64Encoder.encodeB(from: gate.off, to: gate.target) else {
-            if verbose { print("  [-] \(description): B encoding out of range") }
+            if verbose { VPhoneConsole.shared.line("  [-] \(description): B encoding out of range") }
             return
         }
         emit(gate.off, bInsn, id: id, description: description)
@@ -123,12 +124,12 @@ extension IBootPatcher {
     /// rootfs function: 26.x `0x3B7` and `0x3C2`, 18.6 `0x3AB` and `0x3B6`.
     private func patchRootfsGatesByShape(sigCheck: Bool, sigVerify: Bool) {
         guard let range = rootfsFunction() else {
-            if verbose { print("  [-] rootfs gates by shape: rootfs function not found") }
+            if verbose { VPhoneConsole.shared.line("  [-] rootfs gates by shape: rootfs function not found") }
             return
         }
         let gates = verificationGates(in: range)
         guard gates.count >= 2 else {
-            if verbose { print("  [-] rootfs gates by shape: \(gates.count) cbz w0 ; mov w8 gates in the rootfs function") }
+            if verbose { VPhoneConsole.shared.line("  [-] rootfs gates by shape: \(gates.count) cbz w0 ; mov w8 gates in the rootfs function") }
             return
         }
         if sigCheck {
@@ -147,7 +148,7 @@ extension IBootPatcher {
     /// last `cbz w0 ; mov w8, #<line> ; b` gate (26.x `0x110`, 18.6 `0x10D`).
     private func patchSizeVerifyByShape(nullCheck: Bool, sizeVerify: Bool) {
         guard let rootfs = rootfsFunction() else {
-            if verbose { print("  [-] size verify by shape: rootfs function not found") }
+            if verbose { VPhoneConsole.shared.line("  [-] size verify by shape: rootfs function not found") }
             return
         }
         let raw = buffer.original
@@ -186,7 +187,7 @@ extension IBootPatcher {
             }
         }
         guard found.count == 1 else {
-            if verbose { print("  [-] size verify by shape: \(found.count) candidate functions") }
+            if verbose { VPhoneConsole.shared.line("  [-] size verify by shape: \(found.count) candidate functions") }
             return
         }
         if nullCheck {
@@ -209,7 +210,7 @@ extension IBootPatcher {
 
         guard locs.count == 1 else {
             if verbose {
-                print("  [-] \(description): expected 1 'mov w8, #0x\(String(errorCode, radix: 16))', found \(locs.count)")
+                VPhoneConsole.shared.line("  [-] \(description): expected 1 'mov w8, #0x\(String(errorCode, radix: 16))', found \(locs.count)")
             }
             return false
         }
@@ -219,13 +220,13 @@ extension IBootPatcher {
 
         guard let insn = disasm.disassembleOne(in: buffer.original, at: cbzOff) else {
             if verbose {
-                print("  [-] \(description): no instruction at 0x\(String(format: "%X", cbzOff))")
+                VPhoneConsole.shared.line("  [-] \(description): no instruction at 0x\(String(format: "%X", cbzOff))")
             }
             return false
         }
         guard insn.mnemonic == "cbz" || insn.mnemonic == "cbnz" else {
             if verbose {
-                print("  [-] \(description): expected cbz/cbnz at 0x\(String(format: "%X", cbzOff)), got \(insn.mnemonic)")
+                VPhoneConsole.shared.line("  [-] \(description): expected cbz/cbnz at 0x\(String(format: "%X", cbzOff)), got \(insn.mnemonic)")
             }
             return false
         }
@@ -236,7 +237,7 @@ extension IBootPatcher {
 
         guard let bInsn = ARM64Encoder.encodeB(from: cbzOff, to: target) else {
             if verbose {
-                print("  [-] \(description): B encoding out of range")
+                VPhoneConsole.shared.line("  [-] \(description): B encoding out of range")
             }
             return false
         }
@@ -254,7 +255,7 @@ extension IBootPatcher {
 
         guard bhsSites.count == 1 else {
             if verbose {
-                print("  [-] rootfs b.hs: expected 1 'cmp x8,#0x400 ; b.hs' pair, found \(bhsSites.count)")
+                VPhoneConsole.shared.line("  [-] rootfs b.hs: expected 1 'cmp x8,#0x400 ; b.hs' pair, found \(bhsSites.count)")
             }
             return
         }
@@ -294,7 +295,7 @@ extension IBootPatcher {
 
         guard locs.count == 1 else {
             if verbose {
-                print("  [-] rootfs null check: expected 1 'mov w8, #0x110', found \(locs.count)")
+                VPhoneConsole.shared.line("  [-] rootfs null check: expected 1 'mov w8, #0x110', found \(locs.count)")
             }
             return false
         }
@@ -329,7 +330,7 @@ extension IBootPatcher {
         }
 
         if verbose {
-            print("  [-] rootfs null check: ldr+cbz #0x78 pattern not found")
+            VPhoneConsole.shared.line("  [-] rootfs null check: ldr+cbz #0x78 pattern not found")
         }
         return false
     }

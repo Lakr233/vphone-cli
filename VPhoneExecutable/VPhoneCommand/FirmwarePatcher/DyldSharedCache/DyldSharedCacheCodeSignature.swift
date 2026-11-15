@@ -48,6 +48,7 @@
 import CryptoKit
 import Foundation
 import Synchronization
+import VPhoneCoreKit
 import VPhonePatchKit
 
 /// The `CS_CodeDirectory` of one chunk, reduced to what re-signing needs.
@@ -253,7 +254,7 @@ public enum DyldSharedCacheCodeSignature {
     /// Callers that really want silence pass `log: nil` and read the returned
     /// `DyldSharedCacheReattestation` instead.
     public static let stderrLog: @Sendable (String) -> Void = { line in
-        FileHandle.standardError.write(Data((line + "\n").utf8))
+        VPhoneConsole.shared.line(line, to: .error)
     }
 
     /// Recompute and store the slot hash of every 16 KiB page any of

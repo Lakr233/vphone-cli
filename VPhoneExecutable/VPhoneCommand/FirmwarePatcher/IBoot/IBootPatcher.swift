@@ -106,7 +106,7 @@ public class IBootPatcher: BufferedPatcher {
             buffer.writeBytes(at: record.fileOffset, bytes: record.patchedBytes)
         }
         if verbose, !patches.isEmpty {
-            print("\n  [\(patches.count) \(mode.rawValue) patches applied]")
+            VPhoneConsole.shared.line("\n  [\(patches.count) \(mode.rawValue) patches applied]")
         }
         return patches.count
     }

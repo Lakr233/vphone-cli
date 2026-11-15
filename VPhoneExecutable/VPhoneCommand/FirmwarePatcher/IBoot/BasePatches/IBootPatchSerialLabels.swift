@@ -3,6 +3,7 @@
 // Part of IBootPatcher; see IBootPatcher.swift for the patch schedule by mode.
 
 import Foundation
+import VPhoneCoreKit
 
 extension IBootPatcher {
     // MARK: - 1. Serial Labels
@@ -46,12 +47,12 @@ extension IBootPatcher {
             }
             if labelCount >= 2 {
                 if verbose {
-                    print("  [*] serial labels: already present, skipping")
+                    VPhoneConsole.shared.line("  [*] serial labels: already present, skipping")
                 }
                 return
             }
             if verbose {
-                print("  [-] serial labels: <2 banner runs found")
+                VPhoneConsole.shared.line("  [-] serial labels: <2 banner runs found")
             }
             return
         }

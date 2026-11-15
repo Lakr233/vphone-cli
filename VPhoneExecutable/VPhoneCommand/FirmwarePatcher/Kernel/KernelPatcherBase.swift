@@ -318,7 +318,7 @@ open class KernelPatcherBase {
             if confirmed >= 3 {
                 panicOffset = targetOff
                 if verbose {
-                    print(String(format: "  [*] _panic at foff 0x%X (%d callers)", targetOff, callers.count))
+                    VPhoneConsole.shared.line(String(format: "  [*] _panic at foff 0x%X (%d callers)", targetOff, callers.count))
                 }
                 return
             }
@@ -332,7 +332,7 @@ open class KernelPatcherBase {
         }
         if let p = panicOffset {
             if verbose {
-                print(String(format: "  [*] _panic (fallback) at foff 0x%X", p))
+                VPhoneConsole.shared.line(String(format: "  [*] _panic (fallback) at foff 0x%X", p))
             }
         }
     }

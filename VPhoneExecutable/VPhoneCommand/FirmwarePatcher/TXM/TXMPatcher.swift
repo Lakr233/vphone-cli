@@ -44,7 +44,7 @@ public class TXMPatcher: BufferedPatcher {
             buffer.writeBytes(at: record.fileOffset, bytes: record.patchedBytes)
         }
         if verbose, !patches.isEmpty {
-            print("\n  [\(patches.count) TXM patches applied]")
+            VPhoneConsole.shared.line("\n  [\(patches.count) TXM patches applied]")
         }
         return patches.count
     }
@@ -141,7 +141,7 @@ extension TXMPatcher {
         }
 
         if verbose {
-            print("  [-] TXM: selector24 hash-flags site and legacy binary-search site not found")
+            VPhoneConsole.shared.line("  [-] TXM: selector24 hash-flags site and legacy binary-search site not found")
         }
         throw PatcherError.patchSiteNotFound(
             "selector24 hash-flags call / legacy binary-search trustcache site not found",
@@ -172,7 +172,7 @@ extension TXMPatcher {
 
         guard matches.count == 1 else {
             if verbose {
-                print("  [-] TXM: expected 1 selector24 hash-flags call site, found \(matches.count)")
+                VPhoneConsole.shared.line("  [-] TXM: expected 1 selector24 hash-flags call site, found \(matches.count)")
             }
             return nil
         }

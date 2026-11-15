@@ -115,8 +115,8 @@ enum VPhoneMachineTemplateKeys {
         do {
             let fitted = try slimming.fitted(toIOSVersion: version)
             if fitted.serviceProfile != slimming.serviceProfile {
-                let note = "note: skipping service trimming (including extra service groups): no trimmed service list for iOS \(version); keeping services\n"
-                FileHandle.standardError.write(Data(note.utf8))
+                let note = "note: skipping service trimming (including extra service groups): no trimmed service list for iOS \(version); keeping services"
+                VPhoneConsole.shared.line(note, to: .error)
             }
             return fitted
         } catch let error as VPhoneTemplateSlimmingError {

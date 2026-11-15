@@ -16,6 +16,7 @@
 // `interrupt-parent` and `serial-device` reference keeps pointing where it did.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 extension DeviceTreePatcher {
@@ -275,7 +276,7 @@ extension DeviceTreePatcher {
             description: "Convert the vresearch101 device tree into vphone600",
         ))
         if verbose {
-            print("  vresearch101 → vphone600: \(added) nodes added, \(Self.researchBoardProperties.count) properties set, \(removed) removed  [\(patchID)]")
+            VPhoneConsole.shared.line("  vresearch101 → vphone600: \(added) nodes added, \(Self.researchBoardProperties.count) properties set, \(removed) removed  [\(patchID)]")
         }
     }
 

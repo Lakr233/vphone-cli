@@ -23,6 +23,7 @@
 // video word itself, which only the kernel's boot console reads, is left alone.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 extension IBootPatcher {
@@ -34,7 +35,7 @@ extension IBootPatcher {
         let id = "\(component)-cfw-display_scale"
         guard let stringOffset = findCString(Self.displayScaleProperty) else {
             if verbose {
-                print("  [-] display-scale: property name not found")
+                VPhoneConsole.shared.line("  [-] display-scale: property name not found")
             }
             return
         }
@@ -67,7 +68,7 @@ extension IBootPatcher {
         }
 
         if verbose {
-            print("  [-] display-scale: value computation not found")
+            VPhoneConsole.shared.line("  [-] display-scale: value computation not found")
         }
     }
 
