@@ -369,6 +369,47 @@ open class KernelPatcherBase {
         return nil
     }
 
+    /// The offsets a call to the function starting at `funcStart` may land on.
+    ///
+    /// `findFunctionStart` reports the `PACIBSP` prologue. Up to the 26.x kernels a
+    /// `BL` targeted exactly that. iOS 27's collections are built with branch-target
+    /// identification, so a called function begins with a `BTI C` landing pad one
+    /// word earlier and every `BL` targets the pad instead — which is why a caller
+    /// lookup keyed on the prologue alone comes back empty on a 27 kernel even
+    /// though the callers are there.
+    public func functionEntries(_ funcStart: Int) -> [Int] {
+        var entries = [funcStart, funcStart + 4]
+        if funcStart >= 4, buffer.readU32(at: funcStart - 4) == ARM64.btiCU32 {
+            entries.append(funcStart - 4)
+        }
+        return entries
+    }
+
+    /// Whether the instruction at `offset` is a `BL` to the function at `funcStart`,
+    /// accepting either entry form. See ``functionEntries(_:)``.
+    public func isCall(at offset: Int, to funcStart: Int) -> Bool {
+        guard let target = decodeBL(at: offset) else { return false }
+        return functionEntries(funcStart).contains(target)
+    }
+
+    /// A `BL` target normalised to where the function's body starts.
+    ///
+    /// On a 27 kernel the target is the `BTI C` landing pad and the prologue
+    /// `PACIBSP` is the next word, so a scan that treats the target as the body
+    /// and stops at the first `PACIBSP` stops immediately and reads as empty.
+    public func functionBody(at entry: Int) -> Int {
+        guard entry + 8 <= buffer.count,
+              buffer.readU32(at: entry) == ARM64.btiCU32,
+              buffer.readU32(at: entry + 4) == ARM64.pacibspU32
+        else { return entry }
+        return entry + 4
+    }
+
+    /// Every `BL` to the function at `funcStart`, from the BL index.
+    public func callers(of funcStart: Int) -> [Int] {
+        functionEntries(funcStart).flatMap { blIndex[$0] ?? [] }
+    }
+
     // MARK: - VA/Offset Conversion
 
     /// Convert file offset to virtual address.

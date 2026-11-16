@@ -25,6 +25,13 @@ public final class KernelCustomFirmwarePatcher: KernelCustomFirmwarePatcherBase,
     /// set (override with --target-os).
     public var applyIOS27 = false
 
+    /// Whether that 27 userland runs on the **26.4** kernel, the pairing every
+    /// patch below was revealed against. A cloudOS 27.2 kernel is itself 27-era,
+    /// so the shims that make 26.4 behave like 27 have nothing to match there —
+    /// and applying half of one is worse than applying none. Set by the pipeline
+    /// from the cloudOS ProductVersion; `applyIOS27` alone no longer implies it.
+    public var applyIOS27LegacyKernel = false
+
     /// The AppleSEPKeyStore keybag-unlock count-5 acceptance. iOS 26.6 is where
     /// Apple's external method began sending inputScalarCount == 5 (26.5 and
     /// earlier send 4), so a 26.6-or-newer userland needs it on the 26.4 kernel —
@@ -81,27 +88,39 @@ public final class KernelCustomFirmwarePatcher: KernelCustomFirmwarePatcherBase,
         patchSandboxHooksExtended()
         patchIoucFailedMacf()
 
-        // iOS-27-only (gated — a 26.x base skips these entirely). Both target a 27
-        // userland on the 26.4 kernel:
+        // iOS-27-only (gated — a 26.x base skips these entirely).
+        //
+        // Needed by the 27 userland whatever kernel carries it:
         //  - IOUC sandbox gate bypass: the IOKit user-client open path's Sandbox gate
         //    (separate from the MACF gate above) spuriously denies backboardd its
         //    IOMFB/IOSurface/HID user clients → no present + nil main display →
         //    SpringBoard crash-loop. Mirrors the MACF gate.
+        //  - CSSC: emulate the instructions 27's binaries carry.
+        //
+        // The rest only make the 26.4 kernel behave like a 27 one, so they are
+        // `applyIOS27LegacyKernel` and a 27.2 kernel skips them:
         //  - DiskImages2 DDI ABI (kernel driver v9 vs iOS-27 controller/daemon v11) +
         //    RegisterNotificationPort off-by-one, so the personalized DDI attaches
         //    (/System/Developer auto-mount). Pairs with the sandbox ops[124] allow
         //    and the diskimagesiod isMountComplete→YES userland patch (cfw_install).
+        //    A 27 kernel ships ABI 11 and the fixed array: nothing to match, and the
+        //    port-array widen alone would grow a buffer whose bound checks are stock.
         //  - Shared region size: the arm64 region widens from 6 GiB to 7 GiB so a
         //    27 cache (0x185804000 on 27.0.1 iPhone18,x) maps at all. A 26.x base's
         //    own cache fits the stock region, so the kernel is left stock there.
+        //  - ARM64E_X1 admission: a 27 kernel already grades CPU subtype 12 in
+        //    `ml_grade_binary` (`cmp w1,#0xc` beside the stock `cmp w1,#2`), so there
+        //    is no subtype-2-only gate to widen and no reason to fail the run.
         if applyIOS27 {
             patchIoucFailedSandbox()
-            patchDiskImages2ClientAbi()
-            patchSharedRegionSize()
-            if gate.isEnabled("kernel-boot-arm64e_x1"), !patchArm64eX1Admission() {
-                throw PatcherError.invalidFormat("cannot validate required ARM64E_X1 kernel admission")
-            }
             try patchCSSC()
+            if applyIOS27LegacyKernel {
+                patchDiskImages2ClientAbi()
+                patchSharedRegionSize()
+                if gate.isEnabled("kernel-boot-arm64e_x1"), !patchArm64eX1Admission() {
+                    throw PatcherError.invalidFormat("cannot validate required ARM64E_X1 kernel admission")
+                }
+            }
         } else if applyParavirtUserClients {
             patchParavirtUserClientsNarrow()
         }
@@ -172,27 +191,42 @@ public final class KernelCustomFirmwarePatcher: KernelCustomFirmwarePatcherBase,
         patchKcall10()
         patchSyscallmaskApplyToProc()
 
-        // iOS-27-only (gated — a 26.x base skips these entirely). All target a 27
-        // userland on the 26.4 kernel and are unnecessary or actively harmful on 26.x:
+        // iOS-27-only (gated — a 26.x base skips these entirely), and unnecessary or
+        // actively harmful on 26.x.
+        //
+        // Needed by the 27 userland whatever kernel carries it:
         //  - exec ip_mac_return SECURITY_POLICY kill bypass: AMFI's exec hooks reject a
         //    userland newer than the kernel (27 binaries' validation category) →
         //    ip_mac_return != 0 → core daemons die at exec → boot deadlock. 26.x
         //    binaries pass (ip_mac_return == 0), so it is not needed there.
+        //
+        // Shims for the 26.4 kernel, skipped on a 27 one (`applyIOS27LegacyKernel`):
         //  - container-manager exec-upcall force-success: iOS 27 deleted the kernel-side
         //    containermanagerd upcall, so on the 26.4 kernel it fails for every 27 app →
         //    autoboxed into temporary-sandbox → Campo/intelligencetasksd/feedbackd
-        //    crash-loop. On 26.x the upcall succeeds, so it is not needed.
+        //    crash-loop. On 26.x the upcall succeeds, so it is not needed. A 27 kernel
+        //    has no upcall to force, which is why the reveal finds nothing there.
         //  - IOMFB SwapEnd size gates: 27's force-kern present (cfw_patch_iomfb_force_kern)
         //    sends a 0x6e0 SwapEnd struct; the 26.4 userclient exact-checks 0x588 in two
         //    places, so both gates are relaxed to accept 0x6e0. HARMFUL on 26.x — it
         //    sends the native 0x588, which the retargeted handler gate would then reject
-        //    → every framebuffer swap fails → dead display (the 26.5 regression).
+        //    → every framebuffer swap fails → dead display (the 26.5 regression). A 27
+        //    userclient takes 0x6e0 already.
         if applyIOS27 {
             patchExecSecurityPolicyKill()
-            patchContainerManagerUpcall()
-            patchIomfbSwapEndVariableSize() // dispatch checkStructureInputSize → variable
-            patchIomfbSwapEndHandlerSize() // handler cmp w2,#0x588 → 0x6e0
-            patchFpfsScopedVnodeOpen() // ops[267] → FileProvider-scoped trampoline (fpfs respring fix)
+            if applyIOS27LegacyKernel {
+                // The fpfs trampoline is a 27-userland fix written with vphone600
+                // struct offsets: it walks TPIDR_EL1 -> uthread +0x3F0 -> proc +0x18
+                // -> p_comm +0x56C to read the process name. A 27 kernel lays those
+                // out differently, so the walk dereferences garbage and takes a
+                // kernel data abort the first time launchd opens a vnode. Until the
+                // offsets are recovered for that kernel it stays on the pairing it
+                // was measured against.
+                patchFpfsScopedVnodeOpen() // ops[267] → FileProvider-scoped trampoline
+                patchContainerManagerUpcall()
+                patchIomfbSwapEndVariableSize() // dispatch checkStructureInputSize → variable
+                patchIomfbSwapEndHandlerSize() // handler cmp w2,#0x588 → 0x6e0
+            }
         }
 
         return patches

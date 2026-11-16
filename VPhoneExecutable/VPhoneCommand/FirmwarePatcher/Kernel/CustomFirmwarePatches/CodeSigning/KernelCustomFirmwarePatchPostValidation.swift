@@ -47,8 +47,9 @@ extension KernelCustomFirmwarePatcher {
             }
 
             // For each BL target within code, look for cmp w0,#imm ; b.ne preceded by a BL.
-            for target in blTargets.sorted() {
-                guard jbIsInCodeRange(target) else { continue }
+            for blTarget in blTargets.sorted() {
+                guard jbIsInCodeRange(blTarget) else { continue }
+                let target = functionBody(at: blTarget)
                 let calleeEnd = findFuncEnd(target, maxSize: 0x200)
 
                 for off in stride(from: target, to: calleeEnd - 4, by: 4) {
@@ -63,7 +64,9 @@ extension KernelCustomFirmwarePatcher {
                     let op1 = detail0.operands[1]
                     guard op0.type == .register, op0.reg == .w(0) else { continue }
 
-                    let isImmediate = op1.type == .immediate
+                    // Never the iOS 27 `cmp w0, #1` SHA-1 gate; see
+                    // `KernelPatcher.isSHA256RejectCompare`.
+                    let isImmediate = op1.type == .immediate && KernelPatcher.isSHA256RejectCompare(op1.imm)
                     // `cmp w0, w0` in this slot is this patch's own result. The
                     // base layer's postValidation patch reveals the same site
                     // the same way — same string anchor, same `cmp w0,#imm ;
