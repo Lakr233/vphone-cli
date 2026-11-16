@@ -22,9 +22,9 @@ import VPhoneSign
 ///   symbolic link inside the guest can never point root at a host path;
 /// - root hands back only the files it created, by descriptor. It never walks
 ///   the caller's folder to chown or chmod it.
-struct VPhoneCustomFirmwareInstaller {
+public struct VPhoneCustomFirmwareInstaller {
     /// What a run does to the guest.
-    enum Mode: String, Sendable {
+    public enum Mode: String, Sendable {
         /// The whole install: cryptexes, the GPU bundle, every shared-cache and
         /// Mach-O patch the VM's plan selects, and the guest payload. Needs a
         /// prepared restore tree.
@@ -86,7 +86,7 @@ struct VPhoneCustomFirmwareInstaller {
 
     /// Root-owned and sticky, outside every user's tree. The work folder is
     /// made here with `mkdtemp`, so its name cannot be predicted or claimed.
-    static let defaultWorkParent = "/private/var/tmp"
+    public static let defaultWorkParent = "/private/var/tmp"
 
     private var executable: URL {
         VPhoneResources.runningExecutable()
@@ -103,7 +103,7 @@ struct VPhoneCustomFirmwareInstaller {
         return build
     }
 
-    static func elevate(
+    public static func elevate(
         bundle: URL,
         resources: VPhoneResources,
         mode: Mode = .full,
@@ -139,7 +139,7 @@ struct VPhoneCustomFirmwareInstaller {
 
     // MARK: - Install
 
-    func run() throws {
+    public func run() throws {
         guard geteuid() == 0 else {
             throw ValidationError("\(mode.summary.capitalized) needs root. Run this command with sudo.")
         }
@@ -1063,7 +1063,7 @@ struct VPhoneCustomFirmwareInstaller {
 
     /// Whether the VM's restore installed a system customised by `fw patch`
     /// (``FirmwareRestoreImagePatchSet``), which nothing may write afterwards.
-    static func restoredCustomisedSystem(_ plan: VPhoneVirtualMachinePatchPlan?) -> Bool {
+    public static func restoredCustomisedSystem(_ plan: VPhoneVirtualMachinePatchPlan?) -> Bool {
         plan?.enabledPatches.contains(FirmwareRestoreImagePatchSet.cryptexMerge) == true
     }
 
@@ -1170,7 +1170,7 @@ struct VPhoneCustomFirmwareInstaller {
     /// Resolve the bundle once, then hold it by descriptor. Every later
     /// bundle-relative access goes through this descriptor, so renaming a
     /// folder or planting a link after this point cannot redirect root.
-    private func pinBundle(owner: uid_t?) throws -> VPhoneConfinedDirectory {
+    func pinBundle(owner: uid_t?) throws -> VPhoneConfinedDirectory {
         guard let resolved = realpath(bundle.path, nil) else {
             throw ValidationError("The VM folder \(bundle.path) does not exist. Create the VM again, then install CFW.")
         }
@@ -1185,7 +1185,7 @@ struct VPhoneCustomFirmwareInstaller {
 
     /// Disk.img must be a regular file with one link, owned by the caller:
     /// a hard link or a file swapped in by another account is refused.
-    private func openDiskImage(
+    func openDiskImage(
         in bundle: VPhoneConfinedDirectory,
         path: String,
         owner: uid_t?,
@@ -1228,7 +1228,7 @@ struct VPhoneCustomFirmwareInstaller {
     /// The prepared restore tree: a real folder (not a link) owned by the
     /// caller, holding iPhone-BuildManifest.plist. `iPhone*_Restore` is what
     /// `fw prepare` writes; any other `*Restore*` folder is the older fallback.
-    private func restoreTree(
+    func restoreTree(
         in bundle: VPhoneConfinedDirectory,
         path: String,
         owner: uid_t?,
@@ -1269,7 +1269,7 @@ struct VPhoneCustomFirmwareInstaller {
         }
     }
 
-    private func requireFreeSpace(at paths: [String]) throws {
+    func requireFreeSpace(at paths: [String]) throws {
         let requiredGiB = Self.requiredFreeSpaceGiB(for: mode)
         var seen = Set<dev_t>()
         for path in paths {
@@ -3232,7 +3232,7 @@ struct VPhoneCustomFirmwareInstaller {
     /// external set, so it cannot re-resolve such a selection and must not guess.
     /// A VM with no plan at all stays nil (every guest patch applies, which is
     /// what it was restored with).
-    private func resolveGuestSelection(
+    func resolveGuestSelection(
         _ plan: VPhoneVirtualMachinePatchPlan?,
         in bundleDirectory: VPhoneConfinedDirectory,
     ) -> VPhoneVirtualMachinePatchPlan? {
@@ -3273,7 +3273,7 @@ struct VPhoneCustomFirmwareInstaller {
     }
 
     /// The plan `fw patch` wrote into the VM, or nil when it never ran with one.
-    private func readPatchPlan(in bundleDirectory: VPhoneConfinedDirectory) -> VPhoneVirtualMachinePatchPlan? {
+    func readPatchPlan(in bundleDirectory: VPhoneConfinedDirectory) -> VPhoneVirtualMachinePatchPlan? {
         guard let data = try? bundleDirectory.readData(VPhonePatchPresetStore.planFileName) else {
             print("[*] No patch plan recorded; applying every guest patch")
             return nil
@@ -4106,7 +4106,7 @@ struct VPhoneCustomFirmwareInstaller {
     // MARK: - Preboot
 
     /// The device whose IPSW the restore tree was prepared from.
-    private func guestDevice(of restore: VPhoneConfinedDirectory?) -> VPhoneGuestDevice {
+    func guestDevice(of restore: VPhoneConfinedDirectory?) -> VPhoneGuestDevice {
         guard let data = try? restore?.readData("iPhone-BuildManifest.plist"),
               let manifest = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any]
         else { return .default }
@@ -4518,7 +4518,7 @@ struct VPhoneCustomFirmwareInstaller {
     /// The guest device `fw prepare` recorded in `config.plist`, read through
     /// the pinned folder. Nil when it names none, as on a VM older than iPad
     /// guests.
-    private func configuredGuestDevice(in bundleDirectory: VPhoneConfinedDirectory) -> VPhoneGuestDevice? {
+    func configuredGuestDevice(in bundleDirectory: VPhoneConfinedDirectory) -> VPhoneGuestDevice? {
         guard let data = try? bundleDirectory.readData("config.plist"),
               let plist = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String: Any]
         else { return nil }
@@ -4526,7 +4526,7 @@ struct VPhoneCustomFirmwareInstaller {
     }
 
     /// The iOS version and build `restore-info.json` records.
-    private func recordedOSVersion(in bundleDirectory: VPhoneConfinedDirectory) -> VPhoneRestoreInfo.OSVersion? {
+    func recordedOSVersion(in bundleDirectory: VPhoneConfinedDirectory) -> VPhoneRestoreInfo.OSVersion? {
         guard let data = try? bundleDirectory.readData("restore-info.json") else { return nil }
         return (try? JSONDecoder().decode(VPhoneRestoreInfo.self, from: data))?.ios
     }
@@ -5119,22 +5119,9 @@ struct VPhoneCustomFirmwareInstaller {
     }
 }
 
-struct VPhoneCustomFirmwareInstallRootCommand: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "install-root", abstract: "Internal privileged CFW disk install",
-        shouldDisplay: false,
-    )
-
-    @Argument(help: "VM bundle path") var bundle: String
-    @Option(help: "Resource base") var resources: String
-    @Option(name: .customLong("work-parent"), help: "Root-owned private CFW temporary directory")
-    var workParent = VPhoneCustomFirmwareInstaller.defaultWorkParent
-
-    func run() throws {
-        try VPhoneCustomFirmwareInstaller(
-            bundle: URL(fileURLWithPath: bundle),
-            resources: VPhoneResources(base: URL(fileURLWithPath: resources)),
-            workParent: workParent,
-        ).run()
+extension VPhoneCustomFirmwareInstaller {
+    /// A full install of `bundle`, the form the `install-root` command uses.
+    public init(bundle: URL, resources: VPhoneResources, workParent: String) {
+        self.init(bundle: bundle, resources: resources, mode: .full, workParent: workParent)
     }
 }

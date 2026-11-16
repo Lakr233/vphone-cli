@@ -2,6 +2,7 @@ import ArgumentParser
 import FirmwarePatcher
 import Foundation
 import VPhoneArchiveKit
+import VPhoneCommandKit
 import VPhoneCoreKit
 import VPhonePatchKit
 

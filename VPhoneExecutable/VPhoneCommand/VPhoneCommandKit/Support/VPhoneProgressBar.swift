@@ -14,12 +14,13 @@ import Foundation
 /// thread: every caller reports serially (`VPhoneIPSWCache` reports one at a
 /// time even across several connections) and calls `finish()` only after the
 /// transfer has returned.
-final class VPhoneProgressBar: @unchecked Sendable {
+public final class VPhoneProgressBar: @unchecked Sendable {
     private enum Mode {
         case off, bar, lines
     }
 
     private let label: String
+    private let output: FileHandle
     private let mode: Mode
     private let start = Date()
     private let width = 28
@@ -27,18 +28,25 @@ final class VPhoneProgressBar: @unchecked Sendable {
     private var total: Int64 = 0
     private var updated = false
 
-    init(label: String) {
+    /// `output` and `environment` default to this process's stderr and
+    /// environment; tests pass a pty or pipe and their own environment.
+    public init(
+        label: String,
+        output: FileHandle = .standardError,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+    ) {
         self.label = label
-        mode = if isatty(FileHandle.standardError.fileDescriptor) != 0 {
+        self.output = output
+        mode = if isatty(output.fileDescriptor) != 0 {
             .bar
-        } else if ProcessInfo.processInfo.environment["VPHONE_PROGRESS"] == "lines" {
+        } else if environment["VPHONE_PROGRESS"] == "lines" {
             .lines
         } else {
             .off
         }
     }
 
-    func update(done: Int64, total: Int64) {
+    public func update(done: Int64, total: Int64) {
         guard mode != .off else { return }
         self.total = total
         updated = true
@@ -53,7 +61,7 @@ final class VPhoneProgressBar: @unchecked Sendable {
 
     /// Draws the final state. Draws nothing when no update came, such as for
     /// a download the cache already held.
-    func finish() {
+    public func finish() {
         guard updated else { return }
         switch mode {
         case .off:
@@ -95,7 +103,7 @@ final class VPhoneProgressBar: @unchecked Sendable {
     /// vphone-launchpad, leaves stderr a broken pipe; `write(_:)` raises an
     /// Objective-C exception for that and aborts the transfer under way.
     private func write(_ text: String) {
-        try? FileHandle.standardError.write(contentsOf: Data(text.utf8))
+        try? output.write(contentsOf: Data(text.utf8))
     }
 
     static func bytes(_ n: Int64) -> String {
@@ -107,7 +115,7 @@ final class VPhoneProgressBar: @unchecked Sendable {
         return i == 0 ? "\(n) B" : String(format: "%.1f %@", value, units[i])
     }
 
-    static func clock(_ seconds: Double) -> String {
+    public static func clock(_ seconds: Double) -> String {
         let s = Int(seconds.rounded())
         return s >= 3600
             ? String(format: "%d:%02d:%02d", s / 3600, (s % 3600) / 60, s % 60)

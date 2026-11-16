@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import VPhoneArchiveKit
+import VPhoneCommandKit
 import VPhoneCoreKit
 
 struct VPhoneVirtualMachineCloneCommand: ParsableCommand {

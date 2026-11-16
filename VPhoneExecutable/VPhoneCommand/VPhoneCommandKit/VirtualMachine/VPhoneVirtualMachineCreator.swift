@@ -83,6 +83,11 @@ public struct VPhoneVirtualMachineCreator {
     /// only for a clone from a named template whose first boot is skipped,
     /// which starts no guest.
     private let launcher: VPhoneGuestLaunchPlanner?
+    /// Where a create hands back ownership and permissions, and the ROMs a
+    /// new machine gets. Tests point them at a temp folder.
+    var userDataRoot = VPhoneResources.userDataRoot()
+    var romSource = VPhoneBundleOperations.defaultROMSource()
+    var sepromSource = VPhoneBundleOperations.defaultSEPROMSource()
 
     public init(
         library: VPhoneLibrary,
@@ -121,7 +126,7 @@ public struct VPhoneVirtualMachineCreator {
         if FileManager.default.fileExists(atPath: bundleURL.path) {
             throw VPhoneLibraryError.alreadyExists(name: options.name)
         }
-        let outputs = VPhoneCreatedOutputs(library: library)
+        let outputs = VPhoneCreatedOutputs(library: library, userDataRoot: userDataRoot)
         defer { outputs.finishBestEffort() }
 
         switch options.template {
@@ -171,8 +176,8 @@ public struct VPhoneVirtualMachineCreator {
             cpuCount: options.cpuCount,
             memoryMB: options.memoryMB,
             diskSizeGB: options.diskSizeGB,
-            romSource: VPhoneBundleOperations.defaultROMSource(),
-            sepromSource: VPhoneBundleOperations.defaultSEPROMSource(),
+            romSource: romSource,
+            sepromSource: sepromSource,
         )
         let bundle = try VPhoneBundleOperations.create(spec, in: library)
         outputs.add(bundle.url)
@@ -371,8 +376,8 @@ public struct VPhoneVirtualMachineCreator {
                 cpuCount: 8,
                 memoryMB: 8192,
                 diskSizeGB: options.diskSizeGB,
-                romSource: VPhoneBundleOperations.defaultROMSource(),
-                sepromSource: VPhoneBundleOperations.defaultSEPROMSource(),
+                romSource: romSource,
+                sepromSource: sepromSource,
             )
             let bundle = try VPhoneBundleOperations.create(spec, in: build.library)
             print("created \(bundle.url.path)")
@@ -460,8 +465,8 @@ public struct VPhoneVirtualMachineCreator {
             // restore. A template built before OpenAVB or OpenSEP still starts
             // Apple's, so the machine gets this bundle's ROMs, as a `vm new`
             // would.
-            let booted = try VPhoneBundleOperations.installBootROM(from: VPhoneBundleOperations.defaultROMSource(), in: clone)
-            try VPhoneBundleOperations.installSEPROM(from: VPhoneBundleOperations.defaultSEPROMSource(), in: booted)
+            let booted = try VPhoneBundleOperations.installBootROM(from: romSource, in: clone)
+            try VPhoneBundleOperations.installSEPROM(from: sepromSource, in: booted)
             try applySettings(options)
         } catch {
             try? FileManager.default.removeItem(at: clone.url)
@@ -850,8 +855,8 @@ private final class VPhoneCreatedOutputs {
     private var ownershipRestored = false
     private var permissionsRestored = false
 
-    init(library: VPhoneLibrary) {
-        directories = [library.root, VPhoneResources.userDataRoot()]
+    init(library: VPhoneLibrary, userDataRoot: URL) {
+        directories = [library.root, userDataRoot]
     }
 
     func add(_ url: URL) {

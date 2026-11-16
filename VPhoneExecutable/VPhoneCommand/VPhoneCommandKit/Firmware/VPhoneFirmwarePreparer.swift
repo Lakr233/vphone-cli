@@ -10,7 +10,7 @@ import VPhonePatchKit
 /// copy of either source archive. All extraction and merging happens in one
 /// disposable directory inside the VM; only a complete tree is moved into
 /// place for the patch/restore steps to see.
-enum VPhoneFirmwarePreparer {
+public enum VPhoneFirmwarePreparer {
     static func usesIOS17GPUTransport(version: String, device: VPhoneGuestDevice) -> Bool {
         version == "17.7" && (device == .iPhone14_6 || device == .iPhone15_4)
     }
@@ -35,7 +35,7 @@ enum VPhoneFirmwarePreparer {
         }
     }
 
-    static func prepare(
+    public static func prepare(
         iPhoneSource: String,
         cloudOSSource: String,
         gpuDriverBundle: URL? = nil,
@@ -259,7 +259,7 @@ enum VPhoneFirmwarePreparer {
         // tool of the same version, which `fw patch` finds in the tree.
         if plan.isEnabled(FirmwareRestoreImagePatchSet.cryptexMerge) {
             print("[*] Staging apfs_sealvolume for \(phone.version)...")
-            try VPhoneFirmwareSealToolCommand.stage(
+            try VPhoneSealTool.stage(
                 version: phone.version,
                 into: phoneTree.appendingPathComponent(".tools"),
             )
@@ -332,7 +332,7 @@ enum VPhoneFirmwarePreparer {
     /// the guest device the iPhone IPSW gives, without extracting anything.
     /// `vm create` calls it before `prepare` to learn the template key; the
     /// second call finds both in place.
-    static func resolveSources(
+    public static func resolveSources(
         iPhoneSource: String,
         cloudOSSource: String,
         ipswCacheDirectory: URL = VPhoneResources.ipswCacheDirectory(),
@@ -381,7 +381,7 @@ enum VPhoneFirmwarePreparer {
     /// else the catalog's OTA of the IPSW's build, downloaded into the IPSW cache's `ota` folder
     /// unless it is already there. Its manifest is checked now, before any
     /// IPSW is unpacked for it.
-    static func resolveOTA(
+    public static func resolveOTA(
         _ source: String?,
         key: String?,
         device: VPhoneGuestDevice,
@@ -591,7 +591,7 @@ enum VPhoneFirmwarePreparer {
         }
     }
 
-    private static func checkIPhoneName(
+    static func checkIPhoneName(
         _ source: String,
         archive: VPhoneIPSWCache.Archive,
         device: VPhoneGuestDevice,
@@ -609,7 +609,7 @@ enum VPhoneFirmwarePreparer {
         }
     }
 
-    private static func mergeCloudOS(from cloud: URL, into phone: URL) throws {
+    static func mergeCloudOS(from cloud: URL, into phone: URL) throws {
         let fm = FileManager.default
         try copyMatching(from: cloud, into: phone) { $0.hasPrefix("kernelcache.") }
         for subdirectory in ["agx", "all_flash", "ane", "dfu", "pmp"] {
@@ -646,7 +646,7 @@ enum VPhoneFirmwarePreparer {
         }
     }
 
-    private static func clone(_ source: URL, to destination: URL) throws {
+    static func clone(_ source: URL, to destination: URL) throws {
         let fm = FileManager.default
         guard fm.fileExists(atPath: source.path) else { throw Error.missingComponent(source) }
         if fm.fileExists(atPath: destination.path) {
@@ -661,7 +661,7 @@ enum VPhoneFirmwarePreparer {
         try fm.copyItem(at: source, to: destination)
     }
 
-    private static func makeUserWritable(_ directory: URL) throws {
+    static func makeUserWritable(_ directory: URL) throws {
         let fm = FileManager.default
         guard let entries = fm.enumerator(
             at: directory,

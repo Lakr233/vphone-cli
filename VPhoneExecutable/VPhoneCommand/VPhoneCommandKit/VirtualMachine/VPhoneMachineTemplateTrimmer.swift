@@ -17,7 +17,7 @@ import VPhoneCoreKit
 ///
 /// What it deletes stays allocated until the guest deletes its `orig-fs`
 /// snapshot during the setup boot; a template is frozen only after that.
-enum VPhoneMachineTemplateTrimmer {
+public enum VPhoneMachineTemplateTrimmer {
     /// Trims the machine at `bundle` and records the trim.
     ///
     /// - Parameters:
@@ -25,7 +25,7 @@ enum VPhoneMachineTemplateTrimmer {
     ///   - newRecord: The unfrozen `Template.plist` to write when the machine
     ///     has none (a library machine Launchpad is building into a template).
     @discardableResult
-    static func trim(
+    public static func trim(
         _ bundle: VPhoneBundle,
         label: String,
         spec: VPhoneSystemTrimSpec,

@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import VPhoneCommandKit
 import VPhoneCoreKit
 
 // MARK: - rebase

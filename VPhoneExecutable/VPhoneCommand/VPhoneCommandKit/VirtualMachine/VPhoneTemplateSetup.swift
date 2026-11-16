@@ -2,58 +2,6 @@ import ArgumentParser
 import Foundation
 import VPhoneCoreKit
 
-// MARK: - Slimming switches
-
-/// The slimming switches `vm create` and `vm template setup` share.
-struct VPhoneTemplateSlimmingOptions: ParsableArguments {
-    @Option(help: ArgumentHelp(
-        "Slim the template: on (default) | off. off keeps every service and app; Setup is skipped either way",
-        valueName: "on|off",
-    ))
-    var slim: String?
-    @Option(help: ArgumentHelp(
-        "System files the template deletes offline: standard (default) | conservative | none. Part of the template key; vm template trim describes the tiers",
-        valueName: "tier",
-    ))
-    var trim: String?
-    @Option(help: ArgumentHelp("Languages whose linguistic data --trim standard keeps (en is always kept)", valueName: "en,zh-Hans,zh"))
-    var keepLanguages: String?
-    @Option(help: ArgumentHelp("Service profile the template applies: trimmed (default) | none", valueName: "profile"))
-    var serviceProfile: String?
-    @Option(help: ArgumentHelp("Remove the default system apps (App Store, TV, News, …): on (default) | off", valueName: "on|off"))
-    var removeApps: String?
-    @Option(
-        help: ArgumentHelp("Bundle IDs of default-removed apps to keep, comma-separated (com.apple.findmy,com.apple.Passbook)", valueName: "ids"),
-        transform: { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } },
-    )
-    var keepApps: [String] = []
-    @Flag(help: "Also turn off the Apple Account daemons (akd, amsaccountsd, appleaccountd); the guest then cannot sign in")
-    var accountsOff = false
-
-    var request: VPhoneTemplateSlimmingRequest {
-        get throws {
-            try VPhoneTemplateSlimmingRequest(
-                slim: slim.map { try VPhoneVirtualMachineConfigCommand.parseSwitch($0, option: "--slim") },
-                trimTier: trim,
-                keepLanguages: keepLanguages,
-                serviceProfile: serviceProfile,
-                removeApps: removeApps.map { try VPhoneVirtualMachineConfigCommand.parseSwitch($0, option: "--remove-apps") },
-                keepApps: keepApps,
-                accountsOff: accountsOff,
-            )
-        }
-    }
-
-    /// The slimming asked for, as a ValidationError when switches disagree.
-    func resolve() throws -> VPhoneMachineTemplateSlimming {
-        do {
-            return try request.resolve()
-        } catch let error as VPhoneTemplateSlimmingError {
-            throw ValidationError(error.description)
-        }
-    }
-}
-
 // MARK: - The VM a setup boot drives
 
 /// `vphone-vm` started for a setup boot, driven through its `vphone.sock`.
@@ -141,12 +89,12 @@ final class VPhoneTemplateSetupVirtualMachine: VPhoneTemplateSetupMachine {
 
 // MARK: - Running a setup boot
 
-enum VPhoneTemplateSetupRun {
+public enum VPhoneTemplateSetupRun {
     /// Runs the setup boot on the machine folder at `bundleURL` and records
     /// what it did in that folder's `Template.plist`, which must exist.
     /// Throws ``VPhoneTemplateSetupFailure`` and records nothing on failure.
     @discardableResult
-    static func run(
+    public static func run(
         bundleURL: URL,
         plan: VPhoneTemplateSetupPlan,
         launcher: VPhoneGuestLaunchPlanner,
@@ -168,33 +116,33 @@ enum VPhoneTemplateSetupRun {
         return outcome
     }
 
-    static func report(_ outcome: VPhoneTemplateSetupOutcome) {
+    static func report(_ outcome: VPhoneTemplateSetupOutcome, log: (String) -> Void = { print($0) }) {
         let order = VPhoneTemplateSetupStep.allCases
         let times = order.compactMap { step in outcome.durations[step].map { "\(step.rawValue) \(Int($0.rounded())) s" } }
-        print("[+] Setup boot done: \(times.joined(separator: ", "))")
-        print("    snapshots deleted: \(outcome.deletedSnapshots.isEmpty ? "none left" : outcome.deletedSnapshots.joined(separator: ", "))")
+        log("[+] Setup boot done: \(times.joined(separator: ", "))")
+        log("    snapshots deleted: \(outcome.deletedSnapshots.isEmpty ? "none left" : outcome.deletedSnapshots.joined(separator: ", "))")
         var services = outcome.serviceProfile
         if !outcome.serviceGroups.isEmpty {
             services += " +" + outcome.serviceGroups.joined(separator: ",")
         }
-        print("    services: \(services)\(outcome.serviceProfile == "none" ? "" : " (\(outcome.servicesOwned) owned)")")
-        print("    apps removed: \(outcome.removedApps.isEmpty ? "none" : outcome.removedApps.joined(separator: ", "))")
+        log("    services: \(services)\(outcome.serviceProfile == "none" ? "" : " (\(outcome.servicesOwned) owned)")")
+        log("    apps removed: \(outcome.removedApps.isEmpty ? "none" : outcome.removedApps.joined(separator: ", "))")
         if !outcome.clearedCrashReports.isEmpty {
-            print("    crash reports cleared: \(VPhoneTemplateSetupBoot.summarizeCrashReports(outcome.clearedCrashReports))")
+            log("    crash reports cleared: \(VPhoneTemplateSetupBoot.summarizeCrashReports(outcome.clearedCrashReports))")
         }
         let retried = outcome.retriedUnregistrations.sorted { $0.key < $1.key }
         if !retried.isEmpty {
-            print("    unregistered after retries: \(retried.map { "\($0.key) (\($0.value) attempts)" }.joined(separator: ", "))")
+            log("    unregistered after retries: \(retried.map { "\($0.key) (\($0.value) attempts)" }.joined(separator: ", "))")
         }
         for warning in outcome.warnings {
-            print("    warning: \(warning)")
+            log("    warning: \(warning)")
         }
     }
 }
 
 // MARK: - Finishing a build
 
-enum VPhoneTemplateBuildFinisher {
+public enum VPhoneTemplateBuildFinisher {
     /// The key a build's own records give must be the one it is filed under,
     /// or no later create (or adopt) would find it.
     static func requireRecordedKey(_ build: VPhoneMachineTemplateBuild, key: VPhoneMachineTemplateKey) throws {
@@ -208,7 +156,7 @@ enum VPhoneTemplateBuildFinisher {
 
     /// Checks the recorded key and freezes the build; `freeze` refuses steps
     /// that fell short of the key.
-    static func freeze(_ build: VPhoneMachineTemplateBuild, key: VPhoneMachineTemplateKey) throws -> VPhoneMachineTemplate {
+    public static func freeze(_ build: VPhoneMachineTemplateBuild, key: VPhoneMachineTemplateKey) throws -> VPhoneMachineTemplate {
         try requireRecordedKey(build, key: key)
         return try VPhoneMachineTemplates.freeze(build)
     }

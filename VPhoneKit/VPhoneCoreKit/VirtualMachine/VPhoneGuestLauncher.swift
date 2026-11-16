@@ -77,7 +77,18 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
     public let guestExecutable: URL
 
     public init() throws {
-        let vm = VPhoneResources.siblingExecutable("vphone-vm")
+        try self.init(vphoneVM: VPhoneResources.siblingExecutable("vphone-vm"))
+    }
+
+    /// A planner for an explicit `vphone-vm`, with the same existence,
+    /// entitlement and AMFI checks as `init()`.
+    public init(vphoneVM vm: URL) throws {
+        try self.init(vphoneVM: vm, amfidRefuses: Self.amfidRefuses)
+    }
+
+    /// The checks of `init(vphoneVM:)`, with the amfid probe injectable:
+    /// whether amfid refuses an unknown binary depends on the host.
+    init(vphoneVM vm: URL, amfidRefuses: (URL) throws -> Bool) throws {
         guard FileManager.default.isExecutableFile(atPath: vm.path) else {
             throw VPhoneGuestLaunchError.missingCompanion(name: "vphone-vm", expectedAt: vm)
         }
@@ -93,12 +104,17 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
         // Probe before doing anything else. Launching straight into a SIGKILL
         // would leave the caller with a bare exit 9 and no explanation — which
         // is the confusing failure this whole path exists to remove.
-        if try Self.amfidRefuses(vm) {
+        if try amfidRefuses(vm) {
             throw VPhoneGuestLaunchError.blockedByAMFI(
                 guest: vm,
                 cdHash: Self.codeDirectoryHash(of: vm),
             )
         }
+    }
+
+    /// Skips every check; tests only.
+    init(unchecked guestExecutable: URL) {
+        self.guestExecutable = guestExecutable
     }
 
     /// The command to spawn for one boot.
@@ -119,7 +135,7 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
 
     // MARK: - Probe
 
-    private static func hasRequiredEntitlements(_ vm: URL) throws -> Bool {
+    static func hasRequiredEntitlements(_ vm: URL) throws -> Bool {
         let result = try VPhoneProcessRunner.runCapturing(
             URL(fileURLWithPath: "/usr/bin/codesign"),
             ["-d", "--entitlements", "-", "--xml", vm.path],
@@ -143,7 +159,7 @@ public struct VPhoneGuestLaunchPlanner: Sendable {
     ///
     /// Anything else non-zero is somebody else's problem, and is raised as
     /// itself rather than being mistaken for an AMFI refusal.
-    private static func amfidRefuses(_ vm: URL) throws -> Bool {
+    static func amfidRefuses(_ vm: URL) throws -> Bool {
         let probe = try VPhoneProcessRunner.runCapturing(vm, ["--help"])
         if probe.succeeded {
             return false

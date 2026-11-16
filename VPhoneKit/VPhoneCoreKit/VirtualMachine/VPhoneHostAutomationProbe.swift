@@ -1,18 +1,17 @@
 import Darwin
 import Foundation
-import VPhoneCoreKit
 
 /// Requests to a running VM's control socket, `vphone.sock`. `vm create` pings
 /// through it instead of parsing the VM process's buffered stdout, and
 /// `vm network` drives the NIC through it.
-enum VPhoneHostAutomationProbe {
-    static func ping(socketPath: String) -> Bool {
-        send(["t": "ping", "screen": false], socketPath: socketPath)?["ok"] as? Bool == true
+public enum VPhoneHostAutomationProbe {
+    public static func ping(socketPath: String, timeout: Int = 2) -> Bool {
+        send(["t": "ping", "screen": false], socketPath: socketPath, timeout: timeout)?["ok"] as? Bool == true
     }
 
     /// One vphoned RPC through the VM process. A refusal from vphoned carries
     /// its error object as `detail`; anything else is a transport failure.
-    static func rpc(_ method: String, params: [String: Any], socketPath: String, timeout: Int) throws -> [String: Any] {
+    public static func rpc(_ method: String, params: [String: Any], socketPath: String, timeout: Int) throws -> [String: Any] {
         let request: [String: Any] = ["t": "rpc", "method": method, "params": params, "screen": false]
         guard let reply = send(request, socketPath: socketPath, timeout: timeout, maximumReply: 64 << 20) else {
             throw VPhoneGuestCallError(kind: .transport, message: "no answer from vphone.sock")
@@ -32,7 +31,7 @@ enum VPhoneHostAutomationProbe {
     /// One request, one reply line. Nil when the socket is not there or the
     /// reply is not JSON. `timeout` bounds each read; `maximumReply` the
     /// reply (an `apps.list` or `processes.list` runs to a few hundred KB).
-    static func send(
+    public static func send(
         _ request: [String: Any],
         socketPath: String,
         timeout seconds: Int = 2,

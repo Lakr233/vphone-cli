@@ -2,28 +2,10 @@ import ArgumentParser
 import FirmwarePatcher
 import Foundation
 import VPhoneArchiveKit
+import VPhoneCommandKit
 import VPhoneCoreKit
 import VPhonePatchKit
 import VPhoneRestore
-
-// MARK: - Verbosity → restore logging
-
-extension VPhoneVerbosity {
-    /// What `-v` meant when the restore ran as a Python subprocess: one `-v`
-    /// for `.info` (pymobiledevice3's colorful INFO), two for `.debug` and
-    /// `.trace`. In process that single count becomes two knobs, and both are
-    /// needed — see `restoreDebugLevel`.
-    var restoreLogLevel: VPhoneRestoreLogLevel {
-        self >= .debug ? .debug : .info
-    }
-
-    /// idevicerestore's own level ceiling (`-d`). Raising the console sink
-    /// without raising this one prints nothing extra, because the messages it
-    /// would show are never emitted.
-    var restoreDebugLevel: Int32 {
-        self >= .debug ? 1 : 0
-    }
-}
 
 // MARK: - restore
 

@@ -2,6 +2,7 @@ import ArgumentParser
 import Darwin
 import Foundation
 import VPhoneArchiveKit
+import VPhoneCommandKit
 import VPhoneCoreKit
 import VPhonePatchKit
 

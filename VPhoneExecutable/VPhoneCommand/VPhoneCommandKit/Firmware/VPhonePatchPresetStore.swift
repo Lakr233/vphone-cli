@@ -297,7 +297,7 @@ public enum VPhonePatchPresetStore {
     /// Whether the bundle ships a preset with this identifier. Only then does
     /// the identifier alone say what the preset turns on: a user's preset or
     /// a preset file can change under the same one.
-    static func isShipped(_ identifier: String) -> Bool {
+    public static func isShipped(_ identifier: String) -> Bool {
         shippedPresets().contains { $0.identifier == identifier }
     }
 
@@ -363,7 +363,7 @@ public enum VPhonePatchPresetStore {
     }
 
     /// Reads a preset file, as ``VPhoneInvokingUserFile`` allows under root.
-    static func readPresetFile(_ path: String) throws -> VPhonePatchPreset {
+    public static func readPresetFile(_ path: String) throws -> VPhonePatchPreset {
         let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
         let data = try VPhoneInvokingUserFile.read(url, kind: "preset file")
         let preset: VPhonePatchPreset

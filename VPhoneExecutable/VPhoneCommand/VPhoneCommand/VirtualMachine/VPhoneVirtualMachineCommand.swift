@@ -486,15 +486,8 @@ struct VPhoneVirtualMachineDeleteCommand: ParsableCommand {
                 return
             }
         }
-        let source = try VPhoneMachineTemplates.readSource(inBundle: lib.library.bundle(named: name).url)
-        try VPhoneBundleOperations.delete(bundleNamed: name, in: lib.library)
-        print("deleted \(name)")
-        // Never deleted here: another create may want it, and rebuilding it
-        // takes a restore.
-        if let template = VPhoneMachineTemplates.unusedTemplate(after: source, in: lib.library) {
-            let size = VPhoneSystemTrim.formatBytes(VPhoneMachineTemplates.allocatedBytes(of: template.url))
-            print("note: template \(template.identifier) (~\(size)) is no longer used by any machine; "
-                + "remove it with `vphone-cli vm template delete \(template.identifier)`")
-        }
+        let result = try VPhoneVirtualMachineDelete.delete(named: name, in: lib.library, refuseWhenRunning: false)
+        print("deleted \(result.name)")
+        if let note = result.templateNote { print(note) }
     }
 }

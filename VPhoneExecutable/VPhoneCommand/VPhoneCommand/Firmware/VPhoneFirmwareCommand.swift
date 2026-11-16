@@ -2,6 +2,7 @@ import ArgumentParser
 import FirmwarePatcher
 import Foundation
 import VPhoneArchiveKit
+import VPhoneCommandKit
 import VPhoneCoreKit
 import VPhonePatchKit
 
@@ -396,7 +397,7 @@ struct VPhoneFirmwarePatchCommand: ParsableCommand {
             // again from Apple's CDN into this run's private snapshot.
             let restore = try FirmwarePipeline(vmDirectory: directory).findRestoreDirectory()
             let tools = restore.appendingPathComponent(".tools", isDirectory: true)
-            try VPhoneFirmwareSealToolCommand.stage(
+            try VPhoneSealTool.stage(
                 version: try CryptexFilesystemPatcher(buildManiest: Data(), restoreDir: restore).getProductVersion(),
                 into: tools,
             )

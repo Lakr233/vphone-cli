@@ -4,10 +4,10 @@ import Foundation
 import VPhoneCoreKit
 
 /// A file the user names on the command line, such as a preset file.
-enum VPhoneInvokingUserFile {
+public enum VPhoneInvokingUserFile {
     /// Under root only a single-link regular file owned by the sudo user is
     /// opened, never a link, so root opens nothing the invoking user could not.
-    static func read(_ url: URL, kind: String) throws -> Data {
+    public static func read(_ url: URL, kind: String) throws -> Data {
         guard geteuid() == 0 else {
             return try Data(contentsOf: url)
         }

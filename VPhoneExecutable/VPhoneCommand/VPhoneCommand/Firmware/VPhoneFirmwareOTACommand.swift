@@ -3,6 +3,7 @@ import Darwin
 import FirmwarePatcher
 import Foundation
 import VPhoneArchiveKit
+import VPhoneCommandKit
 import VPhoneCoreKit
 import VPhonePatchKit
 

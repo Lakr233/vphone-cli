@@ -12,10 +12,10 @@ import VPhonePatchKit
 ///
 /// Lives here rather than in VPhoneCoreKit because the boot-chain part needs
 /// the patch catalog and the plan resolver (`FirmwarePatcher`).
-enum VPhoneMachineTemplateKeys {
+public enum VPhoneMachineTemplateKeys {
     /// The series of this `vphone-cli`'s bundle, or `unbundled` for a build
     /// outside `VPhone.bundle`.
-    static var currentSeries: String {
+    public static var currentSeries: String {
         VPhoneBundleVersion.current().flatMap(VPhoneMachineTemplateKey.series(ofBundleVersion:)) ?? "unbundled"
     }
 
@@ -71,7 +71,7 @@ enum VPhoneMachineTemplateKeys {
         return plan
     }
 
-    static func key(
+    public static func key(
         device: String,
         ios: VPhoneRestoreInfo.OSVersion,
         cloudOS: VPhoneRestoreInfo.OSVersion,
@@ -111,7 +111,7 @@ enum VPhoneMachineTemplateKeys {
 
     /// Use manifest/restore-record versions, never a source filename. Keep
     /// notices off stdout so `vm template find --json` remains valid JSON.
-    static func fitted(_ slimming: VPhoneMachineTemplateSlimming, toIOSVersion version: String) throws -> VPhoneMachineTemplateSlimming {
+    public static func fitted(_ slimming: VPhoneMachineTemplateSlimming, toIOSVersion version: String) throws -> VPhoneMachineTemplateSlimming {
         do {
             let fitted = try slimming.fitted(toIOSVersion: version)
             if fitted.serviceProfile != slimming.serviceProfile {
@@ -157,7 +157,7 @@ enum VPhoneMachineTemplateKeys {
     /// they are here, else from a template recorded with the same sources
     /// (``VPhoneMachineTemplates/resolveBuilds(sources:device:in:local:)``).
     /// Nil when only a download would tell.
-    static func resolveBuilds(
+    public static func resolveBuilds(
         iPhoneSource: String,
         cloudOSSource: String,
         cache: URL,
@@ -176,19 +176,19 @@ enum VPhoneMachineTemplateKeys {
     // MARK: Recorded machine
 
     /// What a machine's records say about it, for adopting it.
-    struct Recorded {
-        var key: VPhoneMachineTemplateKey
+    public struct Recorded {
+        public var key: VPhoneMachineTemplateKey
         /// The bundle that built the boot chain, when any record names it.
-        var bootChainBundleVersion: String?
+        public var bootChainBundleVersion: String?
         /// Boot-chain patches whose receipt differs from the plan.
-        var drift: [String]
+        public var drift: [String]
     }
 
     /// The key a machine's own records give: the restored versions, the
     /// guest device, the boot-chain plan `fw patch` recorded, the disk, and
     /// the series of the bundle that built the boot chain. `slimming` is
     /// what was done to it; nothing is, before the setup boot exists.
-    static func recorded(_ bundle: VPhoneBundle, slimming: VPhoneMachineTemplateSlimming = .none) throws -> Recorded {
+    public static func recorded(_ bundle: VPhoneBundle, slimming: VPhoneMachineTemplateSlimming = .none) throws -> Recorded {
         guard VPhoneRestoreInfo.customFirmwareInstalled(inBundle: bundle) == true else {
             throw ValidationError("VM '\(bundle.name)' has no completed CFW install, so it cannot be a template.")
         }
@@ -279,7 +279,7 @@ enum VPhoneMachineTemplateKeys {
     // MARK: Staleness
 
     /// Why `template` would not serve a fresh create with its own options.
-    static func staleReasons(_ template: VPhoneMachineTemplate) -> [String] {
+    public static func staleReasons(_ template: VPhoneMachineTemplate) -> [String] {
         let key = template.key
         let selection = VPhonePatchPresetStore.selection(forVM: template.url)
         guard let preset = VPhonePatchPresetStore.preset(named: key.patchPreset, forVM: template.url) else {
