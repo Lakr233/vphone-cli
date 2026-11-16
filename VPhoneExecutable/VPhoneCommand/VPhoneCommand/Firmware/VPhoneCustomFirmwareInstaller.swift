@@ -1521,7 +1521,7 @@ struct VPhoneCustomFirmwareInstaller {
                 let count = try VPhoneIOS17WallpaperAssets.update(system: system, enabled: enabled)
                 if enabled && count > 0 {
                     live.insert(wallpaper)
-                    print("  [+] \(wallpaper): \(count) original wallpaper layers prepared")
+                    VPhoneConsole.shared.line("  [+] \(wallpaper): \(count) original wallpaper layers prepared")
                 }
             }
         }
@@ -2987,7 +2987,7 @@ struct VPhoneCustomFirmwareInstaller {
             if version == "17.7" && !linkLegacyGPUTransport {
                 try system.removeItem(gpuTransportMarker)
                 if isIOS17GPU && transportOn {
-                    print("  [!] \(gpuTransportPatch): prepare the cloudOS 18.6 GPU driver before enabling this transport.")
+                    VPhoneConsole.shared.line("  [!] \(gpuTransportPatch): prepare the cloudOS 18.6 GPU driver before enabling this transport.")
                 }
                 return
             }
