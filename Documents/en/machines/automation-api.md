@@ -70,6 +70,45 @@ Swift apps can use the `VPhoneAPIClient` in the `VPhoneExternalAccessKit` librar
 
 The VM's control socket accepts the same methods without the API listener: send `{"t":"rpc","method":"<method>","params":{}}` as one JSON line. See [Control socket](create-and-run.md#control-socket).
 
+## MCP server
+
+`vphone-mcp` exposes VM control sockets as Model Context Protocol tools, so an MCP client such as Claude Code can look at the screen and drive guests. Build it from the workspace:
+
+```sh
+xcodebuild -workspace VPhone.xcworkspace -scheme VPhoneMCP -configuration Debug -derivedDataPath build/mcp build
+```
+
+The binary is `build/mcp/Build/Products/Debug/vphone-mcp`. Every call names the VM in its required `vm` argument, so one server drives several running VMs.
+
+The tools:
+
+- `screenshot`, `push`, `pull`, `shell`, `methods` and `rpc` are fixed.
+- Thirteen area tools (`input`, `ui`, `apps`, `files`, `processes`, `services`, `device`, `sensors`, `network`, `settings`, `system`, `bootstrap`, `script`) are generated from the guest catalog (`methods.list`) embedded in `vphone-mcp` (`VPhoneMCP/VPhoneMCPCLI/GuestCatalog.swift`, checked by `zsh VPhoneDaemon/Tests/run-methods-tests.sh`; rewrite it with `zsh VPhoneDaemon/Tests/run-methods-tests.sh --write-catalog`), so the tool list is the same whichever VMs run. A guest build that lacks a method answers with its own unknown-method error. Each takes `action` (a method name such as `input.tap`) and that method's parameters; its schema and description come from the catalog, and `force: true` confirms an action that needs it.
+
+`--profile` limits what exists: `full` (default) offers everything; `standard` drops the actions the catalog marks `destructive` (those that need `force`) and the host tools `push`, `pull`, `shell` and `rpc`; `readonly` offers only `read` actions, `screenshot` and `methods`. `--tools` is an explicit allowlist of tool names, applied on top. A tool or action the profile removes is not listed, and calling it is refused.
+
+With a profile:
+
+```json
+{"mcpServers":{"vphone":{"command":"/path/to/vphone-mcp","args":["--profile","readonly"]}}}
+```
+
+With `--tools`:
+
+```json
+{"mcpServers":{"vphone":{"command":"/path/to/vphone-mcp","args":["--tools","screenshot,input,ui,apps,methods"]}}}
+```
+
+With neither (every tool and action offered):
+
+```json
+{"mcpServers":{"vphone":{"command":"/path/to/vphone-mcp","args":[]}}}
+```
+
+Warning: `push` and `pull` reach any host path the VM host process can reach, and `rpc`, `shell` and the destructive actions of the group tools reach guest actions. Leaving them out of `--tools`, or starting with `--profile standard` or `--profile readonly`, denies this.
+
+`screenshot` returns the screen at point size, and the `input` actions take points, so look before acting. `shell` runs a session in the guest: pass `program: "bash"` for shell commands. Failures from the VM come back as tool errors; a call that names an unknown tool, action or a bad argument is a JSON-RPC error and sends nothing to the VM.
+
 ## See also
 
 - [Full API reference](../../../Research/vphoned_http_api.md)

@@ -6,12 +6,12 @@ enum StorageMethod: String, GuestMethod {
 
     var spec: MethodSpec {
         switch self {
-        case .apfsSnapshots: MethodSpec(.optional("mount", .string, "Absolute mount point of the APFS volume", default: "/"), summary: "List the APFS snapshot names on a guest volume.", result: [.required("mount", .string), .required("snapshots", .array)], paged: MethodSpec.Paged(key: "snapshots", order: .keep))
+        case .apfsSnapshots: MethodSpec(.optional("mount", .string, "Absolute mount point of the APFS volume", default: "/"), area: .files, access: .read, summary: "List the APFS snapshot names on a guest volume.", result: [.required("mount", .string), .required("snapshots", .array)], paged: MethodSpec.Paged(key: "snapshots", order: .keep))
         case .apfsSnapshotDelete:
             MethodSpec(.optional("mount", .string, "Absolute mount point of the APFS volume", default: "/"),
                        .optional("name", .string, "Exact snapshot name to delete; must start with orig-fs.disabled.rn- and extend it; not with prefix"),
                        .optional("prefix", .string, "Delete snapshots with this name prefix, which must start with orig-fs.disabled.rn-; not with name"),
-                       summary: "Delete the orig-fs.disabled.rn-* APFS snapshots CFW install leaves behind, freeing trimmed disk space.",
+                       area: .files, access: .mutating, summary: "Delete the orig-fs.disabled.rn-* APFS snapshots CFW install leaves behind, freeing trimmed disk space.",
                        force: .always("delete APFS snapshots on <mount>") { p in try "delete APFS snapshots on \(GuestAPI.snapshotDeletion(p).mount)" }, result: [
                            .required("after", .array),
                            .required("already_deleted", .array),

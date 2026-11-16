@@ -96,6 +96,14 @@ enum GuestAPIError: Error, CustomStringConvertible {
 
 enum ParamType: String { case string, integer, number, boolean, array, object, any, null }
 
+extension [ParamType] {
+    /// Every JSON type, for a param that takes any JSON value.
+    static let anyJSON: [ParamType] = [.string, .number, .boolean, .array, .object, .null]
+}
+
+/// What the elements of an `array` param are. `point` is an `[x, y]` pair of numbers.
+enum ParamItems: String { case string, integer, number, object, point }
+
 struct MethodParam {
     let name: String
     let type: ParamType
@@ -105,18 +113,25 @@ struct MethodParam {
     /// Allowed values, `default`, `minimum` and `maximum` are `methods.list` metadata only: the handlers do not enforce them.
     let values: [String]?
     let defaultValue: Any?
+    /// For an array, `min` and `max` bound the item count; `items` is the element type. `accepts` lists every JSON type a
+    /// param takes when that is more than its one `type` (an `any` param always has it).
     let min: Double?
     let max: Double?
+    let items: ParamItems?
+    let accepts: [ParamType]?
     static func required(_ name: String, _ type: ParamType, _ description: String,
-                         values: [String]? = nil, min: Double? = nil, max: Double? = nil) -> MethodParam {
-        .init(name: name, type: type, required: true, description: description, values: values, defaultValue: nil, min: min, max: max)
+                         values: [String]? = nil, min: Double? = nil, max: Double? = nil,
+                         items: ParamItems? = nil, accepts: [ParamType]? = nil) -> MethodParam {
+        .init(name: name, type: type, required: true, description: description, values: values, defaultValue: nil, min: min, max: max,
+              items: items, accepts: accepts)
     }
 
     static func optional(_ name: String, _ type: ParamType, _ description: String,
                          values: [String]? = nil, default defaultValue: Any? = nil,
-                         min: Double? = nil, max: Double? = nil) -> MethodParam {
+                         min: Double? = nil, max: Double? = nil,
+                         items: ParamItems? = nil, accepts: [ParamType]? = nil) -> MethodParam {
         .init(name: name, type: type, required: false, description: description, values: values,
-              defaultValue: defaultValue, min: min, max: max)
+              defaultValue: defaultValue, min: min, max: max, items: items, accepts: accepts)
     }
 }
 
@@ -161,6 +176,15 @@ enum MethodForce {
     }
 }
 
+/// The group a method belongs to in `methods.list`. The raw value is the reported `area`.
+enum MethodArea: String, CaseIterable {
+    case input, ui, apps, files, processes, services, device, sensors, network, settings, system, bootstrap, script
+}
+
+/// What a method does to the guest. `methods.list` reports a method whose `force` is not `.never` as
+/// `destructive` instead; every other method reports its declared access.
+enum MethodAccess: String { case read, mutating }
+
 struct MethodSpec {
     /// A list method whose reply array `key` is sorted per `order` and paged by dispatch.
     /// `keep` = executor order; `strings` = string rows sorted ascending; `keys` = dict rows
@@ -176,13 +200,18 @@ struct MethodSpec {
         case keys([String])
     }
 
+    let area: MethodArea
+    let access: MethodAccess
     let summary: String
     let params: [MethodParam]
     let force: MethodForce
     /// nil = result undeclared; [] = declared to return no keys.
     let result: [ResultKey]?
     let paged: Paged?
-    init(_ params: MethodParam..., summary: String, force: MethodForce = .never, result: [ResultKey]? = nil, paged: Paged? = nil) {
+    init(_ params: MethodParam..., area: MethodArea, access: MethodAccess, summary: String, force: MethodForce = .never,
+         result: [ResultKey]? = nil, paged: Paged? = nil) {
+        self.area = area
+        self.access = access
         self.summary = summary
         self.params = params
         self.force = force
@@ -360,9 +389,14 @@ struct GuestMethodArea {
                 if let value = param.defaultValue { entry["default"] = value }
                 if let min = param.min { entry["minimum"] = min }
                 if let max = param.max { entry["maximum"] = max }
+                if let items = param.items { entry["items"] = items.rawValue }
+                if let accepts = param.accepts { entry["accepts"] = accepts.map(\.rawValue) }
                 return entry
             }
-            var entry: [String: Any] = ["name": name, "description": spec.summary, "params": params, "force": force]
+            let access = spec.force.text == nil ? spec.access.rawValue : "destructive"
+            var entry: [String: Any] = [
+                "name": name, "description": spec.summary, "area": spec.area.rawValue, "access": access, "params": params, "force": force,
+            ]
             if let text = spec.force.text { entry["force_action"] = text }
             if let declared = spec.result {
                 let result = declared + (spec.paged == nil ? [] : Self.pagingResult)

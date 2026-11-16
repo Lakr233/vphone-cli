@@ -47,7 +47,9 @@ invalid-request error, read the source named there instead of guessing keys.
   capped at 500 (500 means 500 or more). A failed observe gives
   `observed: {observe_error}` and the action still succeeds.
 - **force methods** refuse to run unless the params carry `"force":true`.
-  `methods.list` (no params) lists every method with its params and its
+  `methods.list` (no params) lists every method with its params, its `area`,
+  its `access` (`read`, `mutating` or `destructive`; defined in
+  `Research/vphoned_http_api.md`, "Method discovery") and its
   `force` value (`always`, `never` or `when:<key>`, as for `services.kickstart`
   with `kill`); this list is the authority. The flag is the confirmation: use it
   only for what the user asked. Without it the call fails with `force_required`

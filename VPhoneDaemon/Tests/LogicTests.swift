@@ -169,10 +169,10 @@ enum LogicTests {
 
         var spec: MethodSpec {
             switch self {
-            case .keep: MethodSpec(summary: "Fixture.", paged: MethodSpec.Paged(key: "rows", order: .keep))
-            case .strings: MethodSpec(summary: "Fixture.", paged: MethodSpec.Paged(key: "matches", order: .strings))
-            case .keys: MethodSpec(summary: "Fixture.", paged: MethodSpec.Paged(key: "rows", order: .keys(["bundle_id", "path"])))
-            case .pid: MethodSpec(summary: "Fixture.", paged: MethodSpec.Paged(key: "rows", order: .keys(["pid"])))
+            case .keep: MethodSpec(area: .system, access: .read, summary: "Fixture.", paged: MethodSpec.Paged(key: "rows", order: .keep))
+            case .strings: MethodSpec(area: .system, access: .read, summary: "Fixture.", paged: MethodSpec.Paged(key: "matches", order: .strings))
+            case .keys: MethodSpec(area: .system, access: .read, summary: "Fixture.", paged: MethodSpec.Paged(key: "rows", order: .keys(["bundle_id", "path"])))
+            case .pid: MethodSpec(area: .system, access: .read, summary: "Fixture.", paged: MethodSpec.Paged(key: "rows", order: .keys(["pid"])))
             }
         }
     }
@@ -1276,22 +1276,22 @@ enum LogicTests {
 
         var spec: MethodSpec {
             switch self {
-            case .echo: MethodSpec(.required("a", .string, "a"), .optional("b", .integer, "b"), summary: "echo fixture")
+            case .echo: MethodSpec(.required("a", .string, "a"), .optional("b", .integer, "b"), area: .system, access: .mutating, summary: "echo fixture")
             case .always:
-                MethodSpec(.required("a", .string, "a"), summary: "always fixture", force: .always("act on <a>") { p in
+                MethodSpec(.required("a", .string, "a"), area: .system, access: .mutating, summary: "always fixture", force: .always("act on <a>") { p in
                     guard let a = p["a"] as? String, !a.isEmpty else { throw GuestAPIError.invalidRequest("a is required") }
                     return "act on \(a)"
                 })
-            case .when: MethodSpec(.optional("kill", .boolean, "kill"), summary: "when fixture", force: .when("kill", "kill fixture") { _ in "kill fixture" })
+            case .when: MethodSpec(.optional("kill", .boolean, "kill"), area: .system, access: .mutating, summary: "when fixture", force: .when("kill", "kill fixture") { _ in "kill fixture" })
             case .varies:
-                MethodSpec(.optional("userspace", .boolean, "userspace"), summary: "varies fixture", force: .always("reboot fixture") { p in
+                MethodSpec(.optional("userspace", .boolean, "userspace"), area: .system, access: .mutating, summary: "varies fixture", force: .always("reboot fixture") { p in
                     GuestMethodArea.flag(p, "userspace") ? "restart fixture userspace" : "reboot fixture"
                 })
             case .declared:
-                MethodSpec(.required("a", .string, "a"), summary: "declared fixture", result: [
+                MethodSpec(.required("a", .string, "a"), area: .system, access: .read, summary: "declared fixture", result: [
                     .optional("z", .boolean), .required("x", .integer), .hidden("y", .string), .required("e", .object).open(),
                 ])
-            case .empty: MethodSpec(summary: "empty fixture", result: [])
+            case .empty: MethodSpec(area: .system, access: .read, summary: "empty fixture", result: [])
             }
         }
     }
@@ -1304,7 +1304,7 @@ enum LogicTests {
 
         var spec: MethodSpec {
             LogicTests.specCount += 1
-            return MethodSpec(summary: "counted fixture")
+            return MethodSpec(area: .system, access: .read, summary: "counted fixture")
         }
     }
 
@@ -1362,19 +1362,19 @@ enum LogicTests {
 
         let catalog = GuestMethodArea.catalog([area])
         let expected: [String: Any] = ["methods": [
-            ["name": "fixture.echo", "description": "echo fixture", "params": [
+            ["name": "fixture.echo", "description": "echo fixture", "area": "system", "access": "mutating", "params": [
                 ["name": "a", "type": "string", "required": true, "description": "a"],
                 ["name": "b", "type": "integer", "required": false, "description": "b"],
             ], "force": "never"],
-            ["name": "fixture.always", "description": "always fixture", "params": [["name": "a", "type": "string", "required": true, "description": "a"]], "force": "always", "force_action": "act on <a>"],
-            ["name": "fixture.when", "description": "when fixture", "params": [["name": "kill", "type": "boolean", "required": false, "description": "kill"]], "force": "when:kill", "force_action": "kill fixture"],
-            ["name": "fixture.varies", "description": "varies fixture", "params": [["name": "userspace", "type": "boolean", "required": false, "description": "userspace"]], "force": "always", "force_action": "reboot fixture"],
-            ["name": "fixture.declared", "description": "declared fixture", "params": [["name": "a", "type": "string", "required": true, "description": "a"]], "force": "never", "result": [
+            ["name": "fixture.always", "description": "always fixture", "area": "system", "access": "destructive", "params": [["name": "a", "type": "string", "required": true, "description": "a"]], "force": "always", "force_action": "act on <a>"],
+            ["name": "fixture.when", "description": "when fixture", "area": "system", "access": "destructive", "params": [["name": "kill", "type": "boolean", "required": false, "description": "kill"]], "force": "when:kill", "force_action": "kill fixture"],
+            ["name": "fixture.varies", "description": "varies fixture", "area": "system", "access": "destructive", "params": [["name": "userspace", "type": "boolean", "required": false, "description": "userspace"]], "force": "always", "force_action": "reboot fixture"],
+            ["name": "fixture.declared", "description": "declared fixture", "area": "system", "access": "read", "params": [["name": "a", "type": "string", "required": true, "description": "a"]], "force": "never", "result": [
                 ["name": "e", "type": "object", "required": true, "open": true, "nullable": false],
                 ["name": "x", "type": "integer", "required": true, "open": false, "nullable": false],
                 ["name": "z", "type": "boolean", "required": false, "open": false, "nullable": false],
             ]],
-            ["name": "fixture.empty", "description": "empty fixture", "params": [] as [[String: Any]], "force": "never", "result": [] as [[String: Any]]],
+            ["name": "fixture.empty", "description": "empty fixture", "area": "system", "access": "read", "params": [] as [[String: Any]], "force": "never", "result": [] as [[String: Any]]],
         ]]
         expectEqual(json(catalog), json(expected), "catalog")
 
@@ -1401,7 +1401,7 @@ enum LogicTests {
         // methods.list reaches the dispatch through the same walk GuestAPI.execute uses
         enum FixtureCore: String, GuestMethod {
             case methodsList = "methods.list"
-            var spec: MethodSpec { MethodSpec(summary: "core fixture") }
+            var spec: MethodSpec { MethodSpec(area: .system, access: .read, summary: "core fixture") }
         }
         nonisolated(unsafe) var table: [GuestMethodArea] = []
         table = [
@@ -1480,8 +1480,8 @@ enum LogicTests {
             case none = "wide.none"
             var spec: MethodSpec {
                 switch self {
-                case .wide: MethodSpec(.optional("alpha", .string, "alpha"), .optional("beta", .string, "beta"), .optional("gamma", .string, "gamma"), summary: "fixture")
-                case .none: MethodSpec(summary: "fixture")
+                case .wide: MethodSpec(.optional("alpha", .string, "alpha"), .optional("beta", .string, "beta"), .optional("gamma", .string, "gamma"), area: .system, access: .read, summary: "fixture")
+                case .none: MethodSpec(area: .system, access: .read, summary: "fixture")
                 }
             }
         }
@@ -1567,7 +1567,7 @@ enum LogicTests {
     enum ObserveFixture: String, GuestMethod {
         case tap = "input.tap"
         case key = "input.key"
-        var spec: MethodSpec { MethodSpec(summary: "fixture") }
+        var spec: MethodSpec { MethodSpec(area: .system, access: .read, summary: "fixture") }
     }
 
     enum CatalogFixture: String, GuestMethod, CaseIterable {
@@ -1576,7 +1576,7 @@ enum LogicTests {
         case scroll = "input.scroll", swipe = "input.swipe", tap = "input.tap", touch = "input.touch"
         case touch2 = "input.touch2", touchSequence = "input.touch_sequence", type = "input.type"
         case other = "ui.tree"
-        var spec: MethodSpec { MethodSpec(summary: "fixture", result: [.required("x", .number)]) }
+        var spec: MethodSpec { MethodSpec(area: .system, access: .read, summary: "fixture", result: [.required("x", .number)]) }
     }
 
     /// `methods.list` declares observe, observe_delay_ms and observed once, on every input.* name.
@@ -1720,7 +1720,7 @@ enum LogicTests {
 
     enum DeclaredFixture: String, GuestMethod {
         case tap = "input.tap"
-        var spec: MethodSpec { MethodSpec(.required("x", .number, "x"), .required("y", .number, "y"), summary: "fixture") }
+        var spec: MethodSpec { MethodSpec(.required("x", .number, "x"), .required("y", .number, "y"), area: .system, access: .read, summary: "fixture") }
     }
 
     /// observe through the real dispatch and the real unknown-param check of a `make`-built area with declared params.

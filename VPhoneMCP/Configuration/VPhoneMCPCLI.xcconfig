@@ -1,0 +1,8 @@
+// The vphone-mcp command-line tool. It links nothing but the system.
+
+#include "../../VPhoneLaunchpad/Configuration/Base.xcconfig"
+
+PRODUCT_NAME = vphone-mcp
+PRODUCT_MODULE_NAME = VPhoneMCPCLI
+// Top-level code and blocking socket reads: nothing here is UI.
+SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated

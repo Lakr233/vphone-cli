@@ -1,0 +1,66 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 70;
+	objects = {
+/* Begin PBXFileReference section */
+		5B0000000000000000000006 /* vphone-mcp */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = "vphone-mcp"; sourceTree = BUILT_PRODUCTS_DIR; };
+		5B0000000000000000000007 /* VPhoneMCPCLI.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = VPhoneMCPCLI.xcconfig; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		5B0000000000000000000005 /* VPhoneMCPCLI */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = VPhoneMCPCLI; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+/* Begin PBXFrameworksBuildPhase section */
+		5B0000000000000000000022 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+/* Begin PBXGroup section */
+		5B0000000000000000000002 = {isa = PBXGroup; children = (5B0000000000000000000005 /* VPhoneMCPCLI */, 5B0000000000000000000004 /* Configuration */, 5B0000000000000000000003 /* Products */, ); sourceTree = "<group>"; };
+		5B0000000000000000000003 /* Products */ = {isa = PBXGroup; children = (5B0000000000000000000006 /* vphone-mcp */, ); name = Products; sourceTree = "<group>"; };
+		5B0000000000000000000004 /* Configuration */ = {isa = PBXGroup; children = (5B0000000000000000000007 /* VPhoneMCPCLI.xcconfig */, ); path = Configuration; sourceTree = "<group>"; };
+/* End PBXGroup section */
+/* Begin PBXNativeTarget section */
+		5B0000000000000000000011 /* VPhoneMCP */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5B0000000000000000000032 /* Build configuration list for PBXNativeTarget "VPhoneMCP" */;
+			buildPhases = (5B0000000000000000000021 /* Sources */, 5B0000000000000000000022 /* Frameworks */, );
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (5B0000000000000000000005 /* VPhoneMCPCLI */, );
+			name = VPhoneMCP;
+			productName = VPhoneMCP;
+			productReference = 5B0000000000000000000006 /* vphone-mcp */;
+			productType = "com.apple.product-type.tool";
+		};
+/* End PBXNativeTarget section */
+/* Begin PBXProject section */
+		5B0000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {LastUpgradeCheck = 2700; };
+			buildConfigurationList = 5B0000000000000000000031 /* Build configuration list for PBXProject "VPhoneMCP" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			knownRegions = (en, Base, );
+			mainGroup = 5B0000000000000000000002;
+			productRefGroup = 5B0000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (5B0000000000000000000011 /* VPhoneMCP */, );
+		};
+/* End PBXProject section */
+/* Begin PBXSourcesBuildPhase section */
+		5B0000000000000000000021 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+/* Begin XCBuildConfiguration section */
+		5B0000000000000000000041 /* Debug */ = {isa = XCBuildConfiguration; baseConfigurationReference = 5B0000000000000000000007 /* VPhoneMCPCLI.xcconfig */; buildSettings = {}; name = Debug; };
+		5B0000000000000000000042 /* Release */ = {isa = XCBuildConfiguration; baseConfigurationReference = 5B0000000000000000000007 /* VPhoneMCPCLI.xcconfig */; buildSettings = {}; name = Release; };
+		5B0000000000000000000043 /* Debug */ = {isa = XCBuildConfiguration; baseConfigurationReference = 5B0000000000000000000007 /* VPhoneMCPCLI.xcconfig */; buildSettings = {}; name = Debug; };
+		5B0000000000000000000044 /* Release */ = {isa = XCBuildConfiguration; baseConfigurationReference = 5B0000000000000000000007 /* VPhoneMCPCLI.xcconfig */; buildSettings = {}; name = Release; };
+/* End XCBuildConfiguration section */
+/* Begin XCConfigurationList section */
+		5B0000000000000000000031 /* Build configuration list for PBXProject "VPhoneMCP" */ = {isa = XCConfigurationList; buildConfigurations = (5B0000000000000000000041 /* Debug */, 5B0000000000000000000042 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		5B0000000000000000000032 /* Build configuration list for PBXNativeTarget "VPhoneMCP" */ = {isa = XCConfigurationList; buildConfigurations = (5B0000000000000000000043 /* Debug */, 5B0000000000000000000044 /* Release */, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = 5B0000000000000000000001 /* Project object */;
+}

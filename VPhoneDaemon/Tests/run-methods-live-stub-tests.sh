@@ -77,7 +77,7 @@ run_live() {
 case_run() { case_name=$1; stub_start "$2"; shift 2; run_live "$@"; stub_stop; }
 
 # --- single-reply mutations ---------------------------------------------------
-catalog_one() { printf '%s\tnever\t-\t-\t%s\tread\n' "$1" "$2" > "$work/cat.tsv"; }
+catalog_one() { printf '%s\tnever\t-\t-\t%s\tread\tdevice\tread\n' "$1" "$2" > "$work/cat.tsv"; }
 
 catalog_one m 'a:string,b:integer?'
 case_run conforming '{"m":{"result":{"a":"x","b":3}}}'

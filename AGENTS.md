@@ -51,6 +51,7 @@ See `Research/` for detailed firmware pipeline, component origins, patch breakdo
 - `VPhoneDaemon`: guest `vphoned`, native operations, and daemon configuration.
 - `VPhoneGuestComponents`: guest dylibs built by Makefile from the bundle build phase.
 - `VPhoneWebsite`: the documentation site at https://lakr233.github.io/vphone-cli/ (Rspress, Node at build time only). `scripts/sync-docs.mjs` generates it from the repository: the user manual in `Documents/<lang>/` (`en`, `zh`, `ja`, `ko`; one identical tree per language, English is the source, the section tables of each `Documents/<lang>/README.md` are its sidebar) and the research notes in `Research/`, served untranslated under `/research/`. A manual page added or changed in English needs the same change in every translation, and the translations pass the global Argon review before they ship. The root `README.md` stays short (header, screenshot, agent install prompt, acknowledgements, license) and points to the site. `.github/workflows/website.yml` builds it and deploys GitHub Pages from main.
+- `VPhoneMCP`: `vphone-mcp`, an MCP server over VM `vphone.sock`s: `screenshot`, `push`, `pull`, `shell`, `methods`, `rpc`, and one tool per guest method area, for MCP clients; the area catalog is embedded (`VPhoneMCP/VPhoneMCPCLI/GuestCatalog.swift`, generated from the daemon catalog and gated by `run-methods-tests.sh`; rewrite it with `zsh VPhoneDaemon/Tests/run-methods-tests.sh --write-catalog`). Build with `xcodebuild -workspace VPhone.xcworkspace -scheme VPhoneMCP build`; tests are `zsh VPhoneMCP/Tests/MCPTests.sh`, and `zsh VPhoneMCP/Tests/run-mcp-live.zsh` runs the tools against throw-away VMs; usage is in `Documents/en/machines/automation-api.md`.
 - `VPhoneLaunchpad`: `vphone-launchpad.app`, the workstation app that downloads and manages `VPhone.bundle` releases and drives each VM through the `vphone-cli` of the Core Bundle that machine is bound to (`launchpad.json` in the machine folder; the default bundle only seeds new machines and library-wide commands), plus its SMJobBless helper `com.vphone.launchpad.helper`, `vphone-launchpad-cli`, a stateless client of the running app over a same-user Unix socket (`Documents/en/launchpad/launchpad-cli.md`; use it to install and test a local `VPhone.bundle` build), and `vphone-launchpad-launcher`, the responsible process for each VM it starts. Shipped separately from the bundle. Settings live only in `VPhoneLaunchpad/Configuration/*.xcconfig`; the pbxproj holds none.
 
 The `VPhone` scheme puts host programs in `VPhone.bundle/Contents/MacOS` and everything installed into the guest (vphoned, guest dylibs, their plists) in `Contents/Resources/guest-resources`. Xcode targets have `CODE_SIGNING_ALLOWED=NO`; the bundle build phase signs each binary ad hoc with only its own entitlements, then seals the outer bundle. `VPhoneVirtualization.entitlements` belongs to `vphone-vm`; `VPhoneDaemon.entitlements` belongs to `vphoned`. The bundle and CLI have no private entitlements.
@@ -127,6 +128,30 @@ There is none, and adding any is a regression.
 - Prefer source-backed semantic anchors: in-image symbol lookup, string xrefs, local call-flow, and XNU correlation. Do not depend on repo-exported per-kernel symbol dumps at runtime.
 - When retargeting a patch, write the reveal procedure and validation steps into the relevant research doc or commit notes before handing off for testing. Do not create `TODO.md`.
 - For `patchBsdInitAuth` (`Kernel/CustomFirmwarePatches/Storage/KernelCustomFirmwarePatchBsdInitAuth.swift`, named `patch_bsd_init_auth` in the research docs) specifically, the allowed reveal flow is: recover `bsd_init` -> locate rootvp panic block -> find the unique in-function `call` -> `cbnz w0/x0, panic` -> `bl imageboot_needed` site -> patch the branch gate only.
+
+## MCP Server
+
+Build `vphone-mcp` with `xcodebuild -workspace VPhone.xcworkspace -scheme VPhoneMCP -configuration Debug -derivedDataPath build/mcp build` and register `build/mcp/Build/Products/Debug/vphone-mcp` in an MCP client's `mcp.json`. The area tools come from the guest catalog embedded in `vphone-mcp` (`GuestCatalog.swift`, generated from the daemon catalog and gated by `zsh VPhoneDaemon/Tests/run-methods-tests.sh`; regenerate it with `zsh VPhoneDaemon/Tests/run-methods-tests.sh --write-catalog`), so `tools/list` is the same whatever VMs run (`area`, `access`); `--profile full|standard|readonly` limits the actions, `--tools` names the tools, and every call names the VM in its required `vm` argument:
+
+With a profile:
+
+```json
+{"mcpServers":{"vphone":{"command":"/path/to/vphone-mcp","args":["--profile","readonly"]}}}
+```
+
+With `--tools`:
+
+```json
+{"mcpServers":{"vphone":{"command":"/path/to/vphone-mcp","args":["--tools","screenshot,input,ui,apps,methods"]}}}
+```
+
+With neither (every tool and action offered):
+
+```json
+{"mcpServers":{"vphone":{"command":"/path/to/vphone-mcp","args":[]}}}
+```
+
+Warning: `push` and `pull` reach any host path the VM host process can reach, and `rpc`, `shell` and the destructive actions of the group tools reach guest actions. Leaving them out of `--tools`, or starting with `--profile standard` or `--profile readonly`, denies this.
 
 ## Build & Sign
 

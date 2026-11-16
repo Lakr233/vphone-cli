@@ -6,10 +6,11 @@ set -euo pipefail
 # --specs and --forces print what the enums declare, and a plain run checks
 # that no method name is declared twice and that every method the HTTP route
 # table names is declared; --self-test mutates a copy of the sources to prove
-# each failing check fires. Checks 6, 8, 10 and 11 compare against methods-catalog.tsv
-# beside this script (method, force, params, force action text, result, live; tab separated).
+# each failing check fires. Check 14 regenerates VPhoneMCP/VPhoneMCPCLI/GuestCatalog.swift (the catalog vphone-mcp embeds)
+# from the sources and fails when the checked-in file differs; --write-catalog rewrites it. Checks 6, 8, 10 and 11 compare against methods-catalog.tsv
+# beside this script (method, force, params, force action text, result, live, area, access; tab separated).
 # --results <dir> <catalog> runs only check 11 (result schemas and live classes) on those files. Check 11 compiles
-# MethodsHarness.swift over the method enums and compares its result cells with the catalog; --write-results rewrites
+# MethodsHarness.swift over the method enums and compares its result, area and access cells with the catalog; --write-results rewrites
 # only the result column of the catalog from the same output.
 
 declare -a files
@@ -165,12 +166,12 @@ forced_methods() {
     all_specs | /usr/bin/awk '$2 != "never" { print $1, $2 }'
 }
 
-# "<method><tab><result cell>" for every method the GuestAPI*Methods.swift files of dir $1 declare, sorted by name: the
+# "<method><tab><result cell><tab><area><tab><reported access><tab><declared access>" for every method the GuestAPI*Methods.swift files of dir $1 declare, sorted by name: the
 # MethodsHarness (next to this script) compiled with GuestMethodSpec.swift, those files and GuestAPIStub.swift, plus a
 # generated `kinds` list of their `enum XMethod: String, GuestMethod` types. Prints "FAIL harness: ..." and returns 1
 # when the build fails.
-harness_cells() {
-    local dir="$1" here="${script:h}" spec="$1/GuestMethodSpec.swift"
+harness_cells() {  # $1 dir, $2 optional harness mode (--catalog)
+    local dir="$1" mode="${2:-}" here="${script:h}" spec="$1/GuestMethodSpec.swift"
     [[ -f "$spec" ]] || spec="$default_dir/GuestMethodSpec.swift"
     local work="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/vphone-methods-harness.XXXXXX")"
     local -a enum_files=("$dir"/GuestAPI*Methods.swift(N))
@@ -187,7 +188,7 @@ harness_cells() {
         /bin/rm -rf "$work"
         return 1
     fi
-    "$work/harness" || code=$?
+    "$work/harness" ${mode:+"$mode"} || code=$?
     /bin/rm -rf "$work"
     return $code
 }
@@ -203,16 +204,24 @@ check_docs() {
     done
 }
 
-# Check 11: prints one FAIL line per finding comparing the result and live columns of catalog $2 with the specs in dir $1.
-# The result column must equal the harness cell of the method (both must exist); the live column must be a valid class.
+# Check 11: prints one FAIL line per finding comparing the result, live, area and access columns of catalog $2 with the
+# specs in dir $1. The result, area and access columns must equal the harness cells of the method (both must exist); the
+# live column must be a valid class; the area one of the 13 below; access read, mutating or destructive; the declared
+# access must equal the live class when that is read or mutating; a method with force must be reported destructive.
 check_results() {
     local cells; cells="$(harness_cells "$1")" || { print -r -- "$cells"; return 0; }
     local cells_file="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/vphone-methods-results.XXXXXX")"
     print -r -- "$cells" > "$cells_file"
     LC_ALL=C /usr/bin/awk -F'\t' -v cells="$cells_file" '
-        BEGIN { while ((getline line < cells) > 0) { split(line, field, "\t"); cell[field[1]] = field[2] } }
+        BEGIN {
+            while ((getline line < cells) > 0) { split(line, field, "\t"); cell[field[1]] = field[2]; area[field[1]] = field[3]; rep[field[1]] = field[4]; decl[field[1]] = field[5] }
+            n = split("input ui apps files processes services device sensors network settings system bootstrap script", names, " ")
+            for (i = 1; i <= n; i++) valid[names[i]] = 1
+        }
         {
-            m = $1; force = $2; params = $3; res = $5; live = $6
+            m = $1; force = $2; params = $3; res = $5; live = $6; carea = $7; caccess = $8
+            if (!(carea in valid)) print "FAIL area: " m " has invalid area \"" carea "\""
+            if (caccess !~ /^(read|mutating|destructive)$/) print "FAIL access: " m " has invalid access value \"" caccess "\""
             if (live !~ /^(read|mutating|excluded:.+)$/) print "FAIL live: " m " has invalid live value \"" live "\""
             else if (live == "read") {
                 if (force != "never") print "FAIL live: " m " is read but has force " force
@@ -220,7 +229,13 @@ check_results() {
             }
             rows[m] = 1
             if (!(m in cell)) print "FAIL result: " m " has no harness cell"
-            else if (cell[m] != res) print "FAIL result: " m " differs from the catalog: swift " cell[m] " catalog " res
+            else {
+                if (cell[m] != res) print "FAIL result: " m " differs from the catalog: swift " cell[m] " catalog " res
+                if (area[m] != carea) print "FAIL area: " m " differs from the catalog: swift " area[m] " catalog " carea
+                if (rep[m] != caccess) print "FAIL access: " m " differs from the catalog: swift " rep[m] " catalog " caccess
+                if (force != "never" && rep[m] != "destructive") print "FAIL access: " m " has force " force " but is reported " rep[m] ", not destructive"
+                if ((live == "read" || live == "mutating") && decl[m] != live) print "FAIL access: " m " declared " decl[m] " but the live column is " live
+            }
         }
         END { for (m in cell) if (!(m in rows)) print "FAIL result: " m " has a harness cell but no catalog row" }
     ' "$2"
@@ -239,6 +254,85 @@ write_results() {
     ' "$2" > "$out"
     /bin/cat "$out" > "$2"
     /bin/rm -f "$cells_file" "$out"
+}
+
+# The catalog file the MCP server embeds, generated by the harness from the daemon sources.
+catalog_file="${script:h:h:h}/VPhoneMCP/VPhoneMCPCLI/GuestCatalog.swift"
+
+# Check 14: prints a FAIL line when the catalog file $2 differs from the text the harness generates from dir $1.
+check_catalog_file() {
+    local generated="$(/usr/bin/mktemp "${TMPDIR:-/tmp}/vphone-catalog-gen.XXXXXX")" code=0
+    harness_cells "$1" --catalog > "$generated" || code=$?
+    if (( code != 0 )); then
+        /bin/cat "$generated"
+    elif ! /usr/bin/cmp -s "$generated" "$2"; then
+        print "GuestCatalog.swift is out of date; run VPhoneDaemon/Tests/run-methods-tests.sh --write-catalog"
+    fi
+    /bin/rm -f "$generated"
+}
+
+# --write-catalog: rewrites catalog file $2 from the daemon sources in dir $1. The harness output goes to a temporary
+# file beside $2 that replaces it by rename only when the harness exits 0; otherwise $2 is untouched.
+write_catalog() {
+    local generated="$2.new.$$" code=0
+    harness_cells "$1" --catalog > "$generated" || code=$?
+    if (( code != 0 )); then
+        /bin/cat "$generated" >&2
+        /bin/rm -f "$generated"
+        print -u2 "catalog not written: harness failed; GuestCatalog.swift is unchanged"
+        return $code
+    fi
+    /bin/mv -f "$generated" "$2" || { /bin/rm -f "$generated"; return 1; }
+}
+
+# Self-test: --write-catalog on sources that do not build exits non-zero and leaves the file byte for byte.
+self_test_write_catalog() {
+    local source="${1:-$default_dir}" tmp="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/vphone-wcat-selftest.XXXXXX")" bad=0 code=0
+    /bin/cp "$source"/*.swift "$tmp"
+    print -r -- 'this is not swift' >> "$tmp/GuestAPIClockMethods.swift"
+    print -r -- 'sentinel' > "$tmp/GuestCatalog.swift"
+    print -r -- 'sentinel' > "$tmp/want"
+    local errors; errors="$(write_catalog "$tmp" "$tmp/GuestCatalog.swift" 2>&1 > /dev/null)" || code=$?
+    if (( code != 0 )) && [[ "$errors" == *"catalog not written: harness failed; GuestCatalog.swift is unchanged" ]] && /usr/bin/cmp -s "$tmp/want" "$tmp/GuestCatalog.swift" && [[ -z "$(print -r -- $tmp/GuestCatalog.swift.new.*(N))" ]]; then
+        print "PASS self-test: write-catalog-atomic"
+    else print "FAIL self-test: write-catalog-atomic (exit $code, file changed or temporary left)"; bad=1; fi
+    # Good sources: exit 0, the file equals the harness output, no temporary file is left.
+    /bin/cp "$source"/*.swift "$tmp"
+    /bin/rm -f "$tmp/GuestCatalog.swift"
+    code=0
+    write_catalog "$tmp" "$tmp/GuestCatalog.swift" > /dev/null 2>&1 || code=$?
+    harness_cells "$tmp" --catalog > "$tmp/want" 2> /dev/null
+    if (( code == 0 )) && /usr/bin/cmp -s "$tmp/want" "$tmp/GuestCatalog.swift" && [[ -z "$(print -r -- $tmp/GuestCatalog.swift.new.*(N))" ]]; then
+        print "PASS self-test: write-catalog-success"
+    else print "FAIL self-test: write-catalog-success (exit $code)"; bad=1; fi
+    # A directory that cannot be written: the write fails, no temporary file remains.
+    local locked="$tmp/locked"
+    /bin/mkdir "$locked"
+    /bin/cp "$tmp/want" "$locked/GuestCatalog.swift"
+    /bin/chmod 555 "$locked"
+    code=0
+    write_catalog "$tmp" "$locked/GuestCatalog.swift" > /dev/null 2>&1 || code=$?
+    /bin/chmod 755 "$locked"
+    if (( code != 0 )) && /usr/bin/cmp -s "$tmp/want" "$locked/GuestCatalog.swift" && [[ -z "$(print -r -- $locked/GuestCatalog.swift.new.*(N))" ]]; then
+        print "PASS self-test: write-catalog-rename-failure"
+    else print "FAIL self-test: write-catalog-rename-failure (exit $code)"; bad=1; fi
+    /bin/rm -rf "$tmp"
+    return $bad
+}
+
+# Self-test: the generated raw-string delimiter holds a description with `\#(x)` and `"""#`: the file compiles and its
+# constant equals the harness JSON byte for byte.
+self_test_catalog_escape() {
+    local source="${1:-$default_dir}" tmp="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/vphone-escape-selftest.XXXXXX")" bad=0
+    harness_cells "$source" --catalog-escape > "$tmp/GuestCatalog.swift" || bad=1
+    harness_cells "$source" --catalog-escape-json > "$tmp/want.json" || bad=1
+    print -r -- 'print(guestCatalogJSON, terminator: "")' > "$tmp/main.swift"
+    if (( bad == 0 )) && /usr/bin/xcrun --sdk macosx swiftc -swift-version 6 -module-cache-path "$tmp/mc" "$tmp/main.swift" "$tmp/GuestCatalog.swift" -o "$tmp/run" > "$tmp/build.log" 2>&1 \
+        && "$tmp/run" > "$tmp/got.json" && /usr/bin/cmp -s "$tmp/got.json" "$tmp/want.json"; then
+        print "PASS self-test: catalog-escape"
+    else print "FAIL self-test: catalog-escape ($(/usr/bin/head -c 300 "$tmp/build.log" 2> /dev/null))"; bad=1; fi
+    /bin/rm -rf "$tmp"
+    return $bad
 }
 
 # Check 13: the sort order of the paged methods whose order is not executor order. Prints one
@@ -286,23 +380,23 @@ result_fixture() {
 
     var spec: MethodSpec {
         switch self {
-        case .alpha: MethodSpec(summary: "a", result: [.required("b", .string), .optional("a", .integer), .hidden("c", .any).open(), .required("n", .string).nullable()])
-        case .beta: MethodSpec(summary: "b", force: .always("do it"), result: [])
-        case .gamma: MethodSpec(.required("y", .string, "y"), summary: "g", result: [.required("k", .object).open()])
-        case .epsilon: MethodSpec(.optional("q", .string, "q"), summary: "e", result: [.required("rows", .array)], paged: MethodSpec.Paged(key: "rows", order: .keep))
+        case .alpha: MethodSpec(area: .device, access: .read, summary: "a", result: [.required("b", .string), .optional("a", .integer), .hidden("c", .any).open(), .required("n", .string).nullable()])
+        case .beta: MethodSpec(area: .device, access: .mutating, summary: "b", force: .always("do it"), result: [])
+        case .gamma: MethodSpec(.required("y", .string, "y"), area: .device, access: .read, summary: "g", result: [.required("k", .object).open()])
+        case .epsilon: MethodSpec(.optional("q", .string, "q"), area: .device, access: .read, summary: "e", result: [.required("rows", .array)], paged: MethodSpec.Paged(key: "rows", order: .keep))
         }
     }
 }' > "$1/GuestAPIFixtureMethods.swift"
-    print -r -- "fix.alpha	never	-	-	a:integer?,b:string,c:any~*,n:string:null	read
-fix.beta	always	-	-	-	mutating
-fix.gamma	never	y:string!	-	k:object*	excluded:needs params
-fix.epsilon	never	q:string,limit:integer,cursor:string	-	next_cursor:string?,rows:array,total:integer,truncated:boolean	read" > "$1/catalog.tsv"
+    print -r -- "fix.alpha	never	-	-	a:integer?,b:string,c:any~*,n:string:null	read	device	read
+fix.beta	always	-	-	-	mutating	device	destructive
+fix.gamma	never	y:string!	-	k:object*	excluded:needs params	device	read
+fix.epsilon	never	q:string,limit:integer,cursor:string	-	next_cursor:string?,rows:array,total:integer,truncated:boolean	read	device	read" > "$1/catalog.tsv"
 }
 
 # Check 11 mutations run on a four-method fixture (spec file plus catalog) so they hold whatever the real specs
 # declare: $1 label, $2 expected text ("" = must pass), $3 swift|catalog, $4 sed -E program applied to that file.
 result_case() {
-    local label="$1" expect="$2" target="$3" program="$4"
+    local label="$1" expect="$2" target="$3" program="${4//\\\\t/$'\t'}"
     local copy="$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/vphone-results-selftest.XXXXXX")"
     result_fixture "$copy"
     local file="$copy/catalog.tsv"
@@ -331,10 +425,16 @@ self_test_results() {
     result_case omitted-result "FAIL result: fix.beta differs from the catalog: swift missing catalog -" swift 's/, result: \[\]\)/)/' || bad=1
     result_case catalog-row-deleted "FAIL result: fix.beta has a harness cell but no catalog row" catalog '/^fix\.beta/d' || bad=1
     result_case catalog-row-bogus "FAIL result: fix.delta has no harness cell" catalog '/^fix\.gamma/{p;s/fix\.gamma/fix.delta/;}' || bad=1
-    result_case live-read-forced "FAIL live: fix.beta is read but has force always" catalog '/^fix.beta/s/mutating$/read/' || bad=1
-    result_case live-read-required-param "FAIL live: fix.gamma is read but has a required param" catalog 's/excluded:needs params$/read/' || bad=1
-    result_case live-capitalised "FAIL live: fix.beta has invalid live value \"Read\"" catalog '/^fix.beta/s/mutating$/Read/' || bad=1
-    result_case live-empty-reason "FAIL live: fix.gamma has invalid live value \"excluded:\"" catalog 's/excluded:needs params$/excluded:/' || bad=1
+    result_case live-read-forced "FAIL live: fix.beta is read but has force always" catalog '/^fix.beta/s/\tmutating\t/\tread\t/' || bad=1
+    result_case live-read-required-param "FAIL live: fix.gamma is read but has a required param" catalog 's/excluded:needs params\t/read\t/' || bad=1
+    result_case live-capitalised "FAIL live: fix.beta has invalid live value \"Read\"" catalog '/^fix.beta/s/\tmutating\t/\tRead\t/' || bad=1
+    result_case live-empty-reason "FAIL live: fix.gamma has invalid live value \"excluded:\"" catalog 's/excluded:needs params\t/excluded:\t/' || bad=1
+    result_case area-outside-set "FAIL area: fix.alpha has invalid area \"bogus\"" catalog '/^fix\.alpha/s/\tdevice\t/\tbogus\t/' || bad=1
+    result_case area-differs "FAIL area: fix.alpha differs from the catalog: swift device catalog network" catalog '/^fix\.alpha/s/\tdevice\t/\tnetwork\t/' || bad=1
+    result_case access-missing "FAIL access: fix.alpha has invalid access value \"\"" catalog '/^fix\.alpha/s/\tread$/\t/' || bad=1
+    result_case access-differs "FAIL access: fix.alpha differs from the catalog: swift read catalog mutating" catalog '/^fix\.alpha/s/\tread$/\tmutating/' || bad=1
+    result_case access-disagrees-live "FAIL access: fix.alpha declared mutating but the live column is read" swift 's/access: \.read, summary: "a"/access: .mutating, summary: "a"/' || bad=1
+    result_case force-not-destructive "FAIL access: fix.alpha has force always but is reported read, not destructive" catalog '/^fix\.alpha/s/\tnever\t/\talways\t/' || bad=1
     result_case paged-spec-drops-keys "FAIL result: fix.epsilon differs from the catalog" catalog 's/,total:integer,truncated:boolean/,total:integer/' || bad=1
     return $bad
 }
@@ -421,6 +521,10 @@ self_test() {
          /case \.processesKill/ { on = 1 } on && sub(/force: \.always\("[^"]*"/, "force: .always(\"" long "\"") { on = 0 } 1' "$source" || bad=1
     mutation_case newline-force-text "FAIL description: processes.kill force contains a newline" GuestAPIProcessMethods.swift \
         '/case \.processesKill/ { on = 1 } on && sub(/force: \.always\("[^"]*"/, "force: .always(\"a\\nb\"") { on = 0 } 1' "$source" || bad=1
+    mutation_case catalog-file "GuestCatalog.swift is out of date; run VPhoneDaemon/Tests/run-methods-tests.sh --write-catalog" GuestAPIClockMethods.swift \
+        '/case \.timeClock/ { on = 1 } on && sub(/summary: "[^"]*"/, "summary: \"changed\"") { on = 0 } 1' "$source" || bad=1
+    self_test_write_catalog "$source" || bad=1
+    self_test_catalog_escape "$source" || bad=1
     self_test_results || bad=1
     self_test_write_results || bad=1
     self_test_docs || bad=1
@@ -434,6 +538,10 @@ case "${1:-}" in
         ;;
     --write-results)
         write_results "$default_dir" "${0:a:h}/methods-catalog.tsv"
+        exit $?
+        ;;
+    --write-catalog)
+        write_catalog "$default_dir" "$catalog_file"
         exit $?
         ;;
     --results)
@@ -581,7 +689,7 @@ fi
 # A missing, unreadable or malformed catalog is a failure of its own; checks 6, 8, 10 and 11 then cannot run.
 catalog="${0:a:h}/methods-catalog.tsv"
 catalog_ok=1
-if [[ ! -r "$catalog" ]] || ! /usr/bin/awk -F'\t' 'NF != 6 { exit 1 } END { exit NR == 0 }' "$catalog"; then
+if [[ ! -r "$catalog" ]] || ! /usr/bin/awk -F'\t' 'NF != 8 { exit 1 } END { exit NR == 0 }' "$catalog"; then
     print "FAIL catalog: $catalog is missing, unreadable or malformed"
     failures=$((failures + 1))
     catalog_ok=0
@@ -692,6 +800,12 @@ for file in $files; do
             failures=$((failures + 1))
         fi
     done < <(file_specs "$file" desc)
+done
+
+# 14. catalog-file: the catalog the MCP server embeds equals the one generated from these sources.
+for finding in ${(f)"$(check_catalog_file "$dir" "$catalog_file")"}; do
+    print -u2 -r -- "$finding"
+    failures=$((failures + 1))
 done
 
 # 9. size: the catalog stays far below the 1 MiB request/response body limit (estimated from the specs)

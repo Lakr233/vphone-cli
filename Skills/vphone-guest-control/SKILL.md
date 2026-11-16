@@ -64,6 +64,47 @@ against these guests.
 - Pass `--root <library>` only when two libraries hold a machine with the same
   name; the error lists the libraries.
 
+## MCP tools
+
+`vphone-mcp` offers running machines' `vphone.sock` as MCP tools for an MCP
+client: `screenshot`, `push`, `pull`, `shell`, `methods` and `rpc`, plus one tool
+per catalog area (`input`, `ui`, `apps`, `files`, `processes`, `services`,
+`device`, `sensors`, `network`, `settings`, `system`, `bootstrap`, `script`),
+generated from the guest catalog embedded in `vphone-mcp` (the same for every VM; regenerate with `zsh VPhoneDaemon/Tests/run-methods-tests.sh --write-catalog`). An area tool takes `action` (a method name) and
+that method's parameters. Every call names the VM in its required `vm` argument, so one server
+drives several machines. `push` and
+`pull` also read and write host files (see the warning below). Build it with
+`xcodebuild -workspace VPhone.xcworkspace -scheme VPhoneMCP -configuration Debug -derivedDataPath build/mcp build`
+and register `build/mcp/Build/Products/Debug/vphone-mcp` in the client's `mcp.json`.
+The area tools run the methods in
+[references/rpc-methods.md](references/rpc-methods.md). `--profile full|standard|readonly`
+limits the actions (`standard` drops those the catalog marks `destructive` and
+the host tools `push`, `pull`, `shell` and `rpc`; `readonly` keeps only `read`
+actions), and `--tools` is an allowlist of tool names.
+
+With a profile:
+
+```json
+{"mcpServers":{"vphone":{"command":"/path/to/vphone-mcp","args":["--profile","readonly"]}}}
+```
+
+With `--tools`:
+
+```json
+{"mcpServers":{"vphone":{"command":"/path/to/vphone-mcp","args":["--tools","screenshot,input,ui,apps,methods"]}}}
+```
+
+With neither (every tool and action offered):
+
+```json
+{"mcpServers":{"vphone":{"command":"/path/to/vphone-mcp","args":[]}}}
+```
+
+Warning: `push` and `pull` reach any host path the VM host process can reach, and `rpc`, `shell` and the destructive actions of the group tools reach guest actions. Leaving them out of `--tools`, or starting with `--profile standard` or `--profile readonly`, denies this.
+
+Take a `screenshot` before an `input` action, which takes points. A `shell`
+call takes `program: "bash"` for shell commands.
+
 ## Rules that save the user's machine
 
 These exist because each one has cost the user real time or disk before.

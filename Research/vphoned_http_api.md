@@ -1066,7 +1066,7 @@ name, so it is never refused as an unknown param.
 
 `methods.list` takes no params and answers `{"methods": [...]}`: one object per
 method, areas in dispatch order and methods within an area in the order the
-catalog above lists them. Each object is `{name, description, params, result, force}`
+catalog above lists them. Each object is `{name, description, area, access, params, result, force}`
 (plus `force_action` when `force` is not `never`), where `params` is a list of
 `{name, type, required, description}` in declaration order (`[]` for none).
 
@@ -1085,16 +1085,36 @@ omitted, and `open: true` marks an open key. The `result` column of
 `run-methods-tests.sh --write-results`, not by hand. `methods.list` is the authority for result shapes, and the
 rest of this document does not restate them.
 
+`vphone-mcp` embeds this catalog as `VPhoneMCP/VPhoneMCPCLI/GuestCatalog.swift`,
+generated from the daemon sources (`GuestMethodArea.catalog`) and gated by
+`run-methods-tests.sh`, which fails when the file differs. Rewrite it with
+`zsh VPhoneDaemon/Tests/run-methods-tests.sh --write-catalog`.
+
 `force` is `"never"`, `"always"`, or `"when:<key>"` (`"when:kill"`), meaning
 the method needs `"force": true` only when that param is true. `force` itself
 is never listed as a param. The dispatcher enforces it before the method runs
 and refuses with `force_required` and the same `Pass force: true to ...` message as before.
+
+`area` groups the method by the first part of its name; it is one of `input`,
+`ui`, `apps`, `files`, `processes`, `services`, `device`, `sensors`, `network`,
+`settings`, `system`, `bootstrap` or `script`, and each method declares it
+explicitly. `access` is `read` (inspects only), `mutating` (changes guest or
+host state, starts a process, writes, injects input or starts a capture) or
+`destructive`. Each method declares `read` or `mutating`; `methods.list`
+reports `destructive` instead for every method whose `force` is not `never`.
+`area` and `access` are also the last two columns of
+`VPhoneDaemon/Tests/methods-catalog.tsv`, which `run-methods-tests.sh` compares
+with the declarations.
 
 `description` (method and param) is one-line prose. `force_action` is the
 phrase that completes "Pass force: true to ...", with `<...>` placeholders for
 request values, and is present only when `force` is not `never`. A param also
 carries `enum`, `default`, `minimum` and `maximum`, each only when the method
 declares it; `minimum` and `maximum` are metadata and are not enforced.
+An `array` param also carries `items` (`string`, `integer`, `number`, `object` or
+`point`, an [x, y] pair of numbers); its `minimum` and `maximum` bound the item
+count. A param that takes several JSON types carries `accepts`, the list of
+them. Both are metadata for clients and are not enforced by the daemon.
 `methods.list` is the authority for per-param prose, and this document does not
 restate it.
 

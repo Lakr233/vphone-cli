@@ -99,9 +99,9 @@ schema_fail() {
 }
 schema_section() {
   local catalog=${VPHONE_LIVE_CATALOG:-$root/VPhoneDaemon/Tests/methods-catalog.tsv}
-  local m f p fa res live r rc code n out c
+  local m f p fa res live area acc r rc code n out c
   schema_ran=1
-  while IFS=$'\t' read -r m f p fa res live; do
+  while IFS=$'\t' read -r m f p fa res live area acc; do
     [ "$live" = read ] || continue
     r=$(live_call "$m"); r=${r%x}
     rc=$(cat "$sdir/rc"); code=$(cat "$sdir/code" 2>/dev/null || true)
