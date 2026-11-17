@@ -165,6 +165,10 @@ struct PatchComponentCommand: ParsableCommand {
             // --target-os, default to applying them so the dev/test tool exercises the
             // full set.
             patcher.applyIOS27 = targetOS.map { $0.hasPrefix("27.") } ?? true
+            // The dev tool takes one payload and is told nothing about the cloudOS, so
+            // it keeps exercising the 26.4-kernel shims: that is the pairing they were
+            // revealed against, and the reference corpus is a 26.4 kernel.
+            patcher.applyIOS27LegacyKernel = patcher.applyIOS27
             patcher.applyFrida = frida
             // The narrow paravirt user-client allowlist is the 26.x/18.x counterpart
             // of the iOS-27 sandbox gate; exercise it when the 27 gate is off.

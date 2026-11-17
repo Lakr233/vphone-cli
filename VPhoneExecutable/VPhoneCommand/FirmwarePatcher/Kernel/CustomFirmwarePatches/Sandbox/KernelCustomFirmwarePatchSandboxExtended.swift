@@ -79,14 +79,19 @@ extension KernelCustomFirmwarePatcher {
         // 167"). Index 124 is calibrated against this kernel's mac_policy_ops layout: the
         // vnode_check_open==267 / vnode_check_fsgetpath==316 entries above match the
         // reference XNU struct order exactly, so mpo_proc_check_syscall_unix==124 holds.
-        if applyIOS27 {
+        // Only on the 26.4 kernel: it pairs with the DiskImages2 ABI shims, which a
+        // 27 kernel does not need, and leaving the filter intact keeps the stock
+        // syscall-unix MAC check a 27 kernel already agrees with.
+        if applyIOS27LegacyKernel {
             hookIndices.append(("proc_check_syscall_unix", 124))
         }
 
-        // On iOS 27, leave ops[267] real so KernelCustomFirmwarePatchFpfsScopedOpen can retarget it to a
-        // FileProvider-scoped trampoline (the fpfs walk needs the stock check as its terminus,
-        // else ResolverService balloons → respring). Neuter it as usual on every other base.
-        if !applyIOS27 {
+        // Left real only where the fpfs trampoline retargets it (a 27 userland on the
+        // 26.4 kernel): that walk needs the stock check as its terminus, else
+        // ResolverService balloons → respring. Everywhere else — including a 27
+        // kernel, where the trampoline's struct offsets do not hold — it is neutered
+        // as usual, so the entry is never left half-handled.
+        if !applyIOS27LegacyKernel {
             hookIndices.append(("vnode_check_open", 267))
         }
 

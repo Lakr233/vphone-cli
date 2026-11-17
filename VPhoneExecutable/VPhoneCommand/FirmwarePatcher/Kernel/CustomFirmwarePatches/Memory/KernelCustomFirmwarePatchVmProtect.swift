@@ -113,18 +113,15 @@ extension KernelCustomFirmwarePatcher {
     /// entry-flag test into a `ccmp`, and its target. Scans every known code range
     /// and returns a result only when the signature occurs exactly once.
     private func findFusedWriteDowngradeGate() -> (brOff: Int, target: Int)? {
-        // The entry bit the explicit shape tested with `tbnz wFlags, #22`.
-        let entryFlagBit: Int64 = 1 << 22
-
         var hits: [(Int, Int)] = []
         for range in codeRanges {
-            scanRange(range.start, range.end, entryFlagBit, &hits)
+            scanRange(range.start, range.end, &hits)
         }
         return hits.count == 1 ? hits[0] : nil
     }
 
     private func scanRange(
-        _ start: Int, _ end: Int, _ entryFlagBit: Int64, _ hits: inout [(Int, Int)],
+        _ start: Int, _ end: Int, _ hits: inout [(Int, Int)],
     ) {
         var off = start
         while off + 0x18 < end {
@@ -208,7 +205,6 @@ extension KernelCustomFirmwarePatcher {
                 before: off,
                 limit: start,
                 reg: flagsReg,
-                bit: entryFlagBit,
             ) != nil else { continue }
 
             // And the block it guards must be the downgrade.
@@ -222,7 +218,7 @@ extension KernelCustomFirmwarePatcher {
     }
 
     /// Scan backwards for `and wFlags, wFlags, #bit` that isolates the entry flag.
-    private func findEntryFlagMask(before: Int, limit: Int, reg: ARM64Register, bit: Int64) -> Int? {
+    private func findEntryFlagMask(before: Int, limit: Int, reg: ARM64Register) -> Int? {
         var off = before - 4
         let floor = max(limit, before - 0x20)
         while off >= floor {
@@ -231,7 +227,13 @@ extension KernelCustomFirmwarePatcher {
                let ops = insn.detail?.operands, ops.count == 3,
                ops[0].type == .register, ops[0].reg == reg,
                ops[1].type == .register, ops[1].reg == reg,
-               ops[2].type == .immediate, ops[2].imm == bit
+               ops[2].type == .immediate,
+               // One bit of the entry flags, whichever bit this release put it in:
+               // 26.4 isolates 1 << 22, the 27 kernel 1 << 18. The position is a
+               // vm_map_entry bitfield layout detail that moves between releases,
+               // so the anchor is "a single entry-flag bit", not its index. The
+               // whole-text uniqueness requirement is what keeps that honest.
+               ops[2].imm > 0, ops[2].imm & (ops[2].imm - 1) == 0
             {
                 return off
             }

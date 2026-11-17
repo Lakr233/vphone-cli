@@ -1,0 +1,129 @@
+--- a/src/hev-socks5-session.c
++++ b/src/hev-socks5-session.c
+@@ -163,12 +163,15 @@
+         dst = &addr;
+     }
+
+-    res = connect (sock, (struct sockaddr *)dst, sizeof (struct sockaddr_in6));
+-    if (res < 0)
+-        return -1;
++    /* RFC 1928 permits an unknown client port. Darwin rejects connecting
++     * to port zero. Learn it from the control peer's first datagram. */
++    if (dst->sin6_port) {
++        res = connect (sock, (struct sockaddr *)dst, sizeof (*dst));
++        if (res < 0)
++            return -1;
++        HEV_SOCKS5 (self)->udp_associated = 1;
++    }
+
+-    HEV_SOCKS5 (self)->udp_associated = !!dst->sin6_port;
+-
+     alen = sizeof (struct sockaddr_in6);
+     res = getsockname (sock, (struct sockaddr *)src, &alen);
+     if (res < 0)
+--- a/src/core/src/hev-socks5-udp.c
++++ b/src/core/src/hev-socks5-udp.c
+@@ -231,14 +231,39 @@
+     return rlen;
+ }
+
++/* A dual-stack Darwin socket may return AF_INET from recvmsg() but an
++ * IPv4-mapped AF_INET6 peer from getpeername(). Return the matching port in
++ * network byte order, or zero for a different sender. */
++static in_port_t
++hev_socks5_udp_peer_port (const struct sockaddr_in6 *peer,
++                          const struct msghdr *msg)
++{
++    const struct sockaddr *src = msg->msg_name;
++    if (msg->msg_namelen == sizeof (struct sockaddr_in) &&
++        src->sa_family == AF_INET && IN6_IS_ADDR_V4MAPPED (&peer->sin6_addr)) {
++        const struct sockaddr_in *v4 = msg->msg_name;
++        if (!memcmp (&v4->sin_addr, &peer->sin6_addr.s6_addr[12],
++                     sizeof (v4->sin_addr)))
++            return v4->sin_port;
++    } else if (msg->msg_namelen == sizeof (*peer) && src->sa_family == AF_INET6) {
++        const struct sockaddr_in6 *v6 = msg->msg_name;
++        if (IN6_ARE_ADDR_EQUAL (&v6->sin6_addr, &peer->sin6_addr) &&
++            v6->sin6_scope_id == peer->sin6_scope_id)
++            return v6->sin6_port;
++    }
++    return 0;
++}
++
+ static int
+ hev_socks5_udp_recvmmsg_udp (HevSocks5UDP *self, HevSocks5UDPMsg *msgv,
+                              unsigned int num, int nonblock)
+ {
+-    struct sockaddr_in6 taddr;
++    HevSocks5 *socks = HEV_SOCKS5 (self);
++    struct sockaddr_in6 sources[num], peer;
++    socklen_t peer_len = sizeof (peer);
+     struct mmsghdr mvec[num];
+     struct iovec iov[num];
+-    int i, fd, res;
++    int i, fd, res, accepted = 0;
+
+     fd = hev_socks5_udp_get_fd (self);
+
+@@ -246,8 +271,8 @@
+         nonblock = MSG_DONTWAIT;
+
+     for (i = 0; i < num; i++) {
+-        mvec[i].msg_hdr.msg_name = NULL;
+-        mvec[i].msg_hdr.msg_namelen = 0;
++        mvec[i].msg_hdr.msg_name = &sources[i];
++        mvec[i].msg_hdr.msg_namelen = sizeof (sources[i]);
+         mvec[i].msg_hdr.msg_control = NULL;
+         mvec[i].msg_hdr.msg_controllen = 0;
+         mvec[i].msg_hdr.msg_iov = &iov[i];
+@@ -257,11 +282,6 @@
+         iov[i].iov_len = msgv[i].len;
+     }
+
+-    if (!HEV_SOCKS5 (self)->udp_associated) {
+-        mvec[0].msg_hdr.msg_name = &taddr;
+-        mvec[0].msg_hdr.msg_namelen = sizeof (taddr);
+-    }
+-
+     res = hev_task_io_socket_recvmmsg (fd, mvec, num, nonblock, task_io_yielder,
+                                        self);
+     if (res <= 0) {
+@@ -270,13 +290,32 @@
+         return res;
+     }
+
+-    if (!HEV_SOCKS5 (self)->udp_associated) {
+-        struct sockaddr *saddr = mvec[0].msg_hdr.msg_name;
+-        socklen_t alen = mvec[0].msg_hdr.msg_namelen;
+-        if (connect (fd, saddr, alen) < 0)
+-            return -1;
+-        HEV_SOCKS5 (self)->udp_associated = 1;
++    if (getpeername (socks->udp_associated ? fd : socks->fd,
++                     (struct sockaddr *)&peer, &peer_len) < 0)
++        return -1;
++
++    for (i = 0; i < res; i++) {
++        /* Check each sender, including datagrams queued before connect(). */
++        in_port_t port = hev_socks5_udp_peer_port (&peer, &mvec[i].msg_hdr);
++        if (!port || (socks->udp_associated && port != peer.sin6_port))
++            continue;
++        if (!socks->udp_associated) {
++            peer.sin6_port = port;
++            if (connect (fd, (struct sockaddr *)&peer, peer_len) < 0)
++                return -1;
++            socks->udp_associated = 1;
++        }
++        if (accepted != i) {
++            msgv[accepted] = msgv[i];
++            mvec[accepted].msg_len = mvec[i].msg_len;
++        }
++        accepted++;
+     }
++    if (!accepted) {
++        errno = EAGAIN;
++        return -1;
++    }
++    res = accepted;
+
+     for (i = 0; i < res; i++) {
+         HevSocks5UDPHdr *udp = msgv[i].buf;

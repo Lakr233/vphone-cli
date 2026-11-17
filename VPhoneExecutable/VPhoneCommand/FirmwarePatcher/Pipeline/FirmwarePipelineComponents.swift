@@ -125,6 +125,20 @@ extension FirmwarePipeline {
         // of those patches is written.
         let applyIOS27 = baseIs27
 
+        // Several of those patches are not 27 support but pre-27-kernel support: they
+        // make a 26.x kernel behave the way a 27 kernel already does (DiskImages2 ABI
+        // 9 vs 11, the 6 GiB shared region, ARM64E_X1 subtype admission, the deleted
+        // container-manager upcall, the 0x588 IOMFB SwapEnd gates, sandbox ops[124],
+        // the fpfs trampoline's vphone600 struct offsets). On a 27 kernel they have
+        // nothing to match, so requiring them fails the run, and applying the half
+        // that still matches patches a kernel that was never wrong.
+        //
+        // The condition is the kernel's major, not an exact 26.4, so every cloudOS
+        // this ever ran against keeps the behaviour it had when `applyIOS27` alone
+        // decided — only a 27-era kernel changes. An unreadable version is treated as
+        // pre-27 for the same reason.
+        let applyIOS27LegacyKernel = baseIs27 && (cloudOSProductVersion?.major ?? 0) < 27
+
         // The AppleSEPKeyStore keybag-unlock external method began sending
         // inputScalarCount == 5 in iOS 26.6 (26.5 and earlier send 4), so a
         // 26.6-or-newer userland needs the count-5 acceptance patch on the
@@ -382,6 +396,7 @@ extension FirmwarePipeline {
                     kernelCustomFirmwareFactories(
                         applyExcGuard: applyExcGuard,
                         applyIOS27: applyIOS27,
+                        applyIOS27LegacyKernel: applyIOS27LegacyKernel,
                         applyAksUnlockBag5: applyAksUnlockBag5,
                         applyFrida: applyFrida,
                         applyProMotion: applyProMotion,
@@ -576,6 +591,7 @@ extension FirmwarePipeline {
     private func kernelCustomFirmwareFactories(
         applyExcGuard: Bool,
         applyIOS27: Bool,
+        applyIOS27LegacyKernel: Bool,
         applyAksUnlockBag5: Bool,
         applyFrida: Bool,
         applyProMotion: Bool,
@@ -600,6 +616,7 @@ extension FirmwarePipeline {
             factories.append { data, verbose in
                 let p = KernelCustomFirmwarePatcher(data: data, verbose: verbose)
                 p.applyIOS27 = applyIOS27
+                p.applyIOS27LegacyKernel = applyIOS27LegacyKernel
                 p.applyAksUnlockBag5 = applyAksUnlockBag5
                 p.applyFrida = applyFrida
                 p.applyProMotion = applyProMotion

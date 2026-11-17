@@ -59,6 +59,9 @@ final class GuestDeveloperModeSnapshot: @unchecked Sendable {
 extension GuestAPI {
     private static let rotationLock = NSLock()
 
+    /// `kern.osversion` for `device.info`, empty when it cannot be read.
+    static func iosBuild() -> String { systemBuildVersion ?? "" }
+
     static func executeDevice(_ m: DeviceMethod, _ params: [String: Any]) throws -> [String: Any] {
         switch m {
         case .deviceInfo:
@@ -73,6 +76,8 @@ extension GuestAPI {
             info["developer_mode"] = GuestDeveloperModeSnapshot.shared.current()
             info["agent"] = ["binary_hash": binaryHash, "pid": getpid()]
             info["device_name"] = deviceNameInfo()
+            info["ios_build"] = iosBuild()
+            info["udid"] = effectiveUDID()
             return info
         case .deviceNetwork:
             return networkInfo()

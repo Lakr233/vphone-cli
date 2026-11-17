@@ -39,46 +39,45 @@ extension KernelPatcher {
 
         // Step 2: Find ADRP+ADD code references to that string.
         let refs = findStringRefs(strOff)
-        guard let firstRef = refs.first else {
+        guard !refs.isEmpty else {
             log("  [-] no code refs to 'apfs_graft'")
             return false
         }
 
-        // Step 3: Find the function start from the reference site.
-        guard let graftStart = findFunctionStart(firstRef.adrpOff) else {
-            log("  [-] _apfs_graft function start not found")
-            return false
-        }
-
-        // Step 4: Locate validate_on_disk_root_hash via the `authenticate_root_hash` string.
+        // Step 3: Locate validate_on_disk_root_hash via its own __FUNCTION__ string.
         guard let vrhFunc = findValidateRootHashFunc() else {
             log("  [-] validate_on_disk_root_hash not found")
             return false
         }
 
-        // Step 5: Scan _apfs_graft body for a BL whose target is vrhFunc.
-        // Stop at PACIBSP (start of a new function). Mirror of Python logic:
-        //   for scan in range(graft_start, graft_start + 0x2000, 4):
-        //     if scan > graft_start + 8 and rd32(scan) == PACIBSP: break
-        //     if _is_bl(scan) == vrh_func: emit(scan, MOV_W0_0, ...)
-        let scanEnd = min(graftStart + 0x2000, buffer.count - 4)
-        var scan = graftStart
-        while scan <= scanEnd {
-            if scan > graftStart + 8, buffer.readU32(at: scan) == ARM64.pacibspU32 {
-                break
+        // Step 4: The string names the routine in its own log lines, but other apfs
+        // routines name it too (_handle_fsioc_graft logs about grafting), so the
+        // first reference is not necessarily inside _apfs_graft — on 27.2 it is not.
+        // _apfs_graft is the referencing function that calls the validator, so try
+        // each reference and take the one whose body holds that call.
+        for ref in refs {
+            guard let graftStart = findFunctionStart(ref.adrpOff) else { continue }
+
+            // Scan the body for a BL to vrhFunc, stopping at the next function.
+            let scanEnd = min(graftStart + 0x2000, buffer.count - 4)
+            var scan = graftStart
+            while scan <= scanEnd {
+                if scan > graftStart + 8, buffer.readU32(at: scan) == ARM64.pacibspU32 {
+                    break
+                }
+                if isCall(at: scan, to: vrhFunc) {
+                    let va = fileOffsetToVA(scan)
+                    emit(
+                        scan,
+                        ARM64.movW0_0,
+                        patchID: "kernel-boot-apfs_graft",
+                        virtualAddress: va,
+                        description: "mov w0,#0 [_apfs_graft]",
+                    )
+                    return true
+                }
+                scan += 4
             }
-            if let blTarget = decodeBL(at: scan), blTarget == vrhFunc {
-                let va = fileOffsetToVA(scan)
-                emit(
-                    scan,
-                    ARM64.movW0_0,
-                    patchID: "kernel-boot-apfs_graft",
-                    virtualAddress: va,
-                    description: "mov w0,#0 [_apfs_graft]",
-                )
-                return true
-            }
-            scan += 4
         }
 
         log("  [-] BL to validate_on_disk_root_hash not found in _apfs_graft")
@@ -87,25 +86,30 @@ extension KernelPatcher {
 
     // MARK: - Helpers
 
-    /// Find validate_on_disk_root_hash by locating the `authenticate_root_hash` string
-    /// and resolving the function that references it.
+    /// Find validate_on_disk_root_hash by its own `__FUNCTION__` string and the
+    /// function that references it.
+    ///
+    /// apfs renamed that routine between the two kernels — `authenticate_root_hash`
+    /// up to 26.x, `validate_root_hash` on 27 — keeping the same slot in the string
+    /// table and the same neighbours, so both names are accepted. Neither is a
+    /// substring of `validate_on_disk_root_hash`, which also appears, so the search
+    /// stays unambiguous.
     private func findValidateRootHashFunc() -> Int? {
-        guard let authHashStr = "authenticate_root_hash".data(using: .utf8) else { return nil }
-        var searchData = authHashStr
-        searchData.append(0) // null terminator
+        for name in ["authenticate_root_hash", "validate_root_hash"] {
+            guard let nameData = name.data(using: .utf8) else { continue }
+            var searchData = nameData
+            searchData.append(0) // null terminator
 
-        // Try with null terminator first, then without
-        var strOff: Int?
-        if let range = buffer.data.range(of: searchData) {
-            strOff = range.lowerBound
-        } else if let range = buffer.data.range(of: authHashStr) {
-            strOff = range.lowerBound
+            // Try with null terminator first, then without
+            var strOff: Int?
+            if let range = buffer.data.range(of: searchData) {
+                strOff = range.lowerBound
+            } else if let range = buffer.data.range(of: nameData) {
+                strOff = range.lowerBound
+            }
+            guard let foundOff = strOff, let firstRef = findStringRefs(foundOff).first else { continue }
+            if let start = findFunctionStart(firstRef.adrpOff) { return start }
         }
-        guard let foundOff = strOff else { return nil }
-
-        let refs = findStringRefs(foundOff)
-        guard let firstRef = refs.first else { return nil }
-
-        return findFunctionStart(firstRef.adrpOff)
+        return nil
     }
 }

@@ -240,7 +240,9 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 fileWC.showWindow(control: control, path: path)
             }
 
-            let mc = VPhoneMenuController(keySender: keySender, control: control)
+            let mc = VPhoneMenuController(
+                keySender: keySender, control: control, machine: options.configURL.deletingLastPathComponent(),
+            )
             mc.guestPanelsWindowController.displayWindow = wc.displayWindow
             mc.vm = vm
             mc.onHardwareKeyboardChange = { [weak self] enabled in
