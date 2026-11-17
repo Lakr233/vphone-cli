@@ -17,7 +17,6 @@ identity and needs nothing installed at all (see
 - ssh: the shell is not in the real root
 - Handing a file to vphoned
 - Installing a `.deb`
-- What vphoned maintains for you
 
 ## Two layouts: roothide and rootless
 
@@ -26,12 +25,9 @@ identity and needs nothing installed at all (see
 | Root of the environment | `/var/containers/Bundle/Application/.jbroot-<16 hex>` | `/var/jb`, a symlink to a physical directory under `/private/preboot` |
 | Default directory name | `.jbroot-000114514191980C` when none exists (the last byte is a checksum) | none |
 | Apps go in | `<jbroot>/Applications` | `/var/jb/Applications` |
-| Package `Architecture` | whatever the bootstrap's `dpkg --print-architecture` says; do not assume | `iphoneos-arm64` |
-| After installing an app | register it: `system.uicache` or `apps.refresh` | `uicache -p` in the postinst |
+| After installing an app | register it: `system.uicache` or `apps.refresh` | same |
 
-The directory names `/var/jb` and `.jbroot-<hex>` are fixed by those two
-bootstraps. Always find the real root with `bootstrap.inspect`; do not
-hard-code it.
+Always find the real root with `bootstrap.inspect`; do not hard-code it.
 
 ```sh
 vphone-launchpad-cli guest rpc myphone bootstrap.inspect
@@ -43,17 +39,21 @@ vphone-launchpad-cli guest rpc myphone device.info     # see the layout fields b
 the host-guest protocol; read them as they are. Both null means there is no
 bootstrap yet (a read-only `/` is not evidence of a rootful one).
 
-Prefer **roothide** for new work. Rootless is kept for older setups.
+Prefer **roothide**. tvOS and HomePod guests have only roothide:
+`vm create --bootstrap rootless` is refused for them.
 
 ## Installing the bootstrap
 
 The bootstrap is the Irisin app plus the base directories and links a package
-manager needs. Two equivalent ways:
+manager needs. Three ways:
 
 - **In the VM window:** menu **Apps > Install Bootstrap…**, pick the layout in
   the sheet. Holding Option shows **Install Bootstrap from File…** (a local
   Irisin `.deb`). The item is enabled only when vphoned advertises
   `bootstrap_install`.
+- **At creation:** `vphone-launchpad-cli exec vm create <name> --bootstrap roothide`
+  installs the bootstrap and then `owngoal-bootstrap-vphone` during first boot,
+  so the next section is already done. It conflicts with `--skip-first-boot`.
 - **Over RPC:**
 
   ```sh
@@ -84,14 +84,15 @@ For a local package: upload the `.deb` to exactly
 64 MiB, no symlinks) and pass it as `package_path`. vphoned validates name,
 architecture, version, executables and the launchd plist.
 
-For roothide, vphoned also builds what a bootstrap installer would: `tmp`,
-`var`, `etc`, the `dev` and `rootfs` links, copies of the passwd files, the
-user databases, and the `.jbroot` loader links. Do not recreate these by hand;
-they are repaired at every vphoned start.
+For roothide, vphoned also builds what a bootstrap installer would (`tmp`,
+`var`, `etc`, the `dev` and `rootfs` links, passwd and user databases, the
+`.jbroot` loader links) and creates the sshd host keys on the next package
+operation. Do not recreate these by hand.
 
 ## First package install
 
-This step is done in the guest UI, in Irisin; there is no RPC for it.
+A machine created with `--bootstrap roothide` has this already. Otherwise do it
+in Irisin in the guest UI; there is no RPC for it.
 
 1. Open Irisin and the **OwnGoal Packages** repository
    (`https://apt.owngoal.dev/`). Find **OwnGoal Bootstrap for vphone**
@@ -100,15 +101,13 @@ This step is done in the guest UI, in Irisin; there is no RPC for it.
 
 That one meta package depends on everything a guest needs: `apt`, `dpkg`,
 `bash`, `zsh`, `sudo`, the core command-line tools, `openssh-server`, `curl`,
-`git`, `uikittools`, `launchctl` and the OwnGoal apps (Irisin, Fila, iGhostVT,
-Xrash, Inspector). Do not install those packages one by one: they depend on each
+`git`, `uikittools`, `launchctl` and the OwnGoal apps. Do not install those packages one by one: they depend on each
 other, and `openssh-server` declares some dependencies circularly, so separate
 installs can fail partway. After the first pass, install further packages
 normally. If the first pass fails, do not repair it in place:
 **Apps > Uninstall Bootstrap…**, then start over.
 
-Because this needs someone at the screen, drive it with `ui.tree`,
-`ui.tap_element` and screenshots, or ask the user to do it.
+Drive it with `ui.tree`, `ui.tap_element` and screenshots, or ask the user.
 
 ## Inspecting and removing it
 
@@ -118,13 +117,15 @@ vphone-launchpad-cli guest rpc myphone bootstrap.uninstall '{"roots":["<path fro
 ```
 
 Uninstall removes **every listed root**, unloads their daemons, unregisters
-their apps, marks the record uninstalled and **reboots the guest** (add
-`"reboot":false` to skip). The paths must match the current inspection
-exactly. Rootless Irisin keeps its data in the system's
-`/var/mobile/Documents`, which is kept; RootHide Irisin keeps it in the
-jbroot's `var/mobile`, which goes with the root. It destroys the
-user's installed packages, so run it only when asked or as the stated recovery
-for a failed first install.
+their apps, marks the record uninstalled and **reboots the guest**. Add
+`"reboot":false` to skip the reboot; the menu equivalent is the Option
+alternate **Uninstall Bootstrap Without Restarting…**. The paths must match the
+current inspection exactly.
+
+Uninstall destroys the user's installed packages, so run it only when asked or
+as the stated recovery for a failed first install. Rootless Irisin keeps its
+data in the system's `/var/mobile/Documents`, which stays. RootHide Irisin keeps
+it in the jbroot's `var/mobile`, which goes with the root.
 
 ## ssh: the shell is not in the real root
 
@@ -134,7 +135,7 @@ libimobiledevice tools; ask the user before installing them. Reach the guest
 through the host's usbmuxd with `iproxy`:
 
 ```sh
-UDID=$(idevice_id -l | head -1)     # or xcrun devicectl list devices: Reality "virtual"
+UDID=$(idevice_id -l | head -1)     
 iproxy 2222 22 -u "$UDID" &
 ssh -p 2222 mobile@127.0.0.1         # the credentials are not documented in the repo; ask the user
 ```
@@ -150,9 +151,6 @@ On roothide the session lands **inside the jbroot**, not the real root:
 - There is no `sudo` in a bare jbroot. Install `sudo` as a package first, log in
   as root if the user has set that up, or do root work over RPC.
 
-Rule of thumb: when ssh and RPC disagree about whether a file exists, the
-difference is the `/rootfs` prefix.
-
 ## Handing a file to vphoned
 
 `guest push` copies a Mac file to a real-root guest path, streamed, any size,
@@ -167,36 +165,15 @@ vphone-launchpad-cli guest pull myphone /private/var/mobile/Library/Logs/x.log .
 The mode follows the Mac file (`--mode 755` to set it), so an executable
 stays executable. Paths are real-root paths, so a roothide file goes under the
 absolute `.jbroot-<hex>` path from `bootstrap.inspect`, not `/var/jb`. It needs
-a Core Bundle that has `push` on `vphone.sock`; an older one says it cannot
-copy files. There, `files.write` takes only small files (one 1 MiB JSON line,
-no append), and larger ones go through ssh: `scp -P 2222` into the jbroot's
-`/tmp`, then `mv` to `/rootfs/private/var/tmp/`.
+a Core Bundle that has `push` on `vphone.sock`. On an older one, use
+`files.write` for small files (size limit in [rpc-methods](rpc-methods.md)) and
+ssh for larger ones.
 
 ## Installing a `.deb`
 
-With a bootstrap present, `dpkg` and `apt` work from an ssh shell as the
-environment's tools:
-
-```sh
-scp -P 2222 pkg.deb mobile@127.0.0.1:/tmp/
-ssh -p 2222 mobile@127.0.0.1 'sudo dpkg -i /tmp/pkg.deb'    # needs sudo installed, or a root login
-```
-
-A package that ships an app must register it afterwards (`uicache -p` in the
-postinst for rootless, or `system.uicache` over RPC). Do not install a package
-over a half-built bootstrap.
-
-## What vphoned maintains for you
-
-You do not need to run these; knowing they exist explains odd behavior:
-
-- `.jbroot` loader links in every directory holding a Mach-O file, re-walked one
-  second after `Library/dpkg` changes. A `dyld ... @loader_path/.jbroot/...`
-  crash means a link is missing there.
-- sshd host keys and user databases, deferred until the packages exist, then
-  created within about a second of the next package operation or at the next
-  vphoned start.
-- The `firmware` record in `dpkg/status`, updated after an iOS version change.
+With a bootstrap present, copy the package with `scp -P 2222` and run
+`sudo dpkg -i` over ssh. A package that ships an app must be registered
+afterwards with `system.uicache` over RPC.
 
 When something here misbehaves, read the notes listed in
 [finding-docs](finding-docs.md), especially `Research/Guest/roothide_bootstrap_base.md`
