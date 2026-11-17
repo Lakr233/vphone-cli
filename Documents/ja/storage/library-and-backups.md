@@ -61,6 +61,11 @@ vphone-cli vm import myphone.tzst --name restored
 
 Launchpad は、該当する場合、CFW の作業ファイルをライブラリがマウントされている外部ボリュームに置きます。単体の `vphone-cli cfw install` の標準は `/private/var/tmp` で、root 所有の非公開ディレクトリを指定する `--work-parent` を受け付けます。
 
+Launchpad の root ヘルパーは CFW をインストールする前にライブラリのフォルダを自分で確認するため、外部ボリュームやネットワークボリュームにあるライブラリには、さらに 2 つの条件があります。
+
+- CFW のインストールで macOS がヘルパーのライブラリへのアクセスを拒否したと表示された場合は、ヘルパーにフルディスクアクセスを与えます。「システム設定」>「プライバシーとセキュリティ」>「フルディスクアクセス」で + をクリックし、Command-Shift-G を押して `/Library/PrivilegedHelperTools/com.vphone.launchpad.helper` を入力します。macOS はこうしたボリュームへのアクセスを Launchpad には確認できますが、バックグラウンドのヘルパーには確認できないため、この許可がないとヘルパーは拒否されたままです。
+- ボリュームで所有権を無視してはいけません。Finder でボリュームの「情報を見る」ウインドウを開き、「このボリューム上の所有権を無視」をオフにします。オンのあいだにライブラリを作成した場合は、`sudo chown -R "$USER" <ライブラリ>` で自分の所有に戻します。
+
 ## 関連項目
 
 - [スナップショット](snapshots.md)
