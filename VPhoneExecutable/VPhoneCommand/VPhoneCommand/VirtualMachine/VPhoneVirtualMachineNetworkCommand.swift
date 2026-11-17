@@ -33,7 +33,7 @@ struct VPhoneVirtualMachineNetworkCommand: ParsableCommand {
 
         var request: [String: Any] = ["t": "network"]
         request["link"] = link
-        guard let reply = VPhoneHostAutomationProbe.send(request, socketPath: socketPath, timeout: 10) else {
+        guard let reply = VPhoneControlSocket.send(request, socketPath: socketPath, timeout: 10) else {
             throw ValidationError("\(name) is not running, or its control socket does not answer. Start it with vm launch.")
         }
         guard reply["ok"] as? Bool == true, let status = reply["result"] as? [String: Any] else {

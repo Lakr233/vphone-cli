@@ -1,6 +1,6 @@
-import CryptoKit
 import Darwin
 import Foundation
+import VPhoneCoreKit
 
 /// The folders machines live in. The default library (`VPHONE_LIBRARY_ROOT`,
 /// else the folder chosen in Host Setup, else ~/.vphone/machines) is always
@@ -11,14 +11,7 @@ import Foundation
 /// link in it, and comparing canonical paths keeps one folder from being
 /// listed twice under two spellings.
 nonisolated enum VPhoneLaunchpadMachineLocations {
-    static let defaultRoot: String = {
-        let environment = environmentRoot.map { URL(fileURLWithPath: $0, isDirectory: true) }
-        return canonical(
-            environment ?? chosenLibrary()
-                ?? FileManager.default.homeDirectoryForCurrentUser
-                .appendingPathComponent(".vphone/machines", isDirectory: true),
-        )
-    }()
+    static let defaultRoot: String = VPhoneMachineConsoleLog.defaultRoot(chosen: chosenLibrary())
 
     /// `VPHONE_LIBRARY_ROOT`, which Host Setup cannot change.
     static let environmentRoot = ProcessInfo.processInfo.environment["VPHONE_LIBRARY_ROOT"].flatMap { $0.isEmpty ? nil : $0 }
@@ -62,16 +55,6 @@ nonisolated enum VPhoneLaunchpadMachineLocations {
         return (try? url.resourceValues(forKeys: [.volumeSupportsFileCloningKey]))?.volumeSupportsFileCloning ?? false
     }
 
-    /// The resolved path of an existing folder, else the standardized path.
-    static func canonical(_ url: URL) -> String {
-        let path = url.standardizedFileURL.path
-        guard let resolved = realpath(path, nil) else {
-            return path
-        }
-        defer { free(resolved) }
-        return String(cString: resolved)
-    }
-
     /// False while a chosen folder is missing, for example on a volume that
     /// is not mounted.
     static func isAvailable(_ root: String) -> Bool {
@@ -85,11 +68,6 @@ nonisolated enum VPhoneLaunchpadMachineLocations {
         let url = VPhoneLaunchpadHostSetup.existingAncestor(of: URL(fileURLWithPath: root, isDirectory: true))
         return (try? url.resourceValues(forKeys: [.volumeLocalizedNameKey]))?.volumeLocalizedName
             ?? VPhoneLaunchpadHostSetup.abbreviated(url)
-    }
-
-    /// Eight hex digits that tell libraries apart in log file names.
-    static func digest(_ root: String) -> String {
-        SHA256.hash(data: Data(root.utf8)).prefix(4).map { String(format: "%02x", $0) }.joined()
     }
 
     /// vphone-vm binds the machine's control socket at `<machine>/vphone.sock`

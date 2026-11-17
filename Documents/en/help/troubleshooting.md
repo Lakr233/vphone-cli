@@ -25,6 +25,8 @@ That is expected. Creation starts a temporary GUI boot, sends a real ping, and s
 vphone-cli vm launch <name>
 ```
 
+Add `--detach` to get your terminal back once vphoned answers; the VM's output goes to `~/Library/Logs/vphone-launchpad/<name>.log`. The command exits 1 if the VM exits, panics or does not answer within `--timeout`; a panicked or timed-out VM keeps running until `vphone-cli vm stop <name>`.
+
 ## Stuck at "Press home to continue"
 
 Click the Home button in the VM window's title bar. The current JB workflow does not install a VNC server.

@@ -5,7 +5,7 @@ import Foundation
 /// A machine's library root and name. Machines in two libraries may share a
 /// name, so the pair, not the name, identifies a machine.
 nonisolated struct VPhoneLaunchpadMachinePath: Hashable, Sendable {
-    /// A canonical root, as `VPhoneLaunchpadMachineLocations.canonical` makes it.
+    /// A canonical root, as `VPhoneMachineConsoleLog.canonical` makes it.
     let libraryRoot: String
     let name: String
 
