@@ -109,11 +109,13 @@ static id vpLayoutUUID(id object, NSString *key, NSMutableDictionary *failures) 
     return NSNull.null;
 }
 
-static NSDictionary *vpLayoutRect(id object, NSString *key, NSMutableDictionary *failures) {
+static NSDictionary *vpLayoutRect(id object, NSString *key, NSMutableDictionary *failures, BOOL *emptyBounds) {
+    if (emptyBounds) *emptyBounds = NO;
     id value = vpLayoutValue(object, key, failures);
     if (![value isKindOfClass:NSValue.class] || strcmp([(NSValue *)value objCType], @encode(CGRect)) != 0) return nil;
     CGRect rect;
     [(NSValue *)value getValue:&rect size:sizeof(rect)];
+    if (emptyBounds) *emptyBounds = CGRectEqualToRect(rect, CGRectZero);
     if (!isfinite(rect.origin.x) || !isfinite(rect.origin.y)
         || !isfinite(rect.size.width) || !isfinite(rect.size.height)
         || !isfinite(CGRectGetMaxX(rect)) || !isfinite(CGRectGetMaxY(rect))
@@ -152,8 +154,8 @@ static void vpLayoutApplicationScenes(id layout, NSString *bundle, NSMutableDict
         if (![owner isEqualToString:bundle]) continue;
         NSMutableDictionary *scene = [@{@"bundle_id": owner} mutableCopy];
         NSString *identifier = vpLayoutString(element, @"identifier", 255, failures);
-        NSDictionary *frame = vpLayoutRect(element, @"frame", failures);
-        NSDictionary *reference = vpLayoutRect(element, @"referenceFrame", failures);
+        NSDictionary *frame = vpLayoutRect(element, @"frame", failures, NULL);
+        NSDictionary *reference = vpLayoutRect(element, @"referenceFrame", failures, NULL);
         if (identifier) scene[@"identifier"] = identifier;
         if (frame) scene[@"frame"] = frame;
         if (reference) scene[@"reference_frame"] = reference;
@@ -171,8 +173,8 @@ static NSDictionary *vpLayoutRow(id monitor, NSString *bundle, NSMutableDictiona
         row[@"reason"] = @"Monitor or ABI unavailable, or FrontBoard returned no initial layout";
         return row;
     }
-    NSDictionary *bounds = vpLayoutRect(layout, @"bounds", failures);
-    NSDictionary *reference = vpLayoutRect(layout, @"referenceBounds", failures);
+    NSDictionary *bounds = vpLayoutRect(layout, @"bounds", failures, NULL);
+    NSDictionary *reference = vpLayoutRect(layout, @"referenceBounds", failures, NULL);
     NSNumber *orientation = vpLayoutNumber(layout, @"interfaceOrientation", failures);
     if (bounds) row[@"bounds"] = bounds;
     if (reference) row[@"reference_bounds"] = reference;
@@ -254,9 +256,13 @@ static NSDictionary *vpLayoutCapture(NSMutableDictionary *capture) {
                         id value = vpLayoutNumber(display, key, failures) ?: vpLayoutString(display, key, 32, failures);
                         if (value) item[key] = value;
                     }
-                    NSDictionary *bounds = vpLayoutRect(display, @"bounds", failures);
+                    BOOL emptyBounds = NO;
+                    NSDictionary *bounds = vpLayoutRect(display, @"bounds", failures, &emptyBounds);
                     id uuid = vpLayoutUUID(display, @"uniqueId", failures);
                     if (bounds) item[@"bounds"] = bounds;
+                    // Dormant wireless outputs report CGRectZero. An unreadable
+                    // getter leaves the number of usable displays unknown.
+                    if (capture[@"application_bundle"] && emptyBounds) item[@"empty_bounds"] = @YES;
                     if (uuid) item[@"uniqueId"] = uuid;
                     [inventory addObject:item];
                     if (inventory.count == 16) break;

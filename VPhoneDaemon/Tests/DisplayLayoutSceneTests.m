@@ -32,6 +32,7 @@
 
 @interface VPTestLayout : NSObject
 @property(nonatomic, copy) NSArray *elements;
+@property(nonatomic) CGRect bounds;
 @end
 @implementation VPTestLayout
 @end
@@ -61,6 +62,14 @@ static void checkOwner(id owner, BOOL expectedAvailable) {
 
 int main(void) {
     @autoreleasepool {
+        VPTestLayout *display = [VPTestLayout new];
+        NSMutableDictionary *failures = [NSMutableDictionary dictionary];
+        BOOL empty = NO;
+        if (vpLayoutRect(display, @"bounds", failures, &empty) || !empty) return EXIT_FAILURE;
+        if (vpLayoutRect([NSObject new], @"bounds", failures, &empty) || empty) return EXIT_FAILURE;
+        display.bounds = CGRectMake(0, 0, 1179, 2556);
+        if (!vpLayoutRect(display, @"bounds", failures, &empty) || empty) return EXIT_FAILURE;
+
         VPTestOwner *nilOwner = [VPTestOwner new];
         checkOwner(nilOwner, YES);
         VPTestOwner *otherApp = [VPTestOwner new];

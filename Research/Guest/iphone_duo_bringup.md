@@ -5736,11 +5736,16 @@ scene already collected. Only a successfully read nil owner is treated as a
 non-app element. Missing getters, incompatible ABIs, exceptions and malformed
 owner values cannot establish scene uniqueness.
 
-Each wait poll obtains a new binding. A transition during a query is refused;
-the observations do not provide an atomic OS scene lock. Missing, ambiguous
-or unoriented scene geometry also refuses semantic operations. Explicit
-point input retains its existing unknown-orientation fallback. Point hit
-testing (`ui.element_at`), capture, OCR, normalized input and the opt-in nested
+Each wait poll obtains a new binding. The handler refuses a transition it
+observes during the AX query. On the iPhone17,3, FrontBoard can report
+orientation 0 with 393 × 852 bounds. The handler uses native coordinates
+when the scene fills the same bounds in both coordinate spaces and the
+default-main display is the sole panel with usable bounds. Dormant wireless
+outputs with verified zero bounds do not count. An unreadable or capped
+display inventory, a second panel, or mismatched frames prevents this
+fallback. Explicit point input retains its existing unknown-orientation
+fallback. Point hit testing (`ui.element_at`), capture, OCR, normalized
+input and the opt-in nested
 diagnostic tree keep their existing coordinate contracts. Icli's point hit
 test does not return the queried PID, so it cannot provide the ownership
 check required for this binding.
@@ -5748,8 +5753,9 @@ check required for this binding.
 `VPhoneDaemon/Tests/run-point-geometry-tests.sh --icli <pinned-checkout>`
 compiles the real handlers, pinned Icli selector functions and C coordinate
 conversion with AX/HID boundary fixtures. It covers the wrong-tap regression,
-right-edge selection, ownership changes, ambiguous scenes, and fresh geometry
-between wait polls. Running it with `--input-source` set to the previous
+right-edge selection, single-panel orientation 0, ownership changes,
+ambiguous scenes, and fresh geometry between wait polls. Running it with
+`--input-source` set to the previous
 handler fails the (587, 48) conversion assertion. The native admission test
 also exercises both layout entry points sharing one bounded admission slot.
 These checks do not establish the private API's behavior or tap delivery in

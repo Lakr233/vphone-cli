@@ -53,21 +53,41 @@ private struct SemanticGeometry {
         let foreground = try SemanticForeground.current()
         let layout = vp_display_layout_for_application(foreground.bundle)
         guard try SemanticForeground.current() == foreground,
-              let geometry = try GuestPointGeometry.geometry(from: layout),
               let monitors = layout["monitors"] as? [[String: Any]], let monitor = monitors.first,
               semanticBoolean(monitor["elements_available"]) == true,
               semanticBoolean(monitor["elements_truncated"]) == false,
               let scenes = monitor["application_scenes"] as? [[String: Any]], scenes.count == 1,
               let scene = scenes.first, scene["bundle_id"] as? String == foreground.bundle,
               let identifier = scene["identifier"] as? String, !identifier.isEmpty,
-              let frame = semanticRect(scene["frame"]), let reference = semanticRect(scene["reference_frame"]),
-              CGRect(x: 0, y: 0, width: geometry.width, height: geometry.height).contains(frame),
+              let frame = semanticRect(scene["frame"]), let reference = semanticRect(scene["reference_frame"])
+        else { throw IcliError.unavailable("Cannot bind accessibility coordinates to a unique foreground scene") }
+        let geometry = try GuestPointGeometry.geometry(from: layout)
+            ?? nativeGeometry(layout: layout, monitor: monitor, frame: frame, reference: reference)
+        guard CGRect(x: 0, y: 0, width: geometry.width, height: geometry.height).contains(frame),
               CGRect(x: 0, y: 0, width: geometry.referenceWidth, height: geometry.referenceHeight).contains(reference)
-        else { throw IcliError.unavailable("Cannot bind accessibility coordinates to a unique foreground scene and oriented display") }
+        else { throw IcliError.unavailable("Foreground scene is outside the active display") }
         let keys = ["display_id", "hardware_identifier", "bounds", "reference_bounds", "point_scale", "interface_orientation"]
         var identity = monitor.filter { keys.contains($0.key) }
         identity["scene"] = scene
         return Self(foreground: foreground, geometry: geometry, sceneFrame: frame, identity: NSDictionary(dictionary: identity))
+    }
+
+    // FrontBoard can report orientation zero on a single-display phone. Use
+    // native axes only when the full-screen scene agrees in both spaces.
+    private static func nativeGeometry(layout: [String: Any], monitor: [String: Any],
+                                       frame: CGRect, reference: CGRect) throws -> InterfaceGeometry {
+        guard let displays = layout["cadisplays"] as? [[String: Any]], displays.count < 16 else {
+            throw IcliError.unavailable("Cannot verify a complete display inventory for an unoriented scene")
+        }
+        let candidates = displays.filter { semanticBoolean($0["empty_bounds"]) != true }
+        guard candidates.count == 1, let display = candidates.first, semanticRect(display["bounds"]) != nil,
+              let id = semanticNumber(display["displayId"]), id == semanticNumber(monitor["display_id"]),
+              frame == semanticRect(monitor["bounds"]), reference == semanticRect(monitor["reference_bounds"]),
+              frame == reference, let scale = semanticNumber(monitor["point_scale"]) else {
+            throw IcliError.unavailable("An unoriented scene requires one display with matching native and scene bounds")
+        }
+        return try InterfaceGeometry(width: frame.width, height: frame.height, referenceWidth: reference.width,
+                                     referenceHeight: reference.height, scale: scale, orientation: 0)
     }
 
     func confirm() throws {
@@ -101,9 +121,8 @@ extension GuestAPI {
         return (result, snapshot)
     }
 
-    // Icli exposes selector fields but keeps its matcher private. Preserve its
-    // label/identifier, role and indexed-match contract while rechecking the
-    // geometry after the AX query and before dispatch.
+    // Mirrors ElementSelector.matches in Icli 1.0.0 (bd25a1d0),
+    // Sources/IcliKit/Input/Screen.swift. Check it when updating the Icli pin.
     private static func semanticMatch(_ element: [String: Any], selector: ElementSelector) -> Bool {
         if let role = selector.role {
             if role == "control" {

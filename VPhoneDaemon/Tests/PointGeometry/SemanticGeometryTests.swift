@@ -44,7 +44,52 @@ private func changeScene(_ changes: [String: Any]) {
     changeMonitor(["application_scenes": scenes])
 }
 
+private func singleDisplayTests() throws {
+    let bounds = ["x": 0, "y": 0, "width": 393, "height": 852]
+    let pixels = ["x": 0, "y": 0, "width": 1179, "height": 2556]
+    let panel: [String: Any] = ["displayId": 1, "bounds": pixels]
+    let wireless: [String: Any] = ["displayId": 2, "empty_bounds": true]
+    let secondPanel: [String: Any] = ["displayId": 7, "bounds": pixels]
+    resetSemanticInput()
+    LayoutWitness.layout["geometry_available"] = false
+    LayoutWitness.layout["cadisplays"] = [panel, wireless]
+    changeMonitor(["geometry_available": false, "interface_orientation": 0, "display_id": 1,
+                   "bounds": bounds, "reference_bounds": bounds])
+    changeScene(["frame": bounds, "reference_frame": bounds])
+    SemanticInputWitness.elements = [["label": "General", "x": 350.0, "y": 700.0]]
+    let selector: [String: Any] = ["text": "General", "match": "exact", "timeout_ms": 0]
+    let tree = try GuestAPI.executeInterface(.uiTree, [:])
+    precondition((tree["elements"] as! [[String: Any]]).count == 1)
+    let selected = try GuestAPI.executeInterface(.uiTapElement, selector)
+    precondition(selected["tapped"] as? Bool == true)
+    let tap = PointInputWitness.points.last!
+    precondition(abs(tap[0] - 350 / 393.0) < 1e-9 && abs(tap[1] - 700 / 852.0) < 1e-9)
+    let present = try GuestAPI.executeInterface(.uiWait, selector)
+    precondition(present["found"] as? Bool == true)
+    SemanticInputWitness.elements = []
+    let gone = try GuestAPI.executeInterface(.uiWaitGone, selector)
+    precondition(gone["disappeared"] as? Bool == true)
+    precondition(SemanticInputWitness.queriedWidths == [393, 393, 393, 393])
+
+    for displays: [[String: Any]] in [[], [secondPanel], [panel, secondPanel], [panel, ["displayId": 2]],
+                                      [panel, ["empty_bounds": 1]], [panel] + Array(repeating: wireless, count: 15)] {
+        LayoutWitness.layout["cadisplays"] = displays
+        rejects { _ = try GuestAPI.executeInterface(.uiWaitGone, selector) }
+    }
+    LayoutWitness.layout["cadisplays"] = [panel]
+    changeScene(["frame": ["x": 0, "y": 0, "width": 393, "height": 800]])
+    rejects { _ = try GuestAPI.executeInterface(.uiTree, [:]) }
+    changeScene(["frame": bounds, "reference_frame": ["x": 0, "y": 0, "width": 852, "height": 393]])
+    rejects { _ = try GuestAPI.executeInterface(.uiTree, [:]) }
+    changeScene(["reference_frame": bounds])
+    SemanticInputWitness.elements = [["label": "General", "x": 350.0, "y": 700.0]]
+    SemanticInputWitness.afterQuery = { LayoutWitness.layout["cadisplays"] = [panel, secondPanel] }
+    rejects { _ = try GuestAPI.executeInterface(.uiTapElement, selector) }
+    precondition(PointInputWitness.points.count == 1 && !icli_interface_geometry_current(nil))
+}
+
 func semanticGeometryTests() throws {
+    try singleDisplayTests()
     resetSemanticInput()
     // Real guest dispatch, pinned Icli scope and C conversion. The screenshot
     // fallback is 678x466, but AX points belong to the active 951x669 display.
