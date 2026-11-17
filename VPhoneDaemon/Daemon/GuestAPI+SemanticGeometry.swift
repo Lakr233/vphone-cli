@@ -79,7 +79,11 @@ private struct SemanticGeometry {
         guard let displays = layout["cadisplays"] as? [[String: Any]], displays.count < 16 else {
             throw IcliError.unavailable("Cannot verify a complete display inventory for an unoriented scene")
         }
-        let candidates = displays.filter { semanticBoolean($0["empty_bounds"]) != true }
+        // Only type 2 is a wireless output. Keep an unlit integrated panel
+        // in the count even if its current bounds are zero.
+        let candidates = displays.filter {
+            semanticNumber($0["displayType"]) != 2 || semanticBoolean($0["empty_bounds"]) != true
+        }
         guard candidates.count == 1, let display = candidates.first, semanticRect(display["bounds"]) != nil,
               let id = semanticNumber(display["displayId"]), id == semanticNumber(monitor["display_id"]),
               frame == semanticRect(monitor["bounds"]), reference == semanticRect(monitor["reference_bounds"]),

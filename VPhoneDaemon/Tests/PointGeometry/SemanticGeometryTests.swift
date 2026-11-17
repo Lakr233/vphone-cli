@@ -48,7 +48,7 @@ private func singleDisplayTests() throws {
     let bounds = ["x": 0, "y": 0, "width": 393, "height": 852]
     let pixels = ["x": 0, "y": 0, "width": 1179, "height": 2556]
     let panel: [String: Any] = ["displayId": 1, "bounds": pixels]
-    let wireless: [String: Any] = ["displayId": 2, "empty_bounds": true]
+    let wireless: [String: Any] = ["displayId": 2, "displayType": 2, "empty_bounds": true]
     let secondPanel: [String: Any] = ["displayId": 7, "bounds": pixels]
     resetSemanticInput()
     LayoutWitness.layout["geometry_available"] = false
@@ -72,7 +72,9 @@ private func singleDisplayTests() throws {
     precondition(SemanticInputWitness.queriedWidths == [393, 393, 393, 393])
 
     for displays: [[String: Any]] in [[], [secondPanel], [panel, secondPanel], [panel, ["displayId": 2]],
-                                      [panel, ["empty_bounds": 1]], [panel] + Array(repeating: wireless, count: 15)] {
+                                      [panel, ["displayType": 2, "empty_bounds": 1]],
+                                      [panel, ["displayType": 0, "empty_bounds": true]], [panel, ["empty_bounds": true]],
+                                      [panel] + Array(repeating: wireless, count: 15)] {
         LayoutWitness.layout["cadisplays"] = displays
         rejects { _ = try GuestAPI.executeInterface(.uiWaitGone, selector) }
     }
@@ -89,7 +91,6 @@ private func singleDisplayTests() throws {
 }
 
 func semanticGeometryTests() throws {
-    try singleDisplayTests()
     resetSemanticInput()
     // Real guest dispatch, pinned Icli scope and C conversion. The screenshot
     // fallback is 678x466, but AX points belong to the active 951x669 display.
@@ -175,6 +176,7 @@ func semanticGeometryTests() throws {
     _ = try GuestAPI.executeInterface(.uiWait, ["identifier": "portrait-target", "timeout_ms": 1000])
     precondition(SemanticInputWitness.queriedWidths == [951, 669], "wait reused stale display geometry")
     precondition(PointInputWitness.points.isEmpty && !icli_interface_geometry_current(nil))
+    try singleDisplayTests()
     resetSemanticInput()
     print("Semantic handlers bind AX clipping and HID input to one verified foreground scene and display")
 }
