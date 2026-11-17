@@ -4,6 +4,8 @@
 <dict>
 	<key>Label</key>
 	<string>com.vphone.launchpad.helper</string>
+	<key>AssociatedBundleIdentifiers</key>
+	<string>com.vphone.launchpad</string>
 	<key>MachServices</key>
 	<dict>
 		<key>com.vphone.launchpad.helper</key>
