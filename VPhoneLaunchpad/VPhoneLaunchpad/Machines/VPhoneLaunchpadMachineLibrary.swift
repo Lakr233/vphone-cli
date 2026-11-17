@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import UniformTypeIdentifiers
+import VPhoneCoreKit
 
 /// The third stage: the VM library, driven entirely through `vphone-cli vm`.
 ///
@@ -433,12 +434,12 @@ final class VPhoneLaunchpadMachineLibrary {
     /// name gains a digest of the library, since two libraries may each hold
     /// a machine with the same name.
     static func consoleLog(_ machine: Path, suffix: String = "") -> URL {
-        let stem = machine.libraryRoot == VPhoneLaunchpadMachineLocations.defaultRoot
-            ? machine.name
-            : "\(machine.name)-\(VPhoneLaunchpadMachineLocations.digest(machine.libraryRoot))"
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/vphone-launchpad", isDirectory: true)
-            .appendingPathComponent("\(stem)\(suffix).log")
+        VPhoneMachineConsoleLog.url(
+            libraryRoot: machine.libraryRoot,
+            name: machine.name,
+            suffix: suffix,
+            defaultRoot: VPhoneLaunchpadMachineLocations.defaultRoot,
+        )
     }
 
     /// Adds a line of Launchpad's own to the console log, after the process

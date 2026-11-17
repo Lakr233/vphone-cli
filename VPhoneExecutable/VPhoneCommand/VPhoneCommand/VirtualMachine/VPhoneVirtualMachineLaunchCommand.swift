@@ -20,14 +20,33 @@ struct VPhoneVirtualMachineLaunchCommand: ParsableCommand {
     var projectRoot: String?
     @Flag(name: .customShort("v"), help: "Increase verbosity: -v tool detail, -vv guest serial, -vvv internal trace")
     var verboseCount: Int
+    @Flag(help: "Start the VM in its own session, log to Launchpad's console log and return once vphoned answers")
+    var detach = false
+    @Option(parsing: .unconditional, help: "With --detach: seconds to wait for vphoned (default 300)")
+    var timeout: String?
 
     func validate() throws {
         if dfu, apiListen != nil {
             throw ValidationError("`--api-listen` is unavailable with `--dfu`.")
         }
+        if timeout != nil, !detach {
+            throw ValidationError("`--timeout` needs `--detach`.")
+        }
+        if detach, dfu {
+            throw ValidationError("`--detach` is unavailable with `--dfu` (DFU has no vphoned).")
+        }
+        if let timeout {
+            guard let seconds = Int(timeout), seconds >= 1 else {
+                throw ValidationError("`--timeout` must be a whole number of seconds, 1 or more.")
+            }
+        }
     }
 
+    /// `--timeout` in seconds; `validate()` has already rejected anything else.
+    private var timeoutSeconds: Int { timeout.flatMap { Int($0) } ?? 300 }
+
     func run() throws {
+        if detach { return try runDetached() }
         let v = VPhoneVerbosity(count: verboseCount)
         if name == nil {
             let scan = try lib.library.scan()
@@ -90,6 +109,94 @@ struct VPhoneVirtualMachineLaunchCommand: ParsableCommand {
             catch { fputs("warning: could not save shader cache: \(error)\n", stderr) }
         }
         throw try ExitCode(launcher.run(args, cwd: bundle.url))
+    }
+
+    private func fail(_ message: String) -> ExitCode {
+        fputs("\(message)\n", stderr)
+        return ExitCode(1)
+    }
+
+    /// Re-runs this command as a detached child that logs to Launchpad's
+    /// console log, then waits for vphoned to answer.
+    private func runDetached() throws {
+        let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
+        let bundle = try lib.library.bundle(named: name)
+        let log = VPhoneMachineConsoleLog.url(
+            libraryRoot: VPhoneMachineConsoleLog.canonical(lib.library.root),
+            name: name,
+            suffix: "",
+            defaultRoot: VPhoneMachineConsoleLog.defaultRoot(),
+        )
+        // Refused before the log is opened, created or truncated.
+        do { try VPhoneBundleActivity.requireStopped(bundle) } catch let error as VPhoneBundleActivityError {
+            throw fail("\(error)")
+        }
+
+        var arguments = ["vm", "launch", name]
+        if let root = lib.libraryRoot { arguments += ["-l", root] }
+        if headless { arguments.append("--headless") }
+        if let apiListen { arguments += ["--api-listen", apiListen] }
+        if let kernelDebugPort { arguments += ["--kernel-debug-port", String(kernelDebugPort)] }
+        if let projectRoot { arguments += ["-p", projectRoot] }
+        arguments += Array(repeating: "-v", count: verboseCount)
+
+        let pid: pid_t
+        do {
+            try FileManager.default.createDirectory(
+                at: log.deletingLastPathComponent(), withIntermediateDirectories: true,
+            )
+            try Data().write(to: log)
+            pid = try VPhoneDetachedProcess.spawn(
+                executable: VPhoneResources.runningExecutable(),
+                arguments: arguments,
+                logFile: log,
+                disclaim: false,
+            )
+        } catch {
+            let reason = (error as? VPhoneDetachedProcess.SpawnError)?.description ?? "\(error.localizedDescription) (\(log.path))"
+            throw fail("could not start `\(name)`: \(reason)")
+        }
+        print("pid \(pid)")
+        print("log \(log.path)")
+        fflush(stdout)
+
+        var scanner = VPhoneConsolePanicScanner(url: log)
+        var status: Int32?
+        let socket = bundle.url.appendingPathComponent("vphone.sock").path
+        let outcome = VPhoneGuestWait.run(
+            timeout: timeoutSeconds,
+            pollInterval: 1,
+            ping: { VPhoneControlSocket.ping(socketPath: socket) },
+            exited: {
+                if status == nil { status = VPhoneDetachedProcess.exitStatus(pid: pid) }
+                return status != nil
+            },
+            panicked: { scanner.hasPanic() },
+            cancelled: { false },
+            progress: { _ in },
+        )
+        let stop = "stop it with `vphone-cli vm stop \(name)`"
+        switch outcome {
+        case let .answered(seconds):
+            print("vphoned answered after \(seconds)s")
+        case .exited:
+            let how = status.map(VPhoneDetachedProcess.describe(status:)) ?? "unknown"
+            throw fail("`\(name)` stopped before vphoned answered (\(how))\nlog: \(log.path)\n\(Self.tail(of: log))")
+        case .panicked:
+            throw fail("`\(name)` had a kernel panic; it is still running (pid \(pid))\nlog: \(log.path)\n\(stop)")
+        case .timedOut, .cancelled:
+            throw fail("vphoned did not answer within \(timeoutSeconds)s; `\(name)` is still running (pid \(pid))\nlog: \(log.path)\n\(stop)")
+        }
+    }
+
+    /// The last 20 lines, from the final 64 KiB of the log.
+    private static func tail(of log: URL) -> String {
+        guard let handle = try? FileHandle(forReadingFrom: log) else { return "" }
+        defer { try? handle.close() }
+        let size = (try? handle.seekToEnd()) ?? 0
+        try? handle.seek(toOffset: size > 65536 ? size - 65536 : 0)
+        let text = String(decoding: (try? handle.readToEnd()) ?? Data(), as: UTF8.self)
+        return text.split(separator: "\n", omittingEmptySubsequences: false).suffix(20).joined(separator: "\n")
     }
 }
 
