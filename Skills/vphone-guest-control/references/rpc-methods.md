@@ -86,7 +86,7 @@ invalid-request error, read the source named there instead of guessing keys.
 
 | Method | Params | Notes |
 | --- | --- | --- |
-| `device.info` | none | Snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode. Start here |
+| `device.info` | none | Snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode, `ios_build` and `udid` (the `udid.set` override, else the guest's own, as usbmuxd lists it). Start here |
 | `device.snapshot`, `device.screen`, `device.network` | none | Smaller views of the same |
 | `screen.screenshot` | `max_dimension?` (integer, 1 or more), `quality?` (0.1-1.0), `region?` `{x, y, width, height}` in points | Base64 JPEG at the panel's pixel size (1179×2556 on a new iPhone17,3); `max_dimension` scales the longer side down, `region` crops first. Reply adds `point_width`, `point_height`, `region`; pixel `(px, py)` is point `(region.x + px / coordinate_scale, region.y + py / coordinate_scale)`. Bad values fail with `invalid_param` |
 | `display.brightness`, `audio.volume` | `value?` | Omit `value` to read |
