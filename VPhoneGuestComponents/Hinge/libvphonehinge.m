@@ -26,9 +26,7 @@
 // The orientation the relay was last given; 0 before any.
 @property (nonatomic) int32_t orientation;
 // The sweep in flight: from currentAngle to state.angle over its duration.
-@property (nonatomic) double sweepElapsed;
-@property (nonatomic) double sweepDuration;
-@property (nonatomic) double sweepStart;
+@property (nonatomic) VPhoneHingeSweep sweep;
 @property (nonatomic) BOOL enumerated;
 @property (nonatomic) BOOL cancelling;
 @property (nonatomic) uint64_t interval;
@@ -191,21 +189,17 @@ static int32_t VPhoneHingeStateForAngle(double angle) {
     return 2; // partially open, the state a sweep holds throughout
 }
 
-/// Continuous fold: a smoothstep, close to a hand fold's constant feel.
-/// Fade: a cosine ease with a dwell at each end, the crossfade feel the
-/// fade-in-out profile names.
-static double VPhoneHingeProgress(double t, int32_t profile) {
-    if (profile == VPhoneHingeProfileFade) {
-        if (t < 0.1)
-            return 0;
-        if (t > 0.9)
-            return 1;
-        return (1 - cos(M_PI * (t - 0.1) / 0.8)) / 2;
-    }
-    return t * t * (3 - 2 * t);
+static double VPhoneHingeMillisecondsPerTick(void) {
+    static mach_timebase_info_data_t timebase;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ mach_timebase_info(&timebase); });
+    return (double)timebase.numer / timebase.denom / 1000000.0;
 }
 
 - (void)endSweepTimer {
+    VPhoneHingeSweep sweep = self.sweep;
+    VPhoneHingeSweepCancel(&sweep);
+    self.sweep = sweep;
     if (self.sweepTimer) {
         dispatch_source_cancel(self.sweepTimer);
         self.sweepTimer = nil;
@@ -230,9 +224,11 @@ static double VPhoneHingeProgress(double t, int32_t profile) {
         [self publishStatus];
         return;
     }
-    self.sweepStart = self.currentAngle;
-    self.sweepElapsed = 0;
-    self.sweepDuration = duration;
+    VPhoneHingeSweep sweep = self.sweep;
+    VPhoneHingeSweepBegin(&sweep, mach_absolute_time(), VPhoneHingeMillisecondsPerTick(),
+                         self.currentAngle, target, duration, self.state.profile);
+    self.sweep = sweep;
+    uint64_t generation = sweep.generation;
     self.sweeps++;
     self.sweepTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, self.queue);
     dispatch_source_set_timer(self.sweepTimer, DISPATCH_TIME_NOW,
@@ -243,27 +239,22 @@ static double VPhoneHingeProgress(double t, int32_t profile) {
             VPhoneHingeProvider *provider = weakSelf;
             if (!provider)
                 return;
-            provider.sweepElapsed += VP_HINGE_SWEEP_MS;
-            double t = provider.sweepElapsed / provider.sweepDuration;
-            if (t >= 1.0) {
-                double previous = provider.currentAngle;
-                provider.currentAngle = provider.state.angle;
-                [provider endSweepTimer];
-                [provider dispatchAngle:provider.currentAngle
-                             velocity:(provider.currentAngle - previous) / (VP_HINGE_SWEEP_MS / 1000.0)
-                                state:VPhoneHingeStateForAngle(provider.currentAngle)
-                                 phase:3];
-                [provider publishStatus];
+            // Dispatch timers coalesce missed ticks. Advance to the current
+            // monotonic time instead of stretching the fold by one tick per callback.
+            VPhoneHingeSweep current = provider.sweep;
+            VPhoneHingeSweepSample sample;
+            if (!VPhoneHingeSweepRead(&current, generation, mach_absolute_time(), &sample))
                 return;
-            }
-            double progress = VPhoneHingeProgress(t, provider.state.profile);
-            double angle = provider.sweepStart + (provider.state.angle - provider.sweepStart) * progress;
-            double previousAngle = provider.currentAngle;
-            provider.currentAngle = angle;
-            [provider dispatchAngle:angle
-                         velocity:(angle - previousAngle) / (VP_HINGE_SWEEP_MS / 1000.0)
-                            state:VPhoneHingeStateForAngle(angle)
-                             phase:provider.sweepElapsed == VP_HINGE_SWEEP_MS ? 1 : 2];
+            provider.sweep = current;
+            provider.currentAngle = sample.angle;
+            if (sample.phase == 3)
+                [provider endSweepTimer];
+            [provider dispatchAngle:sample.angle
+                         velocity:sample.velocity
+                            state:VPhoneHingeStateForAngle(sample.angle)
+                             phase:sample.phase];
+            if (sample.phase == 3)
+                [provider publishStatus];
         }
     });
     dispatch_resume(self.sweepTimer);
