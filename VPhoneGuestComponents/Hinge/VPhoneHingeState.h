@@ -1,5 +1,6 @@
 #pragma once
 #import <Foundation/Foundation.h>
+#include "VPhoneHingeSweep.h"
 #include <math.h>
 
 // One dictionary per update, as with the gyroscope: readers never combine an
@@ -41,11 +42,6 @@ typedef struct {
     // periodic resend.
     BOOL quiet;
 } VPhoneHingeState;
-
-typedef enum {
-    VPhoneHingeProfileContinuous = 0,
-    VPhoneHingeProfileFade = 1,
-} VPhoneHingeProfile;
 
 // Reject malformed persisted state, booleans masquerading as angles, and
 // angles outside the hinge's range.

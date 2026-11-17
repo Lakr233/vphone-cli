@@ -161,6 +161,10 @@ struct FirmwareCatalogReportTests {
         #expect(pairing.iosURL == "https://updates.cdn-apple.com/2026SFallFCS/a595a3b2-2c42-470a-9417-a705aaafa05c/AudioAccessory5,1_27.0_24J361_Restore.ipsw")
         #expect(pairing.cloudosName == "cloudOS 26.4")
         #expect(pairing.cloudosURL == VPhoneFirmwareCatalog.cloud264)
+        // A research board cloudOS of the same version without a HomePod recipe
+        // (27.2) does not replace cloudOS 26.4.
+        #expect(pairings[2].cloudosURL == VPhoneFirmwareCatalog.cloud264)
+        #expect(pairings[0].cloudosName == "cloudOS 26.5 (23F75)")
         #expect(VPhoneGuestDevice.audioAccessory5_1.restoreBase == nil)
         #expect(VPhoneFirmwareCatalog.otaRelease(source: pairing.iosURL) == nil)
         #expect(VPhoneFirmwareCatalog.otaRelease(for: "AudioAccessory5,1", build: "24J361") == nil)
@@ -292,8 +296,8 @@ struct FirmwareCatalogReportTests {
         }
         #expect(VPhoneFirmwareCatalog.pairings(for: "iPhone11,4") == pairings)
         let devices = VPhoneFirmwareCatalog.report.devices
-        #expect(devices.first { $0.productType == "iPhone11,6" }?.kernelcacheLayout == "kernel-first")
-        #expect(devices.filter { $0.kernelcacheLayout != nil }.map(\.productType) == ["iPhone11,6"])
+        // The bundle links every mix itself: no device asks Launchpad for an ssh builder.
+        #expect(devices.allSatisfy { $0.kernelcacheLayout == nil })
     }
 
     @Test func `cellular i pad gets its wi fi model's pairings`() {

@@ -61,6 +61,11 @@ vphone-cli vm import myphone.tzst --name restored
 
 Launchpad는 해당하는 경우 CFW 작업 파일을 보관함이 있는 외장 볼륨에 둡니다. 단독으로 실행하는 `vphone-cli cfw install`은 기본적으로 `/private/var/tmp`를 사용하며, root 소유의 비공개 디렉터리를 지정하는 `--work-parent`를 받습니다.
 
+Launchpad의 root 도우미는 CFW를 설치하기 전에 보관함 폴더를 직접 확인하므로, 외장 볼륨이나 네트워크 볼륨에 있는 보관함에는 두 가지 조건이 더 있습니다.
+
+- CFW 설치 중 macOS가 도우미의 보관함 접근을 거부했다고 나오면 도우미에 전체 디스크 접근 권한을 줍니다. 시스템 설정 > 개인정보 보호 및 보안 > 전체 디스크 접근 권한에서 +를 클릭하고 Command-Shift-G를 누른 뒤 `/Library/PrivilegedHelperTools/com.vphone.launchpad.helper`를 입력합니다. macOS는 이런 볼륨에 대한 접근을 Launchpad에는 물어볼 수 있지만 백그라운드 도우미에는 물어볼 수 없으므로, 이 권한이 없으면 도우미는 계속 거부됩니다.
+- 볼륨이 소유권을 무시하면 안 됩니다. Finder에서 볼륨의 정보 가져오기 창을 열고 '이 볼륨의 소유권 무시'를 끕니다. 이 옵션이 켜져 있을 때 보관함을 만들었다면 `sudo chown -R "$USER" <보관함>`으로 다시 본인 소유로 돌립니다.
+
 ## 함께 보기
 
 - [스냅샷](snapshots.md)

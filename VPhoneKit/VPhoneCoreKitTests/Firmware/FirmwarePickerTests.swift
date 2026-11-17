@@ -10,8 +10,8 @@ struct FirmwarePickerTests {
 
     // MARK: - Catalog integrity
 
-    @Test func `catalog has twenty seven pairings`() {
-        #expect(VPhoneFirmwareCatalog.pairings.count == 27)
+    @Test func `catalog has twenty eight pairings`() {
+        #expect(VPhoneFirmwareCatalog.pairings.count == 28)
     }
 
     @Test func `every pairing is populated`() {
@@ -28,7 +28,7 @@ struct FirmwarePickerTests {
         let opts = VPhoneFirmwareCatalog.cloudOSOptions
         #expect(opts.map(\.name) == [
             "cloudOS 26.1", "cloudOS 26.2", "cloudOS 26.3", "cloudOS 26.4",
-            "cloudOS 26.4 (23E244)", "cloudOS 26.5 (23F75)", "cloudOS 26.6 (23G71)", "cloudOS 26.7 (23H20)",
+            "cloudOS 26.4 (23E244)", "cloudOS 26.5 (23F75)", "cloudOS 26.6 (23G71)", "cloudOS 26.7 (23H20)", "cloudOS 27.2 (24B115)",
         ])
         #expect(Set(opts.map(\.url)).count == opts.count) // no dup URLs
     }
@@ -141,7 +141,7 @@ struct FirmwarePickerTests {
             write: { lines.append($0) },
         )
         let menu = lines.filter { $0.hasPrefix("  [") }
-        #expect(menu.count == 27)
+        #expect(menu.count == 28)
         // Label text starts in one column regardless of 1- vs 2-digit index.
         let labelStarts = Set(menu.map { $0.range(of: "] ")!.upperBound.utf16Offset(in: $0) })
         #expect(labelStarts.count == 1)

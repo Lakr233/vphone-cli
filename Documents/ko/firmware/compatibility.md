@@ -35,7 +35,7 @@ vphone-cli fw catalog
 그 이후의 모든 cloudOS(2026-10-03 확인)에는 PCC 보드와 `vresearch101ap`만 있습니다. `SupportedProductTypes`에서 `iPhone99,11`이 빠졌고, `kernelcache.*.vphone600`, `sep-firmware.vphone600`, `DeviceTree.vphone600ap`도 없습니다. 이런 cloudOS에서는 연구용 보드가 그 역할을 대신합니다(Research Board 패치 세트).
 
 - `fw patch`는 연구용 보드의 디바이스 트리와 SEP를 vphone600용으로 바꾸고, 해당 kernelcache의 레시피에 따라 vphone600 가상화 kext를 넣어 kernelcache를 다시 빌드합니다.
-- KDK 추출은 네이티브로 실행되며, 링크만 root 권한이 필요합니다(`vphone-cli fw kernelcache`). [kernelcache 레시피](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md)와 [펌웨어 준비](firmware-preparation.md)를 참고하세요.
+- KDK 추출과 링크 모두 사용자 권한으로 실행되며, 링크에는 그 kernelcache를 빌드할 때 사용된 kmutil을 씁니다(`vphone-cli fw kernelcache`). [kernelcache 레시피](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md)와 [펌웨어 준비](firmware-preparation.md)를 참고하세요.
 - `fw prepare`는 레시피가 없는 cloudOS를 거부합니다.
 - `fw catalog`는 각 iOS 릴리스 자체의 cloudOS를 권장 cloudOS 옆에 표시하며, Launchpad는 이를 **Firmware** 아래에서 제공합니다.
 
@@ -58,8 +58,8 @@ iOS 18.1~18.7.2는 해당 릴리스 자체의 cloudOS에서, iPhone XS 계열 IP
 
 - `vm create --device iPhone11,6`으로 만듭니다. 기본 프리셋은 Minimal이며, `--preset standard`는 18.6에서 확인했습니다.
 - `fw catalog --device iPhone11,6`으로 릴리스 목록을 볼 수 있습니다.
-- 이 커널은 kernel-first 레이아웃입니다. macOS 26.4부터는 macOS 15 또는 26.0~26.3을 실행하는 다른 Mac이나 macOS 가상 머신이 ssh로 믹스를 링크합니다(`VPHONE_KMUTIL_SSH`, [펌웨어 준비](firmware-preparation.md) 참고).
-- Launchpad는 이를 iPhone XS Max로 제공하며, 그 Mac을 macOS 빌더로 사용합니다.
+- 이 커널은 kernel-first 레이아웃이며, 어떤 macOS에서든 macOS 15의 kmutil로 링크합니다([펌웨어 준비](firmware-preparation.md#믹스를-링크하는-kmutil) 참고).
+- Launchpad는 이를 iPhone XS Max로 제공합니다.
 
 18.1, 18.5, 18.7.2는 가상 머신에서 확인했으며, 나머지 네 레시피는 아직 부팅해 보지 않았습니다.
 

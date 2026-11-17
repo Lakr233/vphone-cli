@@ -34,6 +34,9 @@ jobs:
       - name: Active display metrics regressions
         run: zsh VPhoneDaemon/Tests/run-display-metrics-tests.sh
 
+      - name: Hinge sweep timing regressions
+        run: make -C VPhoneGuestComponents test-hinge-sweep
+
       - name: Process capture pipe regressions
         run: zsh VPhoneDaemon/Tests/run-process-pipe-tests.sh
 

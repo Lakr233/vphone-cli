@@ -111,9 +111,10 @@ extension GuestAPI {
             "restarted_pids": restarted,
             // launchd loaded its hook at boot and keeps the old copy mapped.
             // backboardd owns the UI's HID connection. Do not restart it here:
-            // a new gyro hook (or SystemHook which loads it) needs a reboot.
+            // Updated sensor and display hooks need a reboot.
             "reboot_required": !rootReadOnly || names.contains("launchdhook-vphone.dylib")
                 || names.contains("libvphonegyro.dylib") || names.contains("libvphoneaccelerometer.dylib")
+                || names.contains("libvphonehinge.dylib") || names.contains("libvphonefolddisplay.dylib")
                 || names.contains("SystemHook-vphone.dylib"),
             "root_read_only": rootReadOnly,
         ]

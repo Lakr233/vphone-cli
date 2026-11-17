@@ -192,6 +192,10 @@ public enum ARM64 {
     public static let retaaU32: UInt32 = 0xD65F_0BFF
     public static let retabU32: UInt32 = 0xD65F_0FFF
     public static let pacibspU32: UInt32 = 0xD503_237F
+    /// `BTI C` — the branch-target landing pad iOS 27's collections put one word
+    /// ahead of a called function's `PACIBSP`, so a `BL` lands there and not on
+    /// the prologue `findFunctionStart` reports.
+    public static let btiCU32: UInt32 = 0xD503_245F
     public static let movX0_0_U32: UInt32 = 0xD280_0000 // MOV X0, #0 (MOVZ X0, #0)
 
     /// Set of instruction uint32 values that indicate function boundaries.

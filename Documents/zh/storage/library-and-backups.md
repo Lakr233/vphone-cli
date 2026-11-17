@@ -61,6 +61,11 @@ vphone-cli vm import myphone.tzst --name restored
 
 如果资料库位于已装载的外置宗卷上，Launchpad 会把 CFW 临时文件放在该宗卷上。独立运行的 `vphone-cli cfw install` 默认使用 `/private/var/tmp`，也可以用 `--work-parent` 指定一个 root 拥有的私有目录。
 
+Launchpad 的 root 辅助程序在安装 CFW 之前会自己检查资料库文件夹，所以位于外置宗卷或网络宗卷上的资料库还有两项要求：
+
+- 如果安装 CFW 时提示 macOS 拒绝了辅助程序访问资料库，请给辅助程序完全磁盘访问权限：在“系统设置”>“隐私与安全性”>“完全磁盘访问权限”中点按 +，按下 Command-Shift-G，输入 `/Library/PrivilegedHelperTools/com.vphone.launchpad.helper`。macOS 可以向 Launchpad 询问是否允许访问这类宗卷，却无法向后台辅助程序询问，没有这项授权它会一直被拒绝。
+- 该宗卷不能忽略所有权。在 Finder 中打开宗卷的“显示简介”窗口，关闭“忽略此宗卷上的所有权”。如果资料库是在该选项开启时创建的，请用 `sudo chown -R "$USER" <资料库>` 把它重新归到你名下。
+
 ## 另请参阅
 
 - [快照](snapshots.md)

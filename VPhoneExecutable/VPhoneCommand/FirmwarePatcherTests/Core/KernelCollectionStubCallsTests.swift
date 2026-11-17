@@ -11,12 +11,13 @@ struct KernelCollectionStubCallsTests {
 
     /// A collection with one kext whose __text calls its only auth stub with a
     /// BL and a B, and calls `target` directly once. The stub's __auth_got slot
-    /// is a DYLD_CHAINED_PTR_64_KERNEL_CACHE pointer to `target`.
+    /// is a DYLD_CHAINED_PTR_64_KERNEL_CACHE pointer to `target`, in the
+    /// collection's `codeSegment`.
     /// `fipsSeal` adds `__TEXT,__fips_hmacs` at 0x1800, sealing __text correctly
     /// (`.valid`) or with zeros (`.wrong`).
     enum FIPS { case none, valid, wrong }
 
-    static func collection(stubSize: UInt64 = 16, slot: UInt64 = (1 << 63) | 0x4100, pointerFormat: UInt16 = 8, fipsSeal: FIPS = .none) throws -> [UInt8] {
+    static func collection(stubSize: UInt64 = 16, slot: UInt64 = (1 << 63) | 0x4100, pointerFormat: UInt16 = 8, fipsSeal: FIPS = .none, codeSegment: String = "__TEXT_EXEC") throws -> [UInt8] {
         let base = Self.base
         func section(_ segment: String, _ name: String, _ off: UInt64, _ size: UInt64, flags: UInt32) -> KDKMachO.Section {
             .init(name: name, segmentName: segment, address: base + off, size: size, offset: UInt32(off),
@@ -51,7 +52,7 @@ struct KernelCollectionStubCallsTests {
 
         var bytes = [UInt8](repeating: 0, count: 0xD000)
         let top = header(KDKMachO.mhFileset, [
-            segment("__TEXT", 0, 0x4000), segment("__TEXT_EXEC", 0x4000, 0x4000),
+            segment("__TEXT", 0, 0x4000), segment(codeSegment, 0x4000, 0x4000),
             segment("__DATA_CONST", 0x8000, 0x4000), segment("__LINKEDIT", 0xC000, 0x1000), entry, fixups,
         ])
         bytes.replaceSubrange(0 ..< top.count, with: top)
@@ -134,6 +135,13 @@ struct KernelCollectionStubCallsTests {
         }
         // The stub itself is left as it was.
         #expect(Array(bytes[0x4800 ..< 0x4810]) == Array(try Self.collection()[0x4800 ..< 0x4810]))
+    }
+
+    @Test("an import from the kernel's boot code branches there directly")
+    func retargetsBootCode() throws {
+        let result = try KernelCollectionStubCalls.directCalls(in: Data(Self.collection(codeSegment: "__TEXT_BOOT_EXEC")))
+        #expect(result.stubs == 1)
+        #expect(result.branches == 2)
     }
 
     @Test("a collection without stubs is unchanged")

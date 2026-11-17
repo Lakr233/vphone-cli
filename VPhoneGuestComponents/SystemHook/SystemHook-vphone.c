@@ -20,6 +20,8 @@ static int vpInXPCProxy;
 static int vpInBootstrap;
 extern void vpInstallSurfaceAdapter(void);
 extern void vpInstallIOS18GPUTransport(void);
+extern void vpUseIOS18SafariSoftwareRendering(void);
+extern bool vpUsesIOS17GPUTransport(void);
 
 static int vpIsBootstrapPath(const char *path, const char *root) {
     if (path && strncmp(path, "/var/jb/", 8) == 0)
@@ -238,6 +240,11 @@ static void vpLoadLibrary(const char *kind, const char *library) {
 
 // xpcproxy needs this bridge because launchd only spawns the proxy, not its target.
 __attribute__((constructor)) static void vpLogProcess(void) {
+    // The iOS 17 driver can load SystemHook while Metal is registering devices.
+    if (vpUsesIOS17GPUTransport()) {
+        vpInstallIOS18GPUTransport();
+        return;
+    }
     vpInstallSurfaceAdapter();
     vpInstallIOS18GPUTransport();
     // Request cross-boot reuse at constructor entry: libCoreFSCache normally
@@ -274,6 +281,9 @@ __attribute__((constructor)) static void vpLogProcess(void) {
 
     if (vpInXPCProxy || getpid() == 1 || vpInjectionDisabled(*_NSGetEnviron()))
         return;
+    if (vpPathHasSuffix(path, "/MobileSafari.app/MobileSafari") &&
+        access("/usr/lib/vphone-ios18-safari-software", F_OK) == 0)
+        vpUseIOS18SafariSoftwareRendering();
     const char *name = strrchr(path, '/');
     name = name ? name + 1 : path;
     if (strcmp(name, "vphoned") == 0 || strcmp(name, "logd") == 0 ||

@@ -105,6 +105,12 @@ done
     "$resources/GhosttyKit_GhosttyTerminal.bundle"
 /bin/cp "$command_products/vphone-cli" "$macos/vphone-cli"
 /bin/cp "$amfi_products/vphone-escalator" "$macos/vphone-escalator"
+# kmutil of another macOS, inserted into its ad hoc signed copy to link a
+# kernelcache mix as the user (KernelCollectionToolchain). arm64e like kmutil.
+/usr/bin/xcrun clang -arch arm64e -dynamiclib -O2 -Wall -Werror -mmacosx-version-min=15.0 \
+    -install_name @rpath/libvphone-kmutil-shim.dylib \
+    -o "$macos/libvphone-kmutil-shim.dylib" \
+    "$root/VPhoneExecutable/VPhoneCommand/VPhoneKmutilShim/VPhoneKmutilShim.c"
 /bin/cp "$daemon_products/vphoned" "$guest/vphoned"
 /bin/cp "$tvos_daemon_products/vphoned" "$guest/vphoned-tvos"
 # Watch guests still run the iOS daemon marked watchOS: watchOS 8 is iOS 15's
@@ -261,6 +267,7 @@ compatibility_library="$(/usr/bin/xcrun swift-stdlib-tool --print \
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneDaemon/Configuration/VPhoneDaemon.entitlements" "$guest/vphoned-watchos"
 /usr/bin/codesign --force --sign - "$macos/vphone-escalator"
 /usr/bin/codesign --force --sign - "$macos/libswiftCompatibilitySpan.vphone.dylib"
+/usr/bin/codesign --force --sign - "$macos/libvphone-kmutil-shim.dylib"
 /usr/bin/codesign --force --sign - --entitlements "$root/VPhoneExecutable/VPhoneVirtualization/Resources/VPhoneVirtualization.entitlements" "$macos/vphone-vm"
 # locationd keeps the requirement a client first registered with and turns
 # away a client with another one while that one still runs. An ad hoc

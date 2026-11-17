@@ -2,6 +2,124 @@
 
 The [optional guest SOCKS5 add-on](../Addons/SOCKS5/README.md) applies its UDP association fix to the HEV source at build time. It runs on the existing guest firmware.
 
+> **`standard` on a cloudOS 27.2 kernel (2026-11-16).** The 27.2 kernelcache
+> recipe (`27.2_24B119`: cloudOS 27.2's 24B112 kernel with the vphone600 26.4
+> donor kexts) was usable only under `minimal`, which runs no kernel patcher.
+> Under `standard` the JB kernel layer aborted with "cannot validate required
+> ARM64E_X1 kernel admission" and, before that, silently missed seven other
+> boot-essential patches. Two separate causes, and no new patch identifier,
+> preset or instruction site for either.
+>
+> **1. Shims for the 26.4 kernel were required on a kernel that is not 26.4.**
+> `applyIOS27` meant "the iPhone base is 27" and gated both the patches a 27
+> userland needs on any kernel and the ones that only make the 26.4 kernel
+> behave the way a 27 kernel already does. The second group is now
+> `applyIOS27LegacyKernel` (base 27 *and* cloudOS 26.4), mirroring the restore
+> seal's existing condition. Each patch was classified by running it against
+> both kernels: `ioucFailedSandbox`, `cssc`, `execSecurityPolicyKill` and
+> `fpfsScopedVnodeOpen` resolve on both and stay on `applyIOS27`;
+> `diskImages2ClientAbi`, `sharedRegionSize`, `arm64eX1Admission`,
+> `containerManagerUpcall`, both `iomfbSwapEnd` gates and sandbox `ops[124]`
+> resolve only on 26.4 and are now skipped on a 27 kernel. The classification is
+> corroborated by what the reveals find: the 27.2 kernel grades CPU subtype 12
+> in `ml_grade_binary` itself (`cmp w1,#0xc` → grade 0xd beside the stock
+> `cmp w1,#2`), and has no container-manager upcall to force, iOS 27 having
+> deleted it. Requiring ARM64E_X1 there failed a run over a kernel that was
+> never wrong; conversely DiskImages2 applied its notification-port widen while
+> its two ABI gates matched nothing, growing an array whose bound checks stayed
+> stock — an all-or-nothing claim that held within one gate group but not across
+> the pair.
+>
+> **2. iOS 27 collections carry BTI landing pads, which hid the real misses.**
+> A called function begins with `BTI C` one word ahead of its `PACIBSP`, so every
+> `BL` targets the pad while `findFunctionStart` reports the prologue. Caller
+> lookups keyed on the prologue came back empty, and `findFuncEnd` started on a
+> pad hit that function's own `PACIBSP` immediately and reported an empty body,
+> so callee scans found nothing. `functionEntries` / `isCall` / `callers(of:)` /
+> `functionBody(at:)` in `KernelPatcherBase` accept both entry forms, and
+> `findFuncEnd` steps past a leading pad. That alone restored
+> `kernel-boot-apfs_vfsop_mount`, `kernel-boot-handle_fsioc_graft` and the
+> `postValidation` compare. Three further reveals were retargeted on their own
+> evidence: apfs renamed `authenticate_root_hash` to `validate_root_hash`
+> (same string-table slot, same neighbours — both names accepted);
+> `_apfs_graft` and `_handle_fsioc_graft` are no longer the first referrer of
+> their own name string, so every reference is tried and the body holding the
+> call wins; AMFI's trust-cache query gained an argument, moving the
+> `AMFIIsCDHashInTrustCache` out-param from x2 to x3, so the match discovers the
+> register and the always-allow stub stores through it (`encodeMovX` /
+> `encodeAddImm12` / `encodeCompareBranch` / `encodeStrXUnsignedOffset`
+> reproduce the frozen x2 words exactly); the TXM post-validation flag test sits
+> ~0x64 past the log call instead of ~0x14, so the anchor is the
+> `ldrb wM,[xN,#imm] ; tbnz wM,#0` pair rather than "the first TBNZ in a narrow
+> window"; and `vm_map_protect`'s fused gate is unchanged except that the
+> vm_map_entry flag moved from bit 22 to bit 18, so the anchor is "a single
+> entry-flag bit" and whole-text uniqueness, not the bit index.
+>
+> **3. The 27.2 LLB rejects the unsealed root volume (the no-Apple-logo boot).**
+> With the kernel layer fixed, a `standard` guest restored and then stopped in
+> iBoot recovery instead of booting: no Apple logo, no vphoned, `vm launch`
+> exiting 0. The cause is not the kernel at all. `cfw install` finishes by
+> renaming the root snapshot to `orig-fs.disabled.rn-*` so the VM boots the live
+> volume, and LLB verifies that volume before handing off. All five
+> `llb-boot-rootfs` bypasses missed on the cloudOS 27.2 LLB: the `__LINE__`
+> literals they pin (`0x3B7`, `0x3C2`, `0x110`) moved, and the shape fallback
+> could not run because it located the rootfs function through a unique
+> `cmp x8, #0x400 ; b.hs` size gate the 27 LLB no longer spells. iBoot's own
+> serial output names the gate that stopped it — `503b7933ad51055:977`, and
+> 977 is `0x3D1`, the error code of the first verification gate in that
+> function. `rootfsFunction()` now falls back to the load the function opens
+> with, the unique `ldr xN, [xM, #0x3c8] ; cbz xN` whose structure offset is the
+> same on both boot chains, and the existing "last two gates" logic then finds
+> `0x3D1` and `0x3D8` exactly where `0x3B7` and `0x3C2` used to be. The old
+> anchor is tried first, so a boot chain that still has the size gate resolves
+> byte for byte as before: the 26.4 LLB keeps all five records at 0x36A1C,
+> 0x366F0, 0x36A64, 0x3A608 and 0x3A7C8. The 27.2 LLB gains four
+> (0x41D18, 0x41D3C, 0x45C7C, 0x45E58); the `cmp x8, #0x400` NOP has no site
+> there because the comparison is gone. This is a pre-existing boot-chain gap,
+> not a regression — `minimal` misses the same five and boots anyway, because it
+> keeps the sealed snapshot and never asks LLB to accept a modified volume.
+>
+> **4. Two patches that matched on the 27 kernel but meant the wrong thing there.**
+> Matching is not applicability, and both of these matched cleanly and broke the
+> boot. `kernel-boot-post_validation{,_unsigned}` neutralise AMFI's "reject unless
+> SHA-256" gate by rewriting `cmp w0,#2` to `cmp w0,w0`. The 27 kernel asks the
+> opposite question a few instructions later — `cmp w0,#1` against
+> `CS_HASHTYPE_SHA1`, branching away when it is *not* SHA-1 — reached by the same
+> shape, `w0` from a `BL` then a `b.ne`. Forcing equality there rejects every
+> signature instead of admitting them: AMFI logged
+> `/sbin/launchd: in-kernel: Hash type is SHA1` and init panicked with
+> `namespace 9 code 0x1` (`OS_REASON_EXEC` / `EXEC_EXIT_REASON_BAD_MACHO`). The
+> immediate is now part of the match (`isSHA256RejectCompare`), so the SHA-1
+> constant is never a candidate and the 27 kernel takes neither record. The gate
+> it was reading is `cs_blob->csb_hashtype->cs_type` — `ldr x8,[x0,#0xa0] ; ldrb w0,[x8]`.
+>
+> `kernel-boot-fpfs_scoped_open` is a 27-*userland* fix written with vphone600
+> *kernel* struct offsets: its trampoline walks `TPIDR_EL1 -> uthread +0x3F0 ->
+> proc +0x18 -> p_comm +0x56C` to compare the process name against `"Resolver"` /
+> `"fileprov"`. A 27 kernel lays those out differently, so the first vnode open
+> after launchd starts took a kernel data abort. It is `applyIOS27LegacyKernel`
+> now, and `ops[267]` is neutered wherever the trampoline is not installed, so
+> the entry is never left half-handled. Retargeting those offsets to the 27
+> kernel is the open follow-up; without the trampoline the ResolverService
+> parent-walk balloon may return on a 27-kernel guest.
+>
+> **Validation.** On the 27.2 mix the kernel layers go from 23 base records with
+> five misses plus a fatal abort to **28 base and 85 CFW records**; the 26.4
+> reference kernel (iPhone19,2 27.2 on cloudOS 26.4) still produces 28 base and
+> 107 CFW records at the same offsets, and a full `fw patch --preset standard`
+> over a 26.6.1 guest produces the same 236 records and byte-identical component
+> outputs before and after. `FirmwarePatcherTests` reports 137 issues both before
+> and after, all of them the missing `ipsws/` reference fixtures.
+>
+> **A `standard` guest on the cloudOS 27.2 kernel boots.** `test_272_standard`
+> (iPhone17,3, iOS 27.2 24B119 on cloudOS 27.2 24B115, preset `standard`, no
+> overrides) reaches the UI with vphoned answering: `device.info` reports
+> `ios_version 27.2.0`, `kernel 27.2.0`, screen on and unlocked, 200 apps, no
+> panic. The remaining `fw patch` misses on that kernel are
+> `kernel-cfw-aks_unlock_bag` (self-guards on a kernel that already accepts five
+> scalars) and `kernel-cfw-display_promotion` (120 Hz; the guest runs at 60),
+> neither boot-essential.
+
 > **SE 3 iOS 18.6.2 pairing and driver extraction (2026-11-12).** The SE
 > catalog uses cloudOS 26.1 and the existing iOS 18.6 GPU transport. Fresh
 > preparation can take the 18.6 driver directly from the PCC OS image when
@@ -4956,10 +5074,10 @@ it finds the recipe in `Contents/Resources/kernelcache_recipes` by SHA-256, then
    recipe's maps;
 2. keeps the recipe's bundle list: the base without its research-board-only
    kexts, plus the donor kexts that link against the base kernel;
-3. stages the bundles as a root-owned volume (kmutil reads no other kexts and
-   takes the host's own in their place without a word) and links it with
-   `kmutil create -a arm64e -n boot -s all -z -x --compress --img4-encode
-   --split-ro-rx-tags`;
+3. stages the bundles as a volume and links it with `kmutil create -a arm64e
+   -n boot -s all -z -x --compress --img4-encode --split-ro-rx-tags`, run by
+   the kmutil release Apple built the base with (below, "The kmutil of the
+   base's own release");
 4. puts back Apple's CPU subtype if the builder wrote another, makes calls
    through the auth stubs the macOS 27 builder keeps direct again
    (`KernelCollectionStubCalls`, below), and checks that every requested bundle
@@ -4972,24 +5090,21 @@ the new layout) and saves the preset's kernel patches into it
 in `FirmwareOriginals`. Mixes are cached in `~/.vphone/kernelcache/mix`, keyed
 by the kernelcaches, the maps and bundle list and the builder layout.
 
-Only the link needs root; native extraction runs as the invoking user. `fw kernelcache <vm>` stages
-the mix as the user (both extractions and the volume) and links it under sudo:
-root copies the staged volume into a fresh root-only directory, walking it by
-descriptor, refusing every symbolic link but the KDK's pointer to the volume's
-extensions and normalising modes (kmutil skips a kext with a group- or
-world-writable file as silently as one root does not own), and runs kmutil on
-the copy. The Launchpad helper's link runs with `--link-only`, which never
-stages. kmutil records the absolute path of every codeless kext, which moves
-the end of `__PRELINK_INFO`: the volume path takes the length of the build root
-Apple linked the base in, read from the base's own prelink info, so a mix no
-longer depends on where it is built. The 26.6 mix then has the segment layout
-of the hand-built research mix that booted.
+Nothing needs root. `fw kernelcache <vm>` stages the mix (both extractions and
+the volume) and links it as the user; `fw patch` builds it the same way when
+it runs as the user, and as root (the Minimal preset's patch through the
+Launchpad helper) only reads it from the cache, so root never runs the
+user's toolchain. kmutil records the absolute path of every codeless kext,
+which moves the end of `__PRELINK_INFO`: the volume is linked from a clone in
+`/private/var/tmp` whose path takes the length of the build root Apple linked
+the base in, read from the base's own prelink info, so a mix does not depend
+on where it is built. The 26.6 mix then has the segment layout of the
+hand-built research mix that booted.
 
-Requirements: root for linking; and for every base here (26.4–26.7, all
-`kernel-last`) the kmutil of macOS 26.4 or later. `fw prepare` now pairs a
-cloudOS without vphone600ap and refuses one whose kernelcache no recipe covers.
-`cfw update-kernel` refuses on a mixed kernel, whose originals are the research
-board's.
+`fw prepare` pairs a cloudOS without vphone600ap and refuses one whose
+kernelcache no recipe covers; `vm create` also refuses, before its restores,
+a base whose kmutil version no known macOS release ships. `cfw update-kernel` refuses on a mixed kernel, whose originals are the
+research board's.
 
 Native extraction checked on 2026-10-23: all 264 fileset images of the 26.4
 beta vphone600 and vresearch101 collections match the pinned reference in
@@ -5272,14 +5387,92 @@ AppleARMIISAudio needs); 18.1 to 18.3.1 take 15, without those three: 18.1
 lacks the tightbeam API they import, and its addresses in 18.2.1 and 18.3.1
 are not mapped reliably.
 
-The 18.x kernels are kernel-first. On macOS 26.4 and later the mix is linked
-on another Mac or macOS VM with an older kmutil over ssh (`VPHONE_KMUTIL_SSH`,
-`RemoteKernelCollectionBuilder`): the staged volume goes into a fresh
-directory of the remote `/private/var/tmp`, at a path as long as the base's
-build root, root links it there, and the result comes back. Linked with the
+The 18.x kernels are kernel-first. They were first linked on another Mac or
+macOS VM with an older kmutil over ssh (`VPHONE_KMUTIL_SSH`, since removed);
+now the kmutil of macOS 15 links them on any macOS (below). Linked with the
 kmutil of macOS 15.6.1, the 18.7.2 mix differs from the research build that
 booted only in the 15 rebound pointers and the symbol sets that build had
 extended.
+
+### The kmutil of the base's own release
+
+A mix links in the base's layout only with the kernel collection builder
+Apple linked the base with: macOS 15 and 26.0–26.3 put `__TEXT_EXEC` of the
+kernel first, 26.4 and later last, 27 keeps the auth stubs, and the version
+in between can move other things. kmutil itself only gathers the inputs and
+stamps its version (and a hash and UUID of it) into `__PRELINK_INFO`; the
+layout is `libKernelCollectionBuilder.dylib` (dyld's AppCacheBuilder), which
+exists only inside the dyld shared cache. Every kernelcache names its
+builder in `_PrelinkKCID`, and the version is the one the macOS release of
+the time ships as `KernelManagement_executables-<version>`:
+
+| `_PrelinkKCID` | Bases | macOS whose recovery kmutil reports it |
+| --- | --- | --- |
+| `KernelManagement_host-463.40.2` | 18.1, 18.2.1, 18.3.1 | 15.1 (24B83) |
+| `KernelManagement_host-463.100.7` | 18.5, 18.6, 18.7, 18.7.2 | 15.6.1 (24G90) |
+| `KernelManagement_host-487.100.11` | 26.4, 26.5, 26.6, 26.7, watch 26.4 | 26.5 (25F71) |
+| `KernelManagement_host-514.40.8` | 27.2 | 27.2.1 (26B131) |
+
+`KernelCollectionToolchain` uses this Mac's `/usr/bin/kmutil` when it is the
+version (thinned to its arm64e slice: macOS 27's is also arm64e.x1), else
+reads the release's recoveryOS (`BaseSystem` in its BuildManifest, about
+0.9–1.1 GB) out of the IPSW with parallel range requests, decrypts it
+(`VPhoneAEA`, `/usr/bin/aea`), mounts it read-only and takes `/usr/bin/kmutil`,
+the arm64e dyld shared cache and KernelManagement's configuration. The
+recovery kmutil is the binary of the full OS (its hash is in the static trust
+cache). Then:
+
+- **The builder as a dylib** (`DyldCacheDylibExtractor`): the image is copied
+  out of the cache keeping each segment's address modulo 4 KiB, so only ADRP
+  page deltas change; every slide-info (v5) pointer becomes an
+  `DYLD_CHAINED_PTR_ARM64E` fixup with its key, address diversity and
+  discriminator (a rebase, or a bind to the symbol a dependent exports there,
+  re-exports followed); branches into other images or the cache's stub
+  islands go to new auth stubs, and ADRP+LDR/ADD pairs into the cache's
+  coalesced GOTs to new GOT slots. The cache drops split-seg info, so an
+  ADRP's users are found by a forward scan of its block; an access the scan
+  misses would stay pointing into the cache, and none is left in the four
+  builders above (an ADRP whose uses are partly outside the image, or whose
+  target is outside without a use, is refused). The macOS 15 builders also
+  carry `__unwind_info`: its one personality names a coalesced GOT slot and
+  gets its own; their LSDAs only catch everything (`catch (...)`), which needs
+  no type table, and an LSDA that catches a type is refused. `__LINKEDIT` is
+  rebuilt (exports, symbols with the locals the cache keeps, indirect symbols,
+  function starts), and the result is signed ad hoc. dyld loads it from
+  `DYLD_LIBRARY_PATH` in place of the cached copy (`dylib-from-disk-to-override-cache`).
+- **The configuration**: macOS 26 renamed `PlatformDriverExtensionsDirectory`
+  to `PlatformDriverExtensionsDirectories` in
+  `KernelManagement.framework/Resources/com.apple.kernelmanagement.plist`,
+  and macOS 15's kmutil traps on the new file ("Configuration has unrecognized
+  format"). `libvphone-kmutil-shim.dylib` opens its own release's copy in its place.
+- **No root**: kmutil skips kexts root does not own, or with group- or
+  world-writable files, without a word, even for `kmutil find`. The shim,
+  inserted into the ad hoc signed kmutil (the system one ignores `DYLD_`
+  variables), reports the invoking user's files as `root:wheel` without those
+  write bits.
+
+The toolchain is checked with `kmutil create --help` before it is kept in
+`~/.vphone/kernelcache/kmutil/<version>`. Checked on 2026-11-13 on macOS 27.2.1:
+
+- the extractor gives the same bytes as the prototype it was ported from for
+  the 26.5 and 27.2 builders; with them, the kmutil of macOS 26.5 links a
+  145-kext oracle volume byte for byte as the system kmutil of a macOS 26.5
+  Mac had (kmutil's version string included), and the kmutil of 27.2 links
+  the same volume as this Mac's system kmutil does; the 26.5 kmutil with the
+  27.2 builder gives the 27.2 output instead, so the builder decides the layout;
+- the macOS 15.6.1 kmutil links the staged 18.6 mix, unprivileged, in about
+  2 seconds, to the mix a macOS 15 Mac of the same kmutil version (463.100.7)
+  had linked over ssh, except the volume's path (another directory of the same
+  length) and the unique identifiers and UUID kmutil derives from it.
+- `fw kernelcache --kernelcache <file>` (no VM), from an empty cache: 18.6
+  (15.6.1's recoveryOS fetched, 848 MB, 3 min 44 s in all), 26.6 (26.5's), 18.1
+  (15.1's) and 27.2 (this Mac's kmutil) all mix. The 18.1 mix linked by
+  463.40.2, the version Apple used, differs from the 463.100.7 link that booted
+  only in `__PRELINK_INFO` (the version string and what it shifts); every code
+  segment is the same.
+- 27.2 kexts call `strcmp` in the kernel's `__bootcode` through their auth stubs,
+  so `KernelCollectionStubCalls` takes a stub target in `__TEXT_BOOT_EXEC` as
+  well as `__TEXT_EXEC`; it refused the 27.2 mix before.
 
 ### The iPhone XS Max guest
 
@@ -6494,6 +6687,18 @@ Selection restores SpringBoard and removes the library on opt-out; a restart
 restores native methods.
 No native iOS 17 kernel, Metal driver, camera or networking support is claimed.
 
+The SE 3 and iPhone 15 17.7 guests use the cloudOS 18.6 GPU driver with the
+existing `system-systemhook-cfw-ios18_gpu_transport` selection. The driver
+weak-loads SystemHook before Metal registers the device. SystemHook translates
+the 17.7 single-buffer submission and 40-byte kernel completion entries for
+the 32-byte IOGPU reader. See the iOS 17.7 GPU rendering section of
+`Research/Guest/ios17_bringup.md` for the runtime checks and remaining limits.
+
+`system-wallpaper-cfw-ios17_image_assets` addresses the stock iOS 17
+wallpaper's HEIC decode failure. It creates PNG copies of the images referenced
+by wallpaper `7565` and updates their CAML references on a private disk clone.
+The patch backs up the original CAML documents and restores them on deselection.
+
 ## OpenGL ES in guests (2026-11-02)
 
 Upstream issue Lakr233/vphone-cli#793: every `-[EAGLContext initWithAPI:]`
@@ -7129,6 +7334,20 @@ removes the store at startup when it was created before the marker, then stops
 iconservicesagent; the Data volume is out of the host's reach. No Apple binary
 change.
 
+**Safari (2026-11-13).** An iPhone SE 3 on iOS 18.6.2 (22G100) and cloudOS
+26.1 (23B85) still showed black page content with the iOS 18 GPU transport
+installed. The accessibility tree exposed the page and text written by
+JavaScript. Disabling GPU-process DOM rendering exposed the page background
+but no text. Disabling GraphicsLayer accelerated drawing restored text.
+Disabling GPU-process canvas rendering restored the blue rectangle drawn by
+the test page's 2D canvas.
+
+`system-systemhook-cfw-ios18_safari_software_rendering` is selected by
+`standard` for the iOS 18.6 / cloudOS 26.1 pairing. Its system-volume marker
+lets SystemHook supply the two overrides in MobileSafari's volatile argument
+domain at startup. Blocking the patch removes the marker on the next CFW
+environment update. See the [Safari validation in the transport notes](Guest/ios18_gpu_transport.md#safari).
+
 ## Re-sealing through the shared CodeResources (2026-11-05)
 
 No new patch identifier and no new bytes in an Apple binary. Every installer
@@ -7460,9 +7679,12 @@ In environment 6 AMFI enables Developer Mode only in its research build; the
 research-board kernel mix takes AMFI from the release kernel, so a research-board
 guest has none (the note has the disassembly).
 
-iOS 27 does not boot in environment 6: dyld cannot mount the OS cryptex and
-launchd panics on libSystem (27.0.1 with cloudOS 26.4, 2026-11-12). `fw prepare`
-and the patcher refuse the box for iOS 27 and later (`trustedDarwinOSRefusal`).
+iOS 27.0.1 with cloudOS 26.4 panicked in environment 6 (dyld mounted no OS
+cryptex, launchd found no libSystem; 2026-11-12), and the box was refused for
+iOS 27 and later. That pairing boots a 26.4 TXM under iOS 27 binaries, which
+only `standard`'s TXM patches make work and `minimal` leaves stock. iOS 27.2
+with cloudOS 27.2 boots in environment 6 with cryptexes (2026-11-13), so the
+refusal is gone; the note has the versions checked.
 
 ## SPTM's secondary CPU tunable stops a multi-vCPU cloudOS 18 guest (2026-11-12)
 

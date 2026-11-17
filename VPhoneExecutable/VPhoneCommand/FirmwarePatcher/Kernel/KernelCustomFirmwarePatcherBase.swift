@@ -190,6 +190,15 @@ public class KernelCustomFirmwarePatcherBase: KernelPatcherBase {
         let raw = buffer.original
         let limit = min(funcStart + maxSize, raw.count)
         var off = funcStart + 4
+        // On a 27 kernel a called function starts with a `BTI C` landing pad, so
+        // its own `PACIBSP` is the very next word. `funcStart` is a BL target, so
+        // it is that pad — step past the prologue or the first boundary found is
+        // the function's own, and the body reads as empty.
+        if funcStart + 4 <= raw.count, raw.loadLE(UInt32.self, at: funcStart) == ARM64.btiCU32,
+           off + 4 <= limit, raw.loadLE(UInt32.self, at: off) == ARM64.pacibspU32
+        {
+            off += 4
+        }
         while off + 4 <= limit {
             let insn = raw.loadLE(UInt32.self, at: off)
             if insn == ARM64.pacibspU32 {

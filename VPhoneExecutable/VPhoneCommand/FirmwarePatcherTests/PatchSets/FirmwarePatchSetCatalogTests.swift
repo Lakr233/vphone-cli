@@ -700,21 +700,59 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test
-    func `The iOS 18 GPU transport follows the measured OS pair`() throws {
+    func `The legacy GPU transport follows the measured OS pairs`() throws {
         let patch = FirmwareGuestSystemPatchSet.ios18GPUTransport
-        for base in ["18.1", "18.5", "18.6", "18.6.2", "18.7.2", "26.1", "unknown"] {
+        for base in ["17.6", "17.7", "18.1", "18.5", "18.6", "18.6.2", "18.7.2", "26.1", "unknown"] {
             for cloud in ["18.6", "26.1", "26.4", "unknown"] {
                 let plan = try VPhonePatchPlan.resolve(
                     preset: FirmwarePatchSetCatalog.standardPreset,
                     patchSets: FirmwarePatchSetCatalog.bundled,
                     iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
                 )
-                let supported = (base == "18.6" || base == "18.6.2") && cloud == "26.1"
+                let supported = ["17.7", "18.6", "18.6.2"].contains(base) && cloud == "26.1"
                 #expect(plan.isEnabled(patch) == supported, "\(base)/\(cloud)")
             }
         }
         for preset in [FirmwarePatchSetCatalog.tvOSPreset, FirmwarePatchSetCatalog.tvOS4KPreset,
                        FirmwarePatchSetCatalog.homePodMiniPreset, FirmwarePatchSetCatalog.homeViewPreset] {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("18.6.2"), cloudOS: VPhoneVersion("26.1"),
+            )
+            #expect(!plan.isEnabled(patch), "\(preset.identifier)")
+        }
+    }
+
+    @Test
+    func `Safari software rendering is scoped to the affected iOS and cloudOS pair`() throws {
+        let patch = FirmwareGuestSystemPatchSet.ios18SafariSoftwareRendering
+        for (base, cloud, expected) in [
+            ("18.6.2", "26.1", true),
+            ("18.6", "26.1", true),
+            ("18.5", "26.1", false),
+            ("18.7.2", "26.1", false),
+            ("18.6.2", "18.6", false),
+            ("18.6.2", "26.4", false),
+            ("26.1", "26.1", false),
+        ] {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: FirmwarePatchSetCatalog.standardPreset,
+                patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
+            )
+            #expect(plan.isEnabled(patch) == expected, "\(base)/\(cloud)")
+        }
+        let blocked = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.standardPreset,
+            patchSets: FirmwarePatchSetCatalog.bundled,
+            iOSBase: VPhoneVersion("18.6.2"), cloudOS: VPhoneVersion("26.1"),
+            blocked: [patch],
+        )
+        #expect(!blocked.isEnabled(patch))
+        #expect(FirmwareGuestPatchResolution.guestPatchesOff(selectionEnabled: blocked.enabled).contains(patch))
+        for preset in [FirmwarePatchSetCatalog.tvOSPreset, FirmwarePatchSetCatalog.tvOS4KPreset,
+                       FirmwarePatchSetCatalog.homePodMiniPreset, FirmwarePatchSetCatalog.homeViewPreset,
+                       FirmwarePatchSetCatalog.visionOSPreset] {
             let plan = try VPhonePatchPlan.resolve(
                 preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
                 iOSBase: VPhoneVersion("18.6.2"), cloudOS: VPhoneVersion("26.1"),
@@ -878,18 +916,6 @@ struct FirmwarePatchSetCatalogTests {
     func `No bundled set is external, so root cfw install never loads a file`() {
         for preset in FirmwarePatchSetCatalog.builtInPresets {
             #expect(!preset.usesExternalPatchSets)
-        }
-    }
-
-    @Test
-    func `Trusted darwinOS is refused on iOS 27, where its first boot panics`() {
-        for version in ["27.0", "27.0.1", "27.2.1", "28.0"] {
-            let refusal = FirmwareRestoreImagePatchSet.trustedDarwinOSRefusal(iOSVersion: version)
-            #expect(refusal?.contains("iOS \(version)") == true)
-            #expect(refusal?.contains(FirmwareRestoreImagePatchSet.trustedDarwinOS) == true)
-        }
-        for version in ["26.5", "26.6.2", "18.6", "18.6.2"] {
-            #expect(FirmwareRestoreImagePatchSet.trustedDarwinOSRefusal(iOSVersion: version) == nil)
         }
     }
 }

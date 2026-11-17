@@ -26,42 +26,31 @@ CLI는 번들의 iPhoneOS 플랫폼 버전을 선택한 cloudOS 버전과 대조
 
 ## 연구용 보드 조합
 
-26.4 베타 이후의 cloudOS에는 vphone600 구성 요소가 없으므로 연구용 보드가 그 역할을 대신합니다([호환성](compatibility.md)의 '사용할 cloudOS' 참고). 연구용 보드의 kernelcache는 vphone600 가상화 kext를 넣어 다시 빌드됩니다. KDK 추출은 사용자 권한으로 네이티브로 실행되며, kmutil 링크만 root 권한이 필요합니다.
+26.4 베타 이후의 cloudOS에는 vphone600 구성 요소가 없으므로 연구용 보드가 그 역할을 대신합니다([호환성](compatibility.md)의 '사용할 cloudOS' 참고). 연구용 보드의 kernelcache는 vphone600 가상화 kext를 넣어 다시 빌드됩니다. 모든 단계가 사용자 권한으로 실행되며 sudo가 필요하지 않습니다.
 
 1. 평소처럼 `fw prepare`를 실행합니다.
-2. 사용자 권한으로 믹스를 준비합니다.
+2. 믹스를 빌드합니다.
 
    ```sh
    vphone-cli fw kernelcache myphone
    ```
 
-3. root로 링크합니다.
-
-   ```sh
-   sudo vphone-cli fw kernelcache myphone
-   ```
-
-4. `fw patch`로 계속합니다. `fw patch`는 캐시에서 믹스를 가져옵니다.
+3. `fw patch`로 계속합니다. `fw patch`는 캐시에서 믹스를 가져옵니다. 사용자 권한으로 실행하면 `fw patch`가 믹스를 직접 빌드하기도 하며, root로 실행하면 캐시에서 가져오기만 합니다.
 
 `fw kernelcache`의 이전 `--ipsw` 인자는 여전히 받지만 무시됩니다.
 
-## 다른 Mac에서 링크하기
+## 믹스를 링크하는 kmutil
 
-커널은 Apple이 링크한 레이아웃으로만 부팅되며, kmutil은 자신이 실행되는 Mac에서 레이아웃을 가져옵니다.
+커널은 Apple이 링크한 레이아웃으로만 부팅되며, 그 레이아웃은 링크하는 kmutil이 정합니다. macOS 15와 26.0~26.3은 커널을 앞에, macOS 26.4 이상은 뒤에 두고, macOS 27은 kext의 auth stub도 남깁니다. 모든 kernelcache에는 Apple이 빌드할 때 사용한 kmutil 버전이 기록되어 있으므로, `fw kernelcache`는 어떤 macOS에서든 같은 버전으로 믹스를 링크합니다.
 
-| 호스트 macOS | 링크할 수 있는 것 |
-| --- | --- |
-| macOS 26.4 이상 | iOS 26.4 이상의 kernelcache(kernel-last) |
-| macOS 15, 그리고 26.0~26.3 | iOS 18 등 이전 kernelcache(kernel-first) |
+| kernelcache | kmutil | 출처 |
+| --- | --- | --- |
+| iOS 18.1~18.3.1 | 463.40.2 | macOS 15.1 (24B83) |
+| iOS 18.5~18.7.2 | 463.100.7 | macOS 15.6.1 (24G90) |
+| iOS 26.4~26.7, watchOS 26.4, HomePod 26.5 | 487.100.11 | macOS 26.5 (25F71) |
+| iOS 27.2 | 514.40.8 | macOS 27.2.1 (26B131) |
 
-이 Mac의 레이아웃이 다르면, 다른 Mac이나 macOS 가상 머신이 ssh로 믹스를 링크합니다. `fw kernelcache` 또는 생성 작업에 다음을 설정하세요.
-
-```sh
-export VPHONE_KMUTIL_SSH='user@host'
-export VPHONE_KMUTIL_SSH_PASSWORD='password'   # only without ssh keys and passwordless sudo there
-```
-
-준비된 볼륨은 그 Mac의 `/private/var/tmp`에 업로드되어 그곳에서 root로 링크된 뒤 삭제됩니다. 이 Mac에서는 이를 위해 root 권한이 필요하지 않습니다. 다른 Mac에서는 원격 로그인이 켜져 있어야 하며, 해당 사용자가 sudo를 사용할 수 있어야 합니다.
+이 Mac의 kmutil이 그 버전이면 그것을 사용합니다. 그렇지 않으면 해당 macOS의 복구 이미지(약 1GB)를 Apple의 IPSW에서 한 번 내려받아, 그 안의 kmutil과 커널 컬렉션 빌더를 `~/.vphone/kernelcache/kmutil/<version>`(몇 MB)에 보관하고 이미지는 삭제합니다. 아무것도 설치되지 않으며 호스트 설정도 바뀌지 않습니다. 다른 Mac에서 ssh로 링크하던 `VPHONE_KMUTIL_SSH`는 더 이상 사용하지 않습니다.
 
 ## 함께 보기
 

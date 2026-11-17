@@ -1,5 +1,6 @@
 #include "VPhoneIOS18GPUTransport.h"
 #include "../MISFix/MISFixDetour.h"
+#include <IOKit/IODataQueueClient.h>
 #include <IOKit/IOKitLib.h>
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -10,12 +11,20 @@
 #include <string.h>
 #include <unistd.h>
 
-// iOS 18's GPU userland on a cloudOS 26.1 kernel. `cfw install` writes the
-// marker only for that pairing, with the iOS 18 paravirtual driver installed.
+// Older GPU userland on a cloudOS 26.1 kernel with the 18.6 paravirtual driver.
 // The calls come from IOGPU.framework inside the shared cache and from the
 // driver bundle, so IOKit's entry points are detoured rather than interposed;
 // see MISFix/MISFixDetour.h.
-#define VP_IOS18_GPU_MARKER "/usr/lib/vphone-ios18-gpu"
+static const char vpGPUTransportMarker[] = "/usr/lib/vphone-ios18-gpu";
+
+bool vpUsesIOS17GPUTransport(void) {
+    int fd = open(vpGPUTransportMarker, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return false;
+    char mode = 0;
+    ssize_t length = read(fd, &mode, sizeof(mode));
+    close(fd);
+    return length == sizeof(mode) && mode == '2';
+}
 
 // MISFixDetour reports each install through these. SystemHook is in every
 // process, so its success line is dropped; failures are reported below.
@@ -152,6 +161,42 @@ static kern_return_t vpCallMethodHook(mach_port_t connection, uint32_t selector,
         output, outputCount, outputStruct, outputStructSize);
 }
 
+static kern_return_t (*vpTrap3)(io_connect_t, uint32_t, uintptr_t, uintptr_t, uintptr_t);
+static kern_return_t vpTrap3Hook(io_connect_t connection, uint32_t selector,
+    uintptr_t queue, uintptr_t size, uintptr_t entry) {
+    // The 17.7 single-buffer path passes one 0x28-byte submission to trap 0.
+    // Use the same widened method submission as the multi-buffer path.
+    if (selector == 0 && size == VP_IOS18_GPU_SUBMIT_ENTRY && entry && vpIsDevice(connection)) {
+        uint64_t scalars[] = {queue, 0, 1, size};
+        return vpCallMethodHook(connection, VP_IOS18_GPU_SUBMIT, scalars, VP_IOS18_GPU_SUBMIT_SCALARS_IN,
+            (const void *)entry, size, NULL, NULL, NULL, NULL);
+    }
+    return vpTrap3(connection, selector, queue, size, entry);
+}
+
+static IOReturn (*vpDequeue)(IODataQueueMemory *, void *, uint32_t *);
+static IOReturn vpDequeueHook(IODataQueueMemory *queue, void *output, uint32_t *size) {
+    enum { legacySize = 0x20, modernSize = 0x28 };
+    Dl_info caller;
+    if (queue && output && size && *size == legacySize &&
+        dladdr(__builtin_return_address(0), &caller) && caller.dli_fname &&
+        strstr(caller.dli_fname, "/IOGPU.framework/")) {
+        const IODataQueueEntry *entry = IODataQueuePeek(queue);
+        if (entry && entry->size == modernSize) {
+            uint8_t completion[modernSize];
+            uint32_t bytes = sizeof(completion);
+            IOReturn result = vpDequeue(queue, completion, &bytes);
+            if (result != kIOReturnSuccess) return result;
+            if (bytes != sizeof(completion)) return kIOReturnBadArgument;
+            // The original callback token, timestamps and status occupy the
+            // first 32 bytes. The additional word is for the newer client.
+            memcpy(output, completion, legacySize);
+            return kIOReturnSuccess;
+        }
+    }
+    return vpDequeue(queue, output, size);
+}
+
 static kern_return_t (*vpCallAsyncMethod)(mach_port_t, uint32_t, mach_port_t, uint64_t *, uint32_t,
     const uint64_t *, uint32_t, const void *, size_t, uint64_t *, uint32_t *, void *, size_t *);
 static kern_return_t vpCallAsyncMethodHook(mach_port_t connection, uint32_t selector, mach_port_t wake,
@@ -168,7 +213,7 @@ static kern_return_t vpCallAsyncMethodHook(mach_port_t connection, uint32_t sele
 // MARK: - Install
 
 void vpInstallIOS18GPUTransport(void) {
-    if (getpid() == 1 || !strcmp(getprogname(), "xpcproxy") || access(VP_IOS18_GPU_MARKER, F_OK) != 0) return;
+    if (getpid() == 1 || !strcmp(getprogname(), "xpcproxy") || access(vpGPUTransportMarker, F_OK) != 0) return;
     // Device connections are only recorded once IOServiceOpen is detoured,
     // which happens last: until both call paths translate, none is.
     MISFixDetourResult call = MISFixDetour("IOConnectCallMethod", (void *)&IOConnectCallMethod,
@@ -177,6 +222,18 @@ void vpInstallIOS18GPUTransport(void) {
         (void *)&IOConnectCallAsyncMethod, (void *)vpCallAsyncMethodHook, (void **)&vpCallAsyncMethod);
     MISFixDetourResult closing = async ? async : MISFixDetour("IOServiceClose", (void *)&IOServiceClose,
         (void *)vpServiceCloseHook, (void **)&vpServiceClose);
+    if (!closing && vpUsesIOS17GPUTransport()) {
+        void *trap = dlsym(RTLD_DEFAULT, "IOConnectTrap3");
+        MISFixDetourResult trapResult = MISFixDetour("IOConnectTrap3", trap,
+            (void *)vpTrap3Hook, (void **)&vpTrap3);
+        MISFixDetourResult queueResult = MISFixDetour("IODataQueueDequeue", (void *)&IODataQueueDequeue,
+            (void *)vpDequeueHook, (void **)&vpDequeue);
+        if (trapResult || queueResult) {
+            fprintf(stderr, "[ios17-gpu] %s transport: trap=%s dequeue=%s\n", getprogname(),
+                MISFixDetourDescribe(trapResult), MISFixDetourDescribe(queueResult));
+            return;
+        }
+    }
     MISFixDetourResult open = async ? async : MISFixDetour("IOServiceOpen", (void *)&IOServiceOpen,
         (void *)vpServiceOpenHook, (void **)&vpServiceOpen);
     if (call || async || closing || open)

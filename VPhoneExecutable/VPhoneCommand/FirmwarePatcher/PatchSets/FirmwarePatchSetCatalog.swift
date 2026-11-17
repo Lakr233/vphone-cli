@@ -311,6 +311,7 @@ public enum FirmwarePatchSetCatalog {
         FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache,
         FirmwareGuestSystemPatchSet.glesUpperLeft,
         FirmwareGuestSystemPatchSet.ios18GPUTransport,
+        FirmwareGuestSystemPatchSet.ios18SafariSoftwareRendering,
         CustomFirmwareRemotePairing.patchID,
         "system-systemhook-cfw-metal_cache_reuse",
         "system-systemversion-cfw-build_version",

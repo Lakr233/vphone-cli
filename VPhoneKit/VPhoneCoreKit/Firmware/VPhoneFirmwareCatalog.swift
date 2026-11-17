@@ -168,6 +168,8 @@ public enum VPhoneFirmwareCatalog {
         ("26.5", .init(name: "cloudOS 26.5 (23F75)", url: "https://updates.cdn-apple.com/private-cloud-compute/602f1132456a1323ac145ea13828c3ca72845259b50f99af1cef8329d5e25748")),
         ("26.6", .init(name: "cloudOS 26.6 (23G71)", url: "https://updates.cdn-apple.com/private-cloud-compute/bdad1f912196b6c5fe9342e0bdee8768c7f5bb366cb0dde007f5c28c5d148042")),
         ("26.7", .init(name: "cloudOS 26.7 (23H20)", url: "https://updates.cdn-apple.com/private-cloud-compute/46960a4703ec9b2a81df524d639ea9fe55b30e04f6cf7e21518c2049659509a7")),
+        // The 27.2 seed (24B115); its research board kernel is built with the macOS 27 toolchain.
+        ("27.2", .init(name: "cloudOS 27.2 (24B115)", url: "https://updates.cdn-apple.com/private-cloud-compute/b89f64746b914cd641d7d6906c21fbd3a1e932953d7e09ac583c643503bb4056")),
     ]
 
     /// The research board cloudOS of an iOS release's own major and minor version.
@@ -206,6 +208,7 @@ public enum VPhoneFirmwareCatalog {
         .init(iosName: "iOS 27.0 RC", iosURL: "https://updates.cdn-apple.com/2026FallFCS/2d0cd01d-b4f9-4a20-a1e8-f3be54570da7/iPhone17,3_27.0_24A435_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
         .init(iosName: "iOS 27.0", iosURL: "https://updates.cdn-apple.com/2026FallFCS/5130b3f9-3b4e-469a-b60e-93f6b310cdd9/iPhone17,3_27.0_24A437_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
         .init(iosName: "iOS 27.0.1", iosURL: "https://updates.cdn-apple.com/2026FallFCS/38dca0ee-bb5d-4132-ad13-62d57bcd6d32/iPhone17,3_27.0.1_24A446_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
+        .init(iosName: "iOS 27.2", iosURL: "https://updates.cdn-apple.com/2026FallFCS/c6c0afa0-c002-45b9-ad4c-d2db3bfa30ac/iPhone17,3_27.2_24B119_Restore.ipsw", cloudosName: "cloudOS 26.4", cloudosURL: cloud264),
     ]
 
     /// iOS releases of the iPhones other than the iPhone17,3, one entry per
@@ -583,8 +586,8 @@ public enum VPhoneFirmwareCatalog {
 
     /// iPhone XS Max releases, each paired with its own release's research board
     /// cloudOS: the 18.x kernelcache recipes rebuild that iOS 18 kernel with the
-    /// cloudOS 26.1 vphone600 kexts. Kernel-first, so macOS 26.4 and later link
-    /// it over ssh on an older Mac (`VPHONE_KMUTIL_SSH`), and only `minimal` boots it.
+    /// cloudOS 26.1 vphone600 kexts. Kernel-first, linked by the kmutil of
+    /// macOS 15 on any Mac (KernelCollectionToolchain), and only `minimal` boots it.
     static let iOS18ResearchBoardReleases: [(version: String, url: String, cloudOS: VPhoneCloudOSOption)] = [
         ("18.1", "https://updates.cdn-apple.com/2024FallFCS/fullrestores/072-12814/E17284F9-4885-4E16-840A-40DF173142B3/iPhone11,2,iPhone11,4,iPhone11,6_18.1_22B83_Restore.ipsw",
          .init(name: "cloudOS 18.1 (22B83)", url: "https://updates.cdn-apple.com/private-cloud-compute/729b85b9b89b4383e7dfafdf0f5867b8cd2f3e4e69b279c8785dc7d044e377b7")),
@@ -780,11 +783,17 @@ public enum VPhoneFirmwareCatalog {
     static func recommendedCloudOS(for family: VPhoneGuestDevice.Family, version: String) -> VPhoneCloudOSOption {
         switch family {
         case .appleTV, .homeView: VPhoneCloudOSOption(name: "cloudOS 26.4", url: cloud264)
-        case .homePod: researchBoardCloudOS(forVersion: version) ?? VPhoneCloudOSOption(name: "cloudOS 26.4", url: cloud264)
+        // Only releases with a HomePod kernelcache recipe (bases/homepod_*); the
+        // others keep cloudOS 26.4, whose vphone600 components need no mix.
+        case .homePod: (homePodResearchBoardVersions.contains(version) ? researchBoardCloudOS(forVersion: version) : nil)
+            ?? VPhoneCloudOSOption(name: "cloudOS 26.4", url: cloud264)
         case .watch: researchBoardCloudOS(forVersion: version) ?? recommendedCloudOS(forVersion: version)
         case .iPhone, .iPad, .vision: recommendedCloudOS(forVersion: version)
         }
     }
+
+    /// HomePod releases with a kernelcache recipe on their research board cloudOS.
+    static let homePodResearchBoardVersions: Set<String> = ["26.5"]
 
     /// The cloudOS the iPhone pairings give a release of this version.
     static func recommendedCloudOS(forVersion version: String) -> VPhoneCloudOSOption {
@@ -843,9 +852,6 @@ public enum VPhoneFirmwareCatalog {
                     name: guest.productName,
                     family: guest.family.rawValue,
                     pairings: entries(pairings),
-                    // The iOS 18 research board kernels: from macOS 26.4 on, a
-                    // Mac running an older macOS links them over ssh.
-                    kernelcacheLayout: guest.notchedArtworkSubtype == nil ? nil : "kernel-first",
                 )
             },
         )
@@ -895,9 +901,9 @@ public struct VPhoneFirmwareCatalogReport: Codable, Equatable, Sendable {
         /// `iPhone`, `iPad` or `appleTV`.
         public let family: String
         public let pairings: [Entry]
-        /// `kernel-first` for a device whose every pairing boots a kernelcache
-        /// mix that only the kmutil of macOS 15 or 26.0 to 26.3 links
-        /// (`VPHONE_KMUTIL_SSH` from 26.4 on); absent for every other device.
+        /// `kernel-first` made Launchpad up to 2.17 ask for an ssh builder for
+        /// the iOS 18 guests. Every mix is now linked here by the kmutil its
+        /// base names, so this is never set.
         public let kernelcacheLayout: String?
         public init(productType: String, name: String, family: String, pairings: [Entry], kernelcacheLayout: String? = nil) {
             self.productType = productType

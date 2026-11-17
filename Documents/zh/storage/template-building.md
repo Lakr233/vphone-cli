@@ -77,16 +77,11 @@ New Machine（新建虚拟机）打开时是一个简短的页面：名称、来
 
 ### 需要重建 kernelcache 的固件
 
-在 **Firmware**（固件）下，如果某个版本也能在它自己的 cloudOS 上运行（`fw catalog` 的第三列），就会在推荐的 cloudOS 旁边提供该 cloudOS。创建时会以你的身份准备 kernelcache 组合，再由辅助程序以 root 身份链接，这会请求一次授权。
+在 **Firmware**（固件）下，如果某个版本也能在它自己的 cloudOS 上运行（`fw catalog` 的第三列），就会在推荐的 cloudOS 旁边提供该 cloudOS。创建时会以你的身份构建 kernelcache 组合，并由构建该版本 kernelcache 时所用的 kmutil 链接（见[固件准备](../firmware/firmware-preparation.md#链接组合的-kmutil)）。使用 Core Bundle 2.17 及更早版本时，改由辅助程序以 root 身份链接，这会请求一次授权。
 
 对于这些组合，Launchpad 仍会显示一个 `ipsw` 工具字段，供用它来准备组合的旧版兼容 Core Bundle（2.12.0）使用。Core Bundle 2.12.1 及更新版本会原生提取，并忽略所选的路径。
 
-iPhone XS Max 运行 iOS 18.1 到 18.7.2，每个版本都运行在各自版本的 cloudOS 上，不使用模板，默认使用 Minimal 预设；Standard 同样可用（已在 18.6 上验证）。它的组合总是需要重建 kernelcache，因此 **Firmware** 还会要求填写 macOS 构建机：
-
-- 一台运行 macOS 15 或 26.0 到 26.3、已打开“远程登录”的 Mac 或 macOS 虚拟机的 `user@host`；
-- 用于 ssh 和 sudo 的密码；如果使用 ssh 密钥且 sudo 无需密码，则留空。
-
-Launchpad 会保存构建机，但不保存密码，密码只通过环境变量（`VPHONE_KMUTIL_SSH_PASSWORD`）传给 `vphone-cli`。创建时会以你的身份通过 ssh 准备和链接组合。从 macOS 26.4 起必须指定构建机；在更早的 Mac 上如果没有指定，则由辅助程序以 root 身份链接组合。
+iPhone XS Max 运行 iOS 18.1 到 18.7.2，每个版本都运行在各自版本的 cloudOS 上，不使用模板，默认使用 Minimal 预设；Standard 同样可用（已在 18.6 上验证）。它的组合总是需要重建 kernelcache，在任何 macOS 上都由 macOS 15 的 kmutil 链接。
 
 ### 创建流程如何使用模板
 

@@ -26,42 +26,31 @@ The bundle also ships an arm64e GPU compiler plugin. `fw prepare` copies it into
 
 ## Research-board pairings
 
-A cloudOS after the 26.4 beta has no vphone600 components, so the research board stands in (see [Compatibility](compatibility.md#which-cloudos-to-use)). Its kernelcache is rebuilt with the vphone600 virtualization kexts. KDK extraction runs natively as you; only the kmutil link needs root.
+A cloudOS after the 26.4 beta has no vphone600 components, so the research board stands in (see [Compatibility](compatibility.md#which-cloudos-to-use)). Its kernelcache is rebuilt with the vphone600 virtualization kexts. Everything runs as you, without sudo.
 
 1. Run `fw prepare` as usual.
-2. Stage the mix as yourself:
+2. Build the mix:
 
    ```sh
    vphone-cli fw kernelcache myphone
    ```
 
-3. Link it as root:
-
-   ```sh
-   sudo vphone-cli fw kernelcache myphone
-   ```
-
-4. Continue with `fw patch`, which takes the mix from the cache.
+3. Continue with `fw patch`, which takes the mix from the cache. `fw patch` also builds the mix itself when it runs as you; as root it only takes it from the cache.
 
 The old `--ipsw` argument of `fw kernelcache` is still accepted but ignored.
 
-## Linking on another Mac
+## The kmutil that links the mix
 
-A kernel boots only in the layout Apple linked it with, and kmutil takes the layout from the Mac it runs on:
+A kernel boots only in the layout Apple linked it with, and that layout comes from the kmutil that links it: macOS 15 and 26.0 to 26.3 put the kernel first, macOS 26.4 and later put it last, and macOS 27 keeps the kexts' auth stubs. Every kernelcache records the kmutil version Apple built it with, so `fw kernelcache` links the mix with that same version, on any macOS:
 
-| Host macOS | Links |
-| --- | --- |
-| macOS 26.4 and later | iOS 26.4 and later kernelcaches (kernel-last) |
-| macOS 15, and 26.0 to 26.3 | older kernelcaches (kernel-first), such as iOS 18 |
+| Kernelcaches | kmutil | from |
+| --- | --- | --- |
+| iOS 18.1 to 18.3.1 | 463.40.2 | macOS 15.1 (24B83) |
+| iOS 18.5 to 18.7.2 | 463.100.7 | macOS 15.6.1 (24G90) |
+| iOS 26.4 to 26.7, watchOS 26.4, HomePod 26.5 | 487.100.11 | macOS 26.5 (25F71) |
+| iOS 27.2 | 514.40.8 | macOS 27.2.1 (26B131) |
 
-When this Mac has the other layout, another Mac or a macOS VM links the mix over ssh. Set these for `fw kernelcache` or for the creation:
-
-```sh
-export VPHONE_KMUTIL_SSH='user@host'
-export VPHONE_KMUTIL_SSH_PASSWORD='password'   # only without ssh keys and passwordless sudo there
-```
-
-The staged volume is uploaded to that Mac's `/private/var/tmp`, linked there as root, and removed. Nothing on this Mac needs root for it. On the other Mac, Remote Login must be on, and the user must be allowed to use sudo.
+When this Mac's own kmutil is that version, it is used. Otherwise the recovery image of that macOS (about 1 GB) is downloaded once from Apple's IPSW, and its kmutil and kernel collection builder are kept in `~/.vphone/kernelcache/kmutil/<version>` (a few MB); the image is deleted. Nothing is installed and no host setting changes. `VPHONE_KMUTIL_SSH`, another Mac that linked over ssh, is no longer used.
 
 ## See also
 

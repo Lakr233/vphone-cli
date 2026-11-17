@@ -107,7 +107,6 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 | `--slim on\|off`、`--trim …`、`--keep-languages …`、`--service-profile …`、`--remove-apps …`、`--keep-apps …` | `vphone-cli vm create` の軽量化のスイッチ。New Machine と同じく、Apple アカウントは trimmed のサービスプロファイルに従います |
 | `--accounts-off` | 受け付けますが、何も変わりません |
 | `--ipsw <path>` | 省略可能。2.12.0 のバンドルにだけ渡され、New Machine の ipsw 欄と同じく、kernelcache ミックスの準備に使われます。2.12.1 のバンドルはネイティブで展開します |
-| `--kmutil-ssh <user@host>` | New Machine の macOS ビルダー欄と同じく、iOS 18 ゲスト（`--device iPhone11,6`）の kernel-first のミックスを ssh 経由でリンクする Mac。そこでの ssh と sudo のパスワードは、引数ではなく、クライアントの `VPHONE_KMUTIL_SSH_PASSWORD` から取得します |
 | `--from <step>` | 作成開始時のオプションで、ある手順（`findTemplate` … `firstBoot`）からやり直します |
 
 パーサは `--iphone-source`、`--cloudos-source`、`--cpu`、`--memory`、`--disk-size`、`--network`、`--keep-artifacts`、`--no-wait` も受け付けます。`vphone-launchpad-cli help` をご覧ください。
@@ -126,7 +125,7 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 さらに 2 つの場合では、ヘルパーを通じて root として手順が実行されます。
 
 - `--preset minimal`（Minimal：未変更のブートチェーン、カーネル、TXM を使い、復元前にシステムをカスタマイズします）も軽量化なしで単独で復元され、その `fw patch` はヘルパーを通じて root として実行されます。Userspace debugging のボックス（`vphone-cli fw patches` の Features にある `userspace-debugging`）は、そこに記載された各パッチに対する `--allow` です。Trusted darwinOS environment のボックス（`trusted-darwinos`、つまり `--allow filesystem-exp-trusted_darwinos`）は、iPhone または iPad を trusted darwinOS として復元し、cloudOS の cryptexctl を追加します。これにより、ゲストの実行中に cryptex をインストールできます（VM ウインドウの Apps › Install Cryptex…。[Cryptex](../machines/cryptexes.md) を参照）。ボックスの説明に、その影響が記載されています。ゲストでは Restricted Execution Mode が強制され、リサーチボードのゲスト（cloudOS 26.5〜26.7）ではデベロッパモードをオンにできません。ボックスの変更は、復元をやり直したときにのみ反映されます。
-- cloudOS に vphone600 のコンポーネントがないマシン（そのリリース自身の cloudOS、Watch、iOS 18 ゲスト）では、kernelcache ミックスを `fw kernelcache` で準備し、ヘルパーが root としてリンクします。
+- cloudOS に vphone600 のコンポーネントがないマシン（そのリリース自身の cloudOS、Watch、iOS 18 ゲスト）では、`fw kernelcache` があなたのユーザ権限で kernelcache ミックスを作成します。Core Bundle 2.17 以前では準備だけを行い、ヘルパーが root としてリンクします。
 
 ### パッチの上書き設定
 

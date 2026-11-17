@@ -28,10 +28,22 @@ extension KernelCustomFirmwarePatcher {
         let amfiRange = amfiTextRange()
         let (amfiStart, amfiEnd) = amfiRange
 
-        // Instruction encoding constants (used for structural matching).
-        // Derived semantically — no hardcoded offsets, only instruction shape.
-        let movX19X2: UInt32 = 0xAA02_03F3 // mov x19, x2  (ORR X19, XZR, X2)
-        let movX2Sp: UInt32 = 0x9100_03E2 // mov x2, sp   (ADD X2, SP, #0)
+        // The out-param register. 26.x kernels pass the found-flag pointer in x2;
+        // iOS 27's trust-cache query took another argument, so AMFI's wrapper saves
+        // and passes x3 instead. Everything else about the body is unchanged, so the
+        // register is the only thing to discover — and it is also what the stub has
+        // to store through, which is why it is carried to the emit below.
+        let outParamCandidates: [UInt32] = [2, 3]
+
+        /// `mov x19, xN` (ORR X19, XZR, XN) and `mov xN, sp` (ADD XN, SP, #0), from
+        /// the keystone-backed encoders rather than literals.
+        func word(_ data: Data) -> UInt32 {
+            data.reversed().reduce(UInt32(0)) { $0 << 8 | UInt32($1) }
+        }
+        func shapeWords(outParam: UInt32) -> (movX19XN: UInt32, movXNSp: UInt32)? {
+            guard let add = ARM64Encoder.encodeAddImm12(rd: outParam, rn: 31, imm12: 0) else { return nil }
+            return (word(ARM64Encoder.encodeMovX(rd: 19, rm: outParam)), word(add))
+        }
 
         // Mask for STP XZR,XZR,[SP,#imm]: fixed bits excluding the immediate.
         // STP (pre-index / signed-offset) 64-bit XZR,XZR: 0xA900_7FFF base
@@ -48,7 +60,7 @@ extension KernelCustomFirmwarePatcher {
         let blMask: UInt32 = 0xFC00_0000
         let blVal: UInt32 = 0x9400_0000
 
-        var hits: [Int] = []
+        var hits: [(funcStart: Int, outParam: UInt32)] = []
 
         var off = amfiStart
         while off < amfiEnd - 4 {
@@ -78,45 +90,27 @@ extension KernelCustomFirmwarePatcher {
             }
 
             // Structural shape check — mirrors Python _find_after sequence:
-            //  i1: mov x19, x2
+            //  i1: mov x19, xN   (N is the out-param register: 2 on 26.x, 3 on 27)
             //  i2: stp xzr, xzr, [sp, ...]
-            //  i3: mov x2, sp
+            //  i3: mov xN, sp
             //  i4: bl <anything>
             //  i5: mov x20, x0   (ORR X20, XZR, X0 = 0xAA0003F4)
             //  i6: cbnz w0, ...
             //  i7: cbz x19, ...
             let movX20X0: UInt32 = 0xAA00_03F4
 
-            guard let i1 = insns.firstIndex(where: { $0 == movX19X2 }) else {
-                off = funcEnd
-                continue
+            for outParam in outParamCandidates {
+                guard let shape = shapeWords(outParam: outParam) else { continue }
+                guard let i1 = insns.firstIndex(where: { $0 == shape.movX19XN }) else { continue }
+                guard let i2 = insns[(i1 + 1)...].firstIndex(where: { ($0 & stpXzrXzrMask) == stpXzrXzrVal }) else { continue }
+                guard let i3 = insns[(i2 + 1)...].firstIndex(where: { $0 == shape.movXNSp }) else { continue }
+                guard let i4 = insns[(i3 + 1)...].firstIndex(where: { ($0 & blMask) == blVal }) else { continue }
+                guard let i5 = insns[(i4 + 1)...].firstIndex(where: { $0 == movX20X0 }) else { continue }
+                guard insns[(i5 + 1)...].first(where: { ($0 & cbnzWMask) == cbnzWVal && ($0 & 0x1F) == 0 }) != nil else { continue }
+                guard insns[(i5 + 1)...].first(where: { ($0 & cbzXMask) == cbzXVal && ($0 & 0x1F) == 19 }) != nil else { continue }
+                hits.append((funcStart, outParam))
+                break
             }
-            guard let i2 = insns[(i1 + 1)...].firstIndex(where: { ($0 & stpXzrXzrMask) == stpXzrXzrVal }) else {
-                off = funcEnd
-                continue
-            }
-            guard let i3 = insns[(i2 + 1)...].firstIndex(where: { $0 == movX2Sp }) else {
-                off = funcEnd
-                continue
-            }
-            guard let i4 = insns[(i3 + 1)...].firstIndex(where: { ($0 & blMask) == blVal }) else {
-                off = funcEnd
-                continue
-            }
-            guard let i5 = insns[(i4 + 1)...].firstIndex(where: { $0 == movX20X0 }) else {
-                off = funcEnd
-                continue
-            }
-            guard insns[(i5 + 1)...].first(where: { ($0 & cbnzWMask) == cbnzWVal && ($0 & 0x1F) == 0 }) != nil else {
-                off = funcEnd
-                continue
-            }
-            guard insns[(i5 + 1)...].first(where: { ($0 & cbzXMask) == cbzXVal && ($0 & 0x1F) == 19 }) != nil else {
-                off = funcEnd
-                continue
-            }
-
-            hits.append(funcStart)
             off = funcEnd
         }
 
@@ -125,38 +119,61 @@ extension KernelCustomFirmwarePatcher {
             return false
         }
 
-        let funcStart = hits[0]
-        let va0 = fileOffsetToVA(funcStart)
-        let va1 = fileOffsetToVA(funcStart + 4)
-        let va2 = fileOffsetToVA(funcStart + 8)
-        let va3 = fileOffsetToVA(funcStart + 12)
+        let (funcStart, outParam) = hits[0]
+
+        // The out-param is a 16-byte record the real body fills from the query's
+        // own result, not a boolean. Storing the return value into it is only safe
+        // where it has always been done — the 26.x layout, where x2 carries it and
+        // the frozen words below are the measured ones. iOS 27's AMFI reads a hash
+        // type out of that record and rejects `CS_HASHTYPE_SHA1`, so a stored 1
+        // turns "in the trust cache" into "signed with SHA-1" and every adhoc
+        // system binary is refused — `/sbin/launchd` included, which panics the
+        // guest at init. On that layout the stub answers the question it was asked
+        // and leaves the record to the caller.
+        guard outParam == 2 else {
+            emit(
+                funcStart,
+                ARM64.movX0_1,
+                patchID: "kernel-boot-amfi_trustcache.1",
+                virtualAddress: fileOffsetToVA(funcStart),
+                description: "mov x0,#1 [AMFIIsCDHashInTrustCache]",
+            )
+            emit(
+                funcStart + 4,
+                ARM64.ret,
+                patchID: "kernel-boot-amfi_trustcache.4",
+                virtualAddress: fileOffsetToVA(funcStart + 4),
+                description: "ret [AMFIIsCDHashInTrustCache]",
+            )
+            return true
+        }
 
         emit(
             funcStart,
             ARM64.movX0_1,
             patchID: "kernel-boot-amfi_trustcache.1",
-            virtualAddress: va0,
+            virtualAddress: fileOffsetToVA(funcStart),
             description: "mov x0,#1 [AMFIIsCDHashInTrustCache]",
         )
         emit(
             funcStart + 4,
             ARM64.cbzX2_8,
             patchID: "kernel-boot-amfi_trustcache.2",
-            virtualAddress: va1,
+            virtualAddress: fileOffsetToVA(funcStart + 4),
             description: "cbz x2,+8 [AMFIIsCDHashInTrustCache]",
         )
         emit(
             funcStart + 8,
             ARM64.strX0X2,
             patchID: "kernel-boot-amfi_trustcache.3",
-            virtualAddress: va2,
+            virtualAddress: fileOffsetToVA(funcStart + 8),
             description: "str x0,[x2] [AMFIIsCDHashInTrustCache]",
         )
         emit(
             funcStart + 12,
             ARM64.ret,
             patchID: "kernel-boot-amfi_trustcache.4",
-            virtualAddress: va3,
+            virtualAddress: fileOffsetToVA(funcStart + 12),
             description: "ret [AMFIIsCDHashInTrustCache]",
         )
         return true

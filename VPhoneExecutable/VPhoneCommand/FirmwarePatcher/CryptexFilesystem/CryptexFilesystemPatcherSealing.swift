@@ -82,8 +82,12 @@ extension CryptexFilesystemPatcher {
         let mtreeRemapPath = tmpDir.appending(path: "mtree_remap.xml")
         let sealLogPath = tmpDir.appending(path: "seal.log")
 
-        // The modification time the restore will derive from the mtree.
-        let modificationTime = try remap ? parseEditTime(mtree: mtree, since: editedSince) : ""
+        // The modification time the restore will derive from the mtree. From
+        // iOS 27 on, restored takes the "fast mtree path" and always remaps,
+        // with the root's time.
+        let fastMtree = try Self.usesFastMtree(productVersion: getProductVersion())
+        let remap = remap || fastMtree
+        let modificationTime = try !remap ? "" : fastMtree ? parseRootTime(mtree: mtree) : parseEditTime(mtree: mtree, since: editedSince)
         let remapContent = """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -117,6 +121,35 @@ extension CryptexFilesystemPatcher {
             throw error
         }
         return (digestDbPath, rootHashPath)
+    }
+
+    /// Whether the restore of `productVersion` seals with restored's "fast
+    /// mtree path": it skips `mtree -m` and writes MODIFICATION from the
+    /// time of the first entry of the mtree it was given (the root's), cut to
+    /// whole seconds ("Found remapper time of: 1792721395", then
+    /// apfs_sealvolume's "Timestamp set by B+I is 1792721395000000000",
+    /// which on 26.x equals the MODIFICATION sent). Every 26.x restore
+    /// logged "Fast mtree path not enabled", 27.2's "enabled"; restored
+    /// decides on its own, as the host sends no option for it.
+    static func usesFastMtree(productVersion: String) -> Bool {
+        (Int(productVersion.split(separator: ".").first ?? "") ?? 0) >= 27
+    }
+
+    /// The time of the mtree's first entry (the root), cut to whole seconds and
+    /// given in nanoseconds, as the fast mtree path writes it.
+    func parseRootTime(mtree: URL) throws -> String {
+        guard let mtreeData = FileManager.default.contents(atPath: mtree.path),
+              let text = String(data: mtreeData, encoding: .utf8)
+        else {
+            throw FirmwareManifest.ManifestError.fileNotFound(mtree.path)
+        }
+        for line in text.split(whereSeparator: \.isNewline) where !line.hasPrefix("/set") && !line.hasPrefix("#") {
+            guard let match = line.range(of: #"time=[0-9]+"#, options: .regularExpression) else {
+                continue
+            }
+            return String(line[match].dropFirst("time=".count)) + "000000000"
+        }
+        throw FirmwareManifest.ManifestError.fileNotFound("an entry with a time in \(mtree.path)")
     }
 
     /// The modification time of the first mtree entry edited since `since`, in
