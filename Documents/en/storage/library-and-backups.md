@@ -61,6 +61,11 @@ Run resource-heavy creations one at a time. The IPSWs and the temporary restore 
 
 Launchpad places CFW scratch files on the library's mounted external volume when that applies. Standalone `vphone-cli cfw install` defaults to `/private/var/tmp` and accepts `--work-parent` for a root-owned private directory.
 
+Launchpad's root helper checks the library folder itself before it installs CFW, so a library on an external or network volume has two more requirements:
+
+- If CFW install says macOS refused the helper access to the library, give the helper Full Disk Access: in System Settings > Privacy & Security > Full Disk Access, click +, press Command-Shift-G and enter `/Library/PrivilegedHelperTools/com.vphone.launchpad.helper`. macOS can ask Launchpad for access to such a volume, but not a background helper, which stays refused without the grant.
+- The volume must not ignore ownership. Turn off **Ignore ownership on this volume** in the volume's Get Info window in Finder. If the library was created while it was on, make it yours again with `sudo chown -R "$USER" <library>`.
+
 ## See also
 
 - [Snapshots](snapshots.md)
