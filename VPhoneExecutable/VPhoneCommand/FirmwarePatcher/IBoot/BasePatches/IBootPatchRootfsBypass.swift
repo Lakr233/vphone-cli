@@ -39,8 +39,39 @@ extension IBootPatcher {
     /// file-offset range from its `pacibsp` to the next one.
     private func rootfsFunction() -> (start: Int, end: Int)? {
         let sites = bhsAfterCmp0x400Sites()
-        guard sites.count == 1 else { return nil }
-        return functionRange(containing: sites[0])
+        if sites.count == 1 {
+            return functionRange(containing: sites[0])
+        }
+        // The 27 LLB no longer spells that size comparison, so fall back to the
+        // load the function opens with. Tried second so a boot chain that still
+        // has the `cmp x8, #0x400` gate resolves exactly as it always did.
+        guard let load = rootfsImageLoadSite() else { return nil }
+        return functionRange(containing: load)
+    }
+
+    /// The unique `ldr xN, [xM, #0x3c8] ; cbz xN` that opens the rootfs function:
+    /// the image it is asked to verify, null-checked before any verification runs.
+    /// The structure offset is the same on the 26.x and 27 boot chains, and each
+    /// has exactly one — which is what makes it usable as the anchor the moved
+    /// `__LINE__` literals no longer provide.
+    private func rootfsImageLoadSite() -> Int? {
+        var sites: [Int] = []
+        for insns in chunkedDisasm() {
+            for (index, insn) in insns.enumerated() where index + 1 < insns.count {
+                guard insn.mnemonic == "ldr",
+                      let ops = insn.detail?.operands, ops.count == 2,
+                      ops[0].type == .register,
+                      ops[1].type == .memory, ops[1].mem.disp == 0x3C8,
+                      insns[index + 1].mnemonic == "cbz",
+                      let nullOps = insns[index + 1].detail?.operands, nullOps.count == 2,
+                      nullOps[0].type == .register, nullOps[0].reg == ops[0].reg
+                else { continue }
+                if !sites.contains(Int(insn.address)) {
+                    sites.append(Int(insn.address))
+                }
+            }
+        }
+        return sites.count == 1 ? sites[0] : nil
     }
 
     /// From `pacibsp` back from `offset` to the next `pacibsp` after it.

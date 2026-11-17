@@ -1,5 +1,123 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+> **`standard` on a cloudOS 27.2 kernel (2026-11-16).** The 27.2 kernelcache
+> recipe (`27.2_24B119`: cloudOS 27.2's 24B112 kernel with the vphone600 26.4
+> donor kexts) was usable only under `minimal`, which runs no kernel patcher.
+> Under `standard` the JB kernel layer aborted with "cannot validate required
+> ARM64E_X1 kernel admission" and, before that, silently missed seven other
+> boot-essential patches. Two separate causes, and no new patch identifier,
+> preset or instruction site for either.
+>
+> **1. Shims for the 26.4 kernel were required on a kernel that is not 26.4.**
+> `applyIOS27` meant "the iPhone base is 27" and gated both the patches a 27
+> userland needs on any kernel and the ones that only make the 26.4 kernel
+> behave the way a 27 kernel already does. The second group is now
+> `applyIOS27LegacyKernel` (base 27 *and* cloudOS 26.4), mirroring the restore
+> seal's existing condition. Each patch was classified by running it against
+> both kernels: `ioucFailedSandbox`, `cssc`, `execSecurityPolicyKill` and
+> `fpfsScopedVnodeOpen` resolve on both and stay on `applyIOS27`;
+> `diskImages2ClientAbi`, `sharedRegionSize`, `arm64eX1Admission`,
+> `containerManagerUpcall`, both `iomfbSwapEnd` gates and sandbox `ops[124]`
+> resolve only on 26.4 and are now skipped on a 27 kernel. The classification is
+> corroborated by what the reveals find: the 27.2 kernel grades CPU subtype 12
+> in `ml_grade_binary` itself (`cmp w1,#0xc` → grade 0xd beside the stock
+> `cmp w1,#2`), and has no container-manager upcall to force, iOS 27 having
+> deleted it. Requiring ARM64E_X1 there failed a run over a kernel that was
+> never wrong; conversely DiskImages2 applied its notification-port widen while
+> its two ABI gates matched nothing, growing an array whose bound checks stayed
+> stock — an all-or-nothing claim that held within one gate group but not across
+> the pair.
+>
+> **2. iOS 27 collections carry BTI landing pads, which hid the real misses.**
+> A called function begins with `BTI C` one word ahead of its `PACIBSP`, so every
+> `BL` targets the pad while `findFunctionStart` reports the prologue. Caller
+> lookups keyed on the prologue came back empty, and `findFuncEnd` started on a
+> pad hit that function's own `PACIBSP` immediately and reported an empty body,
+> so callee scans found nothing. `functionEntries` / `isCall` / `callers(of:)` /
+> `functionBody(at:)` in `KernelPatcherBase` accept both entry forms, and
+> `findFuncEnd` steps past a leading pad. That alone restored
+> `kernel-boot-apfs_vfsop_mount`, `kernel-boot-handle_fsioc_graft` and the
+> `postValidation` compare. Three further reveals were retargeted on their own
+> evidence: apfs renamed `authenticate_root_hash` to `validate_root_hash`
+> (same string-table slot, same neighbours — both names accepted);
+> `_apfs_graft` and `_handle_fsioc_graft` are no longer the first referrer of
+> their own name string, so every reference is tried and the body holding the
+> call wins; AMFI's trust-cache query gained an argument, moving the
+> `AMFIIsCDHashInTrustCache` out-param from x2 to x3, so the match discovers the
+> register and the always-allow stub stores through it (`encodeMovX` /
+> `encodeAddImm12` / `encodeCompareBranch` / `encodeStrXUnsignedOffset`
+> reproduce the frozen x2 words exactly); the TXM post-validation flag test sits
+> ~0x64 past the log call instead of ~0x14, so the anchor is the
+> `ldrb wM,[xN,#imm] ; tbnz wM,#0` pair rather than "the first TBNZ in a narrow
+> window"; and `vm_map_protect`'s fused gate is unchanged except that the
+> vm_map_entry flag moved from bit 22 to bit 18, so the anchor is "a single
+> entry-flag bit" and whole-text uniqueness, not the bit index.
+>
+> **3. The 27.2 LLB rejects the unsealed root volume (the no-Apple-logo boot).**
+> With the kernel layer fixed, a `standard` guest restored and then stopped in
+> iBoot recovery instead of booting: no Apple logo, no vphoned, `vm launch`
+> exiting 0. The cause is not the kernel at all. `cfw install` finishes by
+> renaming the root snapshot to `orig-fs.disabled.rn-*` so the VM boots the live
+> volume, and LLB verifies that volume before handing off. All five
+> `llb-boot-rootfs` bypasses missed on the cloudOS 27.2 LLB: the `__LINE__`
+> literals they pin (`0x3B7`, `0x3C2`, `0x110`) moved, and the shape fallback
+> could not run because it located the rootfs function through a unique
+> `cmp x8, #0x400 ; b.hs` size gate the 27 LLB no longer spells. iBoot's own
+> serial output names the gate that stopped it — `503b7933ad51055:977`, and
+> 977 is `0x3D1`, the error code of the first verification gate in that
+> function. `rootfsFunction()` now falls back to the load the function opens
+> with, the unique `ldr xN, [xM, #0x3c8] ; cbz xN` whose structure offset is the
+> same on both boot chains, and the existing "last two gates" logic then finds
+> `0x3D1` and `0x3D8` exactly where `0x3B7` and `0x3C2` used to be. The old
+> anchor is tried first, so a boot chain that still has the size gate resolves
+> byte for byte as before: the 26.4 LLB keeps all five records at 0x36A1C,
+> 0x366F0, 0x36A64, 0x3A608 and 0x3A7C8. The 27.2 LLB gains four
+> (0x41D18, 0x41D3C, 0x45C7C, 0x45E58); the `cmp x8, #0x400` NOP has no site
+> there because the comparison is gone. This is a pre-existing boot-chain gap,
+> not a regression — `minimal` misses the same five and boots anyway, because it
+> keeps the sealed snapshot and never asks LLB to accept a modified volume.
+>
+> **4. Two patches that matched on the 27 kernel but meant the wrong thing there.**
+> Matching is not applicability, and both of these matched cleanly and broke the
+> boot. `kernel-boot-post_validation{,_unsigned}` neutralise AMFI's "reject unless
+> SHA-256" gate by rewriting `cmp w0,#2` to `cmp w0,w0`. The 27 kernel asks the
+> opposite question a few instructions later — `cmp w0,#1` against
+> `CS_HASHTYPE_SHA1`, branching away when it is *not* SHA-1 — reached by the same
+> shape, `w0` from a `BL` then a `b.ne`. Forcing equality there rejects every
+> signature instead of admitting them: AMFI logged
+> `/sbin/launchd: in-kernel: Hash type is SHA1` and init panicked with
+> `namespace 9 code 0x1` (`OS_REASON_EXEC` / `EXEC_EXIT_REASON_BAD_MACHO`). The
+> immediate is now part of the match (`isSHA256RejectCompare`), so the SHA-1
+> constant is never a candidate and the 27 kernel takes neither record. The gate
+> it was reading is `cs_blob->csb_hashtype->cs_type` — `ldr x8,[x0,#0xa0] ; ldrb w0,[x8]`.
+>
+> `kernel-boot-fpfs_scoped_open` is a 27-*userland* fix written with vphone600
+> *kernel* struct offsets: its trampoline walks `TPIDR_EL1 -> uthread +0x3F0 ->
+> proc +0x18 -> p_comm +0x56C` to compare the process name against `"Resolver"` /
+> `"fileprov"`. A 27 kernel lays those out differently, so the first vnode open
+> after launchd starts took a kernel data abort. It is `applyIOS27LegacyKernel`
+> now, and `ops[267]` is neutered wherever the trampoline is not installed, so
+> the entry is never left half-handled. Retargeting those offsets to the 27
+> kernel is the open follow-up; without the trampoline the ResolverService
+> parent-walk balloon may return on a 27-kernel guest.
+>
+> **Validation.** On the 27.2 mix the kernel layers go from 23 base records with
+> five misses plus a fatal abort to **28 base and 85 CFW records**; the 26.4
+> reference kernel (iPhone19,2 27.2 on cloudOS 26.4) still produces 28 base and
+> 107 CFW records at the same offsets, and a full `fw patch --preset standard`
+> over a 26.6.1 guest produces the same 236 records and byte-identical component
+> outputs before and after. `FirmwarePatcherTests` reports 137 issues both before
+> and after, all of them the missing `ipsws/` reference fixtures.
+>
+> **A `standard` guest on the cloudOS 27.2 kernel boots.** `test_272_standard`
+> (iPhone17,3, iOS 27.2 24B119 on cloudOS 27.2 24B115, preset `standard`, no
+> overrides) reaches the UI with vphoned answering: `device.info` reports
+> `ios_version 27.2.0`, `kernel 27.2.0`, screen on and unlocked, 200 apps, no
+> panic. The remaining `fw patch` misses on that kernel are
+> `kernel-cfw-aks_unlock_bag` (self-guards on a kernel that already accepts five
+> scalars) and `kernel-cfw-display_promotion` (120 Hz; the guest runs at 60),
+> neither boot-essential.
+
 > **SE 3 iOS 18.6.2 pairing and driver extraction (2026-11-12).** The SE
 > catalog uses cloudOS 26.1 and the existing iOS 18.6 GPU transport. Fresh
 > preparation can take the 18.6 driver directly from the PCC OS image when

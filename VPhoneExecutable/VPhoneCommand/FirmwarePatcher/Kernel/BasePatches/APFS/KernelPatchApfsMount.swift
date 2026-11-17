@@ -53,19 +53,15 @@ extension KernelPatcher {
             return false
         }
 
-        // Gather BL callers of that function.
-        var callers = blIndex[funcStart] ?? []
-        if callers.isEmpty {
-            callers = blIndex[funcStart + 4] ?? []
-        }
+        // Gather BL callers of that function. A 27 kernel's calls land on the
+        // BTI landing pad before the prologue, which `callers(of:)` accounts for.
+        var callers = self.callers(of: funcStart)
         if callers.isEmpty {
             // Manual scan for BL callers when not in index.
             for (rangeStart, rangeEnd) in codeRanges {
                 var off = rangeStart
                 while off + 4 <= rangeEnd {
-                    if let target = decodeBL(at: off),
-                       target >= funcStart, target <= funcStart + 4
-                    {
+                    if isCall(at: off, to: funcStart) {
                         callers.append(off)
                     }
                     off += 4
@@ -225,11 +221,6 @@ extension KernelPatcher {
             return false
         }
 
-        guard let fsiocStart = findFunctionStart(fsiocRefs[0].adrpOff) else {
-            log("  [-] _handle_fsioc_graft function start not found")
-            return false
-        }
-
         // Locate validate_payload_and_manifest function start.
         guard let valStrOff = buffer.findString("validate_payload_and_manifest") else {
             log("  [-] 'validate_payload_and_manifest' string not found")
@@ -247,25 +238,30 @@ extension KernelPatcher {
             return false
         }
 
-        // Scan _handle_fsioc_graft for BL targeting valFunc.
-        let scanEnd = min(fsiocStart + 0x400, buffer.count)
-        var scan = fsiocStart
-        while scan + 4 <= scanEnd {
-            if scan > fsiocStart + 8, buffer.readU32(at: scan) == ARM64.pacibspU32 {
-                break
+        // Scan _handle_fsioc_graft for a BL targeting valFunc. As with _apfs_graft
+        // the name string is referenced from more than one routine, so every
+        // reference is tried and the body holding the call wins.
+        for ref in fsiocRefs {
+            guard let fsiocStart = findFunctionStart(ref.adrpOff) else { continue }
+            let scanEnd = min(fsiocStart + 0x400, buffer.count)
+            var scan = fsiocStart
+            while scan + 4 <= scanEnd {
+                if scan > fsiocStart + 8, buffer.readU32(at: scan) == ARM64.pacibspU32 {
+                    break
+                }
+                if isCall(at: scan, to: valFunc) {
+                    let va = fileOffsetToVA(scan)
+                    emit(
+                        scan,
+                        ARM64.movW0_0,
+                        patchID: "kernel-boot-handle_fsioc_graft.mov_w0_0",
+                        virtualAddress: va,
+                        description: "mov w0,#0 [_handle_fsioc_graft]",
+                    )
+                    return true
+                }
+                scan += 4
             }
-            if isBL(at: scan, target: valFunc) {
-                let va = fileOffsetToVA(scan)
-                emit(
-                    scan,
-                    ARM64.movW0_0,
-                    patchID: "kernel-boot-handle_fsioc_graft.mov_w0_0",
-                    virtualAddress: va,
-                    description: "mov w0,#0 [_handle_fsioc_graft]",
-                )
-                return true
-            }
-            scan += 4
         }
 
         log("  [-] BL to validate_payload_and_manifest not found in _handle_fsioc_graft")

@@ -15,6 +15,20 @@ import Foundation
 import VPhonePatchKit
 
 extension KernelPatcher {
+    /// Whether a `cmp w0, #imm` can be the "reject unless SHA-256" gate.
+    ///
+    /// The site this patch neutralises asks "is the hash type SHA-256?" and
+    /// rejects when it is not, so the immediate is `CS_HASHTYPE_SHA256`.
+    /// iOS 27 asks the opposite question a few instructions later — `cmp w0, #1`
+    /// against `CS_HASHTYPE_SHA1`, branching away when it is *not* SHA-1 — and
+    /// that shape is otherwise identical: `w0` from a `BL`, then a `b.ne`.
+    /// Forcing equality there would reject every signature instead of admitting
+    /// them, which panics init before launchd can run, so the SHA-1 constant is
+    /// never a candidate.
+    static func isSHA256RejectCompare(_ immediate: Int64) -> Bool {
+        immediate != 1
+    }
+
     // MARK: - Patch 8: NOP TBNZ after TXM CodeSignature error log
 
     /// NOP the TBNZ that follows the TXM CodeSignature error log call.
@@ -37,21 +51,40 @@ extension KernelPatcher {
             return false
         }
 
+        // The log call is followed by the flag test that gates the extra validation:
+        //
+        //     bl   <log>
+        //     mov  w0, #5
+        //     ldr  xN, [sp, #imm]
+        //     ldrb wM, [xN, #imm]
+        //     tbnz wM, #0, <extra validation>   <- NOP this
+        //
+        // Matching that `ldrb` + `tbnz wM, #0` pair rather than "the first TBNZ"
+        // is what makes the site the same one on both kernels: 27 reaches the
+        // sequence through a branch, so the pair sits ~0x64 past the ADD instead
+        // of ~0x14, while the shape itself is unchanged.
         for (_, addOff) in refs {
-            // Scan forward up to 0x40 bytes past the ADD for a TBNZ instruction.
-            let scanEnd = min(addOff + 0x40, buffer.count - 4)
+            let scanEnd = min(addOff + 0x100, buffer.count - 8)
             for scan in stride(from: addOff, through: scanEnd, by: 4) {
-                let insns = disasm.disassemble(in: buffer.data, at: scan, count: 1)
-                guard let insn = insns.first else { continue }
-                guard insn.mnemonic == "tbnz" else { continue }
+                let insns = disasm.disassemble(in: buffer.data, at: scan, count: 2)
+                guard insns.count == 2 else { continue }
+                let load = insns[0], branch = insns[1]
+                guard load.mnemonic == "ldrb",
+                      let loadOps = load.detail?.operands, loadOps.count == 2,
+                      loadOps[0].type == .register, loadOps[1].type == .memory,
+                      branch.mnemonic == "tbnz",
+                      let bits = branch.detail?.operands, bits.count == 3,
+                      bits[0].type == .register, bits[0].reg == loadOps[0].reg,
+                      bits[1].type == .immediate, bits[1].imm == 0
+                else { continue }
 
-                let va = fileOffsetToVA(scan)
+                let site = scan + 4
                 emit(
-                    scan,
+                    site,
                     ARM64.nop,
                     patchID: "kernel-boot-post_validation.nop_tbnz",
-                    virtualAddress: va,
-                    description: "NOP \(insn.mnemonic) \(insn.operandString) [txm post-validation]",
+                    virtualAddress: fileOffsetToVA(site),
+                    description: "NOP \(branch.mnemonic) \(branch.operandString) [txm post-validation]",
                 )
                 return true
             }
@@ -135,8 +168,9 @@ extension KernelPatcher {
 
             // For each BL target within our code range, look for cmp w0,#imm ; b.ne
             // preceded by a BL within 2 instructions.
-            for target in blTargets.sorted() {
-                guard isWithinCodeRange(target) else { continue }
+            for blTarget in blTargets.sorted() {
+                guard isWithinCodeRange(blTarget) else { continue }
+                let target = functionBody(at: blTarget)
                 let calleeEnd = nextFunctionBoundary(after: target, maxSize: 0x200)
 
                 for off in stride(from: target, to: calleeEnd - 4, by: 4) {
@@ -154,7 +188,7 @@ extension KernelPatcher {
                     let op0 = detail0.operands[0]
                     let op1 = detail0.operands[1]
                     guard op0.type == .register, op0.reg == .w(0) else { continue }
-                    guard op1.type == .immediate else { continue }
+                    guard op1.type == .immediate, Self.isSHA256RejectCompare(op1.imm) else { continue }
 
                     // Must be preceded by a BL within 2 instructions (4 or 8 bytes back).
                     var hasBlBefore = false
