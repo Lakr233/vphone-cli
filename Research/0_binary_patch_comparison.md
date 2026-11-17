@@ -1,5 +1,7 @@
 # Patch Comparison: Regular / Development / Jailbreak / Experimental
 
+The [optional guest SOCKS5 add-on](../Addons/SOCKS5/README.md) applies its UDP association fix to the HEV source at build time. It runs on the existing guest firmware.
+
 > **`standard` on a cloudOS 27.2 kernel (2026-11-16).** The 27.2 kernelcache
 > recipe (`27.2_24B119`: cloudOS 27.2's 24B112 kernel with the vphone600 26.4
 > donor kexts) was usable only under `minimal`, which runs no kernel patcher.
