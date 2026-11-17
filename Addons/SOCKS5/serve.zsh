@@ -4,8 +4,11 @@ set -euo pipefail
 export PATH=/usr/bin:/bin:/usr/sbin:/sbin
 [[ -S vphone.sock ]] || exit 0
 [[ $(plutil -extract networkConfig.mode raw -o - config.plist) == nat ]] || exit 0
-address=$(print -r -- '{"t":"rpc","method":"network.ipv4.get","params":{"interface":"en0"},"screen":false}' |
-  nc -w 5 -U vphone.sock | plutil -extract result.address raw -o - -)
+# network.ipv4.get names an address only for a manual configuration; a DHCP
+# guest's live address is in device.network's interface list.
+address=$(print -r -- '{"t":"rpc","method":"device.network","params":{},"screen":false}' |
+  nc -w 5 -U vphone.sock |
+  jq -r '[.result.addresses[]? | select(test("^en0 [0-9.]+$")) | ltrimstr("en0 ")][0] // empty')
 octets=(${(s:.:)address})
 (( ${#octets} == 4 )) || exit 1
 for octet in "${octets[@]}"; do
