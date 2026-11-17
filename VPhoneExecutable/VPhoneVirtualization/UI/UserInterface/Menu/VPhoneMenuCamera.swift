@@ -26,12 +26,30 @@ extension VPhoneMenuController {
         cameraSourceOffItem = off
         menu.addItem(off)
 
-        let testPattern = makeItem(
-            "Source: Test Pattern",
-            action: #selector(setCameraSourceTestPattern),
-        )
-        cameraSourceTestPatternItem = testPattern
-        menu.addItem(testPattern)
+        let systemCamera = makeItem("Source: System Camera…", action: #selector(setCameraSourceSystemCamera))
+        cameraSourceSystemCameraItem = systemCamera
+        menu.addItem(systemCamera)
+
+        let rotationItem = NSMenuItem(title: "Camera Rotation", action: nil, keyEquivalent: "")
+        rotationItem.image = menuSymbol("rotate.right")
+        let rotationMenu = NSMenu(title: "Camera Rotation")
+        cameraRotationMenuItems.removeAll()
+        for rotation in VPhoneCameraRotation.allCases {
+            let rotItem = NSMenuItem(
+                title: rotation.title,
+                action: #selector(selectCameraRotation(_:)),
+                keyEquivalent: ""
+            )
+            rotItem.target = self
+            rotItem.tag = rotation.rawValue
+            rotItem.state = (rotation == .upright) ? .on : .off
+            cameraRotationMenuItems.append(rotItem)
+            rotationMenu.addItem(rotItem)
+        }
+        rotationItem.submenu = rotationMenu
+        menu.addItem(rotationItem)
+
+        menu.addItem(NSMenuItem.separator())
 
         let videoFile = makeItem(
             "Source: Video File…",
@@ -40,9 +58,12 @@ extension VPhoneMenuController {
         cameraSourceVideoFileItem = videoFile
         menu.addItem(videoFile)
 
-        let systemCamera = makeItem("Source: System Camera…", action: #selector(setCameraSourceSystemCamera))
-        cameraSourceSystemCameraItem = systemCamera
-        menu.addItem(systemCamera)
+        let testPattern = makeItem(
+            "Source: Test Pattern",
+            action: #selector(setCameraSourceTestPattern),
+        )
+        cameraSourceTestPatternItem = testPattern
+        menu.addItem(testPattern)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -69,11 +90,19 @@ extension VPhoneMenuController {
     private func refreshCameraSourceCheckmarks() {
         let kind = cameraServer?.sourceKind ?? .off
         cameraSourceOffItem?.state = (kind == .off) ? .on : .off
-        cameraSourceTestPatternItem?.state =
-            (kind == .testPattern) ? .on : .off
-        cameraSourceVideoFileItem?.state =
-            (kind == .videoFile) ? .on : .off
         cameraSourceSystemCameraItem?.state = (kind == .systemCamera) ? .on : .off
+        cameraSourceVideoFileItem?.state = (kind == .videoFile) ? .on : .off
+        cameraSourceTestPatternItem?.state = (kind == .testPattern) ? .on : .off
+        let currentRotation = cameraServer?.cameraRotation ?? .upright
+        for item in cameraRotationMenuItems {
+            item.state = (item.tag == currentRotation.rawValue) ? .on : .off
+        }
+    }
+
+    @objc func selectCameraRotation(_ sender: NSMenuItem) {
+        guard let rotation = VPhoneCameraRotation(rawValue: sender.tag) else { return }
+        cameraServer?.setCameraRotation(rotation)
+        refreshCameraSourceCheckmarks()
     }
 
     @objc func setCameraSourceOff() {
