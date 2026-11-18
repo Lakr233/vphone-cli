@@ -109,11 +109,13 @@ static id vpLayoutUUID(id object, NSString *key, NSMutableDictionary *failures) 
     return NSNull.null;
 }
 
-static NSDictionary *vpLayoutRect(id object, NSString *key, NSMutableDictionary *failures) {
+static NSDictionary *vpLayoutRect(id object, NSString *key, NSMutableDictionary *failures, BOOL *emptyBounds) {
+    if (emptyBounds) *emptyBounds = NO;
     id value = vpLayoutValue(object, key, failures);
     if (![value isKindOfClass:NSValue.class] || strcmp([(NSValue *)value objCType], @encode(CGRect)) != 0) return nil;
     CGRect rect;
     [(NSValue *)value getValue:&rect size:sizeof(rect)];
+    if (emptyBounds) *emptyBounds = CGRectEqualToRect(rect, CGRectZero);
     if (!isfinite(rect.origin.x) || !isfinite(rect.origin.y)
         || !isfinite(rect.size.width) || !isfinite(rect.size.height)
         || !isfinite(CGRectGetMaxX(rect)) || !isfinite(CGRectGetMaxY(rect))
@@ -122,7 +124,47 @@ static NSDictionary *vpLayoutRect(id object, NSString *key, NSMutableDictionary 
              @"width": @(rect.size.width), @"height": @(rect.size.height)};
 }
 
-static NSDictionary *vpLayoutRow(id monitor, NSMutableDictionary *failures) {
+static void vpLayoutApplicationScenes(id layout, NSString *bundle, NSMutableDictionary *row,
+                                       NSMutableDictionary *failures) {
+    id elements = vpLayoutObject(layout, @"elements", failures);
+    BOOL available = [elements isKindOfClass:NSArray.class];
+    BOOL truncated = available && [elements count] > 128;
+    row[@"elements_available"] = @(available);
+    row[@"elements_truncated"] = @(truncated);
+    if (!available || [elements count] > 128) return;
+    NSMutableArray *scenes = [NSMutableArray array];
+    for (id element in elements) {
+        // Only a successfully read nil owner establishes a non-app element.
+        // An unreadable owner could hide another scene for this application.
+        BOOL readable = vpLayoutSignature(element, @"bundleIdentifier", @encode(id), @[], failures) != nil;
+        id owner = nil;
+        if (readable) {
+            @try {
+                owner = ((id (*)(id, SEL))objc_msgSend)(element, sel_registerName("bundleIdentifier"));
+            } @catch (NSException *exception) {
+                (void)exception;
+                readable = NO;
+            }
+        }
+        if (!readable || (owner && (![owner isKindOfClass:NSString.class] || [owner length] > 255))) {
+            row[@"elements_available"] = @NO;
+            row[@"reason"] = @"Application scene ownership is unreadable";
+            return;
+        }
+        if (![owner isEqualToString:bundle]) continue;
+        NSMutableDictionary *scene = [@{@"bundle_id": owner} mutableCopy];
+        NSString *identifier = vpLayoutString(element, @"identifier", 255, failures);
+        NSDictionary *frame = vpLayoutRect(element, @"frame", failures, NULL);
+        NSDictionary *reference = vpLayoutRect(element, @"referenceFrame", failures, NULL);
+        if (identifier) scene[@"identifier"] = identifier;
+        if (frame) scene[@"frame"] = frame;
+        if (reference) scene[@"reference_frame"] = reference;
+        [scenes addObject:scene];
+    }
+    row[@"application_scenes"] = scenes;
+}
+
+static NSDictionary *vpLayoutRow(id monitor, NSString *bundle, NSMutableDictionary *failures) {
     NSMutableDictionary *row = [@{@"monitor_source": @"default_main", @"geometry_available": @NO} mutableCopy];
     id layout = vpLayoutObject(monitor, @"currentLayout", failures);
     BOOL available = layout != nil;
@@ -131,8 +173,8 @@ static NSDictionary *vpLayoutRow(id monitor, NSMutableDictionary *failures) {
         row[@"reason"] = @"Monitor or ABI unavailable, or FrontBoard returned no initial layout";
         return row;
     }
-    NSDictionary *bounds = vpLayoutRect(layout, @"bounds", failures);
-    NSDictionary *reference = vpLayoutRect(layout, @"referenceBounds", failures);
+    NSDictionary *bounds = vpLayoutRect(layout, @"bounds", failures, NULL);
+    NSDictionary *reference = vpLayoutRect(layout, @"referenceBounds", failures, NULL);
     NSNumber *orientation = vpLayoutNumber(layout, @"interfaceOrientation", failures);
     if (bounds) row[@"bounds"] = bounds;
     if (reference) row[@"reference_bounds"] = reference;
@@ -159,6 +201,7 @@ static NSDictionary *vpLayoutRow(id monitor, NSMutableDictionary *failures) {
     BOOL geometryAvailable = bounds && reference && scale.doubleValue > 0 && validID && validOrientation;
     row[@"geometry_available"] = @(geometryAvailable);
     if (![row[@"geometry_available"] boolValue]) row[@"reason"] = @"Active display geometry is incomplete or unsupported";
+    if (bundle) vpLayoutApplicationScenes(layout, bundle, row, failures);
     return row;
 }
 
@@ -213,9 +256,13 @@ static NSDictionary *vpLayoutCapture(NSMutableDictionary *capture) {
                         id value = vpLayoutNumber(display, key, failures) ?: vpLayoutString(display, key, 32, failures);
                         if (value) item[key] = value;
                     }
-                    NSDictionary *bounds = vpLayoutRect(display, @"bounds", failures);
+                    BOOL emptyBounds = NO;
+                    NSDictionary *bounds = vpLayoutRect(display, @"bounds", failures, &emptyBounds);
                     id uuid = vpLayoutUUID(display, @"uniqueId", failures);
                     if (bounds) item[@"bounds"] = bounds;
+                    // Dormant wireless outputs report CGRectZero. An unreadable
+                    // getter leaves the number of usable displays unknown.
+                    if (capture[@"application_bundle"] && emptyBounds) item[@"empty_bounds"] = @YES;
                     if (uuid) item[@"uniqueId"] = uuid;
                     [inventory addObject:item];
                     if (inventory.count == 16) break;
@@ -235,7 +282,7 @@ static NSDictionary *vpLayoutCapture(NSMutableDictionary *capture) {
                 if (monitor) capture[@"owned_monitor"] = monitor;
             }
         }
-        NSDictionary *row = vpLayoutRow(capture[@"owned_monitor"], failures);
+        NSDictionary *row = vpLayoutRow(capture[@"owned_monitor"], capture[@"application_bundle"], failures);
         return @{@"available": row[@"available"], @"geometry_available": row[@"geometry_available"],
                  @"reason": row[@"reason"] ?: @"", @"monitors": @[row],
                  @"cadisplays": capture[@"cadisplays"] ?: @[], @"capability_failures": failures,
@@ -315,7 +362,7 @@ static void vpLayoutSample(NSMutableDictionary *capture, BOOL (^cancelled)(void)
     vpLayoutFinish(capture, report, completion);
 }
 
-NSDictionary<NSString *, id> *vp_display_layout(void) {
+static NSDictionary<NSString *, id> *vpDisplayLayoutForApplication(NSString *bundle) {
     dispatch_time_t entered = dispatch_time(DISPATCH_TIME_NOW, 0);
     dispatch_time_t deadline = dispatch_time(entered, 1500 * NSEC_PER_MSEC);
     if (NSThread.isMainThread) {
@@ -343,6 +390,7 @@ NSDictionary<NSString *, id> *vp_display_layout(void) {
         [lock unlock];
         @autoreleasepool {
             NSMutableDictionary *capture = [NSMutableDictionary dictionaryWithObject:@(vpLayoutMonotonicTime()) forKey:@"started_at"];
+            if (bundle) capture[@"application_bundle"] = bundle;
             vpLayoutSample(capture, ^BOOL {
                 [lock lock];
                 BOOL value = cancelled;
@@ -374,6 +422,17 @@ NSDictionary<NSString *, id> *vp_display_layout(void) {
     NSDictionary *report = result;
     [lock unlock];
     return vpLayoutResponse(report);
+}
+
+NSDictionary<NSString *, id> *vp_display_layout(void) {
+    return vpDisplayLayoutForApplication(nil);
+}
+
+NSDictionary<NSString *, id> *vp_display_layout_for_application(NSString *bundle) {
+    if (!bundle.length || bundle.length > 255) {
+        return vpLayoutResponse(vpLayoutUnavailable(@"An application bundle identifier is required", @"invalid_application"));
+    }
+    return vpDisplayLayoutForApplication([bundle copy]);
 }
 
 static NSDictionary *vpModeDescription(id mode) {

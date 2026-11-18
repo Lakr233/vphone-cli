@@ -32,7 +32,7 @@ int main(void) {
         dispatch_async(requests, ^{
             @autoreleasepool {
                 first = vp_display_layout();
-                second = vp_display_layout();
+                second = vp_display_layout_for_application(@"com.example.reader");
                 dispatch_semaphore_signal(done);
             }
         });
@@ -52,7 +52,7 @@ int main(void) {
                 __block NSDictionary *third, *fourth;
                 dispatch_async(requests, ^{
                     @autoreleasepool {
-                        third = vp_display_layout();
+                        third = vp_display_layout_for_application(@"com.example.reader");
                         fourth = vp_display_layout();
                         dispatch_semaphore_signal(recovered);
                     }

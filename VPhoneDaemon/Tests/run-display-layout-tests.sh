@@ -10,3 +10,9 @@ trap '/bin/rm -rf "$temporary"' EXIT
     -framework Foundation -framework IOKit -framework CoreGraphics \
     -o "$temporary/display-layout-tests"
 "$temporary/display-layout-tests"
+
+/usr/bin/xcrun --sdk macosx clang -fobjc-arc -fblocks -Wall -Wextra -Werror \
+    "$daemon/Tests/DisplayLayoutSceneTests.m" \
+    -framework Foundation -framework IOKit -framework CoreGraphics \
+    -o "$temporary/display-scene-tests"
+"$temporary/display-scene-tests"
