@@ -16,15 +16,18 @@ struct FirmwareGuestPatchResolutionTests {
         let format = FirmwareGuestSystemPatchSet.metalVertexIDFormat
         let restart = FirmwareGuestSystemPatchSet.glesPrimitiveRestart
         let point = FirmwareGuestSystemPatchSet.glesPointDraw
-        let selected: Set<String> = [format, restart, point]
+        let blit = FirmwareGuestSystemPatchSet.glesBlitOrientation
+        let selected: Set<String> = [format, restart, point, blit]
         let fresh = FirmwareGuestPatchResolution.glesUpdatePolicy(
             enabled: selected, previouslyApplied: [], unavailable: [format], gpuInstalled: false)
         #expect(fresh.skipped == [format, restart])
         #expect(fresh.preserved.isEmpty)
-        let independent = FirmwareGuestPatchResolution.glesUpdatePolicy(
-            enabled: selected, previouslyApplied: [], unavailable: [point], gpuInstalled: true)
-        #expect(independent.skipped == [point])
-        #expect(independent.preserved.isEmpty)
+        for optional in [point, blit] {
+            let independent = FirmwareGuestPatchResolution.glesUpdatePolicy(
+                enabled: selected, previouslyApplied: [], unavailable: [optional], gpuInstalled: true)
+            #expect(independent.skipped == [optional])
+            #expect(independent.preserved.isEmpty)
+        }
         for missing in selected {
             let installed = FirmwareGuestPatchResolution.glesUpdatePolicy(
                 enabled: selected, previouslyApplied: selected, unavailable: [missing], gpuInstalled: true)

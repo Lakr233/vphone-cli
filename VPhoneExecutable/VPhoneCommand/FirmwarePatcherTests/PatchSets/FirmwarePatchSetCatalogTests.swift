@@ -652,7 +652,8 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test(arguments: [FirmwareGuestSystemPatchSet.glesUpperLeft, FirmwareGuestSystemPatchSet.metalVertexIDFormat,
-                     FirmwareGuestSystemPatchSet.glesPrimitiveRestart, FirmwareGuestSystemPatchSet.glesPointDraw])
+                     FirmwareGuestSystemPatchSet.glesPrimitiveRestart, FirmwareGuestSystemPatchSet.glesPointDraw,
+                     FirmwareGuestSystemPatchSet.glesBlitOrientation])
     func `Native GLES corrections follow the driver transport across userland versions`(patch: String) throws {
         for base in ["26.4", "26.5", "26.6", "26.6.2", "26.7", "27.0.1", "27.1", "unknown"] {
             for cloud in ["26.1", "26.4", "26.5", "unknown"] {

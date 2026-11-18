@@ -256,6 +256,7 @@ public enum FirmwarePatchSetCatalog {
         FirmwareGuestSystemPatchSet.glesDepthClip,
         FirmwareGuestSystemPatchSet.metalCacheReuseKey,
         FirmwareGuestSystemPatchSet.glesPointDraw,
+        FirmwareGuestSystemPatchSet.glesBlitOrientation,
         FirmwareGuestSystemPatchSet.glesPrimitiveRestart,
         FirmwareGuestSystemPatchSet.metalVertexIDFormat,
         FirmwareGuestSystemPatchSet.textRecognitionANE,

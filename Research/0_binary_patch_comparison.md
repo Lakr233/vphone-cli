@@ -2150,6 +2150,7 @@ do NOT execute these).
 | 38  | `tbz` -> `nop` on the cached Neural Engine existence answer in `___deviceHasModernNeuralEngine_block_invoke`, plus the host's MIL sources for the five E5 models — **iOS 27** | TextRecognition, guest dyld shared cache; `/System/Library/PrivateFrameworks/TextRecognition.framework/cr_*_e5.mlmodelc.bundle` | **Accurate text recognition.** A VM is never given a modern Neural Engine, so TextRecognition picks CPU models whose weights the iPhone firmware does not ship. `dyld-cfw-text_recognition_ane` selects the E5 models instead and adds the `model.mil` and weights E5RT compiles them from on the paravirtual Neural Engine; local-symbol and call-target discovery, page re-attestation, undo-log revert and a journal of the added files. See "Accurate text recognition on the paravirtual Neural Engine". |    Y    |  Y  |  Y  |
 | 39  | Preserve GLES signed clip depth — **binary capability; validated iOS 26.6 / 27.1 with cloudOS 26.4** | AppleMetalGLRenderer and the GPU compiler plugin | **Keep legal negative-z geometry and correct depth rejection.** `dyld-cfw-gles_depth_clip` pairs `(z+w)/2` vertex conversion with `near=2*midpoint-far` viewport correction. Discover both setter and update data flow before writing. New unsupported pairs skip both halves; installed pairs remain coherent. Native Metal is unchanged. See the reveal procedure below and `Guest/gles_depth_clip.md`. |    Y    |  Y  |  Y  |
 | 40  | `tbnz` -> `nop` on the rotated-framebuffer branch in `CA::OGL::MetalContext::get_surface` (`ldrb wN,[surface,#0x110]; tbnz wN,#2` after `bl _CADeviceUseFramebufferCompression`; `0x184463b54` on iPad16,1 24A446) — **iOS 27** | QuartzCore, guest dyld shared cache | **iPad pointer visible in landscape.** Without framebuffer compression, which the paravirtual GPU does not report, CA creates a landscape framebuffer texture with `setRotation:3`; real iPads always render panel-native. In that rotated texture the paravirtual GPU drops shape-layer coverage from layers that do not rotate with the interface, so pointeruid's shape-masked arrow, hosted in SpringBoard's portrait-fixed pointer windows, never reaches the host view. `dyld-cfw-quartzcore_unrotated_framebuffer` takes the compression path instead; the display orientation (backboardd hit testing) is unchanged. Local-symbol discovery, branch target verified as the landscape orientation test, one site, page re-attestation, undo-log revert. Validated live by the same nop in the running backboardd; see `Guest/ipad_pointer_landscape_scanout.md`. |    Y    |  Y  |  Y  |
+| 41  | Correct internal GLES framebuffer-copy orientation — **cloudOS 26.4 transport; binary discovery across iOS layouts** | AppleMetalGLRenderer, guest dyld shared cache | **Upright blits while preserving requested reversals.** `dyld-cfw-gles_blit_orientation` complements row 31 and fixes the copy path in issue #941. Reflect destination Y in a private six-vertex copy; keep source UVs and caller storage intact. Bounded executable padding, transactional re-attestation and independent undo. Reveal and validation below. |    Y    |  Y  |  Y  |
 
 ### Swift port status — the eight DSC patchers (2026-09-23)
 
@@ -6837,6 +6838,55 @@ existing viewport/scissor path at constructor entry only while the installer
 marker exists, preserving explicit environment values. It avoids the private
 IOSurface attachment `yInvert` flag that had no effect in PV controls.
 No Apple binary changes; opt-out removes the marker.
+
+**Framebuffer copies, `dyld-cfw-gles_blit_orientation` (row 41).** The existing
+upper-left setting fixes ordinary draws, but the internal blit disables viewport
+transformation and PV loses attachment Y inversion. This leaves the Analytics
+chart in [issue #941](https://github.com/Lakr233/vphone-cli/issues/941) inverted
+even with `AGX_GL_VIEWPORT_INVERT_CONFIG=UPPER_LEFT` active.
+
+Reproduce with GLES 3: render an asymmetric quadrant pattern into a single-sample
+RGBA8 renderbuffer, then `glBlitFramebuffer` to a same-size `CAEAGLLayer` drawable
+with equal full-size rectangles, `GL_COLOR_BUFFER_BIT` and `GL_LINEAR` or
+`GL_NEAREST`, followed by `presentRenderbuffer:`. The copy is inverted while an
+ordinary drawable draw and an offscreen-destination control are correct.
+Reversing the destination Y bounds must still reverse the corrected image.
+
+Reveal `_gldBlitFramebufferData` and `GLDContextRec::updateRenderViewport` within
+their symbol-bounded executable spans. Follow the origin-byte comparison with
+1 through the framebuffer/data/height loads and subtraction. Accept the iOS 26
+indexed byte load and iOS 27 ADD/LDRB layout; resolve actual selector targets,
+including shared ObjC stubs. Prove both position/UV submissions and six-vertex
+triangle draws with viewport transformation disabled, consistent encoder and
+context lifetimes, and six float4 Z/W pairs from the `(0, 1)` literal. The second
+pass's pre-indexed slot load is valid; a post-indexed load is not equivalent.
+
+Two BLs reach a generated 196-byte wrapper. For origin 1 it copies all six
+positions and changes only `Y = height - Y`; other origins tail-call the original
+setter. Source UVs, caller storage and the native ABI stay intact. The wrapper
+uses bounded executable `__TEXT` page-tail padding before the next image,
+separate from older header trampolines. Mixed calls, an occupied/orphaned body
+or a changed previous program are refused before writing. Writes, re-attestation
+and readback use the existing DSC transaction; repeats write nothing and undo
+restores original bytes and page hashes without undoing other patches.
+
+The default iPhone preset selects it for cloudOS 26.4 without an iOS-userland
+whitelist; non-iPhone presets exclude it. Discovery misses skip a new correction
+or preserve an installed GLES group coherently. Use the existing patch selection
+and environment-update flow to apply/revert, or
+`cfw patch-gles-blit-orientation <cache> --dry-run` for read-only discovery.
+
+Original iOS 26.1 (23B85), 26.6.2 (23G90) and 27.1 (24A94425) caches pass discovery,
+apply, repeat, serialized undo and mapped-cache byte-identity checks. These are
+binary checks, not runtime coverage for all three userlands. Production-generated
+bytes on iOS 26.6.2/cloudOS 26.4 pass a separate local GLES 3 reproducer's 18
+single-sample cases, with 288 screen and 288 readback samples, including reversed,
+clipped and scissored copies and depth/stencil attachments. Off/on/off controls
+restore the original failure. The empty TikTok chart's labels, baseline and grid
+also become upright only with the correction. Populated charts remain untested.
+The MSAA diagnostic requests four samples and stays black in both states despite
+no GL error; its actual sample count and root cause remain unverified. Runtime trials
+used private process pages; persistent environment update/reboot remain untested.
 
 **Descriptor, `dyld-cfw-metal_vertex_id_format` (row 32).** Resolve Metal's
 image-local `PipelineLibrarySerializer::serializeVertexDescriptor` and format
