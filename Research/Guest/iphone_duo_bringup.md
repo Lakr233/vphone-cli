@@ -5757,5 +5757,12 @@ ambiguous scenes, and fresh geometry between wait polls. Running it with
 `--input-source` set to the previous handler fails the (587, 48) conversion
 assertion. The native admission test also exercises both layout entry points
 sharing one bounded admission slot.
-These checks do not establish the private API's behavior or tap delivery in
-a running guest; the native build and a guest cover/inner A/B remain required.
+
+The bundle build at `c05b1060` passed the native layout tests, semantic handler tests, bundle verification and RPC schema checks. The handler tests use simulated display and AX data. On an earlier build, a reviewer confirmed that taps landed on both Duo panels and reproduced the orientation-zero refusal on two iPhone17,3 guests. [Bundle CI](https://github.com/Lakr233/vphone-cli/actions/runs/44117261247) and [guest test results](https://github.com/Lakr233/vphone-cli/pull/938#pullrequestreview-5935649335).
+
+To retest the orientation-zero fix, use both reported iPhone17,3 configurations (iOS 27.2 build 24B119 on cloudOS 26.4 and 27.2). Start at the top level of Settings in English with General visible.
+
+1. Confirm that `display.layout` reports `interface_orientation: 0` and 393 × 852 bounds. Find General in the flat `ui.tree`.
+2. Call `ui.tap_element` with `{"text":"General","match":"exact"}`. Check that the General page shows Software Update.
+3. Call `ui.wait` and then `ui.tap_element` with `{"text":"About","match":"exact"}`. Verify that the About page opens.
+4. Call `ui.wait_gone` with `{"text":"Software Update","match":"exact"}`. Expect `disappeared: true`.
