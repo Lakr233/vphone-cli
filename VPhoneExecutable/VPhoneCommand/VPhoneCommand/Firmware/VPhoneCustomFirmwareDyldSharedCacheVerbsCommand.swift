@@ -90,6 +90,7 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
             VPhoneCustomFirmwarePatchTextRecognitionANECommand.self,
             VPhoneCustomFirmwarePatchMetalCacheReuseKeyCommand.self,
             VPhoneCustomFirmwarePatchGLESPointDrawCommand.self,
+            VPhoneCustomFirmwarePatchGLESBlitCommand.self,
             VPhoneCustomFirmwarePatchGLESDepthClipCommand.self,
             VPhoneCustomFirmwarePatchHomeViewEnvironmentCommand.self,
             VPhoneCustomFirmwarePatchSettingsSoftwareUpdateCommand.self,
@@ -430,6 +431,36 @@ struct VPhoneCustomFirmwarePatchGLESDepthClipCommand: ParsableCommand {
         var captured = DyldSharedCacheUndoLog()
         do {
             try DyldSharedCacheGLESDepthClipPatcher.patch(
+                chunksDirectory: chunksDirectory, dryRun: dryRun, captureUndo: undo.captures,
+                onUndo: { captured.merge($0) }, log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout
+            )
+        } catch {
+            do { try undo.persist(captured, dryRun: dryRun) }
+            catch let persistenceError {
+                throw ValidationError("\(error.localizedDescription) Recovery undo could not be saved: \(persistenceError.localizedDescription)")
+            }
+            throw error
+        }
+        try undo.persist(captured, dryRun: dryRun)
+    }
+}
+
+// MARK: - patch-gles-blit-orientation
+
+struct VPhoneCustomFirmwarePatchGLESBlitCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-gles-blit-orientation",
+        abstract: "Preserve GLES framebuffer copy orientation on paravirtual Metal"
+    )
+
+    @Argument(transform: URL.init(fileURLWithPath:)) var chunksDirectory: URL
+    @Flag(name: .customLong("dry-run")) var dryRun = false
+    @OptionGroup var undo: DyldSharedCacheUndoOptions
+
+    func run() throws {
+        var captured = DyldSharedCacheUndoLog()
+        do {
+            try DyldSharedCacheGLESBlitPatcher.patch(
                 chunksDirectory: chunksDirectory, dryRun: dryRun, captureUndo: undo.captures,
                 onUndo: { captured.merge($0) }, log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout
             )

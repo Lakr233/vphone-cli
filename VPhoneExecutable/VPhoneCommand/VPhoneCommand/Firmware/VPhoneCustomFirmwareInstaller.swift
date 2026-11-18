@@ -2070,6 +2070,7 @@ struct VPhoneCustomFirmwareInstaller {
             (FirmwareGuestSystemPatchSet.metalVertexIDFormat, "patch-metal-vertex-id-format", [dsc]),
             (FirmwareGuestSystemPatchSet.glesPrimitiveRestart, "patch-gles-primitive-restart", [dsc]),
             (FirmwareGuestSystemPatchSet.glesPointDraw, "patch-gles-point-draw", [dsc]),
+            (FirmwareGuestSystemPatchSet.glesBlitOrientation, "patch-gles-blit-orientation", [dsc]),
             (FirmwareGuestSystemPatchSet.glesDepthClip, "patch-gles-depth-clip", [dsc]),
             (FirmwareGuestSystemPatchSet.homeViewEnvironmentService, "patch-homeview-environment", [dsc]),
             (FirmwareGuestSystemPatchSet.settingsSoftwareUpdate, "patch-settings-software-update", [dsc]),
@@ -2134,6 +2135,12 @@ struct VPhoneCustomFirmwareInstaller {
         if on(FirmwareGuestSystemPatchSet.glesPointDraw) {
             try probeGLES(FirmwareGuestSystemPatchSet.glesPointDraw) {
                 _ = try DyldSharedCacheGLESPointDrawPatcher.patch(
+                    chunksDirectory: URL(fileURLWithPath: dsc), dryRun: true, log: nil)
+            }
+        }
+        if on(FirmwareGuestSystemPatchSet.glesBlitOrientation) {
+            try probeGLES(FirmwareGuestSystemPatchSet.glesBlitOrientation) {
+                try DyldSharedCacheGLESBlitPatcher.patch(
                     chunksDirectory: URL(fileURLWithPath: dsc), dryRun: true, log: nil)
             }
         }
@@ -3066,6 +3073,7 @@ struct VPhoneCustomFirmwareInstaller {
                 || id == FirmwareGuestSystemPatchSet.metalCacheReuseKey
                 || id == FirmwareGuestSystemPatchSet.metalVertexIDFormat
                 || id == FirmwareGuestSystemPatchSet.glesPointDraw
+                || id == FirmwareGuestSystemPatchSet.glesBlitOrientation
                 || id == FirmwareGuestSystemPatchSet.glesDepthClip
                 || id == FirmwareGuestSystemPatchSet.glesPrimitiveRestart
                 || id == FirmwareGuestSystemPatchSet.textRecognitionANE {

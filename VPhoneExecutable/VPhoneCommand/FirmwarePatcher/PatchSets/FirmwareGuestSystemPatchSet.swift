@@ -54,6 +54,7 @@ public enum FirmwareGuestSystemPatchSet {
     public static let metalVertexIDFormat = "dyld-cfw-metal_vertex_id_format"
     public static let glesPrimitiveRestart = "dyld-cfw-gles_primitive_restart"
     public static let glesPointDraw = "dyld-cfw-gles_point_draw"
+    public static let glesBlitOrientation = "dyld-cfw-gles_blit_orientation"
     public static let glesDepthClip = "dyld-cfw-gles_depth_clip"
     public static let metalCacheReuseKey = "dyld-cfw-metal_cache_reuse_key"
     public static let textRecognitionANE = "dyld-cfw-text_recognition_ane"
@@ -539,6 +540,19 @@ public enum FirmwareGuestSystemPatchSet {
             ),
 
             // MARK: Shared Cache Policy
+
+            VPhonePatchDeclaration(
+                identifier: glesBlitOrientation,
+                title: "GLES framebuffer blit orientation",
+                summary: """
+                Makes internal framebuffer copies use the renderer's viewport origin \
+                even when the paravirtual GPU drops attachment Y inversion. Discovers \
+                the position submissions and framebuffer dimensions from the binary; \
+                ordinary draws, caller buffers and source texture coordinates stay intact.
+                """,
+                target: .dyldSharedCache,
+                applicability: VPhonePatchApplicability(cloudOS: .release(major: 26, minor: 4)),
+            ),
 
             // Depth conversion and its cache dependencies are not tied to an
             // OS release. Their patchers verify the actual binary semantics;

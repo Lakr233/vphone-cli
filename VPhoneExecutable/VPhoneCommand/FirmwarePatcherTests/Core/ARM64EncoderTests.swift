@@ -72,6 +72,37 @@ struct ARM64ViewportEncoderTests {
     }
 }
 
+@Suite("GLES blit position encoders")
+struct ARM64BlitEncoderTests {
+    // Independently assembled with Keystone 0.9.2's native C API.
+    @Test func `matches Keystone and rejects unencodable operands`() throws {
+        let cases: [(String, UInt32, Data?)] = [
+            ("ldrh", 0x7941_6A10, ARM64Encoder.encodeLdrHUnsignedOffset(rt: 16, rn: 16, offset: 180)),
+            ("ldr", 0x3DC0_1440, ARM64Encoder.encodeLoadStoreSIMD(load: true, quad: true, rt: 0, rn: 2, offset: 80)),
+            ("str", 0x3D80_17E0, ARM64Encoder.encodeLoadStoreSIMD(load: false, quad: true, rt: 0, rn: 31, offset: 80)),
+            ("ldr", 0xBD40_5440, ARM64Encoder.encodeLoadStoreSIMD(load: true, quad: false, rt: 0, rn: 2, offset: 84)),
+            ("str", 0xBD00_57E0, ARM64Encoder.encodeLoadStoreSIMD(load: false, quad: false, rt: 0, rn: 31, offset: 84)),
+            ("ucvtf", 0x1E23_0207, ARM64Encoder.encodeUcvtfSFromW(rd: 7, rn: 16)),
+            ("fsub", 0x1E20_38E0, ARM64Encoder.encodeFsubS(rd: 0, rn: 7, rm: 0)),
+        ]
+        for (mnemonic, word, encoded) in cases {
+            #expect(encoded == ARM64.encodeU32(word))
+            #expect(try ARM64Disassembler().disassembleOne(#require(encoded))?.mnemonic == mnemonic)
+        }
+        for offset: UInt32 in [1, 8192, .max] {
+            #expect(ARM64Encoder.encodeLdrHUnsignedOffset(rt: 0, rn: 0, offset: offset) == nil)
+        }
+        for quad in [false, true] {
+            let scale: UInt32 = quad ? 16 : 4
+            for offset in [scale - 1, scale * 4096] {
+                #expect(ARM64Encoder.encodeLoadStoreSIMD(load: true, quad: quad, rt: 0, rn: 0, offset: offset) == nil)
+            }
+        }
+        #expect(ARM64Encoder.encodeUcvtfSFromW(rd: 32, rn: 0) == nil)
+        #expect(ARM64Encoder.encodeFsubS(rd: 0, rn: 0, rm: 32) == nil)
+    }
+}
+
 // LDR literal and BR cases below were checked using the same native Keystone
 // 0.9.2 C driver, outside the repository, for the iOS 16 IOSurface transport stub.
 

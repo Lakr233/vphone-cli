@@ -47,6 +47,31 @@ public enum ARM64Condition: UInt32, Sendable, CaseIterable {
 }
 
 public enum ARM64Encoder {
+    /// LDRH Wt, [Xn|SP, #offset], unsigned halfword offset.
+    public static func encodeLdrHUnsignedOffset(rt: UInt32, rn: UInt32, offset: UInt32) -> Data? {
+        guard rt < 32, rn < 32, offset % 2 == 0, offset / 2 < 4096 else { return nil }
+        return ARM64.encodeU32(0x7940_0000 | ((offset / 2) << 10) | (rn << 5) | rt)
+    }
+
+    /// LDR/STR of an S or Q register with an unsigned, naturally scaled offset.
+    public static func encodeLoadStoreSIMD(load: Bool, quad: Bool, rt: UInt32, rn: UInt32, offset: UInt32) -> Data? {
+        let scale: UInt32 = quad ? 16 : 4
+        guard rt < 32, rn < 32, offset % scale == 0, offset / scale < 4096 else { return nil }
+        let opcode: UInt32 = quad ? 0x3D80_0000 : 0xBD00_0000
+        return ARM64.encodeU32(opcode | (load ? 1 << 22 : 0) | ((offset / scale) << 10) | (rn << 5) | rt)
+    }
+
+    /// UCVTF Sd, Wn (integer W register, not the SIMD scalar form).
+    public static func encodeUcvtfSFromW(rd: UInt32, rn: UInt32) -> Data? {
+        guard rd < 32, rn < 32 else { return nil }
+        return ARM64.encodeU32(0x1E23_0000 | (rn << 5) | rd)
+    }
+
+    public static func encodeFsubS(rd: UInt32, rn: UInt32, rm: UInt32) -> Data? {
+        guard rd < 32, rn < 32, rm < 32 else { return nil }
+        return ARM64.encodeU32(0x1E20_3800 | (rm << 16) | (rn << 5) | rd)
+    }
+
     /// FCVTZS Xd, Dn: signed double-to-64-bit conversion toward zero.
     /// sf=1, floating type=01, rmode=11; Rn occupies [9:5], Rd [4:0].
     public static func encodeFcvtzsXFromD(rd: Int, rn: Int) -> Data? {

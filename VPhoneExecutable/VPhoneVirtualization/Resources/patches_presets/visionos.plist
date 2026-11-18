@@ -115,6 +115,7 @@
 			<string>dyld-cfw-quartzcore_unrotated_framebuffer</string>
 			<string>dyld-cfw-gles_depth_clip</string>
 			<string>dyld-cfw-gles_point_draw</string>
+			<string>dyld-cfw-gles_blit_orientation</string>
 			<string>dyld-cfw-gles_primitive_restart</string>
 			<string>dyld-cfw-metal_cache_reuse_key</string>
 			<string>dyld-cfw-metal_vertex_id_format</string>
