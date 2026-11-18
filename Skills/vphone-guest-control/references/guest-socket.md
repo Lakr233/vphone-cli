@@ -2,8 +2,8 @@
 
 Every launch (headless too) serves `<library>/<name>/vphone.sock`, a Unix
 socket that takes one JSON object per connection and returns one JSON line.
-Connections are served concurrently. `vphone-launchpad-cli guest send` is the
-normal way to use it; for scripts `nc -U` works the same:
+`vphone-launchpad-cli guest send` is the normal way to use it; for scripts
+`nc -U` works the same:
 
 ```sh
 vphone-launchpad-cli guest send myphone '{"t":"ping"}'
@@ -57,22 +57,16 @@ and that last line still arrive. A pipe is therefore a script:
 
 For a terminal you type into, put your own in raw mode so every key goes to
 the guest as typed; `^C` is then simply byte 3, which the guest's terminal
-driver turns into a signal. When the session ends, press one more key to get
-the prompt back, because `cat` is still waiting for one:
+driver turns into a signal. When the session ends, press one more key, because `cat` is still waiting:
 
 ```zsh
 stty raw -echo; { print '{"t":"shell"}'; cat } | nc -U "$machine/vphone.sock"; stty sane
 ```
 
-The guest side is vphoned's `/v1/shell`, so `program` resolves the same way
-there: unset for the JavaScript session, a bare name from the bootstrap's
-`bin`, `usr/bin` and `usr/local/bin`, or an absolute path. A client that goes
-away altogether, rather than only ending its input, hangs the terminal up and
-the session goes with it.
-
-The VM window's **Diagnostics ▸ Debug Session** (⌥⌘T) opens the same route in a
-terminal view, and `script.eval` through `rpc` runs one script without a
-terminal at all. See "Scripting sessions" in
+`program` is unset for the JavaScript session, a bare name from the
+bootstrap's `bin`, `usr/bin` and `usr/local/bin`, or an absolute path. A client
+that goes away altogether hangs the terminal up. The VM window's **Diagnostics
+▸ Debug Session** (⌥⌘T) opens the same route; see "Scripting sessions" in
 `Research/vphoned_http_api.md`.
 
 ## Replies and the attached screen
@@ -80,7 +74,7 @@ terminal at all. See "Scripting sessions" in
 Success is `{"ok":true}`, with `result` for `rpc`, `path` for `screenshot`, and
 `image` when a screen is attached. Failure is `{"ok":false,"error":"…"}`.
 
-- `image` is a **small color JPEG, base64**: the screen at a third of its
+- `image` is a **small color JPEG, base64**: the screen at reduced
   size and low quality, meant for a quick "did something change" glance. It is
   not the real screen. For anything you must read (small text, exact colors,
   layout), take a `screenshot` to a file and open the file, or use
@@ -88,13 +82,12 @@ Success is `{"ok":true}`, with `result` for `rpc`, `path` for `screenshot`, and
 - `tap`, `swipe`, `key` and `type` attach one by default, 500 ms after the
   action. Add `"screen":false` to skip it; add `"delay":<ms>` for slow
   animations. `rpc` attaches none unless `"screen":true` (CLI: `guest rpc … --screen`).
-- Inputs on the socket are serialized by the host, so a quick series of
-  `tap` calls keeps its order. Wait for the reply before issuing the next.
+- Inputs are serialized by the host; wait for each reply before the next.
 
 ## Coordinates
 
 The socket's `tap` and `swipe` take **pixel coordinates of the screen**, the
-`screen.screenshot` size (1179×2556 on a new iPhone17,3; origin top left).
+size `screen.screenshot` reports (origin top left).
 The vphoned methods `input.tap`, `input.swipe` (`from`/`to` `[x,y]` pairs) and
 friends take **screen points**, as `device.screen` reports. Do not mix the two
 in one script. When you do not know where a control is, do not guess: call
@@ -125,8 +118,6 @@ paste for long or non-ASCII text.
   toggle. Check with `ping`, then `screenshot` to a file and look at it.
   A machine with `vm config <name> --unlock-at-startup on` (run through
   `vphone-launchpad-cli exec`) is unlocked by the host each time it starts.
-- **Home:** `{"t":"key","name":"home"}`; **power** wakes or locks.
 - **Open an app without hunting for its icon:** `apps.launch` with the bundle id.
 - **Scroll a list:** swipe from lower to upper y, e.g. 2600 → 1400 at x 645.
-- **Retry on flaps:** `guest not connected` (shown as `客体代理未连接` in the
-  app) means the guest connection dropped mid-call. Wait a second and repeat; see [troubleshooting](troubleshooting.md).
+- **Retry on flaps:** see `guest not connected` in [troubleshooting](troubleshooting.md).

@@ -1,61 +1,41 @@
 # vphoned methods
 
 `guest rpc <machine> <method> '<params-json>'` calls a method in the guest's
-daemon, through the machine's `vphone.sock`. Params are one JSON object (omit
-for none). The reply is `{"ok":true,"result":{…}}`. On `ok:false` the CLI exits 1 with
-"The machine refused the request. Try again." and puts the guest's own error
-(for example `guest not connected` or `Unknown method: …`) on stderr. When
-vphoned itself refused, the last stderr line is its whole error object as JSON
-(`code`, `message` and fields such as `results`, `reason`, `errno`,
-`retryable`); `vphone.sock` carries the same object as `guest_error`. Add `--screen` to also get the small screen image.
+daemon through the machine's `vphone.sock`. Params are one JSON object (omit
+for none). The reply is `{"ok":true,"result":{…}}`. On `ok:false` the CLI exits 1
+and puts the guest's own error (for example `guest not connected` or
+`Unknown method: …`) on stderr; when vphoned itself refused, the last stderr
+line is its error object as JSON (`vphone.sock` carries it as `guest_error`).
+`--screen` also returns the small screen image. Full catalog:
+`Research/vphoned_http_api.md` ("Method catalog").
 
-Result shapes are not listed here: `methods.list` is the authority. Each method's
-`result` array gives its keys as `name`, `type`, `required` and `open`
-(an open result may carry keys beyond those listed). Call it instead of guessing.
-Each method and param also carries a `description`; `Research/vphoned_http_api.md`
-lists the full field set.
+## How to read methods.list
 
-The complete catalog, with REST routes and behaviour, is
-`Research/vphoned_http_api.md` ("Method catalog"). This file is the working
-subset with parameter names checked against the daemon source
-(`VPhoneDaemon/Daemon/GuestAPI*.swift`). When a call fails with an
-invalid-request error, read the source named there instead of guessing keys.
-
-## Contents
-
-- Conventions
-- Device and screen
-- Input
-- UI inspection
-- Apps
-- Installing an app
-- Files
-- Processes, logs, services
-- System and preferences
-- Bootstrap
-- Running a script in the guest
-- Raw HTTP and WebSocket
+`methods.list` (no params) is the authority for params and results. Call it
+once, filter by area (name prefix such as `files.`), and read each method's
+`params` (`name`, `type`, `required`, default, `description`) and `result`
+array (`name`, `type`, `required`, `open`; an `open` result may carry more
+keys). Read `force` as `always`, `never` or `when:<key>` (`services.kickstart`
+is `when:kill`). To test for a method, look for it there; a missing method
+fails with `not_found`, usually an older guest environment ([machines](machines.md)).
+`/v1/health` capability flags exist only over HTTP with `vm launch --api-listen`.
 
 ## Conventions
 
-- Coordinates for `input.*` and `ui.element_at` are **screen points** as
-  `device.screen` reports, not the pixels used by the socket's `tap`.
+- `input.*` and `ui.element_at` take **screen points**, not pixels
+  ([guest-socket](guest-socket.md)).
 - Every `input.*` method takes optional `observe` (boolean, false) and
-  `observe_delay_ms` (integer 0...5000, 300). With `observe: true` the reply
-  gains `observed: {frontmost_bundle_id, frontmost_verified, ui_element_count}`
-  after the delay; `ui_element_count` counts visible `ui.tree` elements and is
-  capped at 500 (500 means 500 or more). A failed observe gives
+  `observe_delay_ms` (0...5000, 300). With `observe: true` the reply gains
+  `observed: {frontmost_bundle_id, ui_element_count, …}` after the delay;
+  `ui_element_count` is capped at 500. A failed observe gives
   `observed: {observe_error}` and the action still succeeds.
-- **force methods** refuse to run unless the params carry `"force":true`.
-  `methods.list` (no params) lists every method with its params and its
-  `force` value (`always`, `never` or `when:<key>`, as for `services.kickstart`
-  with `kill`); this list is the authority. The flag is the confirmation: use it
-  only for what the user asked. Without it the call fails with `force_required`
-  and the hint `Confirm with the user, then repeat the call with force: true`.
-- **Errors** are `{code, message, hint?}`. BREAKING: codes changed, and a param
-  the method does not list now fails with `invalid_param` (it was dropped before).
-  Read `hint`: it names the fix (the closest param or method, valid values).
-  It is absent when there is none.
+- **force methods** refuse to run unless the params carry `"force":true`. The
+  flag is the confirmation: use it only for what the user asked. Without it
+  the call fails with `force_required` and the hint `Confirm with the user,
+  then repeat the call with force: true`.
+- **Errors** are `{code, message, hint?}`; read `hint`, which names the fix
+  (the closest param or method, valid values) and is absent when there is none.
+  A param the method does not list fails with `invalid_param`.
 
   | Code | Meaning |
   | --- | --- |
@@ -65,224 +45,72 @@ invalid-request error, read the source named there instead of guessing keys.
   | `force_required` | Repeat with `"force":true` after the user confirms |
   | `permission` | The OS refused for lack of entitlement or access |
   | `invalid_operation` | Any other operation failure |
-  | `already_done`, `location_services_off` | Existing codes, unchanged |
-- Results can be large. Methods that read data take `limit`, `max_lines`,
-  `max_elements` or a `filter`; use them. A reply in the 8–16 KiB band can be
-  lost on close (see [troubleshooting](troubleshooting.md)).
+  | `already_done` | The operation was already in that state |
+
+  **Guest not connected:** retry rule in [troubleshooting](troubleshooting.md).
+- Results can be large: use `limit`, `max_lines`, `max_elements` or `filter`.
 - **Paging.** `apps.list`, `processes.list`, `services.list`, `services.dump`,
   `files.list`, `files.find`, `apfs.snapshots` and `logs.crashes` return at most
-  `limit` entries (1 to 1000, default 200, so a long list is cut by default). The
-  reply has `total` and `truncated`; when `truncated` is true it has
-  `next_cursor`: pass it as `cursor` for the next page. A bad `limit` or
-  `cursor` fails with code `invalid_param`; on a bad cursor repeat the call without
-  one. `processes.spawn` returns a first page per stream (`max_output_bytes`) and
-  spools the rest; page it with `processes.output` (see below).
-- Capability flags in `/v1/health` tell which areas this vphoned supports (`methods`
-  means it answers `methods.list`). An
-  `not_found` "Unknown method" error against an older guest means update its environment
-  ([machines](machines.md)).
+  `limit` entries (1 to 1000, default 200, so a long list is cut by default).
+  The reply has `total` and `truncated`; when `truncated` is true it has
+  `next_cursor`: pass it as `cursor` for the next page. A bad cursor fails with
+  `invalid_param`; repeat without one. `processes.spawn` returns a first page
+  per stream and spools the rest; page it with `processes.output`. Spools expire
+  after 10 minutes (`not_found`; repeat the spawn).
 
-## Device and screen
+## Method areas
 
-| Method | Params | Notes |
-| --- | --- | --- |
-| `device.info` | none | Snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode, `ios_build` and `udid` (the `udid.set` override, else the guest's own, as usbmuxd lists it). Start here |
-| `device.snapshot`, `device.screen`, `device.network` | none | Smaller views of the same |
-| `screen.screenshot` | `max_dimension?` (integer, 1 or more), `quality?` (0.1-1.0), `region?` `{x, y, width, height}` in points | Base64 JPEG at the panel's pixel size (1179×2556 on a new iPhone17,3); `max_dimension` scales the longer side down, `region` crops first. Reply adds `point_width`, `point_height`, `region`; pixel `(px, py)` is point `(region.x + px / coordinate_scale, region.y + py / coordinate_scale)`. Bad values fail with `invalid_param` |
-| `display.brightness`, `audio.volume` | `value?` | Omit `value` to read |
-| `audio.host_latency` | `seconds?` (0-1) | The Mac output latency the guest speaker adds; omit to read. The VM sends it on every connect and output change |
-| `display.rotation`, `display.orientation` | `orientation?` | |
-| `display.auto_lock` | none | Auto-Lock in seconds (`never` when it is Never) and the Lock Screen timeout vphoned sets to match |
-| `screen.unlock` | `passcode?`, `timeout_ms?` (10000) | Display on and Lock Screen passed, from any state; `guest unlock <machine>` calls it. `passcode` only for a guest that has one, entered once |
-| `device.ioreg` | `plane` | e.g. `IODeviceTree` |
-
-## Input
-
-| Method | Params |
-| --- | --- |
-| `input.tap` | `x`, `y` |
-| `input.double_tap` | `x`, `y`, `interval?` (0.1) |
-| `input.long_press` | `x`, `y`, `seconds?` (1) |
-| `input.swipe` | `from` (`[x,y]`), `to` (`[x,y]`), `seconds?` (0.3), `steps?` (20) |
-| `input.drag` | `points` (≥2 `[x,y]` pairs), `seconds?`, `hold?`, `steps?`; answers `{count}` |
-| `input.touch_sequence` | `events` (`{phase,x,y,delay_ms}`), `normalized?` (true) |
-| `input.button` | `name` (hardware button) |
-| `input.key` | `name` (`return`, `cmd+v`, …) |
-| `input.type` | `text`, `delay_ms?` (30) |
-| `input.paste` | `text` |
-| `input.pointer` | `x`, `y` (0...1 of the interface as shown; iPad, capability `pointer_scroll`), `seq?` (increasing; a late move is dropped) |
-| `input.scroll` | `phase` (`began`/`changed`/`ended`/`cancelled`), `dx?`, `dy?` (points, wheel signs), `x?`, `y?` |
-
-## UI inspection
-
-Prefer these to coordinates.
-
-| Method | Params | Notes |
-| --- | --- | --- |
-| `ui.describe` | none | Short description of the screen; cheapest orientation |
-| `ui.tree` | `max_elements?` (500), `visible_only?` (true), `clickable_only?`, `limit?` | Accessibility elements with positions |
-| `ui.element_at` | `x`, `y` | |
-| `ui.tap_element` | selector | Taps the match |
-| `ui.wait`, `ui.wait_gone` | selector, `timeout_ms?` (10000; 0–60000) | Wait for an element to appear or go |
-| `ui.ocr` | `languages?` (`["en-US"]`), `min_confidence?` (0.3) | Text with boxes; use for non-accessible UI |
-
-Selector keys: `text`, `identifier`, `role`, `match` (`contains` by default),
-`index` (0). Example:
-`ui.tap_element '{"text":"General","match":"contains"}'`.
-
-## Apps
-
-| Method | Params |
-| --- | --- |
-| `apps.list` | `filter?` (`all` default), `limit?`, `cursor?` (paging) |
-| `apps.search` | `query` |
-| `apps.launch` | `bundle_id`, `url?` |
-| `apps.foreground` | none; reports the verified front app |
-| `apps.terminate` | `bundle_id` |
-| `apps.open_url` | `url`, `bundle_id?` |
-| `apps.info`, `apps.binary`, `apps.data_dir` | `bundle_id` |
-| `apps.refresh` | `directory?`; same as `system.uicache` for registration |
-| `apps.register`, `apps.registration` | `path` |
-| `apps.uninstall` (force) | `bundle_id` |
-
-`frontmost_verified:false` on a launch means the process started but no unique
-foreground app could be confirmed. Check with a screenshot.
+Names only; params come from `methods.list`. Prefer `ui.*` to coordinates.
+- **Device, screen:** `device.*` (`device.info` first), `screen.screenshot`
+  (the reply gives `point_width`, `point_height`, `coordinate_scale`),
+  `screen.unlock`, `display.*`, `audio.*`.
+- **Input:** `input.*`. `input.type` types key by key; `input.paste` and
+  `clipboard.set` go through the pasteboard, faster for long or non-ASCII text.
+- **UI:** `ui.describe` (cheapest), `tree`, `element_at`, `tap_element`, `wait`,
+  `wait_gone`, `ocr`. Selector keys: `text`, `identifier`, `role`, `match`,
+  `index`.
+- **Apps:** `apps.*`. A launch reply with `frontmost_verified:false` means the
+  front app was not confirmed as this app (always so when `url` is passed);
+  check with a screenshot.
+- **Processes, logs, services:** `processes.*` (`spawn` runs `ps`, `launchctl`
+  or `log`, no shell), `logs.*`, `services.*`, `launchd.*`, `memory.*`,
+  `apfs.snapshots`.
+- **System:** `system.*`, `setup.*`, `developer_mode.*`, `settings.*`,
+  `notify.*`, `time.timezone`, `time.clock` (the VM resends the Mac's time
+  every minute, so a set time lasts only with `automatic: false`),
+  `keychain.*` (only on request; never print values), `location.*`: `set` and
+  `current` fail with `location_services_off` while Location Services is off;
+  `location.services` fails with `invalid_operation` if the switch did not change.
+- **Bootstrap:** `bootstrap.*`; flow in [guest-layout](guest-layout.md).
 
 ## Installing an app
 
-Never `xcrun devicectl`: it times out against these guests. Two routes with
-different meaning:
+Two routes with different meaning:
 
-- **Through installd** (what Xcode does, and the only route that exercises the
-  install gate): `ideviceinstaller -u <UDID> install App.ipa`. The UDID comes
-  from `idevice_id -l` or `vm list`.
+- **Through installd** (what Xcode does; exercises the install gate):
+  `ideviceinstaller -u <UDID> install App.ipa`. UDID: `idevice_id -l` or `vm list`.
 - **Through vphoned:** `apps.install '{"path":"/private/var/tmp/App.ipa"}'`,
-  optional `registration:"System"` and `cert_path`. `path` is a **guest** path,
-  and vphoned **deletes the file after installing**. It re-signs and places the
-  bundle itself, bypassing installd and the profile checks, and keeps the app's
-  own entitlements (so `get-task-allow` survives, which is the way to get a
-  debuggable test app in). Its `PlugIns/*.appex` are registered with the app,
-  so extensions (packet tunnels, share sheets, widgets) launch. It proves nothing about installd. To get the file
-  into the guest, see [guest-layout](guest-layout.md) ("Handing a file to
-  vphoned").
-
-Then launch with `apps.launch`.
+  optional `registration:"System"` and `cert_path`. `path` is a **guest** path
+  and vphoned **deletes the file after installing**. It re-signs the bundle,
+  bypassing installd and the profile checks, and keeps the app's entitlements
+  (`get-task-allow` survives); extensions are registered. It proves nothing
+  about installd. Getting the file in: [guest-layout](guest-layout.md).
 
 ## Files
 
-Paths are real-root paths. All take `path` unless noted.
-
-| Method | Params |
-| --- | --- |
-| `files.list` | `path`, `limit?`, `cursor?` (paging) |
-| `files.read` | `path`, `limit?`, `binary?` (base64), `offset?` (raw bytes, 0 to 1099511627776, default 0); with `offset` or `limit` the reply adds `total` (file bytes) and, while `truncated`, `next_offset` |
-| `files.write` | `path`, `content`, `encoding?` (`utf8`) |
-| `files.mkdir` | `path` |
-| `files.remove` | `path`, `recursive?` |
-| `files.rename` | `from`, `to` |
-| `files.copy` | `from`, `to` |
-| `files.find` | `root`, `pattern`, `limit?`, `cursor?` (paging) |
-| `files.symlink` | `target`, `link`, `replace?` |
-| `files.chmod` | `path`, `mode` |
-| `files.chown` | `path`, `owner` |
-| `files.plist` | `path` |
-| `files.plist_set` | `path`, `key`, and `value` or `remove:true` |
-
-`files.write` replaces the whole file and takes one JSON line of at most
-1 MiB, so a binary over about 700 KiB does not fit. Copy files of any size with
-`vphone-launchpad-cli guest push` and `guest pull`, which stream
-([guest-layout](guest-layout.md), "Handing a file to vphoned"). `files.read`
-with `binary:true` is for small reads; keep `limit` small, since large reads
-are the usual way to hit the reply size problem.
-
-## Processes, logs, services
-
-| Method | Params | Notes |
-| --- | --- | --- |
-| `processes.list` | `filter?`, `limit?`, `cursor?` (paging) | a stuck SpringBoard shows ~0 CPU |
-| `processes.spawn` | `executable` (`ps`, `launchctl`, `log`), `arguments?`, `timeout_ms?` (3000, 100 to 10000), `max_output_bytes?` (65536, 1 to 65536 per stream), `max_capture_bytes?` (2097152, 1 to 16777216 per stream) | First page per stream cut at a character boundary; `stdout_total` / `stderr_total` (bytes captured), `stdout_truncated` / `stderr_truncated`, `capture_truncated`; when truncated also `output_id` and `output_dir` (a timed-out spawn has neither) |
-| `processes.output` | `output_id`, `stream` (`stdout`, `stderr`), `offset?` (0 to 1099511627776 raw bytes), `limit?` (65536, 1 to 65536), `binary?` (base64 of the raw bytes) | Reply `data`, `total`, `next_offset` while more remains. `files.read` with `offset` on `<output_dir>/stdout` reads the same bytes |
-| `processes.output_release` | `output_id` | Removes the spool. Spools expire after 10 minutes, the spool dir is capped at 64 MiB and the oldest are evicted first; a released, expired or evicted id fails with code `not_found`, so repeat `processes.spawn`; a spawn that cannot fit fails with code `unavailable` ("spool full") |
-| `processes.kill` (force) | `pid`, `signal?` | |
-| `processes.spawn` | `executable` (`ps`, `launchctl`, `log`), `arguments?`, `timeout_ms?` (3000, 100–10000) | Bounded diagnostics, no shell |
-| `memory.jetsam`, `memory.pressure` | none | |
-| `logs.syslog` | `seconds?` (2, max 60), `process?`, `level?` (`all`), `max_lines?` (500) | A bounded capture |
-| `logs.crashes` | `bundle_id?`, `limit?`, `cursor?` (paging) | Lists reports |
-| `logs.crash` | `path` | Reads one report |
-| `services.list` | `limit?`, `cursor?` (paging) | launchd |
-| `apfs.snapshots` | `mount?` (`/`), `limit?`, `cursor?` (paging) | Lists a volume's APFS snapshots |
-| `services.dump` | `limit?`, `cursor?` (paging) | Every service with its description; the daemon builds the full dump, paging shrinks only the reply |
-| `services.status`, `services.print` | `label` | |
-| `services.start`, `services.enable` | `label` | |
-| `services.kickstart` | `label`, `kill?` | `launchctl kickstart`. `kill` (force) replaces a running instance, so a re-deployed daemon runs its new binary; without it a running service is left alone (capability `service_kickstart`) |
-| `services.stop`, `disable`, `remove`, `unload` (force) | `label` | |
-| `launchd.getenv` / `setenv` / `unsetenv` | `key`, `value?` | |
-
-## System and preferences
-
-| Method | Params |
-| --- | --- |
-| `system.uicache` | none; re-registers apps |
-| `system.respring` (force), `system.reboot` (force) | `userspace?` for reboot |
-| `system.shutdown` (force) | none; shuts the guest down, which stops the VM (capability `system_shutdown`) |
-| `setup.status` | none; `setup.skip` (force) skips Setup Assistant |
-| `developer_mode.status` / `enable` | none |
-| `settings.get` | `domain`, `key?` |
-| `settings.set` | `domain`, `key`, `value`, `type?` |
-| `settings.delete` | `domain`, `key` |
-| `clipboard.get` / `set` / `clear` | `set` takes `text` |
-| `location.set` / `clear` / `current` / `services` | `set` takes latitude/longitude; `current` takes `timeout_ms?` (10000); `set` and `current` fail with `location_services_off` while the guest's Location Services switch is off; `location.services` reads `{enabled}`, and `enabled: true/false` sets the switch and returns the state read back (fails with `operation_failed` if it did not change; idempotent, so re-read with `location.services` before retrying); read-back can fail on some guests |
-| `time.timezone` | none reads `{identifier, automatic, seconds_from_gmt}`; `identifier` (Olson name) pins the zone and turns automatic off; `automatic: true` hands it back to timed. The VM sends the Mac's zone on every connect |
-| `time.clock` | none reads `{time, automatic}` (seconds since 1970; `automatic` is timed's automatic time); `time` (the Mac's time) moves a guest more than a second away onto it unless `automatic` is off, and adds `offset` and `changed`; `automatic` turns automatic time on or off. The VM sends the Mac's time on every connect and every minute, so a time set this way lasts only with `automatic: false` |
-| `notify.post` / `notify.state` | `name`, `state?` |
-| `keychain.*` | Lists, adds and edits secrets; use only on request and never print values |
-
-## Bootstrap
-
-`bootstrap.install {layout, package_path?}`, `bootstrap.status` (a failed install answers `phase: failed` with `message`),
-`bootstrap.inspect`, `bootstrap.uninstall {roots, force, reboot?}`,
-`bootstrap.firmware`. Behavior and the install flow: [guest-layout](guest-layout.md).
+`files.*` paths are real-root paths. Read a small file with `files.read` (`path`). `files.write` replaces the whole file and takes one JSON line of at most 1 MiB,
+so a binary over about 700 KiB does not fit. For any size use
+`vphone-launchpad-cli guest push` and `guest pull` ([guest-layout](guest-layout.md)).
 
 ## Running a script in the guest
 
-`script.eval {source, timeout_ms?}` evaluates JavaScript with vphoned's own
-identity and answers `{ok, result, output, crashed}` (`message` replaces `result` when the script throws). It is the way to reach
-something no method covers, and on an Apple TV guest it is the only
-debugging environment there is: no shell, no package manager, no debugserver.
-`script.info` reports whether this guest has it (capability `script_js`;
-watchOS does not ship JavaScriptCore).
-
-The script runs in a session process of its own, so a crash or a runaway loop
-costs the session and nothing else; `timeout_ms` defaults to 30000. Inside
-it, `api('method', {...})` calls any method in this file, `ObjC.use('NSFoo')`
-and `ObjC.classes.NSFoo` call ObjC methods by name — an underscore stands for
-a colon, `setValue_forKey_(v, k)` — and `fs`, `proc`, `console` and `print`
-cover files, one program, and output. A returned collection stays an object;
-`$value` converts it to plain JSON.
-
-```sh
-guest rpc script.eval '{"source":"ObjC.use(\"NSProcessInfo\").processInfo().operatingSystemVersionString()"}'
-```
-
-Prefer a real method when one exists: it is checked, documented and stable.
-Reach for a script when nothing covers what is needed, then say so, because a
-missing method is usually worth adding. The interactive form is the
-`/v1/shell` WebSocket, which needs `--api-listen` — see
+`script.eval {source, timeout_ms?}` runs JavaScript with vphoned's identity in
+a separate session process. Use it only when no method covers the need;
+`script.info` says whether this guest has it. Details:
 `Research/vphoned_http_api.md` ("Scripting sessions").
 
 ## Raw HTTP and WebSocket
 
-The same methods are served as HTTP/WebSocket on guest VSOCK 1339. A host
-listener exists only if the VM was launched with `vphone-cli vm launch
---api-listen host:port` (the launch prints `[api] token: …`); `vm start` has no
-such option, so an agent cannot enable it through the CLI. Use it on loopback only:
-
-```sh
-curl -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"method":"device.snapshot","params":{}}' http://127.0.0.1:8765/v1/rpc
-```
-
-It adds streaming file transfer (`GET/PUT /v1/files/content?path=`), a TCP
-tunnel to a guest port (`/v1/ports/<port>` over WebSocket) and an event stream
-(`/v1/events`). Every `POST` needs `Content-Type: application/json`. Details
-and the 401/403/415/502 rules: `Research/vphoned_http_api.md` ("Access control").
+Served only when the VM was launched with `vphone-cli vm launch --api-listen
+host:port` (`vm start` has no such option); keep it on loopback. File streaming,
+tunnels, events, auth rules: `Research/vphoned_http_api.md`.

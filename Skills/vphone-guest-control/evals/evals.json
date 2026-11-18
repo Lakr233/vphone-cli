@@ -5,25 +5,100 @@
       "id": 1,
       "prompt": "I just downloaded vphone-launchpad 2.2.3 on a fresh Mac. Get me from here to a running machine called test01 using the newest firmware you can find. Show me the exact commands you would run and in what order; do not run them.",
       "expected_output": "Checks status first; links the CLI; installs a 2.2.x bundle (not a newer series); checks disk; vm create without hard-coded IPSWs (catalog default) or with explicit ones; vm start --wait; does not touch SIP/boot-args; mentions the admin password prompt.",
-      "files": []
+      "files": [],
+      "assertions": [
+        "Checks status or the installed CLI before creating anything",
+        "Installs a 2.2.x bundle and not a newer series",
+        "Runs vm create without hard-coded IPSW paths, or with explicit ones the user gave",
+        "Uses vm start --wait or a vm wait after vm start",
+        "Does not touch SIP or boot-args",
+        "Mentions the admin password prompt"
+      ]
     },
     {
       "id": 2,
       "prompt": "myphone is running. Open Settings, tell me what the screen shows, then read /etc/hosts from the guest. Show me the commands you would run; do not run them.",
       "expected_output": "Uses guest rpc apps.launch with bundle_id com.apple.Preferences, a screenshot to a file or ui.describe/ui.ocr (not the attached small image), files.read for /etc/hosts; no ssh, no devicectl.",
-      "files": []
+      "files": [],
+      "assertions": [
+        "Launches Settings with guest rpc apps.launch and bundle_id com.apple.Preferences",
+        "Gets the screen content via a screenshot written to a file, ui.describe or ui.ocr",
+        "Reads /etc/hosts with guest rpc files.read",
+        "Does not use ssh or devicectl"
+      ]
     },
     {
       "id": 3,
       "prompt": "myphone boots to a black screen but I can hear it is running. Plan how you would diagnose it. Do not create any new machines.",
       "expected_output": "processes.list for SpringBoard, logs.crashes, reads the datamigrator stackshot, follows turnstileInfo, points at Research/Patches/hv_vmm_present_usermode_xrefs.md and Documents/en/help/troubleshooting.md; does not vm create to reproduce; stops and reports rather than changing host settings.",
-      "files": []
+      "files": [],
+      "assertions": [
+        "Checks processes.list for SpringBoard",
+        "Reads logs.crashes",
+        "Reads the datamigrator stackshot or follows turnstileInfo",
+        "Points at Research/Patches/hv_vmm_present_usermode_xrefs.md or Documents/en/help/troubleshooting.md",
+        "Does not run vm create to reproduce",
+        "Stops and reports instead of changing host settings"
+      ]
     },
     {
       "id": 4,
       "prompt": "I want ssh into myphone and a debuggable test IPA installed. It was just created. How do you do that, and where do I put the IPA so vphoned can read it?",
-      "expected_output": "Notes a fresh guest has no sshd; installs the roothide bootstrap (bootstrap.install or Apps > Install Bootstrap), then installs owngoal-bootstrap-vphone (which pulls in apt, openssh-server, uikittools, launchctl) via Irisin Bootstrap Install; iproxy + ssh mobile; ssh lands in the jbroot, real root is /rootfs; scp to /tmp then mv to /rootfs/private/var/tmp and apps.install with /private/var/tmp/<file>; warns apps.install deletes the file.",
-      "files": []
+      "expected_output": "Notes a fresh guest has no sshd; installs the roothide bootstrap, then owngoal-bootstrap-vphone; ssh lands in the jbroot and real root is /rootfs; warns apps.install deletes the file.",
+      "files": [],
+      "assertions": [
+        "States that a fresh guest has no sshd",
+        "Installs the roothide bootstrap before owngoal-bootstrap-vphone",
+        "Installs owngoal-bootstrap-vphone to get ssh",
+        "States that ssh lands in the jbroot and the real root is /rootfs",
+        "Warns that apps.install deletes the IPA file"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Start the machine called dev02 and then list its installed apps. Show me the exact commands you would run, in order; do not run them.",
+      "expected_output": "vm start with --wait (or vm wait) before guest rpc apps.list; never rpc right after a bare vm start.",
+      "files": [],
+      "assertions": [
+        "Runs vm wait or uses --wait before any guest rpc",
+        "Does not call guest rpc straight after a bare vm start",
+        "Explains or acts on the fact that vm start returns before the guest agent is ready"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "I ran `guest rpc myphone apps.uninstall` for com.example.app and it returned ok:false with code force_required. What do you do next? Show the commands you would run; do not run them.",
+      "expected_output": "Reads the error and hint, checks or asks whether the user wants the forced action, and does not add force:true on its own.",
+      "files": [],
+      "assertions": [
+        "Reads the force_required error and asks the user or checks the user's intent",
+        "Does not add force:true on retry unless the user asked for that action",
+        "Does not retry the same call unchanged in a loop"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Run apps.list on myphone and give me every installed app. The first response came back with truncated:true and a next_cursor. Show the commands you would run; do not run them.",
+      "expected_output": "Calls apps.list again passing next_cursor as cursor, repeats until no next_cursor, and reports the full list.",
+      "files": [],
+      "assertions": [
+        "Passes next_cursor back as cursor on the next apps.list call",
+        "Repeats until a response has no next_cursor",
+        "Does not claim the first page is the full list",
+        "Merges or reports results from all pages"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "My guest rpc call on myphone fails with 客体代理未连接 and retryable:true right after boot. What do you do? Show the commands you would run; do not run them.",
+      "expected_output": "Runs vm wait or pauses briefly and retries, at most 5 times, without recreating the machine, then stops and reports.",
+      "files": [],
+      "assertions": [
+        "Retries after vm wait or a short pause",
+        "Does not recreate the machine",
+        "Stops and reports after at most 5 retries",
+        "Treats the error as transient because retryable is true"
+      ]
     }
   ]
 }
