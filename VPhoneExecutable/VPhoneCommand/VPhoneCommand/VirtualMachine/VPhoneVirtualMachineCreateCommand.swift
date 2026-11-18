@@ -138,27 +138,8 @@ struct VPhoneVirtualMachineCreateCommand: ParsableCommand {
         try VPhonePatchPresetStore.resolve(preset ?? defaultPreset)
     }
 
-    /// An Apple TV takes the TV preset; one whose userland comes from an OTA
-    /// takes the arm64e one, with the GPU driver and the userland swap. An
-    /// Apple Watch takes the watch preset, an iPhone XS Max `minimal`, the preset
-    /// checked on every iOS 18 release (`standard` is checked on 18.6).
     private var defaultPreset: String {
-        switch selectedGuest {
-        case let guest? where guest.family == .appleTV:
-            guest.restoreBase == nil ? VPhonePatchPreset.tvOSIdentifier : VPhonePatchPreset.tvOS4KIdentifier
-        case let guest? where guest.family == .homeView:
-            VPhonePatchPreset.homeViewIdentifier
-        case let guest? where guest.family == .homePod:
-            VPhonePatchPreset.homePodMiniIdentifier
-        case let guest? where guest.family == .watch:
-            VPhonePatchPreset.watchOSIdentifier
-        case let guest? where guest.family == .vision:
-            VPhonePatchPreset.visionOSIdentifier
-        case let guest? where guest.notchedArtworkSubtype != nil:
-            VPhonePatchPreset.minimalIdentifier
-        default:
-            VPhonePatchPreset.standardIdentifier
-        }
+        VPhoneGuestDevice.defaultPresetIdentifier(for: selectedGuest)
     }
 
     mutating func validate() throws {
