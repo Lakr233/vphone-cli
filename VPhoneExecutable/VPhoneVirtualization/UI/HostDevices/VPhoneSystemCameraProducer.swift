@@ -1,6 +1,32 @@
 import AVFoundation
 import CoreImage
 import Foundation
+import ImageIO
+
+public enum VPhoneCameraRotation: Int, CaseIterable, Sendable {
+    case upright = 0
+    case clockwise = 1
+    case upsideDown = 2
+    case counterclockwise = 3
+
+    public var title: String {
+        switch self {
+        case .upright: "0° (Upright)"
+        case .clockwise: "90° Clockwise"
+        case .upsideDown: "180° Upside Down"
+        case .counterclockwise: "90° Counterclockwise"
+        }
+    }
+
+    public var orientation: CGImagePropertyOrientation {
+        switch self {
+        case .upright: .up
+        case .clockwise: .right
+        case .upsideDown: .down
+        case .counterclockwise: .left
+        }
+    }
+}
 
 /// The capture queue owns the session; a lock protects the latest buffer shared
 /// with the existing frame sender. Keeping one buffer bounds latency and memory.
@@ -13,13 +39,15 @@ final class VPhoneSystemCameraProducer: NSObject, VPhoneFrameProducer,
     private let queue = VPhoneSystemCameraProducer.captureQueue
     private let lock = NSLock()
     private var latest: CVPixelBuffer?
+    private var rotation: VPhoneCameraRotation = .upright
     private let context = CIContext()
     private let width: Int
     private let height: Int
 
-    init(width: Int, height: Int, deviceID: String? = nil) throws {
+    init(width: Int, height: Int, deviceID: String? = nil, rotation: VPhoneCameraRotation = .upright) throws {
         self.width = width
         self.height = height
+        self.rotation = rotation
         super.init()
         // Permission is requested by the explicit menu action, before creating
         // a device input. Selecting this source alone does not start capture.
@@ -64,6 +92,12 @@ final class VPhoneSystemCameraProducer: NSObject, VPhoneFrameProducer,
         }
     }
 
+    func setRotation(_ rotation: VPhoneCameraRotation) {
+        lock.lock()
+        self.rotation = rotation
+        lock.unlock()
+    }
+
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer,
                        from connection: AVCaptureConnection) {
         guard let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
@@ -75,13 +109,15 @@ final class VPhoneSystemCameraProducer: NSObject, VPhoneFrameProducer,
     func nextFrame() -> VPhoneCameraFrame? {
         lock.lock()
         let buffer = latest
+        let currentRotation = rotation
         lock.unlock()
         guard let buffer else { return nil }
         var destination: CVPixelBuffer?
         guard CVPixelBufferCreate(kCFAllocatorDefault, width, height,
                                   kCVPixelFormatType_32BGRA, nil, &destination) == kCVReturnSuccess,
               let destination else { return nil }
-        let source = CIImage(cvPixelBuffer: buffer)
+        let rawSource = CIImage(cvPixelBuffer: buffer)
+        let source = (currentRotation == .upright) ? rawSource : rawSource.oriented(currentRotation.orientation)
         let scale = min(CGFloat(width) / source.extent.width, CGFloat(height) / source.extent.height)
         let scaled = source.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
         let centered = scaled.transformed(by: CGAffineTransform(
