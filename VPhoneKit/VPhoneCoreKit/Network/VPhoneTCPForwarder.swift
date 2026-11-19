@@ -27,6 +27,38 @@ struct VPhoneTCPFlowKey: Hashable {
     let destinationPort: UInt16
 }
 
+// MARK: - SOCKS upstream
+
+/// An explicitly-configured SOCKS5 upstream for transparent interception.
+///
+/// A nil `Optional` means interception is disabled, so the forwarder connects
+/// each flow directly to its original destination. A non-nil value means
+/// interception is on, and the forwarder never connects directly:
+///
+/// - `.failed` is a resolution that produced no usable IPv4 address, expired its
+///   deadline, hit an undefined token, or carried invalid credentials. It fails
+///   closed — every guest flow is reset.
+/// - `.resolved` carries the proxy's IPv4 address and port (the stack is
+///   IPv4-only) plus the post-substitution credentials (nil ⇒ no-auth only),
+///   and the forwarder routes flows through it.
+///
+/// Resolution and token substitution complete synchronously in
+/// `VPhoneUserspaceNetwork.start()` before the forwarder serves any flow, so the
+/// forwarder receives its final value at init and never sees a pending state or
+/// a later replacement. Distinguishing nil from `.failed` is what keeps "direct
+/// connect" from ever being confused with "resolution failed": a configured
+/// upstream is never silently bypassed.
+struct VPhoneSOCKSCredentials: Sendable, Equatable {
+    let username: String
+    /// May be empty (RFC 1929 `PLEN = 0`).
+    let password: String
+}
+
+enum VPhoneSOCKSUpstream: Sendable, Equatable {
+    case resolved(VPhoneIPv4Address, UInt16, VPhoneSOCKSCredentials?)
+    case failed
+}
+
 // MARK: - Forwarder
 
 /// Terminates the guest's TCP and carries it over an ordinary host socket.
@@ -61,7 +93,7 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
     ///
     /// This bound is for connections that are opening or closing.
     private static let idleTimeout: TimeInterval = 120
-    /// The bound for an established connection, RFC 5382's floor (REQ-5).
+    /// The bound for an established connection, the floor from RFC 5382's fifth requirement.
     /// Silence there is normal: an ssh session with no keepalives sends
     /// nothing while its user reads, and push and chat connections ping every
     /// few minutes. Reaped at 120 s, such a connection was torn down under its
@@ -108,6 +140,11 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
     private enum State {
         /// SYN seen, host connect in flight.
         case connecting
+        /// Host is connected to the proxy; the RFC 1928 greeting/CONNECT exchange
+        /// is in flight. Only reached when a SOCKS upstream is configured; sits
+        /// between `.connecting` and `.synAcknowledged` so the guest sees no
+        /// SYN-ACK until the proxy has accepted the CONNECT.
+        case socksHandshake
         /// Host is connected, SYN-ACK sent, waiting for the guest's ACK.
         case synAcknowledged
         /// Both directions open.
@@ -117,6 +154,18 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
         /// Inbound: a host client connected to a forwarded port, our SYN went
         /// to the guest, and its SYN-ACK has not come back.
         case synSent
+    }
+
+    /// Which RFC 1928/1929 reply a proxied connection is waiting for.
+    private enum SOCKSPhase: String {
+        /// Greeting sent (`05 01 00` or `05 02 00 02`); awaiting the 2-byte
+        /// method selection.
+        case greeting
+        /// RFC 1929 username/password frame sent; awaiting the 2-byte auth
+        /// status. Only reached when the proxy selected method `02`.
+        case auth
+        /// CONNECT request sent; awaiting the reply, framed by its ATYP.
+        case connect
     }
 
     private final class Connection {
@@ -218,6 +267,21 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
         var handshakeTimer: DispatchSourceTimer?
         var handshakeAttempts = 0
 
+        // MARK: SOCKS handshake (outbound, proxied flows only)
+
+        /// Set when this flow connects through a SOCKS proxy rather than direct,
+        /// so `finishConnect` begins the RFC 1928 exchange instead of answering
+        /// the guest straight away.
+        var isProxied = false
+        /// Which half of the RFC 1928 exchange we are awaiting a reply to.
+        var socksPhase: SOCKSPhase = .greeting
+        /// Proxy bytes received but not yet consumed by the handshake. Once the
+        /// CONNECT reply is fully consumed, any remainder is real server data.
+        var socksInbound: [UInt8] = []
+        /// The single deadline covering connect + greeting + auth + CONNECT
+        /// reply.
+        var socksTimer: DispatchSourceTimer?
+
         init(flow: VPhoneTCPFlow, socket: Int32, readSource: DispatchSourceRead, state: State, localSequence: UInt32, remoteSequence: UInt32, peerMSS: Int, peerWindowScale: Int) {
             self.flow = flow
             self.socket = socket
@@ -252,11 +316,40 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
     /// VirtualBox's NAT. Nil leaves every destination as it is.
     private let gatewayAddress: VPhoneIPv4Address?
 
-    init(queue: DispatchQueue, gatewayAddress: VPhoneIPv4Address? = nil, deliver: @escaping Deliver) {
+    /// The SOCKS5 upstream, or nil for direct connect. Resolution completes
+    /// synchronously before the forwarder serves any flow, so this is the final
+    /// value from init: never a pending state, never replaced.
+    private let upstream: VPhoneSOCKSUpstream?
+
+    /// One deadline covering TCP connect + greeting + auth + CONNECT reply for a
+    /// proxied flow. Production is 10 s (REQ-004); tests scale it.
+    private let handshakeTimeout: TimeInterval
+    /// Sink for the per-flow SOCKS failure log line (one per failure). Default
+    /// writes through the forwarder's own logger; tests inject a collector.
+    private let socksLog: @Sendable (String) -> Void
+
+    init(
+        queue: DispatchQueue,
+        gatewayAddress: VPhoneIPv4Address? = nil,
+        upstream: VPhoneSOCKSUpstream? = nil,
+        handshakeTimeout: TimeInterval = 10,
+        socksLog: (@Sendable (String) -> Void)? = nil,
+        deliver: @escaping Deliver,
+    ) {
         self.queue = queue
         self.gatewayAddress = gatewayAddress
+        self.upstream = upstream
+        self.handshakeTimeout = handshakeTimeout
+        self.socksLog = socksLog ?? { line in Self.log.error("\(line, privacy: .public)") }
         self.deliver = deliver
         queue.setSpecific(key: Self.queueKey, value: ())
+    }
+
+    /// The post-substitution credentials on a `.resolved` upstream, if any.
+    /// Drives whether the greeting offers username/password (RFC 1929).
+    private var socksCredentials: VPhoneSOCKSCredentials? {
+        if case let .resolved(_, _, credentials) = upstream { return credentials }
+        return nil
     }
 
     /// Live connections, for tests and diagnostics.
@@ -328,9 +421,9 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
         connection.lastActivity = Date()
 
         switch connection.state {
-        case .connecting:
-            // The host has not connected yet, so we cannot answer. Remember the
-            // payload; the handshake will flush it.
+        case .connecting, .socksHandshake:
+            // The host is not ready yet (still connecting, or mid-SOCKS), so we
+            // cannot answer. Remember the payload; the handshake will flush it.
             if !segment.payload.isEmpty, segment.sequenceNumber == connection.remoteSequence {
                 connection.remoteSequence &+= segment.sequenceLength
                 connection.pendingFromGuest += segment.payload
@@ -342,6 +435,9 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
             connection.sendWindowRight = segment.acknowledgmentNumber &+ Self.expand(segment.windowSize, by: connection.peerWindowScale)
             connection.sendUna = segment.acknowledgmentNumber
             flushPending(connection)
+            // A proxied flow may already hold server data that arrived in the
+            // same burst as the CONNECT reply; with the window now open, send it.
+            flushToGuest(connection)
 
         case .synSent:
             completeInbound(connection, segment: segment)
@@ -358,18 +454,44 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
             return
         }
 
+        // Interception: a configured upstream reroutes every flow through the
+        // proxy and never connects directly. A failed upstream fails closed —
+        // the guest is reset rather than silently bypassing the proxy.
+        let proxy: (address: VPhoneIPv4Address, port: UInt16)?
+        switch upstream {
+        case nil:
+            proxy = nil
+        case let .resolved(host, port, _):
+            proxy = (host, port)
+        case .failed:
+            sendReset(for: flow, inReplyTo: segment)
+            return
+        }
+
         let descriptor = socket(AF_INET, SOCK_STREAM, 0)
         guard descriptor >= 0 else {
             sendReset(for: flow, inReplyTo: segment)
             return
         }
 
+        // Without a proxy, connect to the original destination (the gateway
+        // stands for the Mac's loopback). With one, connect to the proxy; the
+        // original destination travels in the SOCKS CONNECT request instead.
+        let connectAddress: VPhoneIPv4Address
+        let connectPort: UInt16
+        if let proxy {
+            connectAddress = proxy.address
+            connectPort = proxy.port
+        } else {
+            connectAddress = flow.destinationAddress == gatewayAddress ? VPhoneIPv4Address(127, 0, 0, 1) : flow.destinationAddress
+            connectPort = flow.destinationPort
+        }
+
         var address = sockaddr_in()
         address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         address.sin_family = sa_family_t(AF_INET)
-        address.sin_port = flow.destinationPort.bigEndian
-        let destination = flow.destinationAddress == gatewayAddress ? VPhoneIPv4Address(127, 0, 0, 1) : flow.destinationAddress
-        let octets = destination.bytes
+        address.sin_port = connectPort.bigEndian
+        let octets = connectAddress.bytes
         // Network order, as in the UDP forwarder: host order asks for a
         // different address entirely.
         let hostOrder = UInt32(octets[0]) << 24 | UInt32(octets[1]) << 16 | UInt32(octets[2]) << 8 | UInt32(octets[3])
@@ -395,6 +517,7 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
             peerWindowScale: segment.windowScale ?? 0,
         )
         connection.windowScaleNegotiated = segment.windowScale != nil
+        connection.isProxied = proxy != nil
         readSource.setEventHandler { [weak self] in self?.drainHost(connection) }
         // Qualified: the type has its own `close` for tearing a connection down.
         readSource.setCancelHandler { Darwin.close(descriptor) }
@@ -404,24 +527,34 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
                 connect(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
             }
         }
-        if connected == 0 {
-            // Connected straight away; no need to wait for writability.
-            connection.state = .synAcknowledged
-            sendSynAcknowledgment(connection)
-        } else if errno == EINPROGRESS {
+        // Connected straight away: no need to wait for writability.
+        let connectedAtOnce = connected == 0
+        if !connectedAtOnce {
+            guard errno == EINPROGRESS else {
+                readSource.cancel()
+                sendReset(for: flow, inReplyTo: segment)
+                return
+            }
             // Usual case. Writability means the attempt finished, either way.
             let writeSource = DispatchSource.makeWriteSource(fileDescriptor: descriptor, queue: queue)
             writeSource.setEventHandler { [weak self] in self?.finishConnect(connection) }
             writeSource.resume()
             connection.writeSource = writeSource
-        } else {
-            readSource.cancel()
-            sendReset(for: flow, inReplyTo: segment)
-            return
+        }
+
+        // One deadline from connect initiation, covering connect + the whole
+        // SOCKS exchange. A proxy that accepts then stalls is torn down here.
+        if connection.isProxied {
+            armSOCKSDeadline(connection)
         }
 
         readSource.resume()
         connections[flow.key] = connection
+        // Registered first, so a connection hostConnected finishes is removed
+        // and its deadline cancelled rather than left stored.
+        if connectedAtOnce {
+            hostConnected(connection)
+        }
     }
 
     private func finishConnect(_ connection: Connection) {
@@ -432,12 +565,258 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
         var length = socklen_t(MemoryLayout<Int32>.size)
         _ = getsockopt(connection.socket, SOL_SOCKET, SO_ERROR, &error, &length)
         guard error == 0 else {
-            resetGuest(connection)
-            finish(connection)
+            if connection.isProxied {
+                failSOCKS(connection, reason: "connect failed")
+            } else {
+                resetGuest(connection)
+                finish(connection)
+            }
             return
         }
+        hostConnected(connection)
+    }
+
+    /// The host socket is open. Direct connections answer the guest now; proxied
+    /// ones first run the SOCKS exchange and answer only once it succeeds.
+    private func hostConnected(_ connection: Connection) {
+        if connection.isProxied {
+            beginSOCKSHandshake(connection)
+        } else {
+            connection.state = .synAcknowledged
+            sendSynAcknowledgment(connection)
+        }
+    }
+
+    // MARK: - SOCKS5 handshake (RFC 1928 CONNECT, RFC 1929 auth)
+
+    /// Send the greeting and move to `.socksHandshake`. The reply arrives on the
+    /// read source, which `drainHost` routes to `driveSOCKSHandshake`.
+    ///
+    /// With no credentials the greeting offers no-auth only (`05 01 00`); with
+    /// credentials it offers no-auth and username/password (`05 02 00 02`), so
+    /// the proxy may still select no-auth and skip attribution this connection.
+    private func beginSOCKSHandshake(_ connection: Connection) {
+        connection.state = .socksHandshake
+        connection.socksPhase = .greeting
+        let greeting: [UInt8] = socksCredentials == nil
+            ? [0x05, 0x01, 0x00]
+            : [0x05, 0x02, 0x00, 0x02]
+        socksSend(greeting, connection, reason: "greeting write")
+    }
+
+    /// Write handshake bytes to the proxy socket. These are tiny and go to the
+    /// host socket directly, never through the guest-facing segment path.
+    @discardableResult
+    private func socksSend(_ bytes: [UInt8], _ connection: Connection, reason: String) -> Bool {
+        var offset = 0
+        while offset < bytes.count {
+            let written = bytes[offset...].withUnsafeBytes { raw in
+                Darwin.send(connection.socket, raw.baseAddress, raw.count, 0)
+            }
+            if written > 0 {
+                offset += written
+                continue
+            }
+            if written < 0, errno == EINTR {
+                continue
+            }
+            failSOCKS(connection, reason: reason)
+            return false
+        }
+        return true
+    }
+
+    /// Drain whatever the proxy has sent and try to advance the handshake. A
+    /// close or error mid-handshake is a failure; a short read just waits.
+    private func driveSOCKSHandshake(_ connection: Connection) {
+        var buffer = [UInt8](repeating: 0, count: 512)
+        while true {
+            let received = buffer.withUnsafeMutableBytes { raw in
+                recv(connection.socket, raw.baseAddress, raw.count, 0)
+            }
+            if received > 0 {
+                connection.socksInbound += buffer[0 ..< received]
+                continue
+            }
+            if received == 0 {
+                // The proxy closed. A compliant proxy sends its error reply and
+                // then closes, so parse what arrived (logging the real reply
+                // code) before declaring failure for a still-incomplete reply.
+                advanceSOCKS(connection)
+                if connections[connection.flow.key] === connection, connection.state == .socksHandshake {
+                    failSOCKS(connection, reason: socksPhaseReason(connection, "proxy closed"))
+                }
+                return
+            }
+            if errno == EAGAIN || errno == EINTR {
+                break
+            }
+            failSOCKS(connection, reason: socksPhaseReason(connection, "proxy read error"))
+            return
+        }
+        advanceSOCKS(connection)
+    }
+
+    /// Consume as much of `socksInbound` as each phase needs. Waits (returns)
+    /// when the current reply is not yet complete.
+    private func advanceSOCKS(_ connection: Connection) {
+        switch connection.socksPhase {
+        case .greeting:
+            guard connection.socksInbound.count >= 2 else { return }
+            let version = connection.socksInbound[0]
+            let method = connection.socksInbound[1]
+            guard version == 0x05 else {
+                failSOCKS(connection, reason: "greeting version \(Self.hex(version))")
+                return
+            }
+            connection.socksInbound.removeFirst(2)
+            switch method {
+            case 0x00:
+                // No-auth selected: skip RFC 1929, send CONNECT. Credentials, if
+                // any, are simply not offered this connection.
+                connection.socksPhase = .connect
+                guard sendSOCKSConnect(connection) else { return }
+            case 0x02 where socksCredentials != nil:
+                // Username/password selected, and we offered it: authenticate.
+                connection.socksPhase = .auth
+                guard sendSOCKSAuth(connection) else { return }
+            default:
+                // Any other method — including `02` we never offered — is a
+                // failure, and no RFC 1929 frame is sent.
+                failSOCKS(connection, reason: "greeting method \(Self.hex(method))")
+                return
+            }
+            // A fast proxy may have queued the next reply already.
+            if !connection.socksInbound.isEmpty {
+                advanceSOCKS(connection)
+            }
+
+        case .auth:
+            // RFC 1929 status: version `01`, status `00` on success.
+            guard connection.socksInbound.count >= 2 else { return }
+            let version = connection.socksInbound[0]
+            let status = connection.socksInbound[1]
+            guard version == 0x01, status == 0x00 else {
+                failSOCKS(connection, reason: "auth status \(Self.hex(status))")
+                return
+            }
+            connection.socksInbound.removeFirst(2)
+            connection.socksPhase = .connect
+            guard sendSOCKSConnect(connection) else { return }
+            if !connection.socksInbound.isEmpty {
+                advanceSOCKS(connection)
+            }
+
+        case .connect:
+            // Need VER REP RSV ATYP before the length is known.
+            guard connection.socksInbound.count >= 4 else { return }
+            let reply = connection.socksInbound
+            guard reply[0] == 0x05 else { failSOCKS(connection, reason: "connect version \(Self.hex(reply[0]))"); return }
+            guard reply[1] == 0x00 else { failSOCKS(connection, reason: "connect reply \(Self.hex(reply[1]))"); return }
+            let total: Int
+            switch reply[3] {
+            case 0x01: total = 10 // IPv4: 4 header + 4 addr + 2 port
+            case 0x04: total = 22 // IPv6: 4 header + 16 addr + 2 port
+            case 0x03: // domain: 4 header + 1 length + N + 2 port
+                guard reply.count >= 5 else { return }
+                total = 7 + Int(reply[4])
+            default:
+                failSOCKS(connection, reason: "connect atyp \(Self.hex(reply[3]))")
+                return
+            }
+            guard reply.count >= total else { return }
+            connection.socksInbound.removeFirst(total)
+            completeSOCKSHandshake(connection)
+        }
+    }
+
+    /// Send the RFC 1929 username/password frame `01 <ulen> user <plen> pass`.
+    /// The lengths were validated at resolution (ULEN 1-255, PLEN 0-255), so the
+    /// frame is well-formed and never truncated.
+    private func sendSOCKSAuth(_ connection: Connection) -> Bool {
+        guard let credentials = socksCredentials else {
+            failSOCKS(connection, reason: "auth without credentials")
+            return false
+        }
+        let user = Array(credentials.username.utf8)
+        let password = Array(credentials.password.utf8)
+        var frame: [UInt8] = [0x01, UInt8(user.count)]
+        frame += user
+        frame.append(UInt8(password.count))
+        frame += password
+        return socksSend(frame, connection, reason: "auth write")
+    }
+
+    /// CONNECT to the flow's original destination (IPv4, since the stack is),
+    /// with the gateway→127.0.0.1 remap applied to the address sent to the proxy.
+    private func sendSOCKSConnect(_ connection: Connection) -> Bool {
+        let destination = connection.flow.destinationAddress == gatewayAddress
+            ? VPhoneIPv4Address(127, 0, 0, 1)
+            : connection.flow.destinationAddress
+        let octets = destination.bytes
+        let port = connection.flow.destinationPort
+        let request: [UInt8] = [
+            0x05, 0x01, 0x00, 0x01,
+            octets[0], octets[1], octets[2], octets[3],
+            UInt8(truncatingIfNeeded: port >> 8), UInt8(truncatingIfNeeded: port),
+        ]
+        return socksSend(request, connection, reason: "connect write")
+    }
+
+    /// The CONNECT reply is fully consumed. Answer the guest and hand on any
+    /// server data that rode in behind the reply; the bind address never leaks.
+    private func completeSOCKSHandshake(_ connection: Connection) {
+        connection.socksTimer?.cancel()
+        connection.socksTimer = nil
+        let leftover = connection.socksInbound
+        connection.socksInbound = []
         connection.state = .synAcknowledged
         sendSynAcknowledgment(connection)
+        // Flushed once the guest ACKs the SYN-ACK and its window opens.
+        connection.pendingToGuest += leftover
+    }
+
+    /// Reset the guest and tear the connection down after a SOCKS failure,
+    /// logging exactly one line naming the endpoint and the reason.
+    private func failSOCKS(_ connection: Connection, reason: String) {
+        logSOCKS(reason: reason)
+        resetGuest(connection)
+        finish(connection)
+    }
+
+    /// One deadline from connect initiation covering connect + greeting + auth +
+    /// CONNECT reply. Fires only if the flow is still handshaking.
+    private func armSOCKSDeadline(_ connection: Connection) {
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + handshakeTimeout)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            guard let current = self.connections[connection.flow.key], current === connection else { return }
+            guard current.state == .connecting || current.state == .socksHandshake else { return }
+            let reason = current.state == .connecting
+                ? "connect timed out"
+                : self.socksPhaseReason(current, "timed out")
+            self.failSOCKS(current, reason: reason)
+        }
+        timer.resume()
+        connection.socksTimer = timer
+    }
+
+    /// A reason string prefixed with the phase a stall or close happened in.
+    private func socksPhaseReason(_ connection: Connection, _ detail: String) -> String {
+        "\(connection.socksPhase.rawValue) \(detail)"
+    }
+
+    /// Log one SOCKS failure through the sink. Per-flow failures reach only a
+    /// `.resolved` upstream, whose endpoint is already known; `.failed`
+    /// upstreams fail closed before any handshake, so they never log here.
+    private func logSOCKS(reason: String) {
+        guard case let .resolved(address, port, _) = upstream else { return }
+        socksLog("socks \(address):\(port): \(reason)")
+    }
+
+    private static func hex(_ byte: UInt8) -> String {
+        String(format: "0x%02x", byte)
     }
 
     /// Data (or a FIN) in one direction or the other.
@@ -637,6 +1016,12 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
     // MARK: - Host to guest
 
     private func drainHost(_ connection: Connection) {
+        // Mid-SOCKS, the bytes on the socket are proxy handshake replies, not
+        // server data. Route them to the handshake until it completes.
+        if connection.state == .socksHandshake {
+            driveSOCKSHandshake(connection)
+            return
+        }
         // Stop draining the host while the guest's window is closed. Leaving the
         // data in the kernel is the point: its receive buffer fills, it stops
         // acknowledging the server, and the server stops sending.
@@ -779,7 +1164,9 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
         deliver(connection.flow, VPhoneTCPSegment(
             sourcePort: connection.flow.destinationPort,
             destinationPort: connection.flow.sourcePort,
-            sequenceNumber: connection.state == .connecting ? 0 : connection.localSequence,
+            // No SYN-ACK has gone out before `.synAcknowledged`, so the guest is
+            // still in SYN-SENT and a seq-0 reset is the one it accepts.
+            sequenceNumber: (connection.state == .connecting || connection.state == .socksHandshake) ? 0 : connection.localSequence,
             acknowledgmentNumber: connection.remoteSequence,
             flags: VPhoneTCPFlags.rst | VPhoneTCPFlags.ack,
             windowSize: 0,
@@ -827,6 +1214,8 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
         connection.writeSource = nil
         connection.handshakeTimer?.cancel()
         connection.handshakeTimer = nil
+        connection.socksTimer?.cancel()
+        connection.socksTimer = nil
         connection.retransmitTimer?.cancel()
         connection.retransmitTimer = nil
         // A suspended source must be resumed before it can be cancelled;

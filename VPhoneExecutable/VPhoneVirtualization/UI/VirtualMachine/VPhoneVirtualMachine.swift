@@ -210,8 +210,16 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         let attachment = try VPhoneDiskAttachment.make(url: options.diskURL, readOnly: false)
         config.storageDevices = [VZVirtioBlockDeviceConfiguration(attachment: attachment)]
 
-        // Network (mode, MAC, address and forwards from the bundle manifest)
-        let plan = try VPhoneNetworking.plan(manifest.networkConfig)
+        // Network (mode, MAC, address and forwards from the bundle manifest).
+        // The bundle name and predicted UDID feed `${vm.name}`/`${vm.id}` tokens
+        // in a SOCKS `intercept` spec, substituted when the tunnel starts.
+        let bundleURL = options.configURL.deletingLastPathComponent()
+        let bundle = VPhoneBundle(url: bundleURL, manifest: manifest)
+        let plan = try VPhoneNetworking.plan(
+            manifest.networkConfig,
+            vmName: bundleURL.deletingPathExtension().lastPathComponent,
+            vmID: VPhoneRestoreOperations.resolveUDID(bundle: bundle),
+        )
         let network = try VPhoneNetworking.makeNetworkDevice(plan)
         config.networkDevices = network.configuration.map { [$0] } ?? []
         networkPlan = plan
