@@ -12,6 +12,7 @@ class VPhoneMenuController {
     let guestPanelsWindowController: VPhoneGuestPanelsWindowController
     weak var vm: VPhoneVirtualMachine? {
         didSet {
+            updateMemoryDumpItem()
             hardwareKeyboardItem?.state = vm?.usesHardwareKeyboard == true ? .on : .off
             hardwareKeyboardItem?.isEnabled = vm != nil
             if let vm, let item = hardwareKeyboardItem {
@@ -77,6 +78,8 @@ class VPhoneMenuController {
     var connectDevModeStatusItem: NSMenuItem?
     var connectPingItem: NSMenuItem?
     var connectGuestHashItem: NSMenuItem?
+    var memoryDumpItem: NSMenuItem?
+    var isSavingMemoryDump = false
     var installBootstrapItem: NSMenuItem?
     var installBootstrapFromFileItem: NSMenuItem?
     var uninstallBootstrapItem: NSMenuItem?
@@ -144,9 +147,13 @@ class VPhoneMenuController {
     var powerSourceRetainedPtr: UnsafeMutableRawPointer?
     var lowPowerObserver: (any NSObjectProtocol)?
 
+    /// The machine's folder, which holds its config.plist.
+    let machine: URL
+
     init(keySender: VPhoneVirtualMachineKeySender, control: VPhoneGuestControl, machine: URL) {
         self.keySender = keySender
         self.control = control
+        self.machine = machine
         socks5Menu = VPhoneSOCKS5Menu(machine: machine)
         guestToolsWindowController = VPhoneGuestToolsWindowController(control: control)
         guestPanelsWindowController = VPhoneGuestPanelsWindowController(control: control)

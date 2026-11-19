@@ -21,6 +21,7 @@ New to vphone? Read [Overview](get-started/overview.md), then follow [Quick Star
 | [Device Name and Clock](machines/device-name-and-clock.md) | What the guest takes from the VM name and the Mac's clock |
 | [Package Environment](machines/package-environment.md) | Installing and removing a package manager in the guest |
 | [Cryptexes](machines/cryptexes.md) | Installing your own programs in a trusted darwinOS guest as a cryptex |
+| [Memory Dumps](machines/memory-dumps.md) | Saving a running guest's memory and registers for LLDB and offline analysis |
 
 ## Firmware and Devices
 

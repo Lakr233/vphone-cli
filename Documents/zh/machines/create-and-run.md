@@ -90,7 +90,7 @@ vphone-cli vm stop myphone    # run from another terminal to stop it
 printf '%s\n' '{"t":"rpc","method":"device.info","params":{}}' | nc -U ~/.vphone/machines/myphone/vphone.sock
 ```
 
-例如，`input.key` 配合 `{"name":"cmd+v"}` 可以粘贴，`input.type` 可以输入文本。这个流程不会安装 SSH 或 VNC 端点。需要 HTTP 和 WebSocket 访问时，请参阅[自动化 API](automation-api.md)。
+例如，`input.key` 配合 `{"name":"cmd+v"}` 可以粘贴，`input.type` 可以输入文本。这个流程不会安装 SSH 或 VNC 端点。需要 HTTP 和 WebSocket 访问时，请参阅[自动化 API](automation-api.md)。要存储客户机的内存，请发送 `memory.dump`，参阅[内存转储](memory-dumps.md)。
 
 ## 手动运行各个阶段
 

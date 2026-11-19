@@ -49,9 +49,14 @@ import VPhoneCoreKit
 ///                                                 directory. The file replaces `local` only once complete
 ///   {"t":"network"}                             → the NIC's state, in `"result"`
 ///   {"t":"network","link":"down"}               → unplug (`up` replugs); not saved
+///   {"t":"memory.dump","path":"/abs/new/folder"}
+///                                               → saves the guest's memory cores (see `VPhoneMemoryDump`)
+///                                                 into a new folder; the guest pauses while they are
+///                                                 taken. `"result"` lists each core's `file`, `bytes` and
+///                                                 `stored_bytes`, with `capture_seconds` and `write_seconds`
 ///
-/// All commands except "screenshot", "rpc", "push", "pull" and "network" wait
-/// briefly then capture a compact screen image returned as
+/// All commands except "screenshot", "rpc", "push", "pull", "network" and
+/// "memory.dump" wait briefly then capture a compact screen image returned as
 /// `"image":"<base64>"` in the response.
 /// Pass `"screen":false` to skip the capture; "rpc" captures only when sent
 /// `"screen":true`.
@@ -331,6 +336,35 @@ class VPhoneHostAutomationServer {
                     try virtualMachine.setNetworkLink(up: link == "up")
                 }
                 return Self.reply(ok: true, result: virtualMachine.networkStatus)
+
+            case "memory.dump":
+                guard let virtualMachine else {
+                    return Self.reply(ok: false, error: "the VM is not running")
+                }
+                guard let path = json["path"] as? String, path.hasPrefix("/") else {
+                    return Self.reply(
+                        ok: false,
+                        error: "memory.dump requires path (an absolute host path for a new folder)",
+                    )
+                }
+                let machine = URL(fileURLWithPath: socketPath).deletingLastPathComponent().lastPathComponent
+                let dump = try await VPhoneMemoryDump.save(
+                    from: virtualMachine,
+                    machineName: machine,
+                    to: URL(fileURLWithPath: path).standardizedFileURL,
+                )
+                return Self.reply(ok: true, path: dump.folder.path, result: [
+                    "cores": dump.cores.map { core in
+                        [
+                            "name": core.name,
+                            "file": core.file.path,
+                            "bytes": core.bytes,
+                            "stored_bytes": core.storedBytes,
+                        ] as [String: Any]
+                    },
+                    "capture_seconds": VPhoneMemoryDump.tenths(dump.captureSeconds),
+                    "write_seconds": VPhoneMemoryDump.tenths(dump.writeSeconds),
+                ])
 
             default:
                 return Self.reply(ok: false, error: "unknown command: \(type)")
