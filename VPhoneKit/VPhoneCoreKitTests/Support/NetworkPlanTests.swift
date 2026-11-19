@@ -457,4 +457,252 @@ struct NetworkPlanTests {
         #expect(String(decoding: written, as: UTF8.self).contains("<key>protocol</key>"))
         #expect(try PropertyListDecoder().decode(NetworkConfig.self, from: written) == full)
     }
+
+    // MARK: - TASK-002: intercept is tunnel-only (REQ-002)
+
+    @Test func `intercept outside tunnel mode is rejected`() throws {
+        for mode in [NetworkConfig.NetworkMode.nat, .bridged, .off] {
+            let withEndpoint = config(mode).with(intercept: "127.0.0.1:1080")
+            #expect(throws: VPhoneNetworkingError.self) {
+                _ = try VPhoneNetworking.plan(withEndpoint, host: host)
+            }
+            do {
+                _ = try VPhoneNetworking.plan(withEndpoint, host: host)
+                Issue.record("expected plan() to throw for intercept in \(mode)")
+            } catch let error as VPhoneNetworkingError {
+                #expect(error.description.contains("tunnel mode"))
+                #expect(error.description.contains("--network tunnel"))
+            }
+            // interceptBlockQUIC alone (no intercept) is equally tunnel-only.
+            let withQUIC = config(mode).with(interceptBlockQUIC: true)
+            do {
+                _ = try VPhoneNetworking.plan(withQUIC, host: host)
+                Issue.record("expected plan() to throw for interceptBlockQUIC in \(mode)")
+            } catch let error as VPhoneNetworkingError {
+                #expect(error.description.contains("tunnel mode"))
+                #expect(error.description.contains("--network tunnel"))
+            }
+        }
+    }
+
+    @Test func `intercept in tunnel mode is accepted`() throws {
+        let cfg = config(.tunnel).with(intercept: "127.0.0.1:1080", interceptBlockQUIC: true)
+        #expect(throws: Never.self) { _ = try VPhoneNetworking.plan(cfg, host: host) }
+    }
+
+    /// A set-but-unparseable `intercept` on a tunnel manifest throws the
+    /// already-redacted `networkConfig.intercept:` error — it NEVER fails open
+    /// to a nil upstream / direct connect, and builds no userspace network.
+    /// The redacted message never leaks a literal password (`s3cret`).
+    @Test func `unparseable intercept in tunnel mode fails closed`() throws {
+        for bad in ["http://h:1", "socks5://${bogus}@h:1", "socks5://u:s3cret@h:0"] {
+            let cfg = config(.tunnel).with(intercept: bad)
+            do {
+                _ = try VPhoneNetworking.plan(cfg, host: host)
+                Issue.record("expected plan() to throw for intercept \"\(bad)\"")
+            } catch let error as VPhoneVirtualMachineManifest.NetworkConfig.InterceptParseError {
+                #expect(error.description.contains("networkConfig.intercept:"))
+                #expect(!error.description.contains("s3cret"))
+            }
+            // A fail-open path would still build the tunnel device; assert it
+            // throws instead, so no userspace network / forwarder is created.
+            #expect(throws: VPhoneVirtualMachineManifest.NetworkConfig.InterceptParseError.self) {
+                _ = try VPhoneNetworking.makeNetworkDevice(cfg)
+            }
+        }
+    }
+
+    // MARK: - interception edits (TASK-006)
+
+    /// `--intercept host:port` sets the endpoint, `--no-intercept` clears it,
+    /// and an edit that touches neither leaves it as it was.
+    @Test func `an edit sets and clears the intercept endpoint`() throws {
+        let base = config(.tunnel)
+        let set = try VPhoneNetworking.merge(into: base, edit: VPhoneNetworkEdit(intercept: .some("127.0.0.1:1080")), host: host)
+        #expect(set.intercept == "127.0.0.1:1080")
+
+        let cleared = try VPhoneNetworking.merge(into: set, edit: VPhoneNetworkEdit(intercept: .some(nil)), host: host)
+        #expect(cleared.intercept == nil)
+
+        let untouched = try VPhoneNetworking.merge(into: set, edit: VPhoneNetworkEdit(), host: host)
+        #expect(untouched.intercept == "127.0.0.1:1080")
+    }
+
+    /// `--intercept-block-quic` / `--no-intercept-block-quic` toggle the flag; an
+    /// edit that touches neither leaves it.
+    @Test func `an edit toggles QUIC blocking`() throws {
+        let base = config(.tunnel)
+        let on = try VPhoneNetworking.merge(into: base, edit: VPhoneNetworkEdit(interceptBlockQUIC: true), host: host)
+        #expect(on.blockQUIC)
+
+        let off = try VPhoneNetworking.merge(into: on, edit: VPhoneNetworkEdit(interceptBlockQUIC: false), host: host)
+        #expect(!off.blockQUIC)
+
+        let untouched = try VPhoneNetworking.merge(into: on, edit: VPhoneNetworkEdit(), host: host)
+        #expect(untouched.blockQUIC)
+    }
+
+    /// The grammar the CLI validates `--intercept` against: host:port with a
+    /// 1-65535 port, IPv6 in brackets; everything else is rejected.
+    @Test func `the intercept grammar accepts host colon port and rejects the rest`() throws {
+        typealias Cfg = VPhoneVirtualMachineManifest.NetworkConfig
+        #expect(try Cfg.parseInterceptEndpoint("127.0.0.1:1080").port == 1080)
+        #expect(try Cfg.parseInterceptEndpoint("[::1]:8080").host == "::1")
+        for bad in ["bad", "host:", ":80", "host:0", "host:70000", "host:-1", "host:x"] {
+            #expect(throws: (any Error).self) { try Cfg.parseInterceptEndpoint(bad) }
+        }
+    }
+
+    // MARK: - TASK-006: edit-path validation, redaction, tunnel-exit, secret warning
+
+    /// The edit path validates `--intercept` with the same guard `plan()` uses:
+    /// a `socks5://` URL with credentials is accepted; a non-socks5 scheme and
+    /// an unrecognised `${…}` token are rejected, leaving the config unchanged.
+    @Test func `the edit path accepts a credentialed URL and rejects bad schemes and tokens`() throws {
+        let base = config(.tunnel)
+        let set = try VPhoneNetworking.merge(
+            into: base, edit: VPhoneNetworkEdit(intercept: .some("socks5://u:p@127.0.0.1:1080")), host: host,
+        )
+        #expect(set.intercept == "socks5://u:p@127.0.0.1:1080")
+
+        for bad in ["http://h:1", "socks5://${bogus}@h:1"] {
+            #expect(throws: (any Error).self) {
+                _ = try VPhoneNetworking.merge(into: base, edit: VPhoneNetworkEdit(intercept: .some(bad)), host: host)
+            }
+            // The config is unchanged: the throwing merge produced no value.
+            #expect(base.intercept == nil)
+        }
+    }
+
+    /// The edit path builds its own usage error, and it is redacted: a literal
+    /// password never reaches the message (asserted here independently of the
+    /// TASK-001 parse test).
+    @Test func `the edit path redacts the password in its usage error`() throws {
+        for bad in ["socks5://u:s3cret@h:abc", "socks5://u:s3cret@:1080"] {
+            do {
+                _ = try VPhoneNetworking.resolveInterceptEdit(
+                    current: config(.tunnel), edit: VPhoneNetworkEdit(intercept: .some(bad)), newMode: .tunnel,
+                )
+                Issue.record("expected resolveInterceptEdit to throw for \"\(bad)\"")
+            } catch {
+                #expect("\(error)".contains("***"))
+                #expect(!"\(error)".contains("s3cret"))
+            }
+        }
+    }
+
+    /// A literal password is accepted but flags the Secret-policy warning, which
+    /// names both exposures and the safer form; a `${env:NAME}` password does not.
+    @Test func `a literal password warns and an env token does not`() throws {
+        let literal = try VPhoneNetworking.resolveInterceptEdit(
+            current: config(.tunnel), edit: VPhoneNetworkEdit(intercept: .some("socks5://u:s3cret@127.0.0.1:1080")),
+            newMode: .tunnel,
+        )
+        #expect(literal.plaintextCredentialWarning)
+
+        let token = try VPhoneNetworking.resolveInterceptEdit(
+            current: config(.tunnel), edit: VPhoneNetworkEdit(intercept: .some("socks5://u:${env:PW}@127.0.0.1:1080")),
+            newMode: .tunnel,
+        )
+        #expect(!token.plaintextCredentialWarning)
+
+        let noPassword = try VPhoneNetworking.resolveInterceptEdit(
+            current: config(.tunnel), edit: VPhoneNetworkEdit(intercept: .some("socks5://u@127.0.0.1:1080")),
+            newMode: .tunnel,
+        )
+        #expect(!noPassword.plaintextCredentialWarning)
+
+        let warning = VPhoneNetworking.plaintextInterceptPasswordWarning
+        #expect(warning.contains("command line"))
+        #expect(warning.contains("manifest"))
+        #expect(warning.contains("${env:NAME}"))
+    }
+
+    /// Moving a VM with `intercept` set from tunnel to nat clears both intercept
+    /// fields and signals proxying-disabled; a tunnel→tunnel edit keeps them.
+    @Test func `leaving tunnel mode clears interception and signals it`() throws {
+        let set = config(.tunnel).with(intercept: "127.0.0.1:1080", interceptBlockQUIC: true)
+
+        let toNat = try VPhoneNetworking.merge(into: set, edit: VPhoneNetworkEdit(mode: .nat), host: host)
+        #expect(toNat.intercept == nil)
+        #expect(!toNat.blockQUIC)
+
+        let signal = try VPhoneNetworking.resolveInterceptEdit(
+            current: set, edit: VPhoneNetworkEdit(mode: .nat), newMode: .nat,
+        )
+        #expect(signal.proxyingDisabled)
+        #expect(signal.intercept == nil)
+        #expect(!signal.interceptBlockQUIC)
+
+        let stayTunnel = try VPhoneNetworking.merge(into: set, edit: VPhoneNetworkEdit(mode: .tunnel), host: host)
+        #expect(stayTunnel.intercept == "127.0.0.1:1080")
+        #expect(stayTunnel.blockQUIC)
+    }
+
+    /// Setting `--intercept` or `--intercept-block-quic` while the resulting mode
+    /// is not tunnel is a usage error naming the remedy; on tunnel it is accepted.
+    @Test func `setting interception off tunnel is rejected and on tunnel accepted`() throws {
+        for mode in [NetworkConfig.NetworkMode.nat, .bridged, .off] {
+            let base = config(mode)
+            for edit in [VPhoneNetworkEdit(intercept: .some("127.0.0.1:1080")), VPhoneNetworkEdit(interceptBlockQUIC: true)] {
+                do {
+                    _ = try VPhoneNetworking.resolveInterceptEdit(current: base, edit: edit, newMode: mode)
+                    Issue.record("expected a tunnel-only rejection in \(mode)")
+                } catch let error as VPhoneNetworkingError {
+                    #expect(error.description.contains("tunnel mode"))
+                    #expect(error.description.contains("--network tunnel"))
+                }
+                // merge rejects the same way, leaving the config untouched.
+                #expect(throws: VPhoneNetworkingError.self) {
+                    _ = try VPhoneNetworking.merge(into: base, edit: edit, host: host)
+                }
+                #expect(base.intercept == nil)
+                #expect(!base.blockQUIC)
+            }
+        }
+
+        let tunnel = config(.tunnel)
+        let withEndpoint = try VPhoneNetworking.merge(
+            into: tunnel, edit: VPhoneNetworkEdit(intercept: .some("127.0.0.1:1080")), host: host,
+        )
+        #expect(withEndpoint.intercept == "127.0.0.1:1080")
+        let withQUIC = try VPhoneNetworking.merge(into: tunnel, edit: VPhoneNetworkEdit(interceptBlockQUIC: true), host: host)
+        #expect(withQUIC.blockQUIC)
+    }
+
+    /// The edit layer's conflict is the same usage error `plan()` guards, and a
+    /// changed intercept field signals that it takes effect on the next VM start.
+    @Test func `the edit layer reports the tunnel conflict and the next-start signal`() throws {
+        let conflict = "interception requires tunnel mode; set --network tunnel"
+        for mode in [NetworkConfig.NetworkMode.nat, .bridged, .off] {
+            do {
+                _ = try VPhoneNetworking.resolveInterceptEdit(
+                    current: config(mode), edit: VPhoneNetworkEdit(intercept: .some("127.0.0.1:1080")), newMode: mode,
+                )
+                Issue.record("expected a tunnel-only rejection in \(mode)")
+            } catch let error as VPhoneNetworkingError {
+                #expect(error.description == conflict)
+            }
+        }
+
+        let base = config(.tunnel)
+        let changed = try VPhoneNetworking.resolveInterceptEdit(
+            current: base, edit: VPhoneNetworkEdit(intercept: .some("127.0.0.1:1080")), newMode: .tunnel,
+        )
+        #expect(changed.takesEffectNextStart)
+
+        let same = try VPhoneNetworking.resolveInterceptEdit(
+            current: base.with(intercept: "127.0.0.1:1080"),
+            edit: VPhoneNetworkEdit(intercept: .some("127.0.0.1:1080")), newMode: .tunnel,
+        )
+        #expect(!same.takesEffectNextStart)
+    }
+
+    /// `--no-intercept` clears only `intercept` and leaves `interceptBlockQUIC`.
+    @Test func `clearing intercept leaves QUIC blocking alone`() throws {
+        let set = config(.tunnel).with(intercept: "127.0.0.1:1080", interceptBlockQUIC: true)
+        let cleared = try VPhoneNetworking.merge(into: set, edit: VPhoneNetworkEdit(intercept: .some(nil)), host: host)
+        #expect(cleared.intercept == nil)
+        #expect(cleared.blockQUIC)
+    }
 }
