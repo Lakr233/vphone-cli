@@ -102,6 +102,16 @@ Metal. After removing the two manual preferences from Safari's profile,
 the compiled SystemHook and marker displayed the probe text and blue
 rectangle.
 
+The GPU-process flag only selects which process renders a Canvas. WebContent
+can still give a 2D Canvas an accelerated backing buffer. The same marker
+now also sets `CanvasUsesAcceleratedDrawing` to false on MobileSafari's
+`WKWebView` preferences before WebKit creates the page. This uses WebKit's
+C preference setter and leaves the on-disk Safari profile intact.
+On a cold-booted SE 3 running 18.6.2 (22G100), the updated guest drew plain and
+rounded 225 × 45 canvases, returned the expected RGBA pixel, and animated a
+1024 × 256 canvas using regular `getContext("2d")`. Safari also rendered an
+external HTTPS page after the probe.
+
 ## Retargeting to another pairing
 
 Do not widen the gate without repeating the measurement:

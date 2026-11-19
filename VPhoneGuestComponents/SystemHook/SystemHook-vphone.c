@@ -20,6 +20,7 @@ static int vpInXPCProxy;
 static int vpInBootstrap;
 extern void vpInstallSurfaceAdapter(void);
 extern void vpInstallIOS18GPUTransport(void);
+extern void vpInstallIOS17AstronomyBackground(const char *marker);
 extern void vpUseIOS18SafariSoftwareRendering(void);
 extern bool vpUsesIOS17GPUTransport(void);
 
@@ -243,6 +244,8 @@ __attribute__((constructor)) static void vpLogProcess(void) {
     // The iOS 17 driver can load SystemHook while Metal is registering devices.
     if (vpUsesIOS17GPUTransport()) {
         vpInstallIOS18GPUTransport();
+        if (strcmp(getprogname(), "AegirPoster") == 0)
+            vpInstallIOS17AstronomyBackground("/usr/lib/vphone-ios17-astronomy-background");
         return;
     }
     vpInstallSurfaceAdapter();

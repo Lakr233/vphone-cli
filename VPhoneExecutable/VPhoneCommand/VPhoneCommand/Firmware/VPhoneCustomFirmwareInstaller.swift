@@ -1412,6 +1412,7 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.ios18GPUTransport
                     && identifier != FirmwareGuestSystemPatchSet.ios18SafariSoftwareRendering
                     && identifier != FirmwareGuestSystemPatchSet.ios17Wallpaper
+                    && identifier != FirmwareGuestSystemPatchSet.ios17AstronomyBackground
                     && identifier != FirmwareGuestSystemPatchSet.paravirtGPUCompilerCache
                     && identifier != FirmwareGuestSystemPatchSet.visionOSSkipBuddy
                     && identifier != FirmwareGuestSystemPatchSet.visionOSEnvironments
@@ -3006,6 +3007,19 @@ struct VPhoneCustomFirmwareInstaller {
                 live.insert(gpuTransportPatch)
             } else {
                 try system.removeItem(gpuTransportMarker)
+            }
+        }
+
+        let astronomyBackground = FirmwareGuestSystemPatchSet.ios17AstronomyBackground
+        let astronomyMarker = String(FirmwareGuestSystemPatchSet.ios17AstronomyBackgroundMarker.dropFirst())
+        isolate([astronomyBackground]) {
+            let selected = on(astronomyBackground)
+            if selected, guestDevice.productType == "iPhone14,6", live.contains(gpuTransportPatch) {
+                try system.writeFile(astronomyMarker, contents: Data("1\n".utf8), mode: 0o644, owner: Self.guestOwner)
+                live.insert(astronomyBackground)
+            } else {
+                try system.removeItem(astronomyMarker)
+                if selected { notApplicable.insert(astronomyBackground) }
             }
         }
 

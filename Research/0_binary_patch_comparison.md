@@ -7348,6 +7348,20 @@ lets SystemHook supply the two overrides in MobileSafari's volatile argument
 domain at startup. Blocking the patch removes the marker on the next CFW
 environment update. See the [Safari validation in the transport notes](Guest/ios18_gpu_transport.md#safari).
 
+**Astronomy and Safari guest rendering (2026-11-18).** On iPhone SE 3 with
+iOS 17.7 and cloudOS 26.1, the Astronomy poster's Calliope sky mesh draws
+corrupt triangles behind otherwise intact planets. The selectable
+`system-systemhook-cfw-ios17_astronomy_background` fallback omits that indexed
+background draw and preserves star sprites and planet rendering. The installer
+sets the marker only with the validated legacy GPU transport present. See
+[Astronomy background](Guest/ios17_bringup.md#astronomy-background).
+
+The existing Safari marker on iOS 18.6 now also sets
+`CanvasUsesAcceleratedDrawing` to false through Cocoa's WebKit preference API
+before a MobileSafari page is created. The GPU-process preference alone
+does not control accelerated buffers created in WebContent. See
+[Safari](Guest/ios18_gpu_transport.md#safari).
+
 ## Re-sealing through the shared CodeResources (2026-11-05)
 
 No new patch identifier and no new bytes in an Apple binary. Every installer
