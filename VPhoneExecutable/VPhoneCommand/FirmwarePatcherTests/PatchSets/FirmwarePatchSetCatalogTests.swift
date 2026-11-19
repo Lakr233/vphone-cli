@@ -306,7 +306,10 @@ struct FirmwarePatchSetCatalogTests {
             cloudOS: VPhoneVersion("26.4"),
         )
         #expect(!watch.isEnabled(FirmwareRestoreImagePatchSet.launchdCacheLoader))
-        #expect(watch.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader])
+        // The cryptex filesystem patcher never applies it to a watch.
+        #expect(!watch.isEnabled(FirmwareRestoreImagePatchSet.internalReleaseType))
+        #expect(watch.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader,
+                                                           FirmwareRestoreImagePatchSet.internalReleaseType])
             .union(FirmwarePatchSetCatalog.watchOSDeviceTreePatches).union(bootChain).union(researchBoard))
         #expect(watch.enabled.intersection(allBootChain) == bootChain)
     }

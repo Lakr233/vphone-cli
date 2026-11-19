@@ -489,7 +489,9 @@ public enum FirmwarePatchSetCatalog {
     ]
 
     /// ``minimalPreset`` for an Apple Watch: its device tree presents the watch
-    /// board, and it keeps the same iBEC and LLB patches. The shipped
+    /// board, and it keeps the same iBEC and LLB patches.
+    /// `filesystem-exp-internal_release_type` is left out:
+    /// ``CryptexFilesystemPatcher`` never applies it to a watch. The shipped
     /// `watchos.plist` must match this.
     public static let watchOSPreset = VPhonePatchPreset(
         identifier: VPhonePatchPreset.watchOSIdentifier,
@@ -501,7 +503,10 @@ public enum FirmwarePatchSetCatalog {
                 .union(watchOSDeviceTreePatches)
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
                 .union(FirmwareRestoreImagePatchSet.presetPatches)
-                .subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader]),
+                .subtracting([
+                    FirmwareRestoreImagePatchSet.launchdCacheLoader,
+                    FirmwareRestoreImagePatchSet.internalReleaseType,
+                ]),
         ),
     )
 

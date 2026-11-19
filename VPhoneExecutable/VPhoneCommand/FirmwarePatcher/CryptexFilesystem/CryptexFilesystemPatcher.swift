@@ -80,6 +80,8 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
         case FirmwareRestoreImagePatchSet.surfaceCompression: isIOS18
         case FirmwareRestoreImagePatchSet.watchAudio: guestFamily == .watch
         case FirmwareRestoreImagePatchSet.trustedDarwinOS: guestFamily == .iPhone || guestFamily == .iPad
+        // Tried on iPhone and iPad guests only; a watch keeps its customer release type.
+        case FirmwareRestoreImagePatchSet.internalReleaseType: guestFamily == .iPhone || guestFamily == .iPad
         default: true
         }
     }
@@ -111,6 +113,7 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
         (FirmwareRestoreImagePatchSet.debugserver, "Re-sign debugserver so it can attach in the guest"),
         (FirmwareRestoreImagePatchSet.launchdJetsam, "Patch launchd's jetsam panic guard"),
         (FirmwareRestoreImagePatchSet.trustedDarwinOS, "Restore as trusted darwinOS and add cryptexctl"),
+        (FirmwareRestoreImagePatchSet.internalReleaseType, "Mark the release Internal for offline app authorization"),
     ]
 
     /// Whether this guest is restored as trusted darwinOS.
@@ -248,6 +251,10 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
             if trustedDarwinOS {
                 print("- Adding cryptexctl for trusted darwinOS…")
                 try addCryptexctl(targetMount: targetMount)
+            }
+            if gate.isEnabled(FirmwareRestoreImagePatchSet.internalReleaseType), applies(FirmwareRestoreImagePatchSet.internalReleaseType) {
+                print("- Marking the release Internal for offline app authorization…")
+                try markInternalReleaseType(targetMount: targetMount)
             }
             try removeHostEventLog(mount: targetMount)
         }
