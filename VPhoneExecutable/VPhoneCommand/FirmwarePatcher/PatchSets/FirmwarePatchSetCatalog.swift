@@ -83,6 +83,10 @@ public enum FirmwarePatchSetCatalog {
             // instead, keeps the tree it has always had. minimal lists both, and
             // experimental takes every manual patch.
             .union([DeviceTreePatcher.syscfgPlaceholdersPatch, FirmwareDeviceTreePatchSet.boardTargetType])
+            // Only minimal and watchos are tested with LLB keeping NVRAM; every
+            // other preset, experimental included, keeps the scrub it has always
+            // booted with.
+            .union(["llb-exp-nvram_scrub_bypass"])
 
     /// ProMotion: the 120 Hz timing for the paravirtual display.
     ///
@@ -247,7 +251,7 @@ public enum FirmwarePatchSetCatalog {
         freshly restored 26.4 guest does not survive. The HomePod-only top cap is off.
         """,
         patchSets: bundledReferences,
-        selection: .block([FirmwareGuestSystemPatchSet.visionOSFramePacing, FirmwareGuestSystemPatchSet.visionOSEnvironments, FirmwareGuestSystemPatchSet.visionOSEnvironmentIPC, FirmwareGuestSystemPatchSet.visionOSSkipBuddy, FirmwareGuestSystemPatchSet.visionOSWakeboardSystemIPC, FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPC, FirmwareGuestSystemPatchSet.visionOSHMDSystemSetterIPC, FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPC, FirmwareGuestSystemPatchSet.visionOSUXMIPC, FirmwareGuestSystemPatchSet.visionOSVirtualProduct, FirmwareGuestSystemPatchSet.visionOSLegacyUXM, FirmwareGuestSystemPatchSet.visionOSNonfatalServices, FirmwareGuestSystemPatchSet.ios16KeybaglessUI, FirmwareGuestSystemPatchSet.ios16Touchscreen, FirmwareGuestSystemPatchSet.ios16EphemeralStorage, FirmwareGuestSystemPatchSet.ios16Framebuffer, FirmwareGuestSystemPatchSet.ios16Surface, FirmwareGuestSystemPatchSet.ios16Desktop, FirmwareGuestSystemPatchSet.ios16Keybag, FirmwareGuestSystemPatchSet.ios16Migration, FirmwareGuestSystemPatchSet.ios16PortsLookup, FirmwareGuestSystemPatchSet.ios16MachPorts, FirmwareGuestSystemPatchSet.ios17Desktop, FirmwareGuestSystemPatchSet.homeViewEnvironmentService, FirmwareGuestSystemPatchSet.homeViewProfileLookup, FirmwareGuestSystemPatchSet.homeViewDisplayLookups, FirmwareGuestSystemPatchSet.homeViewSetupBypass, FirmwareGuestSystemPatchSet.tvLegacySetup, FirmwareGuestSystemPatchSet.tvSetupDisplayLookup, FirmwareGuestSystemPatchSet.tvSetupFocus, FirmwareGuestSystemPatchSet.tvLocalActivation, FirmwareGuestSystemPatchSet.homePodTopCap, FirmwareGuestSystemPatchSet.homePodSetupBypass, FirmwareGuestSystemPatchSet.homePodAirPlayVM, FirmwareGuestSystemPatchSet.homePodAudioProduct, FirmwareGuestSystemPatchSet.homePodWelcome, FirmwareGuestSystemPatchSet.homePodSiriSpeech, FirmwareGuestSystemPatchSet.homePodOTAUserland, FirmwareGuestSystemPatchSet.homePodSoundGlow, FirmwareGuestSystemPatchSet.homePodCryptexStaging, FirmwareGuestSystemPatchSet.homePodCryptexClass, FirmwareGuestSystemPatchSet.homePodAdHocInstall]),
+        selection: .block([FirmwareGuestSystemPatchSet.visionOSFramePacing, FirmwareGuestSystemPatchSet.visionOSEnvironments, FirmwareGuestSystemPatchSet.visionOSEnvironmentIPC, FirmwareGuestSystemPatchSet.visionOSSkipBuddy, FirmwareGuestSystemPatchSet.visionOSWakeboardSystemIPC, FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPC, FirmwareGuestSystemPatchSet.visionOSHMDSystemSetterIPC, FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPC, FirmwareGuestSystemPatchSet.visionOSUXMIPC, FirmwareGuestSystemPatchSet.visionOSVirtualProduct, FirmwareGuestSystemPatchSet.visionOSLegacyUXM, FirmwareGuestSystemPatchSet.visionOSNonfatalServices, FirmwareGuestSystemPatchSet.ios16KeybaglessUI, FirmwareGuestSystemPatchSet.ios16Touchscreen, FirmwareGuestSystemPatchSet.ios16EphemeralStorage, FirmwareGuestSystemPatchSet.ios16Framebuffer, FirmwareGuestSystemPatchSet.ios16Surface, FirmwareGuestSystemPatchSet.ios16Desktop, FirmwareGuestSystemPatchSet.ios16Keybag, FirmwareGuestSystemPatchSet.ios16Migration, FirmwareGuestSystemPatchSet.ios16PortsLookup, FirmwareGuestSystemPatchSet.ios16MachPorts, FirmwareGuestSystemPatchSet.ios17Desktop, FirmwareGuestSystemPatchSet.homeViewEnvironmentService, FirmwareGuestSystemPatchSet.homeViewProfileLookup, FirmwareGuestSystemPatchSet.homeViewDisplayLookups, FirmwareGuestSystemPatchSet.homeViewSetupBypass, FirmwareGuestSystemPatchSet.tvLegacySetup, FirmwareGuestSystemPatchSet.tvSetupDisplayLookup, FirmwareGuestSystemPatchSet.tvSetupFocus, FirmwareGuestSystemPatchSet.tvLocalActivation, FirmwareGuestSystemPatchSet.homePodTopCap, FirmwareGuestSystemPatchSet.homePodSetupBypass, FirmwareGuestSystemPatchSet.homePodAirPlayVM, FirmwareGuestSystemPatchSet.homePodAudioProduct, FirmwareGuestSystemPatchSet.homePodWelcome, FirmwareGuestSystemPatchSet.homePodSiriSpeech, FirmwareGuestSystemPatchSet.homePodOTAUserland, FirmwareGuestSystemPatchSet.homePodSoundGlow, FirmwareGuestSystemPatchSet.homePodCryptexStaging, FirmwareGuestSystemPatchSet.homePodCryptexClass, FirmwareGuestSystemPatchSet.homePodAdHocInstall, "llb-exp-nvram_scrub_bypass"]),
     )
 
     /// The iOS payloads, hooks and shared-cache patches an Apple TV guest has no
@@ -445,6 +449,11 @@ public enum FirmwarePatchSetCatalog {
         SPTMSecondaryCPUPatcher.patchIdentifier,
     ]
 
+    /// LLB keeps NVRAM across restarts, so Developer Mode is the guest's own
+    /// switch (`llb-exp-nvram_scrub_bypass`). ``minimalPreset`` and ``watchOSPreset``
+    /// take it.
+    public static let keptNVRAMPatches: Set<String> = ["llb-exp-nvram_scrub_bypass"]
+
     /// A guest on a stock kernel and TXM, with only iBEC and LLB patched
     /// (``minimalBootChainPatches``): the system is customised before the
     /// restore instead (``FirmwareRestoreImagePatchSet``), and nothing after
@@ -466,6 +475,7 @@ public enum FirmwarePatchSetCatalog {
         ],
         selection: .allow(
             minimalBootChainPatches
+                .union(keptNVRAMPatches)
                 .union(minimalDeviceTreePatches)
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
                 .union(FirmwareRestoreImagePatchSet.presetPatches)
@@ -489,10 +499,10 @@ public enum FirmwarePatchSetCatalog {
     ]
 
     /// ``minimalPreset`` for an Apple Watch: its device tree presents the watch
-    /// board, and it keeps the same iBEC and LLB patches.
-    /// `filesystem-exp-internal_release_type` is left out:
-    /// ``CryptexFilesystemPatcher`` never applies it to a watch. The shipped
-    /// `watchos.plist` must match this.
+    /// board, and it keeps the same iBEC and LLB patches, LLB keeping NVRAM
+    /// (``keptNVRAMPatches``) included. `filesystem-exp-internal_release_type`
+    /// is left out: ``CryptexFilesystemPatcher`` never applies it to a watch.
+    /// The shipped `watchos.plist` must match this.
     public static let watchOSPreset = VPhonePatchPreset(
         identifier: VPhonePatchPreset.watchOSIdentifier,
         title: "Apple Watch",
@@ -500,6 +510,7 @@ public enum FirmwarePatchSetCatalog {
         patchSets: minimalPreset.patchSets,
         selection: .allow(
             minimalBootChainPatches
+                .union(keptNVRAMPatches)
                 .union(watchOSDeviceTreePatches)
                 .union(FirmwareResearchBoardPatchSet.manifest.patches.map(\.identifier))
                 .union(FirmwareRestoreImagePatchSet.presetPatches)

@@ -114,6 +114,12 @@ public enum FirmwareBootChainPatchSet {
                 summary: "Gives a guest, including iPad and iPhone SE, its own screen scale instead of the virtual phone's 3x.",
                 target: .firmware(.llb),
             ),
+            VPhonePatchDeclaration(
+                identifier: "llb-exp-nvram_scrub_bypass",
+                title: "LLB keeps NVRAM",
+                summary: "Keeps what the guest writes to NVRAM across restarts, as on an iPhone, the request to turn on Developer Mode included (Settings › Developer Mode › Restart, then PreBoard asks). The research board's LLB, like Apple's Private Cloud Compute servers, deletes every NVRAM variable at each boot except a short keep list; an iPhone's iBoot does not. Takes LLB's own path for an upgrade boot, which skips that step. LLB still reads only the variables a device's iBoot reads. On in minimal and watchos.",
+                target: .firmware(.llb),
+            ),
 
             // MARK: TXM
 

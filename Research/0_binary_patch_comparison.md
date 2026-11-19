@@ -7791,7 +7791,8 @@ image, whose trust cache is rebuilt anyway. The temporary cloudOS restore that
 recovers the GPU driver now also sends cloudOS's own `Ap,OSEnvironment`.
 In environment 6 AMFI enables Developer Mode only in its research build; the
 research-board kernel mix takes AMFI from the release kernel, so a research-board
-guest has none (the note has the disassembly).
+guest has none (the note has the disassembly). Giving it back was tried and
+dropped: TXM runs only platform code there (the note, "Developer Mode").
 
 iOS 27.0.1 with cloudOS 26.4 panicked in environment 6 (dyld mounted no OS
 cryptex, launchd found no libSystem; 2026-11-12), and the box was refused for
@@ -7936,6 +7937,157 @@ app installation worked, and on 27.2 so did a sysdiagnose. These were not
 compared side by side with an unpatched guest. Software Update, MobileAsset
 downloads and crash report submission need Apple's servers and were not
 exercised.
+
+## Developer Mode and NVRAM: LLB skips the PCC scrub (2026-11-19)
+
+**Symptom.** Settings › Privacy & Security › Developer Mode › Restart on a
+`minimal` guest: AMFI logs `AMFI: armed security boot mode: 2` and the kernel
+writes `security-mode-change-enable=2` to NVRAM, but the guest comes back with
+Developer Mode off and no PreBoard prompt (`AMFI: finished: 0 1`). Guest RAM
+after boot holds `/chosen/security-mode-change-enable = 0`, and the variable is
+gone from `nvram.bin`. Other variables iOS writes for itself are lost the same
+way.
+
+**Cause.** The vresearch101 LLB has iBoot's handler (27.2 RELEASE `0x2572C`:
+getenv, unsetenv, save NVRAM, set the `/chosen` property), but it runs after a
+PCC NVRAM scrub in the LLB's init (`0x56FC`, called at `0x36A0`). Unless
+`boot-command` is `upgrade`, the scrub reads 21 keep-list names (22 in
+RESEARCH_RELEASE: auto-boot, boot-volume, boot-breadcrumbs,
+one-time-boot-command, stress-rack, the `krn.*` and obliteration state,
+darwin-init, ...), clears every variable that came from NVRAM (IPC message 13,
+`0x5C020`), sets the kept ones again and saves NVRAM (`0x5E7C`). The request is
+not kept, so the handler's getenv returns its default 0. Found by static
+reading of the LLB; the scrub is the same in RELEASE and RESEARCH_RELEASE.
+
+**Only PCC boot loaders scrub.** The scrub is in every Private Cloud Compute
+boot loader read so far and in no iPhone one. All images are plain LZFSE, no
+KBAG, so they were read directly (`ipsw img4 im4p extract`, Xcode
+`llvm-objdump`):
+
+| Image | Keep list |
+| --- | --- |
+| vresearch101 RELEASE 26.4β, 26.4, 26.5, 27.2 | 21 names |
+| vresearch101 RESEARCH_RELEASE 26.5, 27.2 | 22 (adds boot-args, epdm-skip-nvram) |
+| j226c and j236c (PCC servers) RELEASE 27.2 | 21, the same as vresearch101 |
+| j226c and j236c RELEASE 26.5 | 14 (no darwin-init or obliteration state) |
+| vresearch101 RELEASE 18.6 | 11 |
+| j236c RELEASE 18.6 | 5 |
+| iPhone17,3 (d47) LLB and iBoot 26.5, 27.2, RELEASE and RESEARCH_RELEASE; iPhone11,x 18.6 | no scrub |
+
+In the iPhone17,3 27.2 LLB the init step that calls the scrub on vresearch101
+(the same breadcrumb tags around it, `0x4080` → `0x62C4`) only loads NVRAM and
+runs the Developer Mode handler. None of `boop-storage-nonces`, `darwin-init`,
+`oblit*` or `epdm-skip-nvram` occurs in an iPhone image.
+
+**What the scrub costs a guest.** Watching `nvram.bin` on the host through a
+restart of a `minimal` 27.2 guest: with the stock LLB the store drops from 46
+to 24 entries when LLB saves, losing `fm-activation-locked`, `fm-locktype`,
+`fm-spstatus`, `StartupMute`, `SetupCountryOverride`,
+`lca_wifi_country_override`, `user_language_enum` and
+`com.apple.System.rtc-offset`; iOS writes some of them again later in the boot,
+the Find My ones not within 150 seconds. With the patch nothing is dropped.
+
+**What stays the same.** iBoot reads only the names in its own NVRAM table
+(vresearch101 RELEASE `0xABB60`, 44 entries; the lookup at `0x3508` marks any
+other variable from NVRAM with flag 4, and getenv returns NULL for it at
+`0x5B354`). `boot-args` is in the table only in RESEARCH_RELEASE, so a guest's
+`boot-args` still does not reach a RELEASE kernel (`0x1BF70`). The names LLB
+does read and the scrub used to clear (`boot-command`, `recovery-boot-mode`,
+`upgrade-retry`, the panicmedic counters, `backlight-level`, the boot nonce)
+now persist as on an iPhone, so a guest can leave itself in recovery as a
+device can. The scrub could already be skipped without a patch by setting
+`boot-command=upgrade`.
+
+| Patch | Component | Change |
+| --- | --- | --- |
+| `llb-exp-nvram_scrub_bypass` | LLB | The scrub's first test, `cbz x0, scrub` after the `bl` that looks up `"boot-command"` (its `x0`), becomes `b done`, the target of the `cbz w0, done` that follows the `bl` comparing it with `"upgrade"`; that path skips the scrub and its save. Matched within 0x800 bytes after each reference to the keep list's `stress-rack` entry (the same test also occurs outside the scrub): the lookup must be a `bl` whose `x0` is `adrp/add "boot-command"`, the first `cbz` must test `x0`, the compare must be a `bl` whose `w0` the second `cbz` tests, and the first `cbz` must land right after the second. Exactly one such site must exist; when the preset selects the patch, a miss or a second site fails `fw patch` instead of booting a guest whose Developer Mode never latches. Sites (`cbz` → `b`): 27.2 24B115 RELEASE `0x5BFC` → `0x5E80`, RESEARCH_RELEASE `0x5F00` → `0x6188`; 26.4 23E5207q, 26.4 23E244 and 26.5 23F75 RELEASE `0x55C0` → `0x5824`, RESEARCH_RELEASE `0x5878` → `0x5AE0`; 22G86 (iOS 18.6's cloudOS) RELEASE `0x5314` → `0x53E8`, RESEARCH_RELEASE `0x5628` → `0x56FC`; j236c RELEASE 27.2 `0x60B8` → `0x633C`. On in `minimal` and `watchos`; every other preset, `experimental` included, blocks it. |
+
+**Checked** on a new `minimal` iPhone17,3 iOS 27.2 (24B119) guest with cloudOS
+27.2 (24B115), normal environment, stock kernel and TXM: a restart keeps every
+variable in `nvram.bin` (`fm-*`, `StartupMute`, `SetupCountryOverride`,
+`user_language_enum`). Arming Developer Mode gives `AMFI: delaying developer
+mode latching...` on the next boot and PreBoard's "Ready to Enable Developer
+Mode"; Enable turns it on (`developer_mode.status` enabled), the LLB's handler
+deletes the request from `nvram.bin`, and the next boot reaches Setup Assistant
+with `AMFI: Developer Mode Is On` and no prompt. The control, the same guest
+with the stock `cbz` word, lost the variables at LLB's save. The match finds exactly one
+site in every vresearch101 LLB from cloudOS 18.6 (22G86) to 27.2, RELEASE and
+RESEARCH_RELEASE; a selected patch that finds none, or more than one, fails
+`fw patch`. Not checked: which variables guest userland may write.
+
+iOS 27.2 needs cloudOS 27.2 here. On the cloudOS 26.4 beta a `minimal` iOS
+27.2 guest does not come up with or without this work: without it,
+`apfs_sealvolume` fails with error 65 during the restore; with
+`filesystem-exp-internal_release_type`, ramrod seals with `-a`, the seal
+succeeds, and the first boot panics on "APFSX: could not validate root hash
+Authentication error (80)" (reported in review, not reproduced here).
+
+**Side effects: what now survives a restart.** The stock keep list holds none of
+`boot-command`, `recovery-boot-mode`, `upgrade-retry`, `auto-boot-once` or
+`panicmedic-*`, while iBoot's own NVRAM table reads all of them (27.2 RELEASE).
+With the patch they survive as on an iPhone, so a guest could in principle keep
+restarting into recovery or count panics towards panicmedic. Checked on a
+`minimal` iPhone17,3 iOS 26.5 (23F77) guest on the recommended cloudOS 26.4
+beta (23E5207q) with 4096 MB:
+- The guest was panicked four times in a row, each time by writing `udf #0`
+  at a halted vCPU's PC through the kernel gdb stub ("Undefined kernel
+  instruction"), then stopped and started again.
+- Every boot came back normally, with Developer Mode still on.
+- Afterwards `nvram.bin` held the variables iOS writes for itself (`fm-*`,
+  `StartupMute`, `SetupCountryOverride`, `boot-breadcrumbs`, `auto-boot=true`)
+  but no `panicmedic-*` value, no panic info and no `recovery-boot-mode`. A
+  panicked guest halts in the debugger and is restarted by the host, and the
+  kernel writes no panic record to NVRAM there, so panicmedic has nothing to
+  count.
+
+Not reproduced: a guest that stops in recovery mode because of a kept variable.
+vphoned cannot run `nvram`, and the guest's NVRAM can only be changed from
+inside it, so there is no host-side way to clear one variable. Two ways back:
+- A machine snapshot holds `nvram.bin` with the disk image and `SEPStorage`, so
+  `vphone-cli vm snapshot revert <vm> <name>` on the stopped machine also
+  returns NVRAM to that moment.
+- With no snapshot, take the patch out and restore (not tried here):
+  `vphone-cli fw set-patches <vm> --block llb-exp-nvram_scrub_bypass`, then
+  `vphone-cli fw patch <vm>`, `vphone-cli vm launch <vm> --dfu` and
+  `vphone-cli restore <vm>`. The LLB then runs the stock scrub again.
+  (`vphone-cli vm create` has no `--block`; Launchpad's `vm create` has one.)
+
+**Watch.** A `watchos` Apple Watch Series 11 (Watch7,18) guest with watchOS
+26.4 (23T240) on cloudOS 26.4 (23E244), 4096 MB, with the patch:
+- After the first restart the Developer Mode request was still there:
+  `AMFI: armed security boot mode: 2`, then `AMFI: delaying developer mode
+  latching...` on the next boot.
+- The variables watchOS writes for itself (`SetupCountryOverride`,
+  `lca_wifi_country_override`) were kept across both restarts, the second a
+  cold stop and start, and both boots came up with no panic.
+- Unpaired, the watch boots into its pairing screen (setup cannot be skipped
+  there), and no PreBoard confirmation appeared. The second boot's AMFI
+  consumed the request (`AMFI: finished: 0 1`), so Developer Mode stayed off.
+- Paired with a virtual iPhone (iOS 27.2), Settings › Privacy & Security ›
+  Developer Mode › Restart armed the request (`AMFI: armed security boot mode:
+  2`), the next boot delayed latching (`AMFI: delaying developer mode
+  latching...`), and confirming turned Developer Mode on. It was still on after
+  a cold stop and start (`AMFI: finished: 1 1`), with no panic.
+- A paired watch built without the patch lost the request at the restart: AMFI
+  armed it, and the next boot went straight to `AMFI: finished: 0 1`.
+
+**iPad.** A `minimal` iPad mini (A17 Pro, iPad16,1) with iPadOS 26.6.2 (23G90)
+on the cloudOS 26.4 beta, 6144 MB, went through the same steps:
+- the Developer Mode request survived the restart (`AMFI: delaying developer
+  mode latching...`);
+- PreBoard asked, and Enable turned Developer Mode on;
+- `devicectl manage pair` worked, the Developer disk image was usable, and
+  `device process launch com.apple.Preferences` launched Settings;
+- Developer Mode was still on after another restart, with no panic.
+
+PreBoard draws its text in a narrow column on the iPad; it still works.
+iPadOS 27.0.1 (24A446), the catalog's default for that iPad, does not get
+through a `minimal` restore here, with or without this work's patches. With
+them, the first boot panics on `APFSX: could not validate root hash` (a
+root_hash mismatch). With `llb-exp-nvram_scrub_bypass`,
+`devicetree-exp-syscfg_placeholders` and `filesystem-exp-internal_release_type`
+all blocked, restore already stops at "failed to seal system volume". So the
+failure is not caused by these patches.
 
 ## Answers for vphone600's syscfg placeholders (2026-11-14)
 

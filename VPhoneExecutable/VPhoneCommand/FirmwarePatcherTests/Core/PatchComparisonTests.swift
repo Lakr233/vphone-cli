@@ -162,6 +162,9 @@ struct LLBComparisonTests {
     @Test func `compare LLB`() throws {
         let data = try loadRawPayload("llb.bin")
         let patcher = IBootPatcher(data: data, mode: .llb, verbose: false)
+        // The reference predates the NVRAM scrub bypass, which an unrestricted
+        // gate would add as one more record. IBootNVRAMScrubBypassTests covers it.
+        patcher.gate = VPhonePatchGate(declared: ["llb-exp-nvram_scrub_bypass"], enabled: [])
         let swiftPatches = try patcher.findAll()
         let refPatches = try loadReference("llb")
         comparePatchRecords(swift: swiftPatches, reference: refPatches, component: "llb")

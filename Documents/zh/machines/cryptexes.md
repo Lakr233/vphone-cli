@@ -9,7 +9,7 @@ Cryptex 是一个签名的磁盘映像，客户机在运行时将其挂载，并
 - 客户机需要网络。安装 cryptex 时会请求 Apple 的签名服务器为此客户机个性化它。
 - 请让 iOS 搭配同一版本的 cloudOS。已验证 iOS 18.1 至 18.7.2、26.1、26.3 至 26.6 以及 27.2 各自搭配对应的 cloudOS 可用。若搭配其他版本的 cloudOS，`minimal` 客户机可能根本无法启动。
 
-在此环境中，客户机强制执行 Restricted Execution Mode，运行在研究板 cloudOS（26.5 到 26.7）上的客户机无法打开开发者模式。
+在此环境中，客户机强制执行 Restricted Execution Mode，并且开发者模式无法使用：TXM 在此只运行平台代码，因此不会注册任何描述文件，用 Xcode 构建的 App 无法启动。如需开发 App，请不要勾选该选项。
 
 ## 安装 cryptex
 

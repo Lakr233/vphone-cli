@@ -117,13 +117,18 @@ extension IBootPatcher {
 
     /// Offset of a NUL-terminated string that starts on a string boundary.
     private func findCString(_ text: String) -> Int? {
+        findCStrings(text).first
+    }
+
+    /// Every copy of `text` + NUL that starts on a string boundary.
+    func findCStrings(_ text: String) -> [Int] {
         let needle = Data(text.utf8) + Data([0])
-        return buffer.findAll(needle).first { $0 == 0 || buffer.original[$0 - 1] == 0 }
+        return buffer.findAll(needle).filter { $0 == 0 || buffer.original[$0 - 1] == 0 }
     }
 
     /// ADRP+ADD pairs that materialise `target` (raw binary, base address 0:
     /// the page arithmetic is the same at any page-aligned load address).
-    private func findADRPAddReferences(to target: Int) -> [Int] {
+    func findADRPAddReferences(to target: Int) -> [Int] {
         let data = buffer.original
         var references: [Int] = []
         var offset = 0
