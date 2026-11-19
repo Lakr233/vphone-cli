@@ -37,8 +37,10 @@ struct VPhoneLaunchpadNewMachineView: View {
     @State private var inspectedCustomSource: String?
     @State private var cloudOSSource = ""
     /// Run the release on its own cloudOS, where the research board stands in
-    /// for vphone600 and the kernelcache is mixed (`fw kernelcache`).
-    @State private var usesOwnCloudOS = false
+    /// for vphone600 and the kernelcache is mixed (`fw kernelcache`). On by
+    /// default: a pairing that has its own cloudOS boots with it unless the
+    /// recommended one is picked.
+    @State private var usesOwnCloudOS = true
     /// The ipsw that stages a mix; vphone-cli does not ship one.
     @AppStorage("KernelcacheIPSW") private var kernelcacheIPSW = ""
     @State private var cpu = Self.defaultCPU
@@ -451,6 +453,9 @@ struct VPhoneLaunchpadNewMachineView: View {
         } else if let own = ownCloudOS {
             Text("On its own cloudOS, \(own.name): the kernelcache is rebuilt, which asks for administrator access once.")
                 .foregroundStyle(.secondary)
+        } else if let pairing = selectedPairing, let own = pairing.matchingCloudOS {
+            Text("With \(pairing.recommendedCloudOS.name), not its own \(own.name). Choose \(own.name) in Advanced Options to match \(pairing.ios.name).")
+                .foregroundStyle(.orange)
         } else if rebuildsKernelcache, let cloudOS = selectedPairing?.recommendedCloudOS.name {
             Text("With \(cloudOS): the kernelcache is rebuilt with the watch's kexts, which asks for administrator access once.")
                 .foregroundStyle(.secondary)
@@ -629,8 +634,8 @@ struct VPhoneLaunchpadNewMachineView: View {
                 sourceField("cloudOS IPSW", $cloudOSSource)
             } else if let pairing = selectedPairing, let own = pairing.matchingCloudOS {
                 Picker("cloudOS", selection: $usesOwnCloudOS) {
+                    Text("\(own.name), matching \(pairing.ios.name)").tag(true)
                     Text(verbatim: pairing.recommendedCloudOS.name).tag(false)
-                    Text(verbatim: own.name).tag(true)
                 }
                 if usesOwnCloudOS {
                     sourceField("ipsw", $kernelcacheIPSW)

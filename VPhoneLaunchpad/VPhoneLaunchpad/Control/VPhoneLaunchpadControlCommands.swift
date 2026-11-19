@@ -575,8 +575,11 @@ struct VPhoneLaunchpadControlCommands {
             guard let pairing = guest.defaultPairing else {
                 throw VPhoneLaunchpadError("Unable to read the firmware catalog. Pass --iphone-source and --cloudos-source.", detail: result.tail)
             }
+            // The release's own cloudOS fits only the release's own iOS, not an
+            // --iphone-source the catalog doesn't know.
+            let releaseCloudOS = iphone == nil ? pairing.preferredCloudOS : pairing.recommendedCloudOS
             iphone = iphone ?? pairing.ios.url
-            cloudOS = cloudOS ?? pairing.recommendedCloudOS.url
+            cloudOS = cloudOS ?? releaseCloudOS.url
             emit("firmware: \(iphone ?? "") + \(cloudOS ?? "")")
         }
 
