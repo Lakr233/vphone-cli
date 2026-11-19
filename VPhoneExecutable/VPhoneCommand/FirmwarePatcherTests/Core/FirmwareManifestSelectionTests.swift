@@ -47,6 +47,51 @@ struct FirmwareManifestSelectionTests {
     }
 
     @Test
+    func `an XS Max gets an installed device tree of its own only for its board target type`() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let flash = root.appending(path: "Firmware/all_flash")
+        try FileManager.default.createDirectory(at: flash, withIntermediateDirectories: true)
+        let tree = Data("tree".utf8)
+        try tree.write(to: flash.appending(path: "DeviceTree.vphone600ap.im4p"))
+        let identity: PlistDict = ["Manifest": [
+            "DeviceTree": ["Info": ["Path": "Firmware/all_flash/DeviceTree.vphone600ap.im4p"]],
+            "RestoreDeviceTree": ["Info": ["Path": "Firmware/all_flash/DeviceTree.vphone600ap.im4p"]],
+        ]]
+        func installedPath(_ result: PlistDict) -> String? {
+            (((result["Manifest"] as? PlistDict)?["DeviceTree"] as? PlistDict)?["Info"] as? PlistDict)?["Path"] as? String
+        }
+
+        let kept = try FirmwareManifest.separateGuestDeviceTree(
+            for: .iPhone11_6, identity: identity, restoreDir: root, verbose: false,
+        )
+        #expect(NSDictionary(dictionary: kept).isEqual(to: identity))
+        #expect(!FileManager.default.fileExists(atPath: root.appending(path: FirmwareManifest.guestDeviceTreePath).path))
+
+        let split = try FirmwareManifest.separateGuestDeviceTree(
+            for: .iPhone11_6, identity: identity, restoreDir: root, boardTargetType: true, verbose: false,
+        )
+        #expect(installedPath(split) == FirmwareManifest.guestDeviceTreePath)
+        #expect(try Data(contentsOf: root.appending(path: FirmwareManifest.guestDeviceTreePath)) == tree)
+        let restorePath = (((split["Manifest"] as? PlistDict)?["RestoreDeviceTree"] as? PlistDict)?["Info"] as? PlistDict)?["Path"] as? String
+        #expect(restorePath == "Firmware/all_flash/DeviceTree.vphone600ap.im4p")
+
+        // `fw patch` splits the trees only when the written manifest installs the split one.
+        #expect(FirmwareManifest.installsGuestDeviceTree(restoreDir: root) == nil)
+        try (["BuildIdentities": [split]] as NSDictionary).write(to: root.appending(path: "BuildManifest.plist"))
+        #expect(FirmwareManifest.installsGuestDeviceTree(restoreDir: root) == true)
+        try (["BuildIdentities": [identity]] as NSDictionary).write(to: root.appending(path: "BuildManifest.plist"))
+        #expect(FirmwareManifest.installsGuestDeviceTree(restoreDir: root) == false)
+
+        // Preparing again without the board target type takes the split back.
+        let again = try FirmwareManifest.separateGuestDeviceTree(
+            for: .iPhone11_6, identity: identity, restoreDir: root, verbose: false,
+        )
+        #expect(NSDictionary(dictionary: again).isEqual(to: identity))
+        #expect(!FileManager.default.fileExists(atPath: root.appending(path: FirmwareManifest.guestDeviceTreePath).path))
+    }
+
+    @Test
     func `phone and pad manifest digests remain unchanged without reading files`() throws {
         let identity: PlistDict = ["Manifest": ["OS": ["Digest": Data([1, 2, 3])]]]
         for device in [VPhoneGuestDevice.iPhone17_3, .iPad16_1] {

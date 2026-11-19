@@ -68,6 +68,8 @@ extension DeviceTreePatcher {
     static let watchPresentationPatch = "devicetree-cfw-watch_presentation"
     static let watchDriverKitPatch = "devicetree-cfw-watch_driverkit"
     static let watchCompanionPatch = "devicetree-cfw-watch_companion"
+    static let syscfgPlaceholdersPatch = "devicetree-exp-syscfg_placeholders"
+    static let boardTargetTypePatch = FirmwareDeviceTreePatchSet.boardTargetType
     static let hapticsPatch = "devicetree-cfw-product_haptics_node"
     static let microphoneArrayPatch = "devicetree-cfw-product_audio_microphone_array"
 
@@ -930,6 +932,226 @@ extension DeviceTreePatcher {
         ))
         if verbose {
             print("  =prop  : /product/watch-companion = 1, the VM syscfg has no waco  [\(Self.watchCompanionPatch)]")
+        }
+    }
+
+    // MARK: - Board Target Type
+
+    /// The target type a board's name gives: `deviceClass` without its `ap`,
+    /// first letter capitalised (`d331pap` → `D331p`), which is what the
+    /// board's own tree has as its root `target-type`.
+    static func targetType(namedBy device: VPhoneGuestDevice) -> String {
+        var name = device.deviceClass.hasSuffix("ap") ? String(device.deviceClass.dropLast(2)) : device.deviceClass
+        if let first = name.first { name = first.uppercased() + name.dropFirst() }
+        return name
+    }
+
+    /// Give the installed tree of a guest that does not present its board
+    /// (the iPhone XS Max) the board's root `target-type`, `board` being its
+    /// `DeviceTree.<board>.im4p`, or the one its name gives without it.
+    /// Returns the bytes before and after, or nil when there is nothing to do:
+    /// a board-presenting guest, whose board edits copy it, a non-iPhone, a
+    /// tree that is not vphone600's (`VPHONE600`), which is how an identity
+    /// rewrite to D47 is left alone, or one that already has it.
+    ///
+    /// iOS 18's launchd names its jetsam properties file after
+    /// `hw.targettype` (`com.apple.jetsamproperties.<type>.plist`), which the
+    /// kernel takes from the root `target-type`, not after
+    /// `jetsam-properties-product-type` as iOS 26 and 27 do. vphone600 says
+    /// `VPHONE600`, which no iOS image has a file for, so launchd loads no
+    /// jetsam properties and the Developer disk image's daemons kill init.
+    /// iOS 18.6 ships `D331p`'s. Only the installed tree carries it: restore
+    /// checks the root `target-type` against the manifest.
+    static func presentBoardTargetType(
+        in root: DTNode,
+        board: DTNode?,
+        device: VPhoneGuestDevice,
+    ) -> (before: Data, after: Data)? {
+        guard device.family == .iPhone, !device.presentsBoard,
+              let property = root.properties.first(where: { $0.name == "target-type" }),
+              property.flags & placeholderFlag == 0,
+              property.value.prefix(while: { $0 != 0 }) == Data("VPHONE600".utf8)
+        else { return nil }
+        let after: Data
+        if let boardProperty = board?.properties.first(where: { $0.name == "target-type" }),
+           boardProperty.flags & placeholderFlag == 0,
+           boardProperty.value.contains(where: { $0 != 0 })
+        {
+            after = boardProperty.value
+        } else {
+            after = Data((targetType(namedBy: device) + "\0").utf8)
+        }
+        let before = property.value
+        property.value = after
+        return (before, after)
+    }
+
+    /// Applies `presentBoardTargetType(in:board:device:)` to the installed
+    /// tree, which `fw prepare` splits off for the XS Max only when this patch
+    /// is selected (`FirmwareManifest.generate(boardTargetType:)`).
+    func applyBoardTargetType(root: DTNode) throws {
+        guard role == .installed, gateAllows(Self.boardTargetTypePatch) else { return }
+        let board = try sourceTree.map { try parsePayload($0) }
+        guard let change = Self.presentBoardTargetType(in: root, board: board, device: device) else { return }
+        let source = board == nil ? "the board name \(device.deviceClass)" : "\(device.productType)'s device tree"
+        patches.append(PatchRecord(
+            patchID: Self.boardTargetTypePatch,
+            component: component,
+            fileOffset: 0,
+            virtualAddress: nil,
+            originalBytes: change.before,
+            patchedBytes: change.after,
+            description: "Set /device-tree/target-type from \(source)",
+        ))
+        if verbose {
+            print("  =prop  : /target-type \(String(decoding: change.before.prefix { $0 != 0 }, as: UTF8.self)) → \(String(decoding: change.after.prefix { $0 != 0 }, as: UTF8.self)) from \(source)  [\(Self.boardTargetTypePatch)]")
+        }
+    }
+
+    // MARK: - Syscfg Placeholder Values
+
+    /// The `syscfg/` keys whose answer is the guest's own board, not the
+    /// virtual D47 the gestalt variant describes: the jetsam product type
+    /// launchd names its jetsam properties file by, which has to be one the
+    /// guest's OS ships, and the per-process memory limits that go with it.
+    static let boardSyscfgKeys = ["jppt", "kmtp", "ketp"]
+
+    /// One placeholder `resolveSyscfgPlaceholders` answered: the node path,
+    /// the property, its bytes before and after, and where the answer came from.
+    struct SyscfgPlaceholderChange {
+        let path: String
+        let property: String
+        let before: Data
+        let after: Data
+        let source: String
+    }
+
+    /// Answer the `syscfg/<key>` placeholders the VM's syscfg cannot, for an
+    /// iPhone or iPad guest. Each answered one loses its placeholder flag.
+    ///
+    /// vphone600 keeps the phone's answers in syscfg placeholders. The VM's
+    /// syscfg has none of those keys, so the boot chain drops every one before
+    /// the kernel sees the tree. Without `/product/jetsam-properties-product-type`
+    /// (`jppt`) the `hw.jetsam_properties_product_type` sysctl is unset,
+    /// launchd loads no jetsam properties at all, and the first overlay that
+    /// names a category, the Developer disk image's, kills init ("jetsam
+    /// property category (Daemon) is not initialized").
+    /// `/defaults/kern.max_task_pmem` and `kern.entitled_max_task_pmem`
+    /// (`kmtp`, `ketp`) are dropped the same way.
+    ///
+    /// Two sources, in this order:
+    ///
+    /// - `boardSyscfgKeys` come from the guest's own board, `board` being its
+    ///   `DeviceTree.<board>.im4p`. A real board carries no
+    ///   `jetsam-properties-product-type` (D47AP, D331pAP), and launchd then
+    ///   uses the target type, so `jppt` is the board's property when it has
+    ///   one and its `target-type` otherwise; the limits are its `/defaults`.
+    ///   Without the board tree, the variant answers for its own device; for
+    ///   another, `jppt` is the target type `deviceClass` names (`d331pap` →
+    ///   `D331p`), and the limits stay placeholders.
+    /// - Every other key takes the gestalt variant's `tag-<key>`, which holds
+    ///   Apple's answer for its virtual D47 (`d47vm2025vre`), but only when the
+    ///   variant describes the guest (its `tag-tprt` is `productType`). Another
+    ///   iPhone or an iPad has its own answers, which the board edits copy; a
+    ///   tag would put D47's layout where they belong.
+    ///
+    /// A placeholder neither answers (serial and model numbers, enclosure
+    /// colours, the Bluetooth address, `gsrp`) is left for the boot chain, as
+    /// is one whose tag is empty (`rgen`), which says the key has no value
+    /// rather than an empty one. The variant list is found by its `compatible`,
+    /// so the `d47-gestalt-variants` rename does not hide it; a list with
+    /// other than one variant gives no tags, since nothing here says which
+    /// one applies.
+    static func resolveSyscfgPlaceholders(
+        in root: DTNode,
+        board: DTNode?,
+        device: VPhoneGuestDevice,
+    ) -> [SyscfgPlaceholderChange] {
+        guard device.family == .iPhone || device.family == .iPad else { return [] }
+        func text(_ data: Data) -> String {
+            String(decoding: data.prefix { $0 != 0 }, as: UTF8.self)
+        }
+        func nodeName(_ node: DTNode) -> String {
+            text(node.properties.first { $0.name == "name" }?.value ?? Data())
+        }
+        func value(_ node: DTNode?, _ name: String) -> Data? {
+            guard let property = node?.properties.first(where: { $0.name == name }),
+                  property.flags & placeholderFlag == 0, !property.value.isEmpty
+            else { return nil }
+            return property.value
+        }
+
+        var answers: [String: (value: Data, source: String)] = [:]
+        if let product = optionalChild(of: root, named: "product"),
+           let list = product.children.first(where: { text(value($0, "compatible") ?? Data()) == "gestalt-variant-list" }),
+           list.children.count == 1,
+           value(list.children[0], "tag-tprt").map(text) == device.productType
+        {
+            for property in list.children[0].properties where property.name.hasPrefix("tag-") && !property.value.isEmpty {
+                answers[String(property.name.dropFirst(4))] = (property.value, "the gestalt variant")
+            }
+        }
+        if let board {
+            let boardName = text(value(board, "target-type") ?? Data())
+            let source = "\(boardName.isEmpty ? device.productType : boardName)'s device tree"
+            let boardProduct = optionalChild(of: board, named: "product")
+            let boardDefaults = optionalChild(of: board, named: "defaults")
+            for (key, found) in [
+                ("jppt", value(boardProduct, "jetsam-properties-product-type") ?? value(board, "target-type")),
+                ("kmtp", value(boardDefaults, "kern.max_task_pmem")),
+                ("ketp", value(boardDefaults, "kern.entitled_max_task_pmem")),
+            ] {
+                if let found { answers[key] = (found, source) } else { answers[key] = nil }
+            }
+        } else if answers["jppt"] == nil {
+            // No board tree and no variant for this device: the jetsam product
+            // type is the board's target type, which its name gives. Its limits
+            // are unknown here and stay placeholders.
+            answers["jppt"] = (Data((targetType(namedBy: device) + "\0").utf8), "the board name \(device.deviceClass)")
+        }
+
+        var changes: [SyscfgPlaceholderChange] = []
+        func walk(_ node: DTNode, _ path: String) {
+            for property in node.properties where property.flags & placeholderFlag != 0 {
+                let placeholder = text(property.value)
+                guard placeholder.hasPrefix("syscfg/") else { continue }
+                let key = String(placeholder.dropFirst("syscfg/".count).prefix { $0 != "/" })
+                guard let answer = answers[key] else { continue }
+                changes.append(SyscfgPlaceholderChange(
+                    path: path, property: property.name, before: property.value, after: answer.value, source: answer.source,
+                ))
+                property.flags = 0
+                property.value = answer.value
+            }
+            for child in node.children {
+                walk(child, path + "/" + nodeName(child))
+            }
+        }
+        walk(root, "")
+        return changes
+    }
+
+    /// Applies `resolveSyscfgPlaceholders(in:board:device:)` to the tree the
+    /// guest boots: the installed tree of a guest that presents its board,
+    /// with that board's tree, or the shared one of a guest that does not.
+    /// A restore tree is left alone; the restore OS mounts no Developer disk
+    /// image, and restore checks its identity against the manifest.
+    func applySyscfgPlaceholderValues(root: DTNode) throws {
+        guard role != .restore, gateAllows(Self.syscfgPlaceholdersPatch) else { return }
+        let board = try sourceTree.map { try parsePayload($0) }
+        for change in Self.resolveSyscfgPlaceholders(in: root, board: board, device: device) {
+            patches.append(PatchRecord(
+                patchID: Self.syscfgPlaceholdersPatch,
+                component: component,
+                fileOffset: 0,
+                virtualAddress: nil,
+                originalBytes: change.before,
+                patchedBytes: change.after,
+                description: "Set /device-tree\(change.path)/\(change.property) from \(change.source)",
+            ))
+            if verbose {
+                print("  =prop  : \(change.path)/\(change.property) \(String(decoding: change.before.prefix { $0 != 0 }, as: UTF8.self)) → \(change.after.hex) from \(change.source)  [\(Self.syscfgPlaceholdersPatch)]")
+            }
         }
     }
 

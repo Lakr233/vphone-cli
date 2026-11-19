@@ -50,6 +50,8 @@
 		<key>Patches</key>
 		<array>
 			<string>devicetree-boot-vresearch101_conversion</string>
+			<string>devicetree-exp-syscfg_placeholders</string>
+			<string>devicetree-exp-board_target_type</string>
 			<string>devicetree-cfw-artwork_device_subtype</string>
 			<string>devicetree-cfw-home_button_type</string>
 			<string>devicetree-cfw-island_notch_location</string>

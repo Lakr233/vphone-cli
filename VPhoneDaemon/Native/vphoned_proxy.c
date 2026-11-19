@@ -58,12 +58,22 @@ static void *watch_proxy(void *context) {
 // com.apple.private.memorystatus.
 extern int memorystatus_control(uint32_t command, int32_t pid, uint32_t flags, void *buffer, size_t size);
 
-enum { VPMemorystatusSetPriorityProperties = 2 };
+enum {
+    VPMemorystatusSetPriorityProperties = 2,
+    VPMemorystatusSetMemlimitProperties = 7,
+};
 
 typedef struct {
     int32_t priority;
     uint64_t user_data;
 } vp_memorystatus_priority_properties;
+
+typedef struct {
+    int32_t memlimit_active;
+    uint32_t memlimit_active_attr;
+    int32_t memlimit_inactive;
+    uint32_t memlimit_inactive_attr;
+} vp_memorystatus_memlimit_properties;
 
 // JETSAM_PRIORITY_DEFAULT: the band the kernel gives a process launchd does
 // not manage, which is where the worker runs.
@@ -80,6 +90,25 @@ static void move_to_worker_jetsam_band(void) {
                              sizeof(properties)) != 0) {
         fprintf(stderr, "vphoned proxy: could not move to jetsam band %d: %s\n", worker_jetsam_band,
                 strerror(errno));
+    }
+}
+
+static void lift_daemon_memory_limit(void) {
+    // vphoned.plist has no JetsamProperties, so on a guest whose jetsam
+    // properties are loaded (vphone600's D47 file) launchd gives the proxy
+    // the generic daemon limit: 6 MB on minimal iOS 26.5. The proxy runs
+    // near 1.5 MB, but a kill at that limit takes the guest's API down
+    // until launchd restarts it. -1 asks for the kernel's default task
+    // limit, which is what the worker, spawned by the proxy, already has.
+    vp_memorystatus_memlimit_properties limits = {
+        .memlimit_active = -1,
+        .memlimit_active_attr = 0,
+        .memlimit_inactive = -1,
+        .memlimit_inactive_attr = 0,
+    };
+    if (memorystatus_control(VPMemorystatusSetMemlimitProperties, getpid(), 0, &limits, sizeof(limits)) !=
+        0) {
+        fprintf(stderr, "vphoned proxy: could not lift its jetsam memory limit: %s\n", strerror(errno));
     }
 }
 
@@ -122,6 +151,7 @@ int vp_native_run_proxy(void) {
     uint32_t size = sizeof(executable);
     if (_NSGetExecutablePath(executable, &size) != 0) return 1;
     move_to_worker_jetsam_band();
+    lift_daemon_memory_limit();
 
     struct sigaction action = {.sa_handler = request_stop};
     sigemptyset(&action.sa_mask);
