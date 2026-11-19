@@ -310,10 +310,37 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
     var rom: String?
     @Option(name: .long, help: VPhoneSEPROMOption.help)
     var seprom: String?
+    @Option(name: .long, help: "Redirect tunnel-mode guest TCP through a SOCKS5 proxy: host:port")
+    var intercept: String?
+    @Flag(name: .long, help: "Stop redirecting guest TCP through a proxy")
+    var noIntercept = false
+    @Flag(name: .long, help: "Drop guest UDP/443 so QUIC apps fall back to interceptable TCP")
+    var interceptBlockQuic = false
+    @Flag(name: .long, help: "Stop dropping guest UDP/443")
+    var noInterceptBlockQuic = false
 
     func run() throws {
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
+        let priorNetwork = try lib.library.bundle(named: name).manifest.networkConfig
         let edit = try networkEdit(vmName: name)
+        // Resolve interception in the edit layer so a bad value or a tunnel-only
+        // violation is a usage error (exit 2) before any write, and so the
+        // proxying-disabled / plaintext-credential signals are available below.
+        var interceptResult = VPhoneNetworking.InterceptResolution(
+            intercept: priorNetwork.intercept, interceptBlockQUIC: priorNetwork.blockQUIC,
+            proxyingDisabled: false, plaintextCredentialWarning: false,
+        )
+        if !edit.isEmpty {
+            do {
+                interceptResult = try VPhoneNetworking.resolveInterceptEdit(
+                    current: priorNetwork, edit: edit, newMode: edit.mode ?? priorNetwork.mode,
+                )
+            } catch let error as VPhoneNetworkingError {
+                throw ValidationError(error.description)
+            } catch let error as VPhoneVirtualMachineManifest.NetworkConfig.InterceptParseError {
+                throw ValidationError(error.description)
+            }
+        }
         let unlocks = try unlockAtStartup.map { try Self.parseSwitch($0, option: "--unlock-at-startup") }
         let syncsLocation = try syncHostLocation.map { try Self.parseSwitch($0, option: "--sync-host-location") }
         let holdsTunnel = try developerTunnel.map { try Self.parseSwitch($0, option: "--developer-tunnel") }
@@ -337,6 +364,19 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
             print("SEP ROM: \(VPhoneSEPROMOption.describe(current)), from the next start")
         }
         let m = updated.manifest
+        // Leaving tunnel mode dropped a prior intercept rather than failing.
+        if interceptResult.proxyingDisabled {
+            FileHandle.standardError.write(Data("proxying disabled (requires tunnel mode)\n".utf8))
+        }
+        // A literal proxy password is accepted, but warn about its exposure.
+        if interceptResult.plaintextCredentialWarning {
+            FileHandle.standardError.write(Data((VPhoneNetworking.plaintextInterceptPasswordWarning + "\n").utf8))
+        }
+        // An intercept-field change needs a restart to take effect; note it on
+        // stderr so stdout stays the machine-readable summary.
+        if interceptResult.takesEffectNextStart {
+            FileHandle.standardError.write(Data("intercept settings take effect on next VM start\n".utf8))
+        }
         print(
             "updated \(updated.name): \(m.cpuCount) CPU, \(m.memorySize / (1024 * 1024)) MB, "
                 + "net=\(describeNetwork(m.networkConfig))",
@@ -392,6 +432,25 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
         case "off": edit.localHostName = .some(nil)
         case "on": edit.localHostName = .some(VPhoneNetworking.localHostName(forVMName: vmName))
         default: edit.localHostName = .some(mdns)
+        }
+        if intercept != nil, noIntercept {
+            throw ValidationError("--intercept and --no-intercept cannot be combined.")
+        }
+        // The value's grammar, tunnel-only rule and redacted usage error are
+        // the edit layer's (VPhoneNetworking.resolveInterceptEdit, the same
+        // guard plan() uses); run() surfaces them. Here we only record intent.
+        if let intercept {
+            edit.intercept = .some(intercept)
+        } else if noIntercept {
+            edit.intercept = .some(nil)
+        }
+        if interceptBlockQuic, noInterceptBlockQuic {
+            throw ValidationError("--intercept-block-quic and --no-intercept-block-quic cannot be combined.")
+        }
+        if interceptBlockQuic {
+            edit.interceptBlockQUIC = true
+        } else if noInterceptBlockQuic {
+            edit.interceptBlockQUIC = false
         }
         return edit
     }

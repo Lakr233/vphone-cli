@@ -228,6 +228,17 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         /// shared network, set before this existed; false keeps vmnet's
         /// isolation, where each guest reaches only the Mac and beyond.
         public let reachesPeers: Bool?
+        /// An explicit host SOCKS5 endpoint `host:port` that tunnel-mode guest
+        /// TCP is transparently redirected through. Nil disables interception.
+        /// Never sourced from the Mac's system proxy. Valid only in `tunnel`
+        /// mode (`VPhoneNetworking.plan`); grammar and reject rules are REQ-001.
+        public let intercept: String?
+        /// When true, tunnel-mode guest UDP to port 443 is dropped, forcing
+        /// QUIC apps onto interceptable TCP. Absent or null means false.
+        public let interceptBlockQUIC: Bool?
+
+        /// `interceptBlockQUIC` with absent meaning false.
+        public var blockQUIC: Bool { interceptBlockQUIC ?? false }
 
         public enum NetworkMode: String, Codable, Sendable {
             case nat
@@ -254,6 +265,8 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             localHostName: String? = nil,
             resolvesMacName: Bool? = nil,
             reachesPeers: Bool? = nil,
+            intercept: String? = nil,
+            interceptBlockQUIC: Bool? = nil,
         ) {
             self.mode = mode
             self.macAddress = macAddress
@@ -263,6 +276,8 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             self.localHostName = localHostName
             self.resolvesMacName = resolvesMacName
             self.reachesPeers = reachesPeers
+            self.intercept = intercept
+            self.interceptBlockQUIC = interceptBlockQUIC
         }
 
         /// The same configuration with one field replaced.
@@ -275,6 +290,8 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             localHostName: String?? = nil,
             resolvesMacName: Bool?? = nil,
             reachesPeers: Bool?? = nil,
+            intercept: String?? = nil,
+            interceptBlockQUIC: Bool? = nil,
         ) -> NetworkConfig {
             NetworkConfig(
                 mode: mode ?? self.mode,
@@ -285,7 +302,96 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
                 localHostName: localHostName ?? self.localHostName,
                 resolvesMacName: resolvesMacName ?? self.resolvesMacName,
                 reachesPeers: reachesPeers ?? self.reachesPeers,
+                intercept: intercept ?? self.intercept,
+                interceptBlockQUIC: interceptBlockQUIC ?? self.interceptBlockQUIC,
             )
+        }
+
+        /// A rejected `intercept` value, carrying the REQ-001 message with the
+        /// raw value already redacted so a literal password never leaks.
+        public struct InterceptParseError: Error, CustomStringConvertible {
+            public let reason: String
+            public let redactedValue: String
+            public var description: String {
+                "networkConfig.intercept: \(reason), got \"\(redactedValue)\""
+            }
+        }
+
+        /// Redact a raw `intercept` value for display: everything between the
+        /// first `:` after the scheme (or after the start, if no scheme) and
+        /// the last `@` becomes `***`. Textual and independent of whether
+        /// `URLComponents` parses the value, so a literal password never
+        /// reaches a message or log. Reused by the network plan and `vm config`.
+        public static func redactIntercept(_ raw: String) -> String {
+            let afterScheme = raw.range(of: "://").map(\.upperBound) ?? raw.startIndex
+            guard let colon = raw[afterScheme...].firstIndex(of: ":"),
+                  let at = raw.lastIndex(of: "@"), colon < at else { return raw }
+            return "\(raw[..<raw.index(after: colon)])***\(raw[at...])"
+        }
+
+        /// Parse a SOCKS5 proxy spec and validate REQ-001's grammar and `${…}`
+        /// token set. Accepts a bare `host:port` (equivalent to
+        /// `socks5://host:port`, no credentials) or
+        /// `socks5://[user[:password]@]host:port`. The scheme, if present, must
+        /// be `socks5`. Host is an IPv4 address, a bracketed IPv6 literal
+        /// (`[::1]`, returned with the brackets stripped), or a hostname; port
+        /// is 1-65535; userinfo is percent-decoded. The returned `user`/
+        /// `password` are raw and may still carry a `${…}` token — substitution
+        /// happens at VM start, not here. The single owner of the grammar,
+        /// reused by the network plan and `vm config`; throws an
+        /// `InterceptParseError` (message already redacted) on reject.
+        public static func parseInterceptEndpoint(_ value: String) throws -> VPhoneInterceptEndpoint {
+            func reject(_ reason: String) -> InterceptParseError {
+                InterceptParseError(reason: reason, redactedValue: redactIntercept(value))
+            }
+            let normalized = value.contains("://") ? value : "socks5://\(value)"
+            guard let components = URLComponents(string: normalized) else {
+                throw reject("expected host:port with port 1-65535")
+            }
+            guard components.scheme == "socks5" else {
+                throw reject("scheme must be socks5")
+            }
+            guard let rawHost = components.host, !rawHost.isEmpty else {
+                throw reject("empty host")
+            }
+            guard let port = components.port, (1...65535).contains(port) else {
+                throw reject("expected host:port with port 1-65535")
+            }
+            for field in [components.user, components.password] where field.map(hasOnlyInterceptTokens) == false {
+                throw reject("unrecognized ${…} token in credentials")
+            }
+            let host = rawHost.hasPrefix("[") && rawHost.hasSuffix("]")
+                ? String(rawHost.dropFirst().dropLast())
+                : rawHost
+            return VPhoneInterceptEndpoint(host: host, port: UInt16(port), user: components.user, password: components.password)
+        }
+
+        /// Whether a percent-decoded userinfo field contains only the three
+        /// REQ-001 tokens (`${env:NAME}`, `${vm.name}`, `${vm.id}`) wherever
+        /// `${` appears. A `${` that closes to anything else, or never closes,
+        /// is rejected. Values are validated, never resolved, here.
+        private static func hasOnlyInterceptTokens(_ field: String) -> Bool {
+            expandInterceptTokens(field) { name in
+                let valid = name == "vm.name" || name == "vm.id"
+                    || (name.hasPrefix("env:") && name.count > 4 && !name.contains("{"))
+                return valid ? "" : nil
+            } != nil
+        }
+
+        /// The one `${…}` scanner, shared by validation and VM-start
+        /// substitution: replaces each token with `resolve(name)`, or returns
+        /// nil when `resolve` does or a `${` never closes.
+        static func expandInterceptTokens(_ field: String, _ resolve: (String) -> String?) -> String? {
+            var result = ""
+            var index = field.startIndex
+            while let open = field.range(of: "${", range: index ..< field.endIndex) {
+                result += field[index ..< open.lowerBound]
+                guard let close = field[open.upperBound...].firstIndex(of: "}"),
+                      let value = resolve(String(field[open.upperBound ..< close])) else { return nil }
+                result += value
+                index = field.index(after: close)
+            }
+            return result + field[index...]
         }
 
         /// A fixed IPv4 configuration for the guest's NIC.

@@ -65,7 +65,11 @@ public final class VPhoneUserspaceNetwork: @unchecked Sendable {
     /// `lazy` because building it needs a closure over `self`, and a stored
     /// property cannot be captured until every property is initialised. First
     /// touch is always on `queue`.
-    private lazy var forwarder = VPhoneUDPForwarder(configuration: configuration, queue: queue) { [weak self] flow, payload in
+    private lazy var forwarder = VPhoneUDPForwarder(
+        configuration: configuration,
+        queue: queue,
+        blockQUIC: configuration.blockQUIC,
+    ) { [weak self] flow, payload in
         self?.sendUDPReply(flow: flow, payload: payload)
     }
 
@@ -76,15 +80,53 @@ public final class VPhoneUserspaceNetwork: @unchecked Sendable {
 
     /// Terminates the guest's TCP against host sockets. Owns one connection per
     /// flow, and emits segments of its own rather than echoing ours.
-    private lazy var tcpForwarder = VPhoneTCPForwarder(queue: queue, gatewayAddress: configuration.hostAddress) { [weak self] flow, segment in
+    ///
+    /// `start()` resolves the proxy host and substitutes the `${…}` tokens
+    /// synchronously, stores the final `.resolved`/`.failed` in `resolvedUpstream`
+    /// before this lazy forwarder is first touched, and the forwarder adopts it
+    /// at init. It is never handed a nil upstream while `intercept` is set, so a
+    /// configured proxy is never silently bypassed, and there is no pending state
+    /// or later replacement.
+    private lazy var tcpForwarder = VPhoneTCPForwarder(
+        queue: queue,
+        gatewayAddress: configuration.hostAddress,
+        upstream: resolvedUpstream,
+    ) { [weak self] flow, segment in
         self?.sendTCPReply(flow: flow, segment: segment)
     }
+
+    /// The upstream handed to the forwarder, computed in `start()` before the
+    /// lazy forwarder is first touched. Nil while `intercept` is absent.
+    private var resolvedUpstream: VPhoneSOCKSUpstream?
+
+    /// Resolves the proxy host to IPv4 addresses, once, when the network starts.
+    /// Injected so tests can supply a never-returning, delayed, or multi-address
+    /// stub without a real DNS lookup. Default is the production resolver.
+    private let resolveProxy: @Sendable (String) -> [VPhoneIPv4Address]
+    /// Deadline for that resolution. Production is 5 s (REQ-004); tests scale it
+    /// so a never-returning resolver does not cost a real 5 s wait.
+    private let resolveDeadline: TimeInterval
+    /// Sink for the single resolution-failure log line. Default writes through
+    /// the frames logger; tests inject a collector to assert exactly one line.
+    private let resolutionLog: @Sendable (String) -> Void
 
     /// Largest frame we will accept from the guest. Ethernet header plus a
     /// jumbo-sized IP packet; the guest is expected to stay within `mtu`.
     private static let frameCapacity = 9216
 
     public convenience init(configuration: VPhoneUserspaceNetworkConfiguration = .default) throws {
+        try self.init(configuration: configuration, resolveProxy: VPhoneHostResolver.resolveIPv4, resolveDeadline: 5)
+    }
+
+    /// Test seam: the public initialiser plus an injectable proxy resolver, its
+    /// deadline, and a log sink, so resolution can be driven without a DNS lookup
+    /// or a real 5 s wait and its single failure line can be asserted.
+    convenience init(
+        configuration: VPhoneUserspaceNetworkConfiguration = .default,
+        resolveProxy: @escaping @Sendable (String) -> [VPhoneIPv4Address],
+        resolveDeadline: TimeInterval = 5,
+        resolutionLog: (@Sendable (String) -> Void)? = nil,
+    ) throws {
         var descriptors: [Int32] = [-1, -1]
         guard socketpair(AF_UNIX, SOCK_DGRAM, 0, &descriptors) == 0 else {
             throw VPhoneUserspaceNetworkError.socketPairFailed(errno: errno)
@@ -93,6 +135,9 @@ public final class VPhoneUserspaceNetwork: @unchecked Sendable {
             configuration: configuration,
             guestDescriptor: descriptors[0],
             hostDescriptor: descriptors[1],
+            resolveProxy: resolveProxy,
+            resolveDeadline: resolveDeadline,
+            resolutionLog: resolutionLog,
         )
     }
 
@@ -107,6 +152,9 @@ public final class VPhoneUserspaceNetwork: @unchecked Sendable {
         configuration: VPhoneUserspaceNetworkConfiguration,
         guestDescriptor: Int32,
         hostDescriptor: Int32,
+        resolveProxy: @escaping @Sendable (String) -> [VPhoneIPv4Address] = VPhoneHostResolver.resolveIPv4,
+        resolveDeadline: TimeInterval = 5,
+        resolutionLog: (@Sendable (String) -> Void)? = nil,
     ) throws {
         for descriptor in [guestDescriptor, hostDescriptor] {
             // A SOCK_DGRAM pair has a small default buffer, and the guest can
@@ -134,6 +182,9 @@ public final class VPhoneUserspaceNetwork: @unchecked Sendable {
         queue = DispatchQueue(label: "com.vphone.userspace-network")
         responder = VPhoneUserspaceNetworkResponder(configuration: configuration)
         self.configuration = configuration
+        self.resolveProxy = resolveProxy
+        self.resolveDeadline = resolveDeadline
+        self.resolutionLog = resolutionLog ?? { line in Self.log.error("\(line, privacy: .public)") }
     }
 
     /// The object to hand to `VZVirtioNetworkDeviceConfiguration.attachment`.
@@ -153,6 +204,11 @@ public final class VPhoneUserspaceNetwork: @unchecked Sendable {
             source.setCancelHandler { close(descriptor) }
             source.resume()
             self.source = source
+            // Resolve and substitute synchronously, before the lazy forwarder is
+            // first touched below, so it adopts the final upstream at init.
+            if let endpoint = configuration.intercept {
+                resolvedUpstream = resolveUpstream(endpoint)
+            }
             forwarder.start()
             tcpForwarder.start()
             Self.log.info(
@@ -178,6 +234,91 @@ public final class VPhoneUserspaceNetwork: @unchecked Sendable {
         // Nothing may hop onto `queue` from deinit, so only cancel if we are
         // already on it — which is why `stop()` exists and should be preferred.
         source?.cancel()
+    }
+
+    // MARK: - Proxy resolution
+
+    /// Lock-guarded box so the off-thread resolver can publish its result to the
+    /// semaphore waiter without a data race.
+    private final class ResolveBox: @unchecked Sendable {
+        private let lock = NSLock()
+        private var addresses: [VPhoneIPv4Address] = []
+        func set(_ value: [VPhoneIPv4Address]) { lock.lock(); addresses = value; lock.unlock() }
+        func get() -> [VPhoneIPv4Address] { lock.lock(); defer { lock.unlock() }; return addresses }
+    }
+
+    /// Substitute and validate the credentials, then resolve the proxy host, all
+    /// synchronously so the forwarder receives its final upstream at init. On any
+    /// failure the single resolution-failure line is logged here (`.failed` is
+    /// payload-free). Called on `queue` from `start()`.
+    func resolveUpstream(_ endpoint: VPhoneInterceptEndpoint) -> VPhoneSOCKSUpstream {
+        // Credentials first: token substitution and the RFC 1929 length limits
+        // need no DNS, and resolving them before the host wait gives the right
+        // cause category without paying for a lookup that cannot be used.
+        var credentials: VPhoneSOCKSCredentials?
+        if let rawUser = endpoint.user {
+            guard let username = substitute(rawUser) else {
+                return fail(endpoint, cause: "token", reason: "undefined ${…} token in username")
+            }
+            guard let password = substitute(endpoint.password ?? "") else {
+                return fail(endpoint, cause: "token", reason: "undefined ${…} token in password")
+            }
+            // RFC 1929 ULEN/PLEN are one octet each; ULEN must be 1-255.
+            if username.isEmpty {
+                return fail(endpoint, cause: "credentials", reason: "username is empty after substitution")
+            }
+            if username.utf8.count > 255 {
+                return fail(endpoint, cause: "credentials", reason: "username exceeds 255 bytes after substitution")
+            }
+            if password.utf8.count > 255 {
+                return fail(endpoint, cause: "credentials", reason: "password exceeds 255 bytes after substitution")
+            }
+            credentials = VPhoneSOCKSCredentials(username: username, password: password)
+        }
+
+        // The resolver may block (a real DNS lookup, or a test stub that delays
+        // or never returns); keep it off the serial queue so it cannot stall the
+        // frame loop, and bound the wait with the deadline. The pick is
+        // deterministic: the first IPv4 address returned.
+        let box = ResolveBox()
+        let semaphore = DispatchSemaphore(value: 0)
+        let resolve = resolveProxy
+        let host = endpoint.host
+        DispatchQueue.global().async {
+            box.set(resolve(host))
+            semaphore.signal()
+        }
+        if semaphore.wait(timeout: .now() + resolveDeadline) == .timedOut {
+            return fail(endpoint, cause: "deadline", reason: "resolution deadline expired")
+        }
+        guard let first = box.get().first else {
+            return fail(endpoint, cause: "host", reason: "no IPv4 address")
+        }
+        return .resolved(first, endpoint.port, credentials)
+    }
+
+    /// Log the single resolution-failure line and return `.failed`. Format names
+    /// the proxy endpoint, the cause category, a short reason, and the remedy.
+    private func fail(_ endpoint: VPhoneInterceptEndpoint, cause: String, reason: String) -> VPhoneSOCKSUpstream {
+        resolutionLog(
+            "socks \(endpoint.host):\(endpoint.port) \(cause): \(reason); fix it and restart the VM; guest TCP is reset until then")
+        return .failed
+    }
+
+    /// Resolve the three REQ-001 tokens (`${env:NAME}`, `${vm.name}`, `${vm.id}`)
+    /// in a userinfo field. Returns nil when a token is undefined — an unset
+    /// environment variable, or `${vm.id}` on a VM with no predicted UDID — which
+    /// fails the upstream closed. The grammar was already validated at parse
+    /// time, so any `${…}` here is one of the three.
+    private func substitute(_ field: String) -> String? {
+        VPhoneVirtualMachineManifest.NetworkConfig.expandInterceptTokens(field) { name in
+            switch name {
+            case "vm.name": configuration.vmName
+            case "vm.id": configuration.vmID
+            case _ where name.hasPrefix("env:"): ProcessInfo.processInfo.environment[String(name.dropFirst(4))]
+            default: nil
+            }
+        }
     }
 
     // MARK: - Frame loop

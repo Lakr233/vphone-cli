@@ -25,6 +25,36 @@ enum VPhoneHostResolver {
     static func preferred() -> VPhoneIPv4Address? {
         addresses().first
     }
+
+    /// Resolve a host (a dotted-IPv4 literal or a name) to its IPv4 addresses,
+    /// in the order `getaddrinfo` returns them. The SOCKS upstream stack is
+    /// IPv4-only, so a bracketed-IPv6 literal or an IPv6-only name resolves to an
+    /// empty list and the caller fails closed. The default production proxy
+    /// resolver for `VPhoneUserspaceNetwork`.
+    @Sendable
+    static func resolveIPv4(_ host: String) -> [VPhoneIPv4Address] {
+        if let literal = VPhoneIPv4Address(dotted: host) {
+            return [literal]
+        }
+        var hints = addrinfo()
+        hints.ai_family = AF_INET
+        hints.ai_socktype = SOCK_STREAM
+        var result: UnsafeMutablePointer<addrinfo>?
+        guard getaddrinfo(host, nil, &hints, &result) == 0 else { return [] }
+        defer { freeaddrinfo(result) }
+        var addresses: [VPhoneIPv4Address] = []
+        var node = result
+        while let current = node {
+            if current.pointee.ai_family == AF_INET, let sa = current.pointee.ai_addr {
+                sa.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { sin in
+                    // sin_addr is network order; VPhoneIPv4Address holds host order.
+                    addresses.append(VPhoneIPv4Address(UInt32(bigEndian: sin.pointee.sin_addr.s_addr)))
+                }
+            }
+            node = current.pointee.ai_next
+        }
+        return addresses
+    }
 }
 
 public extension VPhoneIPv4Address {
@@ -87,6 +117,9 @@ final class VPhoneUDPForwarder: @unchecked Sendable {
     private let queue: DispatchQueue
     private let configuration: VPhoneUserspaceNetworkConfiguration
     private let deliver: Deliver
+    /// When set, guest UDP to port 443 is dropped so QUIC apps fall back to the
+    /// interceptable TCP path. Only consulted on `queue`.
+    private let blockQUIC: Bool
     private var sessions: [VPhoneUDPFlowKey: Session] = [:]
     private var reaper: DispatchSourceTimer?
     private var isStopped = false
@@ -100,9 +133,15 @@ final class VPhoneUDPForwarder: @unchecked Sendable {
     private static let queueKey = DispatchSpecificKey<Void>()
     private static let log = Logger(subsystem: "com.vphone.tunnel", category: "udp")
 
-    init(configuration: VPhoneUserspaceNetworkConfiguration, queue: DispatchQueue, deliver: @escaping Deliver) {
+    init(
+        configuration: VPhoneUserspaceNetworkConfiguration,
+        queue: DispatchQueue,
+        blockQUIC: Bool = false,
+        deliver: @escaping Deliver,
+    ) {
         self.configuration = configuration
         self.queue = queue
+        self.blockQUIC = blockQUIC
         self.deliver = deliver
         queue.setSpecific(key: Self.queueKey, value: ())
     }
@@ -178,7 +217,7 @@ final class VPhoneUDPForwarder: @unchecked Sendable {
     }
 
     private func createSession(for flow: VPhoneUDPFlow, key: VPhoneUDPFlowKey) -> Session? {
-        let destination = resolveDestination(for: flow)
+        guard let destination = resolveDestination(for: flow) else { return nil }
         let descriptor = socket(AF_INET, SOCK_DGRAM, 0)
         guard descriptor >= 0 else { return nil }
         _ = fcntl(descriptor, F_SETNOSIGPIPE, 1)
@@ -234,7 +273,12 @@ final class VPhoneUDPForwarder: @unchecked Sendable {
     ///
     /// Anything else sent to the gateway goes to the Mac's loopback, as TCP
     /// does (see `VPhoneTCPForwarder.gatewayAddress`).
-    private func resolveDestination(for flow: VPhoneUDPFlow) -> (address: VPhoneIPv4Address, port: UInt16) {
+    private func resolveDestination(for flow: VPhoneUDPFlow) -> (address: VPhoneIPv4Address, port: UInt16)? {
+        // QUIC rides UDP/443. Dropping it forces the app onto TCP, which the
+        // SOCKS path can intercept; nil means "no session, drop the datagram".
+        if blockQUIC, flow.destinationPort == 443 {
+            return nil
+        }
         guard flow.destinationAddress == configuration.hostAddress else {
             return (flow.destinationAddress, flow.destinationPort)
         }

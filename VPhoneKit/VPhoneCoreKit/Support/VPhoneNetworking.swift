@@ -41,6 +41,8 @@ public enum VPhoneNetworkingError: Error, Equatable {
     case portForwardUnsupported(mode: String)
     /// Not a usable mDNS host name label.
     case invalidLocalHostName(String)
+    /// `intercept` / `interceptBlockQUIC` set outside tunnel mode.
+    case interceptRequiresTunnel
 }
 
 extension VPhoneNetworkingError: CustomStringConvertible, LocalizedError {
@@ -90,6 +92,8 @@ extension VPhoneNetworkingError: CustomStringConvertible, LocalizedError {
             "Port forwarding works in nat and tunnel modes, not \(mode). Remove the forwards with --clear-forwards, or choose nat or tunnel."
         case let .invalidLocalHostName(name):
             "'\(name)' cannot be an mDNS name. Use 1 to 63 letters, digits and hyphens, not starting or ending with a hyphen, or 'on' for the VM's own name."
+        case .interceptRequiresTunnel:
+            "interception requires tunnel mode; set --network tunnel"
         }
     }
 
@@ -263,6 +267,11 @@ public struct VPhoneNetworkEdit: Equatable, Sendable {
     public var resolvesMacName: Bool?
     /// Let the guest reach the other machines on the shared network, or not.
     public var reachesPeers: Bool?
+    /// `.some(nil)` clears interception; `.some("host:port")` sets it. The
+    /// string's grammar is the CLI's to validate (REQ-001).
+    public var intercept: String??
+    /// Turn QUIC blocking on or off; nil leaves it.
+    public var interceptBlockQUIC: Bool?
     public var addForwards: [PortForward]
     /// Forwards to drop, named as `vm info` lists them or by host port.
     public var removeForwards: [String]
@@ -278,6 +287,8 @@ public struct VPhoneNetworkEdit: Equatable, Sendable {
         localHostName: String?? = nil,
         resolvesMacName: Bool? = nil,
         reachesPeers: Bool? = nil,
+        intercept: String?? = nil,
+        interceptBlockQUIC: Bool? = nil,
         addForwards: [PortForward] = [],
         removeForwards: [String] = [],
         clearForwards: Bool = false,
@@ -291,6 +302,8 @@ public struct VPhoneNetworkEdit: Equatable, Sendable {
         self.localHostName = localHostName
         self.resolvesMacName = resolvesMacName
         self.reachesPeers = reachesPeers
+        self.intercept = intercept
+        self.interceptBlockQUIC = interceptBlockQUIC
         self.addForwards = addForwards
         self.removeForwards = removeForwards
         self.clearForwards = clearForwards
@@ -589,6 +602,12 @@ public enum VPhoneNetworking {
             forwards.append(forward)
         }
 
+        // Interception's edit-path rules (REQ-002/REQ-003) live in one place,
+        // shared with `vm config`: a malformed `--intercept` is rejected
+        // (redacted), setting it outside tunnel mode is rejected, and leaving
+        // tunnel mode auto-clears a prior setting rather than failing validate.
+        let interceptEdit = try resolveInterceptEdit(current: current, edit: edit, newMode: newMode)
+
         let merged = try NetworkConfig(
             mode: newMode,
             macAddress: mac,
@@ -600,9 +619,110 @@ public enum VPhoneNetworking {
             resolvesMacName: edit.resolvesMacName.map { $0 ? nil : false } ?? current.resolvesMacName,
             // Stored as set: its default depends on the address.
             reachesPeers: edit.reachesPeers ?? current.reachesPeers,
+            intercept: interceptEdit.intercept,
+            interceptBlockQUIC: interceptEdit.interceptBlockQUIC ? true : nil,
         )
         try validate(merged, host: host)
         return merged
+    }
+
+    /// The outcome of resolving a `vm config` edit's interception fields: the
+    /// `intercept`/`interceptBlockQUIC` to store, plus the stderr signals the
+    /// CLI emits (`proxyingDisabled` → `proxying disabled (requires tunnel
+    /// mode)`; `plaintextCredentialWarning` → the Secret-policy warning;
+    /// `takesEffectNextStart` → an intercept field changed, so it applies from
+    /// the next VM start).
+    public struct InterceptResolution: Equatable, Sendable {
+        public var intercept: String?
+        public var interceptBlockQUIC: Bool
+        public var proxyingDisabled: Bool
+        public var plaintextCredentialWarning: Bool
+        public var takesEffectNextStart: Bool
+
+        public init(
+            intercept: String?,
+            interceptBlockQUIC: Bool,
+            proxyingDisabled: Bool,
+            plaintextCredentialWarning: Bool,
+            takesEffectNextStart: Bool = false,
+        ) {
+            self.intercept = intercept
+            self.interceptBlockQUIC = interceptBlockQUIC
+            self.proxyingDisabled = proxyingDisabled
+            self.plaintextCredentialWarning = plaintextCredentialWarning
+            self.takesEffectNextStart = takesEffectNextStart
+        }
+    }
+
+    /// The REQ-001 Secret-policy warning `vm config` prints on stderr when
+    /// `--intercept` carries a literal password: it names both exposures (the
+    /// command line, and the manifest on disk) and the safer `${env:NAME}` form.
+    public static let plaintextInterceptPasswordWarning =
+        "warning: the proxy password is on this command line (visible to ps and shell history) "
+            + "and is stored in plaintext in the VM manifest on disk. "
+            + "Use a single-quoted '${env:NAME}' password so it is read from the environment at VM start instead."
+
+    /// Resolve an edit's interception fields against the current config and the
+    /// resulting network mode — the single owner of REQ-002/REQ-003's edit-path
+    /// rules, shared by `merge` and `vm config` so both agree. A nil
+    /// `edit.intercept`/`edit.interceptBlockQUIC` leaves that field as it is.
+    ///
+    /// Throws the already-redacted `InterceptParseError` when a freshly-set
+    /// `--intercept` fails REQ-001's grammar (the same guard `plan()` uses), and
+    /// `interceptRequiresTunnel` when interception is actively set outside
+    /// tunnel mode. Leaving tunnel mode while a prior intercept/QUIC setting is
+    /// in place (with none being set now) clears both and signals
+    /// `proxyingDisabled` instead of rejecting.
+    public static func resolveInterceptEdit(
+        current: NetworkConfig,
+        edit: VPhoneNetworkEdit,
+        newMode: NetworkMode,
+    ) throws -> InterceptResolution {
+        // Validate a freshly-set endpoint and decide the plaintext-password
+        // warning up front, with the edit path's own (redacted) usage error.
+        var warning = false
+        if case let .some(value?) = edit.intercept {
+            let parsed = try NetworkConfig.parseInterceptEndpoint(value)
+            warning = passwordIsPlaintext(parsed.password)
+        }
+
+        let settingIntercept: Bool
+        if case .some(.some) = edit.intercept { settingIntercept = true } else { settingIntercept = false }
+        let settingQUIC = edit.interceptBlockQUIC == true
+
+        var intercept = edit.intercept ?? current.intercept
+        var blockQUIC = edit.interceptBlockQUIC ?? current.blockQUIC
+        var proxyingDisabled = false
+
+        if newMode != .tunnel {
+            if settingIntercept || settingQUIC {
+                throw VPhoneNetworkingError.interceptRequiresTunnel
+            }
+            // A VM moved off tunnel keeps no interception: clear it rather than
+            // leave a stale setting that would hard-fail at the next start.
+            if intercept != nil || blockQUIC {
+                intercept = nil
+                blockQUIC = false
+                proxyingDisabled = true
+            }
+        }
+        return InterceptResolution(
+            intercept: intercept,
+            interceptBlockQUIC: blockQUIC,
+            proxyingDisabled: proxyingDisabled,
+            plaintextCredentialWarning: warning,
+            takesEffectNextStart: intercept != current.intercept || blockQUIC != current.blockQUIC,
+        )
+    }
+
+    /// Whether a proxy `password` is a literal the Operator typed in the clear,
+    /// rather than a single `${env:NAME}` indirection resolved at VM start. A
+    /// nil or empty password carries no secret, so it never warns.
+    static func passwordIsPlaintext(_ password: String?) -> Bool {
+        guard let password, !password.isEmpty else { return false }
+        guard password.hasPrefix("${env:"), password.hasSuffix("}") else { return true }
+        let name = password.dropFirst(6).dropLast()
+        return name.isEmpty || name.contains("{") || name.contains("}") || name.contains("$")
     }
 
     private static func subnet(of address: String, _ prefixLength: Int) -> VPhoneIPv4Subnet? {
@@ -741,9 +861,17 @@ public enum VPhoneNetworking {
     /// over its own DHCP, so the guest stays on DHCP. Everywhere else the host
     /// has no say in the DHCP server, so vphoned writes the address into the
     /// guest's network preferences (`guestIPv4`).
-    public static func plan(_ cfg: NetworkConfig, host: VPhoneNetworkHost = .current) throws -> VPhoneNetworkPlan {
+    public static func plan(
+        _ cfg: NetworkConfig,
+        host: VPhoneNetworkHost = .current,
+        vmName: String = "",
+        vmID: String? = nil,
+    ) throws -> VPhoneNetworkPlan {
         if cfg.mode == .hostOnly {
             throw VPhoneNetworkingError.hostOnlyUnsupported
+        }
+        if (cfg.intercept != nil || cfg.blockQUIC), cfg.mode != .tunnel {
+            throw VPhoneNetworkingError.interceptRequiresTunnel
         }
         let mac: VPhoneMACAddress? = cfg.macAddress.isEmpty
             ? nil
@@ -800,7 +928,7 @@ public enum VPhoneNetworking {
             )
 
         case .tunnel:
-            let configuration = resolved.map {
+            var configuration = resolved.map {
                 VPhoneUserspaceNetworkConfiguration(
                     hostAddress: $0.router,
                     guestAddress: $0.address,
@@ -808,6 +936,18 @@ public enum VPhoneNetworking {
                     dnsServers: $0.dns,
                 )
             } ?? .default
+            // A set intercept MUST parse: on any reject plan() throws the
+            // already-redacted parse error (REQ-002) rather than failing open.
+            // A nil upstream means "intercept absent" only — a set-but-
+            // unparseable value never yields a nil upstream / direct connect.
+            if let raw = cfg.intercept {
+                configuration.intercept = try NetworkConfig.parseInterceptEndpoint(raw)
+            }
+            configuration.blockQUIC = cfg.blockQUIC
+            // `${vm.name}`/`${vm.id}` are substituted at start() from these; the
+            // caller holds the bundle, so the names are threaded in here.
+            configuration.vmName = vmName
+            configuration.vmID = vmID
             return VPhoneNetworkPlan(
                 attachment: .tunnel(configuration), macAddress: mac, guestIPv4: .dhcp,
                 portForwards: forwards, localHostName: localHostName,

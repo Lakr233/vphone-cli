@@ -47,7 +47,14 @@ struct VPhoneTCPForwarderTests {
         /// are about the send path rather than about windowing.
         private let acknowledgesImmediately = Box(false)
 
-        init(guestPort: UInt16, destinationPort: UInt16, mss: Int = 1460) {
+        init(
+            guestPort: UInt16,
+            destinationPort: UInt16,
+            mss: Int = 1460,
+            upstream: VPhoneSOCKSUpstream? = nil,
+            handshakeTimeout: TimeInterval = 10,
+            socksLog: (@Sendable (String) -> Void)? = nil,
+        ) {
             self.guestPort = guestPort
             let queue = DispatchQueue(label: "forwarder-tests.\(guestPort)")
             let recorded = recorded
@@ -65,7 +72,12 @@ struct VPhoneTCPForwarderTests {
             // The callback needs the forwarder, and the forwarder needs the
             // callback, so the reference goes through a box filled in below.
             let box = Box<VPhoneTCPForwarder?>(nil)
-            forwarder = VPhoneTCPForwarder(queue: queue) { _, segment in
+            forwarder = VPhoneTCPForwarder(
+                queue: queue,
+                upstream: upstream,
+                handshakeTimeout: handshakeTimeout,
+                socksLog: socksLog,
+            ) { _, segment in
                 recorded.withLock { $0.append(segment) }
                 guard !segment.payload.isEmpty, acknowledgesImmediately.withLock({ $0 }) else { return }
                 let acknowledgment = VPhoneTCPSegment(
@@ -106,6 +118,17 @@ struct VPhoneTCPForwarderTests {
                 unique[segment.sequenceNumber] = segment.payload.count
             }
             return unique.values.reduce(0, +)
+        }
+
+        /// Payload bytes delivered to the guest, distinct by sequence and in
+        /// ascending sequence order. Any proxy bind-address bytes that leaked
+        /// would show up here as extra bytes.
+        var deliveredPayload: [UInt8] {
+            var unique: [UInt32: [UInt8]] = [:]
+            for segment in sent where !segment.payload.isEmpty {
+                unique[segment.sequenceNumber] = segment.payload
+            }
+            return unique.sorted { $0.key < $1.key }.flatMap { $0.value }
         }
 
         /// Distinct sequence numbers and their sizes, ascending.
@@ -635,5 +658,709 @@ struct VPhoneTCPForwarderTests {
             kibibytesPerSecond > 2048,
             "the send path only managed \(Int(kibibytesPerSecond)) KiB/s",
         )
+    }
+
+    // MARK: - SOCKS upstream routing (TASK-003)
+
+    /// A failed resolution fails closed, and stays that way until a later
+    /// VM start re-resolves. Distinct from nil (disabled), which connects direct.
+    @Test func `a failed upstream fails closed`() async throws {
+        let destinationConnected = Box(false)
+        let destination = try LoopbackServer { _, _ in destinationConnected.withLock { $0 = true } }
+        defer { destination.stop() }
+
+        let harness = Harness(guestPort: 51102, destinationPort: destination.port, upstream: .failed)
+        harness.start()
+        defer { harness.stop() }
+
+        harness.feed(VPhoneTCPSegment(
+            sourcePort: harness.guestPort,
+            destinationPort: harness.flow.destinationPort,
+            sequenceNumber: 1000,
+            acknowledgmentNumber: 0,
+            flags: VPhoneTCPFlags.syn,
+            windowSize: 65535,
+        ))
+
+        #expect(harness.waitUntil("a reset") { harness.sent.contains { $0.hasRST } })
+        #expect(harness.connectionCount == 0)
+        usleep(100000)
+        #expect(!destinationConnected.withLock { $0 })
+    }
+
+    /// A resolved upstream routes every flow through the proxy, never to the
+    /// original destination: the proxy socket is connected and the destination
+    /// is left untouched.
+    @Test func `a resolved upstream connects the proxy, not the destination`() async throws {
+        let proxyConnected = Box(false)
+        let proxy = try LoopbackServer { _, _ in proxyConnected.withLock { $0 = true } }
+        defer { proxy.stop() }
+        let destinationConnected = Box(false)
+        let destination = try LoopbackServer { _, _ in destinationConnected.withLock { $0 = true } }
+        defer { destination.stop() }
+
+        let harness = Harness(
+            guestPort: 51103,
+            destinationPort: destination.port,
+            upstream: .resolved(VPhoneIPv4Address(127, 0, 0, 1), proxy.port, nil),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        harness.feed(VPhoneTCPSegment(
+            sourcePort: harness.guestPort,
+            destinationPort: harness.flow.destinationPort,
+            sequenceNumber: 1000,
+            acknowledgmentNumber: 0,
+            flags: VPhoneTCPFlags.syn,
+            windowSize: 65535,
+        ))
+
+        #expect(harness.waitUntil("the proxy connection") { proxyConnected.withLock { $0 } })
+        #expect(!destinationConnected.withLock { $0 })
+    }
+
+    // MARK: - SOCKS5 handshake (TASK-004)
+
+    /// A scriptable multi-connection SOCKS5 proxy for the handshake tests.
+    ///
+    /// Its `Behavior` covers the method it selects in the greeting, whether it
+    /// reads and answers an RFC 1929 auth frame (and with what status), where (if
+    /// anywhere) it falls silent for a deadline test, and how it frames the
+    /// CONNECT reply.
+    final class SOCKSStub: @unchecked Sendable {
+        /// How far the proxy gets before going silent, for the deadline tests.
+        enum Stall: Sendable {
+            case none
+            /// Accept the TCP connection, then read and answer nothing.
+            case afterAccept
+            /// Answer the greeting (no-auth), then stay silent (no CONNECT reply).
+            case afterGreeting
+            /// Select `02`, read the auth frame, then stay silent (no status).
+            case afterAuth
+            /// Complete greeting (and auth), read the CONNECT, then stay silent.
+            case afterConnectRequest
+        }
+
+        /// How the proxy frames — or mis-frames — the CONNECT reply.
+        enum ConnectReply: Sendable {
+            /// A 10-byte IPv4 bind reply, then this trailing payload.
+            case ipv4(trailing: [UInt8])
+            /// A 22-byte IPv6 (ATYP 04) bind reply.
+            case ipv6
+            /// Only 6 of the 10 IPv4 reply bytes, then close.
+            case truncated
+            /// VER != 05.
+            case badVersion
+            /// REP != 00.
+            case badRep
+            /// An ATYP the forwarder does not recognise.
+            case unknownAtyp
+        }
+
+        /// The full script for one stub. Defaults to a no-auth proxy that
+        /// succeeds with an empty payload.
+        struct Behavior: Sendable {
+            /// The method byte returned in the greeting reply (`00`, `02`, `FF`).
+            var greetingMethod: UInt8 = 0x00
+            /// When the selected method is `02`, read the RFC 1929 frame and
+            /// answer `01 <authStatus>`.
+            var expectAuth = false
+            var authStatus: UInt8 = 0x00
+            var connect: ConnectReply = .ipv4(trailing: [])
+            var stall: Stall = .none
+        }
+
+        enum Error: Swift.Error { case setupFailed }
+
+        let port: UInt16
+        private let recordedConnect = Box<[UInt8]?>(nil)
+        private let recordedAuth = Box<[UInt8]?>(nil)
+        private let stopped = Box(false)
+
+        /// The first CONNECT request the proxy received, VER…PORT.
+        var connectRequest: [UInt8]? { recordedConnect.withLock { $0 } }
+        /// The first RFC 1929 auth frame the proxy received, VER…PASS, or nil if
+        /// none was sent.
+        var authFrame: [UInt8]? { recordedAuth.withLock { $0 } }
+
+        /// Convenience for the common "just frame the CONNECT reply this way" case.
+        convenience init(_ connect: ConnectReply, maxConnections: Int = 1) throws {
+            try self.init(Behavior(connect: connect), maxConnections: maxConnections)
+        }
+
+        init(_ behavior: Behavior, maxConnections: Int = 1) throws {
+            let descriptor = socket(AF_INET, SOCK_STREAM, 0)
+            guard descriptor >= 0 else { throw Error.setupFailed }
+            var reuse: Int32 = 1
+            setsockopt(descriptor, SOL_SOCKET, SO_REUSEADDR, &reuse, socklen_t(MemoryLayout<Int32>.size))
+            var address = sockaddr_in()
+            address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+            address.sin_family = sa_family_t(AF_INET)
+            address.sin_port = 0
+            address.sin_addr = in_addr(s_addr: UInt32(0x7F00_0001).bigEndian)
+            let bound = withUnsafePointer(to: &address) { pointer in
+                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    bind(descriptor, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+                }
+            }
+            guard bound == 0, listen(descriptor, 512) == 0 else { throw Error.setupFailed }
+            var assigned = sockaddr_in()
+            var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+            _ = withUnsafeMutablePointer(to: &assigned) { pointer in
+                pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                    getsockname(descriptor, $0, &length)
+                }
+            }
+            port = UInt16(bigEndian: assigned.sin_port)
+
+            let connect = recordedConnect
+            let auth = recordedAuth
+            let stopped = stopped
+            Thread {
+                defer { close(descriptor) }
+                var accepted = 0
+                while accepted < maxConnections {
+                    var listening = pollfd(fd: descriptor, events: Int16(POLLIN), revents: 0)
+                    while poll(&listening, 1, 50) <= 0 {
+                        if stopped.withLock({ $0 }) { return }
+                    }
+                    let client = accept(descriptor, nil, nil)
+                    guard client >= 0 else { continue }
+                    accepted += 1
+                    Thread {
+                        defer { close(client) }
+                        Self.serve(client, behavior: behavior, connect: connect, auth: auth)
+                    }.start()
+                }
+                // Keep the listener open so pending connects stay admitted.
+                while !stopped.withLock({ $0 }) { usleep(20000) }
+            }.start()
+        }
+
+        func stop() { stopped.withLock { $0 = true } }
+
+        private static func readExactly(_ client: Int32, _ count: Int) -> [UInt8]? {
+            var out: [UInt8] = []
+            var buffer = [UInt8](repeating: 0, count: count)
+            while out.count < count {
+                let got = buffer.withUnsafeMutableBytes { recv(client, $0.baseAddress, count - out.count, 0) }
+                if got <= 0 { return nil }
+                out += buffer[0 ..< got]
+            }
+            return out
+        }
+
+        private static func writeAll(_ client: Int32, _ bytes: [UInt8]) {
+            var offset = 0
+            while offset < bytes.count {
+                let wrote = bytes[offset...].withUnsafeBytes { send(client, $0.baseAddress, $0.count, 0) }
+                if wrote <= 0 { return }
+                offset += wrote
+            }
+        }
+
+        /// Block, discarding anything the peer sends, until it closes.
+        private static func holdOpen(_ client: Int32) {
+            var buffer = [UInt8](repeating: 0, count: 256)
+            while true {
+                let got = buffer.withUnsafeMutableBytes { recv(client, $0.baseAddress, $0.count, 0) }
+                if got <= 0 { return }
+            }
+        }
+
+        private static func serve(_ client: Int32, behavior: Behavior, connect: Box<[UInt8]?>, auth: Box<[UInt8]?>) {
+            if case .afterAccept = behavior.stall { holdOpen(client); return }
+
+            // Greeting: VER NMETHODS METHODS…
+            guard let head = readExactly(client, 2), head[0] == 0x05 else { return }
+            guard readExactly(client, Int(head[1])) != nil else { return }
+            writeAll(client, [0x05, behavior.greetingMethod])
+            if behavior.greetingMethod == 0xFF { return }
+            if case .afterGreeting = behavior.stall { holdOpen(client); return }
+
+            if behavior.greetingMethod == 0x02, behavior.expectAuth {
+                // RFC 1929: VER ULEN user PLEN pass.
+                guard let authHead = readExactly(client, 2), authHead[0] == 0x01 else { return }
+                guard let user = readExactly(client, Int(authHead[1])),
+                      let plenByte = readExactly(client, 1),
+                      let password = readExactly(client, Int(plenByte[0]))
+                else { return }
+                auth.withLock { if $0 == nil { $0 = authHead + user + plenByte + password } }
+                if case .afterAuth = behavior.stall { holdOpen(client); return }
+                writeAll(client, [0x01, behavior.authStatus])
+                if behavior.authStatus != 0x00 { holdOpen(client); return }
+            }
+
+            guard let request = readExactly(client, 10) else { return }
+            connect.withLock { if $0 == nil { $0 = request } }
+            if case .afterConnectRequest = behavior.stall { holdOpen(client); return }
+
+            switch behavior.connect {
+            case let .ipv4(trailing):
+                writeAll(client, [0x05, 0x00, 0x00, 0x01, 0x7F, 0x00, 0x00, 0x01, 0x00, 0x00] + trailing)
+                holdOpen(client)
+            case .ipv6:
+                writeAll(client, [0x05, 0x00, 0x00, 0x04] + [UInt8](repeating: 0, count: 16) + [0x00, 0x00])
+                holdOpen(client)
+            case .truncated:
+                writeAll(client, [0x05, 0x00, 0x00, 0x01, 0x7F, 0x00]) // 6 of 10, then close
+            case .badVersion:
+                writeAll(client, [0x04, 0x00, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+            case .badRep:
+                writeAll(client, [0x05, 0x01, 0x00, 0x01, 0, 0, 0, 0, 0, 0])
+            case .unknownAtyp:
+                writeAll(client, [0x05, 0x00, 0x00, 0x09, 0, 0, 0, 0, 0, 0])
+            }
+        }
+    }
+
+    /// Drives many flows through one forwarder, recording which guest ports got
+    /// a reset, for the connection-ceiling and fail-closed tests.
+    private final class MultiFlowDriver: @unchecked Sendable {
+        let forwarder: VPhoneTCPForwarder
+        private let queue: DispatchQueue
+        private let resets = Box<Set<UInt16>>([])
+
+        init(
+            upstream: VPhoneSOCKSUpstream,
+            handshakeTimeout: TimeInterval = 10,
+            socksLog: (@Sendable (String) -> Void)? = nil,
+        ) {
+            let queue = DispatchQueue(label: "multiflow")
+            self.queue = queue
+            let resets = resets
+            forwarder = VPhoneTCPForwarder(
+                queue: queue,
+                upstream: upstream,
+                handshakeTimeout: handshakeTimeout,
+                socksLog: socksLog,
+            ) { flow, segment in
+                if segment.hasRST { resets.withLock { _ = $0.insert(flow.sourcePort) } }
+            }
+        }
+
+        func start() { queue.sync { forwarder.start() } }
+        func stop() { queue.sync { forwarder.stop() } }
+
+        func openFlow(guestPort: UInt16, destinationPort: UInt16 = 443) {
+            let flow = VPhoneTCPFlow(
+                sourceAddress: VPhoneUserspaceNetworkConfiguration.default.guestAddress,
+                sourcePort: guestPort,
+                destinationAddress: VPhoneIPv4Address(127, 0, 0, 1),
+                destinationPort: destinationPort,
+                guestHardware: VPhoneMACAddress([0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE]),
+            )
+            queue.sync {
+                forwarder.receive(VPhoneTCPSegment(
+                    sourcePort: guestPort,
+                    destinationPort: destinationPort,
+                    sequenceNumber: 1000,
+                    acknowledgmentNumber: 0,
+                    flags: VPhoneTCPFlags.syn,
+                    windowSize: 65535,
+                ), for: flow)
+            }
+        }
+
+        var connectionCount: Int { forwarder.connectionCount }
+        func wasReset(_ guestPort: UInt16) -> Bool { resets.withLock { $0.contains(guestPort) } }
+
+        @discardableResult
+        func waitUntil(_ what: String, timeout: TimeInterval = 8, _ predicate: () -> Bool) -> Bool {
+            let deadline = Date().addingTimeInterval(timeout)
+            while Date() < deadline {
+                if predicate() { return true }
+                usleep(10000)
+            }
+            Issue.record("timed out waiting for \(what)")
+            return false
+        }
+    }
+
+    /// Feed a bare SYN; used by tests that expect a reset rather than a completed
+    /// handshake.
+    private func openGuestFlow(_ harness: Harness) {
+        harness.feed(VPhoneTCPSegment(
+            sourcePort: harness.guestPort,
+            destinationPort: harness.flow.destinationPort,
+            sequenceNumber: 1000,
+            acknowledgmentNumber: 0,
+            flags: VPhoneTCPFlags.syn,
+            windowSize: 65535,
+        ))
+    }
+
+    /// A proxied flow reaches the original destination through the proxy: the
+    /// CONNECT names it, server bytes relay through to the guest, and with no
+    /// credentials no RFC 1929 frame is sent.
+    @Test func `a proxied flow performs CONNECT for the original destination`() async throws {
+        let payload: [UInt8] = [0xDE, 0xAD, 0xBE, 0xEF]
+        let proxy = try SOCKSStub(.ipv4(trailing: payload))
+        defer { proxy.stop() }
+
+        let harness = Harness(
+            guestPort: 52001,
+            destinationPort: 443,
+            upstream: .resolved(VPhoneIPv4Address(127, 0, 0, 1), proxy.port, nil),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        try handshake(harness)
+        #expect(harness.waitUntil("the relayed payload") { harness.deliveredPayload == payload })
+
+        // CONNECT: VER CMD RSV ATYP + 127.0.0.1 + port 443.
+        let expected: [UInt8] = [0x05, 0x01, 0x00, 0x01, 0x7F, 0x00, 0x00, 0x01, 0x01, 0xBB]
+        #expect(proxy.connectRequest == expected)
+        #expect(proxy.authFrame == nil)
+    }
+
+    /// A credentialed upstream whose proxy selects username/password sends the
+    /// RFC 1929 frame with the resolved username and password, then proceeds.
+    @Test func `a credentialed upstream sends the RFC 1929 frame the proxy reads`() async throws {
+        let payload: [UInt8] = [0x11, 0x22, 0x33, 0x44]
+        let proxy = try SOCKSStub(SOCKSStub.Behavior(
+            greetingMethod: 0x02,
+            expectAuth: true,
+            connect: .ipv4(trailing: payload),
+        ))
+        defer { proxy.stop() }
+
+        let harness = Harness(
+            guestPort: 52050,
+            destinationPort: 443,
+            upstream: .resolved(
+                VPhoneIPv4Address(127, 0, 0, 1), proxy.port,
+                VPhoneSOCKSCredentials(username: "vm-alpha", password: "s3cret"),
+            ),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        try handshake(harness)
+        #expect(harness.waitUntil("the relayed payload") { harness.deliveredPayload == payload })
+
+        let expectedFrame: [UInt8] = [0x01, 0x08] + Array("vm-alpha".utf8) + [0x06] + Array("s3cret".utf8)
+        #expect(proxy.authFrame == expectedFrame)
+    }
+
+    /// An empty password is a legal RFC 1929 frame (`PLEN = 0`).
+    @Test func `an empty password sends a zero-length PLEN frame`() async throws {
+        let proxy = try SOCKSStub(SOCKSStub.Behavior(greetingMethod: 0x02, expectAuth: true))
+        defer { proxy.stop() }
+
+        let harness = Harness(
+            guestPort: 52053,
+            destinationPort: 443,
+            upstream: .resolved(
+                VPhoneIPv4Address(127, 0, 0, 1), proxy.port,
+                VPhoneSOCKSCredentials(username: "u", password: ""),
+            ),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        try handshake(harness)
+        #expect(harness.connectionCount == 1)
+        #expect(proxy.authFrame == [0x01, 0x01, 0x75, 0x00])
+    }
+
+    /// A proxy that fails RFC 1929 auth (`01 01`) resets the guest.
+    @Test func `an auth-failure status resets the guest`() async throws {
+        let proxy = try SOCKSStub(SOCKSStub.Behavior(greetingMethod: 0x02, expectAuth: true, authStatus: 0x01))
+        defer { proxy.stop() }
+
+        let harness = Harness(
+            guestPort: 52051,
+            destinationPort: 443,
+            upstream: .resolved(
+                VPhoneIPv4Address(127, 0, 0, 1), proxy.port,
+                VPhoneSOCKSCredentials(username: "u", password: "p"),
+            ),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        openGuestFlow(harness)
+        #expect(harness.waitUntil("a reset") { harness.sent.contains { $0.hasRST } })
+        #expect(harness.ourISN == nil)
+        #expect(harness.waitUntil("teardown") { harness.connectionCount == 0 })
+    }
+
+    /// A no-credential upstream whose proxy illegally selects `02` is reset, and
+    /// no RFC 1929 frame is ever sent (the greeting only offered no-auth).
+    @Test func `a no-credential upstream rejects a username-password selection`() async throws {
+        let proxy = try SOCKSStub(SOCKSStub.Behavior(greetingMethod: 0x02))
+        defer { proxy.stop() }
+
+        let harness = Harness(
+            guestPort: 52052,
+            destinationPort: 443,
+            upstream: .resolved(VPhoneIPv4Address(127, 0, 0, 1), proxy.port, nil),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        openGuestFlow(harness)
+        #expect(harness.waitUntil("a reset") { harness.sent.contains { $0.hasRST } })
+        #expect(harness.ourISN == nil)
+        #expect(harness.waitUntil("teardown") { harness.connectionCount == 0 })
+        usleep(100000)
+        #expect(proxy.authFrame == nil)
+    }
+
+    /// A credentialed upstream whose proxy selects no-auth (`05 00`) proceeds
+    /// without sending a frame — attribution is simply unavailable this flow.
+    @Test func `a credentialed upstream against a no-auth proxy proceeds without a frame`() async throws {
+        let payload: [UInt8] = [0xAB, 0xCD, 0xEF]
+        let proxy = try SOCKSStub(SOCKSStub.Behavior(greetingMethod: 0x00, connect: .ipv4(trailing: payload)))
+        defer { proxy.stop() }
+
+        let harness = Harness(
+            guestPort: 52054,
+            destinationPort: 443,
+            upstream: .resolved(
+                VPhoneIPv4Address(127, 0, 0, 1), proxy.port,
+                VPhoneSOCKSCredentials(username: "vm-alpha", password: "p"),
+            ),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        try handshake(harness)
+        #expect(harness.waitUntil("the relayed payload") { harness.deliveredPayload == payload })
+        #expect(proxy.authFrame == nil)
+    }
+
+    /// A reply with payload in the same burst: the guest gets only the payload,
+    /// never the bind-address bytes of the reply.
+    @Test func `the bind-address reply never leaks into the guest stream`() async throws {
+        let payload = [UInt8](repeating: 0x5A, count: 32)
+        let proxy = try SOCKSStub(.ipv4(trailing: payload))
+        defer { proxy.stop() }
+
+        let harness = Harness(
+            guestPort: 52002,
+            destinationPort: 443,
+            upstream: .resolved(VPhoneIPv4Address(127, 0, 0, 1), proxy.port, nil),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        try handshake(harness)
+        #expect(harness.waitUntil("the payload") { harness.deliveredPayload.count >= payload.count })
+        #expect(harness.deliveredPayload == payload)
+    }
+
+    /// An ATYP-04 (IPv6, 22-byte) bind reply is framed correctly and succeeds.
+    @Test func `an IPv6 bind reply is consumed and the handshake succeeds`() async throws {
+        let proxy = try SOCKSStub(.ipv6)
+        defer { proxy.stop() }
+
+        let harness = Harness(
+            guestPort: 52003,
+            destinationPort: 443,
+            upstream: .resolved(VPhoneIPv4Address(127, 0, 0, 1), proxy.port, nil),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        try handshake(harness)
+        #expect(harness.connectionCount == 1)
+        #expect(harness.deliveredPayload.isEmpty)
+    }
+
+    /// A bad greeting method, a bad CONNECT version/reply, an unknown ATYP, or a
+    /// truncated reply each reset the guest and relay nothing, and the slot is
+    /// released.
+    @Test(arguments: [
+        SOCKSStub.Behavior(greetingMethod: 0xFF),
+        SOCKSStub.Behavior(connect: .badVersion),
+        SOCKSStub.Behavior(connect: .badRep),
+        SOCKSStub.Behavior(connect: .unknownAtyp),
+        SOCKSStub.Behavior(connect: .truncated),
+    ]) func `a malformed SOCKS reply resets the guest`(behavior: SOCKSStub.Behavior) async throws {
+        let proxy = try SOCKSStub(behavior)
+        defer { proxy.stop() }
+
+        let harness = Harness(
+            guestPort: 52010,
+            destinationPort: 443,
+            upstream: .resolved(VPhoneIPv4Address(127, 0, 0, 1), proxy.port, nil),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        openGuestFlow(harness)
+        #expect(harness.waitUntil("a reset") { harness.sent.contains { $0.hasRST } })
+        #expect(harness.ourISN == nil)
+        #expect(harness.deliveredPayload.isEmpty)
+        #expect(harness.waitUntil("teardown") { harness.connectionCount == 0 })
+    }
+
+    /// A proxy that refuses the TCP connect resets the guest and releases the
+    /// slot, relaying nothing.
+    @Test func `a refused proxy connect resets the guest`() async throws {
+        // A socket bound but never listening refuses every connect with a RST.
+        let refuser = socket(AF_INET, SOCK_STREAM, 0)
+        try #require(refuser >= 0)
+        defer { close(refuser) }
+        var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
+        address.sin_family = sa_family_t(AF_INET)
+        address.sin_port = 0
+        address.sin_addr = in_addr(s_addr: UInt32(0x7F00_0001).bigEndian)
+        _ = withUnsafePointer(to: &address) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                bind(refuser, $0, socklen_t(MemoryLayout<sockaddr_in>.size))
+            }
+        }
+        var assigned = sockaddr_in()
+        var length = socklen_t(MemoryLayout<sockaddr_in>.size)
+        _ = withUnsafeMutablePointer(to: &assigned) { pointer in
+            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                getsockname(refuser, $0, &length)
+            }
+        }
+        let refusedPort = UInt16(bigEndian: assigned.sin_port)
+
+        let harness = Harness(
+            guestPort: 52060,
+            destinationPort: 443,
+            upstream: .resolved(VPhoneIPv4Address(127, 0, 0, 1), refusedPort, nil),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        openGuestFlow(harness)
+        #expect(harness.waitUntil("a reset") { harness.sent.contains { $0.hasRST } })
+        #expect(harness.ourISN == nil)
+        #expect(harness.deliveredPayload.isEmpty)
+        #expect(harness.waitUntil("teardown") { harness.connectionCount == 0 })
+    }
+
+    /// A proxy that accepts then stalls — at the greeting, after auth, or after
+    /// reading the CONNECT — is torn down at the single handshake deadline, not
+    /// before it, and the slot is released.
+    @Test(arguments: [
+        SOCKSStub.Behavior(stall: .afterAccept),
+        SOCKSStub.Behavior(stall: .afterGreeting),
+        SOCKSStub.Behavior(greetingMethod: 0x02, expectAuth: true, stall: .afterAuth),
+        SOCKSStub.Behavior(stall: .afterConnectRequest),
+    ]) func `a silent proxy is reset at the handshake deadline`(behavior: SOCKSStub.Behavior) async throws {
+        let proxy = try SOCKSStub(behavior)
+        defer { proxy.stop() }
+
+        let credentials = behavior.greetingMethod == 0x02
+            ? VPhoneSOCKSCredentials(username: "u", password: "p")
+            : nil
+        let harness = Harness(
+            guestPort: 52020,
+            destinationPort: 443,
+            upstream: .resolved(VPhoneIPv4Address(127, 0, 0, 1), proxy.port, credentials),
+            handshakeTimeout: 0.6,
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        let started = Date()
+        openGuestFlow(harness)
+
+        // No reset well before the deadline (scaled stand-in for "not at 9.9s").
+        usleep(350000)
+        #expect(!harness.sent.contains { $0.hasRST })
+
+        #expect(harness.waitUntil("the deadline reset", timeout: 2) { harness.sent.contains { $0.hasRST } })
+        #expect(Date().timeIntervalSince(started) >= 0.5)
+        #expect(harness.ourISN == nil)
+        #expect(harness.waitUntil("teardown") { harness.connectionCount == 0 })
+    }
+
+    /// A connect that never completes (an unroutable proxy address) is torn down
+    /// at the same single deadline.
+    @Test func `a stalled connect is reset at the handshake deadline`() async throws {
+        // TEST-NET-1 (RFC 5737): syntactically routable, never answers, so the
+        // non-blocking connect stays in progress until the deadline fires.
+        let harness = Harness(
+            guestPort: 52070,
+            destinationPort: 443,
+            upstream: .resolved(VPhoneIPv4Address(192, 0, 2, 1), 1080, nil),
+            handshakeTimeout: 0.6,
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        let started = Date()
+        openGuestFlow(harness)
+
+        usleep(350000)
+        #expect(!harness.sent.contains { $0.hasRST })
+
+        #expect(harness.waitUntil("the deadline reset", timeout: 2) { harness.sent.contains { $0.hasRST } })
+        #expect(Date().timeIntervalSince(started) >= 0.5)
+        #expect(harness.waitUntil("teardown") { harness.connectionCount == 0 })
+    }
+
+    /// The connection ceiling is unchanged by interception: 256 proxied flows
+    /// are admitted, the 257th refused.
+    @Test func `the 257th proxied flow is refused`() async throws {
+        let proxy = try SOCKSStub(.ipv4(trailing: []), maxConnections: 300)
+        defer { proxy.stop() }
+
+        let driver = MultiFlowDriver(upstream: .resolved(VPhoneIPv4Address(127, 0, 0, 1), proxy.port, nil))
+        driver.start()
+        defer { driver.stop() }
+
+        for index in 0 ..< 257 {
+            driver.openFlow(guestPort: UInt16(20000 + index))
+        }
+
+        #expect(driver.connectionCount == 256)
+        #expect(driver.wasReset(UInt16(20000 + 256)))
+    }
+
+    /// A `.failed` upstream fails every flow closed and the forwarder logs
+    /// nothing (the single resolution-failure line is logged elsewhere, at start).
+    @Test func `a failed upstream resets every flow and logs nothing`() async throws {
+        let lines = Box<[String]>([])
+        let driver = MultiFlowDriver(
+            upstream: .failed,
+            socksLog: { line in lines.withLock { $0.append(line) } },
+        )
+        driver.start()
+        defer { driver.stop() }
+
+        for index in 0 ..< 5 { driver.openFlow(guestPort: UInt16(33000 + index)) }
+        driver.waitUntil("every flow reset") { (0 ..< 5).allSatisfy { driver.wasReset(UInt16(33000 + $0)) } }
+        #expect(driver.connectionCount == 0)
+        #expect(lines.withLock { $0 }.isEmpty)
+    }
+
+    /// A per-flow handshake failure against a `.resolved` upstream logs exactly
+    /// one line naming that endpoint, with the SOCKS reply code.
+    @Test func `a handshake failure logs one line naming the endpoint`() async throws {
+        let proxy = try SOCKSStub(.badRep)
+        defer { proxy.stop() }
+
+        let lines = Box<[String]>([])
+        let harness = Harness(
+            guestPort: 52030,
+            destinationPort: 443,
+            upstream: .resolved(VPhoneIPv4Address(127, 0, 0, 1), proxy.port, nil),
+            socksLog: { line in lines.withLock { $0.append(line) } },
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        openGuestFlow(harness)
+        #expect(harness.waitUntil("a reset") { harness.sent.contains { $0.hasRST } })
+        #expect(harness.waitUntil("a log line") { !lines.withLock { $0 }.isEmpty })
+        usleep(100000)
+        let captured = lines.withLock { $0 }
+        #expect(captured.count == 1)
+        let line = captured.first ?? ""
+        #expect(line.contains("127.0.0.1:\(proxy.port)"))
+        #expect(line.contains("0x01"))
     }
 }
