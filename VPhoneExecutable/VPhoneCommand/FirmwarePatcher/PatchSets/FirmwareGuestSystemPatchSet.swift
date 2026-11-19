@@ -871,7 +871,7 @@ public enum FirmwareGuestSystemPatchSet {
             VPhonePatchDeclaration(
                 identifier: ios18SafariSoftwareRendering,
                 title: "iOS 18 Safari software rendering",
-                summary: "Uses software backing stores and 2D Canvas in MobileSafari on iOS 18.6 with cloudOS 26.1 to prevent blank web content.",
+                summary: "Uses software backing stores and disables local and GPU-process 2D Canvas acceleration in MobileSafari on iOS 18.6 with cloudOS 26.1.",
                 target: .guestFile(path: ios18SafariSoftwareRenderingMarker),
                 applicability: VPhonePatchApplicability(
                     iOSBase: .release(major: 18, minor: 6),
