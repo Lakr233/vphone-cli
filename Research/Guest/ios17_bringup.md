@@ -202,3 +202,23 @@ the backed-up CAML documents and removes the PNG copies. On SE 3, a rollback
 restored a sampled CAML document byte for byte and removed its PNG copies.
 Re-enabling the patch restored the PNG references. Reversing the reference
 substitutions in the sampled patched document reproduced the original bytes.
+
+## Astronomy background
+
+The Earth preview on iPhone SE 3 displayed dark triangles behind the planet.
+Calliope's background renderer submits a 384,150-index triangle draw for its
+distant sky mesh and a separate non-indexed draw for its star sprites.
+The planet and atmosphere are rendered by later passes. Selecting the full
+indexed-draw encoding in the paravirtual driver left the triangles visible.
+Suppressing just the background mesh removed them while retaining the Earth,
+its atmosphere and lights, and the original moving star sprites.
+
+`system-systemhook-cfw-ios17_astronomy_background` enables this fallback for
+iPhone SE 3 on iOS 17.7 with cloudOS 26.1 and the legacy GPU transport installed.
+SystemHook scopes the draw override to AegirPoster's Calliope background pass
+and the measured index type and draw shape. Blocking the patch and updating
+the guest environment removes the marker and restores the original pass.
+AegirPoster drops its generated preview PNGs older than the marker. The
+rebuilt guest's live Earth editor rendered the planet and stars with a clean
+background after a cold boot. PosterBoard retained previously composited
+gallery tiles on that existing guest after the extension PNGs were removed.
