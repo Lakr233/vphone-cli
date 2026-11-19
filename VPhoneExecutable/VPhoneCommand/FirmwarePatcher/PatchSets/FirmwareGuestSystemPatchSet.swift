@@ -51,6 +51,8 @@ public enum FirmwareGuestSystemPatchSet {
     public static let ios18SafariSoftwareRenderingMarker = "/usr/lib/vphone-ios18-safari-software"
     public static let ios17Wallpaper = "system-wallpaper-cfw-ios17_image_assets"
     public static let ios17WallpaperPath = "/Library/Wallpaper/Collections/iOS_17~iphone.wallpaperCollection/Wallpapers"
+    public static let ios17AstronomyBackground = "system-systemhook-cfw-ios17_astronomy_background"
+    public static let ios17AstronomyBackgroundMarker = "/usr/lib/vphone-ios17-astronomy-background"
     public static let metalVertexIDFormat = "dyld-cfw-metal_vertex_id_format"
     public static let glesPrimitiveRestart = "dyld-cfw-gles_primitive_restart"
     public static let glesPointDraw = "dyld-cfw-gles_point_draw"
@@ -866,6 +868,15 @@ public enum FirmwareGuestSystemPatchSet {
                 applicability: VPhonePatchApplicability(
                     iOSBase: .oneOf([.release(major: 17, minor: 7), .release(major: 18, minor: 6)]),
                     cloudOS: .release(major: 26, minor: 1),
+                ),
+            ),
+            VPhonePatchDeclaration(
+                identifier: ios17AstronomyBackground,
+                title: "iOS 17 Astronomy background",
+                summary: "Corrects the Astronomy wallpaper background on iPhone SE 3 when iOS 17.7 runs on cloudOS 26.1.",
+                target: .guestFile(path: ios17AstronomyBackgroundMarker),
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .release(major: 17, minor: 7), cloudOS: .release(major: 26, minor: 1),
                 ),
             ),
             VPhonePatchDeclaration(
