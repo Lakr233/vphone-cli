@@ -110,7 +110,7 @@ extension FirmwarePatchSetCatalog {
     public static let userspaceDebugging = FirmwarePatchFeature(
         identifier: "userspace-debugging",
         title: "Userspace debugging",
-        summary: "A re-signed debugserver, and the kernel and TXM patches it needs to attach to any process in the guest and read its memory. The kernel and TXM stay otherwise stock.",
+        summary: "Binary patches to the kernel and TXM, and a re-signed debugserver, so it attaches to any process in the guest, Apple's daemons and platform binaries included. Developer Mode alone debugs only apps that allow it.",
         parts: [
             [FirmwareRestoreImagePatchSet.debugserver, "system-debugserver-cfw-install"],
             [FirmwareRestoreImagePatchSet.launchdJetsam, "system-launchd-boot-jetsam_panic_guard_bypass"],
@@ -134,12 +134,15 @@ extension FirmwarePatchSetCatalog {
     /// a restore for every change to the sealed system. It is one patch,
     /// `filesystem-exp-trusted_darwinos`; a feature so the editor offers it as
     /// a box beside the preset.
+    /// Developer Mode does not work there: TXM's trusted darwinOS policy is
+    /// platform code only, so it registers no provisioning profile and no app
+    /// built with Xcode launches. App development uses the normal environment.
     /// No preset but `minimal` names the restore image set, so no other shows
     /// it. Research/Firmware/trusted_darwinos_cryptexes.md has the details.
     public static let trustedDarwinOS = FirmwarePatchFeature(
         identifier: "trusted-darwinos",
         title: "Trusted darwinOS environment",
-        summary: "Restores the guest in the environment cloudOS runs in, which lets cryptexes be installed and mounted while it runs instead of restoring for every change to the system. Developer Mode is unavailable on research-board guests.",
+        summary: "Restores the guest in the environment cloudOS runs in, which lets cryptexes be installed and mounted while it runs instead of restoring for every change to the system. Developer Mode does not work in it: TXM runs only platform code there, so apps built with Xcode do not launch. Leave it off for app development.",
         parts: [[FirmwareRestoreImagePatchSet.trustedDarwinOS]],
     )
 

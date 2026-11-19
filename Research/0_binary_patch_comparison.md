@@ -7681,7 +7681,8 @@ image, whose trust cache is rebuilt anyway. The temporary cloudOS restore that
 recovers the GPU driver now also sends cloudOS's own `Ap,OSEnvironment`.
 In environment 6 AMFI enables Developer Mode only in its research build; the
 research-board kernel mix takes AMFI from the release kernel, so a research-board
-guest has none (the note has the disassembly).
+guest has none (the note has the disassembly). Giving it back was tried and
+dropped: TXM runs only platform code there (the note, "Developer Mode").
 
 iOS 27.0.1 with cloudOS 26.4 panicked in environment 6 (dyld mounted no OS
 cryptex, launchd found no libSystem; 2026-11-12), and the box was refused for
@@ -7804,6 +7805,83 @@ Stock iOS 27.2 has no `ReleaseType` key and no override file. What still sees
 SystemVersion.plist itself. Checked on iOS 27.2 (24B119) with cloudOS 27.2,
 normal environment, Developer Mode on: a free team's app built with Xcode ran
 without the online authorization.
+
+## Developer Mode and NVRAM: LLB skips the PCC scrub (2026-11-19)
+
+**Symptom.** Settings › Privacy & Security › Developer Mode › Restart on a
+`minimal` guest: AMFI logs `AMFI: armed security boot mode: 2` and the kernel
+writes `security-mode-change-enable=2` to NVRAM, but the guest comes back with
+Developer Mode off and no PreBoard prompt (`AMFI: finished: 0 1`). Guest RAM
+after boot holds `/chosen/security-mode-change-enable = 0`, and the variable is
+gone from `nvram.bin`. Other variables iOS writes for itself are lost the same
+way.
+
+**Cause.** The vresearch101 LLB has iBoot's handler (27.2 RELEASE `0x2572C`:
+getenv, unsetenv, save NVRAM, set the `/chosen` property), but it runs after a
+PCC NVRAM scrub in the LLB's init (`0x56FC`, called at `0x36A0`). Unless
+`boot-command` is `upgrade`, the scrub reads 21 keep-list names (22 in
+RESEARCH_RELEASE: auto-boot, boot-volume, boot-breadcrumbs,
+one-time-boot-command, stress-rack, the `krn.*` and obliteration state,
+darwin-init, ...), clears every variable that came from NVRAM (IPC message 13,
+`0x5C020`), sets the kept ones again and saves NVRAM (`0x5E7C`). The request is
+not kept, so the handler's getenv returns its default 0. Found by static
+reading of the LLB; the scrub is the same in RELEASE and RESEARCH_RELEASE.
+
+**Only PCC boot loaders scrub.** The scrub is in every Private Cloud Compute
+boot loader read so far and in no iPhone one. All images are plain LZFSE, no
+KBAG, so they were read directly (`ipsw img4 im4p extract`, Xcode
+`llvm-objdump`):
+
+| Image | Keep list |
+| --- | --- |
+| vresearch101 RELEASE 26.4β, 26.4, 26.5, 27.2 | 21 names |
+| vresearch101 RESEARCH_RELEASE 26.5, 27.2 | 22 (adds boot-args, epdm-skip-nvram) |
+| j226c and j236c (PCC servers) RELEASE 27.2 | 21, the same as vresearch101 |
+| j226c and j236c RELEASE 26.5 | 14 (no darwin-init or obliteration state) |
+| vresearch101 RELEASE 18.6 | 11 |
+| j236c RELEASE 18.6 | 5 |
+| iPhone17,3 (d47) LLB and iBoot 26.5, 27.2, RELEASE and RESEARCH_RELEASE; iPhone11,x 18.6 | no scrub |
+
+In the iPhone17,3 27.2 LLB the init step that calls the scrub on vresearch101
+(the same breadcrumb tags around it, `0x4080` → `0x62C4`) only loads NVRAM and
+runs the Developer Mode handler. None of `boop-storage-nonces`, `darwin-init`,
+`oblit*` or `epdm-skip-nvram` occurs in an iPhone image.
+
+**What the scrub costs a guest.** Watching `nvram.bin` on the host through a
+restart of a `minimal` 27.2 guest: with the stock LLB the store drops from 46
+to 24 entries when LLB saves, losing `fm-activation-locked`, `fm-locktype`,
+`fm-spstatus`, `StartupMute`, `SetupCountryOverride`,
+`lca_wifi_country_override`, `user_language_enum` and
+`com.apple.System.rtc-offset`; iOS writes some of them again later in the boot,
+the Find My ones not within 150 seconds. With the patch nothing is dropped.
+
+**What stays the same.** iBoot reads only the names in its own NVRAM table
+(vresearch101 RELEASE `0xABB60`, 44 entries; the lookup at `0x3508` marks any
+other variable from NVRAM with flag 4, and getenv returns NULL for it at
+`0x5B354`). `boot-args` is in the table only in RESEARCH_RELEASE, so a guest's
+`boot-args` still does not reach a RELEASE kernel (`0x1BF70`). The names LLB
+does read and the scrub used to clear (`boot-command`, `recovery-boot-mode`,
+`upgrade-retry`, the panicmedic counters, `backlight-level`, the boot nonce)
+now persist as on an iPhone, so a guest can leave itself in recovery as a
+device can. The scrub could already be skipped without a patch by setting
+`boot-command=upgrade`.
+
+| Patch | Component | Change |
+| --- | --- | --- |
+| `llb-exp-nvram_scrub_bypass` | LLB | The scrub's first test, `cbz x0, scrub` after `getenv("boot-command")`, becomes `b done`, the target of the `cbz w0, done` LLB takes when `boot-command` is `upgrade`; that path skips the scrub and its save. Matched as `cbz; adrp/add "upgrade"; ...; cbz wN, done` whose first `cbz` lands right after the second, within 0x800 bytes after the keep list's `stress-rack` entry (the same test also occurs outside the scrub). 27.2 RELEASE `0x5BFC` `cbz x0, 0x5C20` → `b 0x5E80`; RESEARCH_RELEASE `0x5F00` → `b 0x6188`; j236c RELEASE 27.2 `0x60B8` → `b 0x633C`. On in `minimal` and `watchos` only; every other preset blocks it. |
+
+**Checked** on a new `minimal` iPhone17,3 iOS 27.2 (24B119) guest with cloudOS
+27.2 (24B115), normal environment, stock kernel and TXM: a restart keeps every
+variable in `nvram.bin` (`fm-*`, `StartupMute`, `SetupCountryOverride`,
+`user_language_enum`). Arming Developer Mode gives `AMFI: delaying developer
+mode latching...` on the next boot and PreBoard's "Ready to Enable Developer
+Mode"; Enable turns it on (`developer_mode.status` enabled), the LLB's handler
+deletes the request from `nvram.bin`, and the next boot reaches Setup Assistant
+with `AMFI: Developer Mode Is On` and no prompt. The control, the same guest
+with the stock `cbz` word, lost the variables at LLB's save. Not checked:
+which variables guest userland may write, older cloudOS LLBs (the patch logs
+`upgrade test not found` if the test differs), and a guest that sets
+`boot-command` or `recovery-boot-mode` itself.
 
 ## Answers for vphone600's syscfg placeholders (2026-11-14)
 

@@ -452,8 +452,8 @@
                {"identifier":"minimal","title":"Minimal","summary":"A stock boot chain, kernel and TXM.","patchSets":[]}
              ],
              "features":[
-               {"identifier":"userspace-debugging","title":"Userspace debugging","summary":"A re-signed debugserver, and the kernel and TXM patches it needs to attach to any process in the guest and read its memory.","patches":["filesystem-exp-debugserver","kernel-cfw-debugger"],"available":\(minimal)},
-               {"identifier":"trusted-darwinos","title":"Trusted darwinOS environment","summary":"Restores the guest in the environment cloudOS runs in, which lets cryptexes be installed and mounted while it runs instead of restoring for every change to the system. Developer Mode is unavailable on research-board guests.","patches":["filesystem-exp-trusted_darwinos"],"available":\(minimal)}
+               {"identifier":"userspace-debugging","title":"Userspace debugging","summary":"Binary patches to the kernel and TXM, and a re-signed debugserver, so it attaches to any process in the guest, Apple's daemons and platform binaries included. Developer Mode alone debugs only apps that allow it.","patches":["filesystem-exp-debugserver","kernel-cfw-debugger"],"available":\(minimal)},
+               {"identifier":"trusted-darwinos","title":"Trusted darwinOS environment","summary":"Restores the guest in the environment cloudOS runs in, which lets cryptexes be installed and mounted while it runs instead of restoring for every change to the system. Developer Mode does not work in it: TXM runs only platform code there, so apps built with Xcode do not launch. Leave it off for app development.","patches":["filesystem-exp-trusted_darwinos"],"available":\(minimal)}
              ],
              "patches":[
                {"identifier":"avpbooter-boot-dgst_bypass","title":"AVPBooter digest bypass","summary":"Accepts the resealed boot images instead of the stock digests.","patchSet":"com.vphone.patchset.bootchain","patchSetName":"Boot Chain","target":"AVPBooter","applicability":"any","bootEssential":true,"inPreset":true,"enabled":true\(pending("AVPBooter"))},

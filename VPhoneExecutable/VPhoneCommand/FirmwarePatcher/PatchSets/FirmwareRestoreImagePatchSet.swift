@@ -134,7 +134,7 @@ public enum FirmwareRestoreImagePatchSet {
             VPhonePatchDeclaration(
                 identifier: trustedDarwinOS,
                 title: "Trusted darwinOS environment",
-                summary: "Restores the guest in the trusted darwinOS environment (Ap,OSEnvironment 6, as cloudOS runs) and installs cloudOS's cryptexctl, so cryptexes can be personalized and installed while the guest runs instead of restoring again. Off by default, and an iPhone or iPad guest only. The environment comes from the restore's ticket, so changing this box needs a new restore. In it AMFI enforces Restricted Execution Mode, so the rebuilt trust cache allows every binary in both phases, and AMFI turns Developer Mode on only in its research build: on a research-board guest, whose kernel mix takes AMFI from the release kernel, it cannot be turned on (\"Developer Mode can not be enabled on trusted darwinOS\"), which leaves out Xcode, the Developer disk image and Userspace debugging.",
+                summary: "Restores the guest in the trusted darwinOS environment (Ap,OSEnvironment 6, as cloudOS runs) and installs cloudOS's cryptexctl, so cryptexes can be personalized and installed while the guest runs instead of restoring again. Off by default, and an iPhone or iPad guest only. The environment comes from the restore's ticket, so changing this box needs a new restore. In it AMFI enforces Restricted Execution Mode, so the rebuilt trust cache allows every binary in both phases. Developer Mode does not work there: TXM runs only platform code in trusted darwinOS, so apps built with Xcode do not launch. Leave it off for app development.",
                 target: .firmware(.filesystem),
             ),
             VPhonePatchDeclaration(
