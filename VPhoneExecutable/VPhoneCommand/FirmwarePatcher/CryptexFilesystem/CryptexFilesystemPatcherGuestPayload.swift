@@ -183,6 +183,28 @@ extension CryptexFilesystemPatcher {
         print("  [+] /\(VPhonePCCCryptexctl.guestPath)")
     }
 
+    /// SystemVersion.plist's ReleaseType becomes Internal, and the os_variant
+    /// override keeps every other process on customer behaviour
+    /// (CustomFirmwareInternalReleaseType).
+    func markInternalReleaseType(targetMount: String) throws {
+        let target = try VPhoneConfinedDirectory.pin(absolutePath: targetMount)
+        var edited = 0
+        for relative in CustomFirmwareInternalReleaseType.systemVersionPaths where try target.isRegularFile(relative) {
+            if let data = try CustomFirmwareInternalReleaseType.patched(systemVersion: target.readData(relative)) {
+                try target.writeFile(relative, contents: data, mode: 0o444, owner: (0, 0))
+            }
+            print("  [+] /\(relative): \(CustomFirmwareInternalReleaseType.key) \(CustomFirmwareInternalReleaseType.value)")
+            edited += 1
+        }
+        guard edited > 0 else {
+            throw VPhonePatchKit.PatcherError.patchVerificationFailed("No SystemVersion.plist in the merged image.")
+        }
+        let overridePath = CustomFirmwareInternalReleaseType.osVariantOverridePath
+        let misc = try target.directory((overridePath as NSString).deletingLastPathComponent, create: true)
+        try misc.writeFile((overridePath as NSString).lastPathComponent, contents: CustomFirmwareInternalReleaseType.osVariantOverride, mode: 0o644, owner: (0, 0))
+        print("  [+] /\(overridePath)")
+    }
+
     func addGpuDriver(targetMount: String) throws {
         let target = URL(filePath: targetMount)
         let bundle = target.appending(path: "/System/Library/Extensions/AppleParavirtGPUMetalIOGPUFamily.bundle")

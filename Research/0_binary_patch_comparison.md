@@ -7784,6 +7784,27 @@ macOS 27.2 stops the same way. cloudOS 18.5 (22F76) and 18.6 (22G86) each
 match one site, 26.1 (23B85) and 26.4 (23E5207q) none; the other 18.x SPTMs
 were not read.
 
+## Free personal-team apps offline: ReleaseType Internal (2026-11-18)
+
+**Symptom.** An app Xcode signs with a free Apple Account installs on a
+`minimal` guest but does not launch, and Settings' Verify App fails. The guest
+log shows `online-auth-agent: Failed to copy activation record`
+(MobileActivation -1), then "Could not perform authorization attempt" and
+`MDMProvisioningProfileTrust … error 4`. A free team's profile needs an online
+authorization signed with the activation record's identity; a guest activated
+without Apple's servers has none, and only Apple can sign one. A paid team's
+profile does not ask.
+
+| Patch | Component | Change |
+| --- | --- | --- |
+| `filesystem-exp-internal_release_type` | SystemVersion.plist, before the reseal | No byte change. Sets `ReleaseType = Internal` in `/System/Library/CoreServices/SystemVersion.plist` and the merged OS cryptex's copy, and adds `/usr/share/misc/os_variant_override` = `content,diagnostics,ui,security`. libmis's `MISValidateSignatureAndCopyInfoWithProgress` clears `RespectUppTrustAndAuthorization` and `OnlineAuthorization` when `MGGetBoolAnswer("IsVirtualDevice")` and `MGCopyAnswer("ReleaseType") isEqualToString:@"Internal"` (26.5 `0x1BBFB8CB0`; 27.2 `0x22601D4C0`, both answers cached once per process). MobileGestalt's `ReleaseType` is the SystemVersion.plist key, falling back to an os_variant check only when the key is missing (26.5 `0x1B1BEDDA4`). A free personal team's profile otherwise needs an online authorization signed with the activation record's identity, which a guest activated without Apple's servers lacks (`online-auth-agent: Failed to copy activation record`). The free-team fix of row 17 without touching libmis; the override keeps os_variant on customer behaviour. On in `minimal` for iPhone and iPad guests; a watch is left alone. |
+
+Stock iOS 27.2 has no `ReleaseType` key and no override file. What still sees
+"Internal" is anything that asks MobileGestalt for `ReleaseType` or reads
+SystemVersion.plist itself. Checked on iOS 27.2 (24B119) with cloudOS 27.2,
+normal environment, Developer Mode on: a free team's app built with Xcode ran
+without the online authorization.
+
 ## Answers for vphone600's syscfg placeholders (2026-11-14)
 
 **Symptom.** A `minimal` guest with Developer Mode pairs with Xcode, and a second
