@@ -123,7 +123,7 @@ public enum FirmwareRestoreImagePatchSet {
             VPhonePatchDeclaration(
                 identifier: launchdJetsam,
                 title: "launchd jetsam panic guard",
-                summary: "Patches launchd, before the reseal, so a daemon without jetsam properties does not panic the guest. Off by default. With developer mode on, MobileStorageMounter mounts the Developer disk image, and launchd's guard against its daemons kills init (\"jetsam property category (Daemon) is not initialized\"). The same change cfw install makes with system-launchd-boot-jetsam_panic_guard_bypass.",
+                summary: "Patches launchd, before the reseal, so a daemon without jetsam properties does not panic the guest. Off by default. With developer mode on, MobileStorageMounter mounts the Developer disk image, and launchd's guard against its daemons kills init (\"jetsam property category (Daemon) is not initialized\"). The cause is the jetsam product type the VM's syscfg cannot supply, which devicetree-exp-syscfg_placeholders restores without touching launchd. The same change cfw install makes with system-launchd-boot-jetsam_panic_guard_bypass.",
                 target: .firmware(.filesystem),
             ),
             VPhonePatchDeclaration(

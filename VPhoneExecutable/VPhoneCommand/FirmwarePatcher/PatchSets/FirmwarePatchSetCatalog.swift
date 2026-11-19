@@ -79,6 +79,10 @@ public enum FirmwarePatchSetCatalog {
             // classification (txm-cfw-executable_remap). Selected per VM when the
             // guest injects CS_ADHOC code (ellekit/roothide). See TXMDevPatcher.
             .union([TXMDevPatcher.precheckAdmissionID])
+            // Manual only, so standard, which patches launchd's jetsam guard
+            // instead, keeps the tree it has always had. minimal lists both, and
+            // experimental takes every manual patch.
+            .union([DeviceTreePatcher.syscfgPlaceholdersPatch, FirmwareDeviceTreePatchSet.boardTargetType])
 
     /// ProMotion: the 120 Hz timing for the paravirtual display.
     ///
@@ -400,10 +404,14 @@ public enum FirmwarePatchSetCatalog {
     )
 
     /// The device tree patches ``minimalPreset`` keeps: the board presentation the
-    /// guest UI lays out against, DriverKit for virtual USB input, and the
-    /// haptics and microphone array no VM has. They change no code, so they
+    /// guest UI lays out against, DriverKit for virtual USB input, the haptics
+    /// and microphone array no VM has, and answers for the syscfg placeholders
+    /// a VM cannot answer, with the XS Max's board target type that iOS 18's
+    /// launchd reads in place of one of them. They change no code, so they
     /// are no system modification.
     public static let minimalDeviceTreePatches: Set<String> = [
+        "devicetree-exp-syscfg_placeholders",
+        FirmwareDeviceTreePatchSet.boardTargetType,
         "devicetree-cfw-virtual_usb_driverkit",
         "devicetree-cfw-serial_number",
         "devicetree-cfw-home_button_type",

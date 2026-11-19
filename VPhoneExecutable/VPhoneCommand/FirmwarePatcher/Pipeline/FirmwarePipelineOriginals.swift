@@ -59,6 +59,12 @@ extension FirmwarePipeline {
 
     // MARK: - Reading
 
+    /// Whether `fileURL` or its stashed original is there to read.
+    func hasPristineInput(for fileURL: URL) -> Bool {
+        let fm = FileManager.default
+        return fm.fileExists(atPath: fileURL.path) || originalURL(for: fileURL).map { fm.fileExists(atPath: $0.path) } == true
+    }
+
     /// The file this run should take `fileURL`'s bytes from, stashing them first
     /// if no earlier run did.
     ///
