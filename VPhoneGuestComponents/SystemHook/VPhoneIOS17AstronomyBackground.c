@@ -1,10 +1,17 @@
+#include <dirent.h>
 #include <dlfcn.h>
+#include <fcntl.h>
+#include <limits.h>
 #include <objc/runtime.h>
 #include <os/lock.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 typedef void (*Backdrop)(id, SEL, id, uint64_t);
 typedef void (*IndexedDraw)(id, SEL, uint64_t, uint64_t, uint64_t, id,
@@ -57,6 +64,38 @@ static void vpRenderBackdrop(id renderer, SEL command, id encoder, uint64_t fram
     vpBackdropEncoder = previousEncoder;
 }
 
+static void vpRemoveStaleAstronomyPreviews(struct timespec cutoff) {
+    const char *home = getenv("CFFIXED_USER_HOME");
+    if (!home) home = getenv("HOME");
+    if (!home) return;
+
+    char cachePath[PATH_MAX];
+    int length = snprintf(cachePath, sizeof(cachePath), "%s/Library/Caches", home);
+    if (length < 0 || (size_t)length >= sizeof(cachePath)) return;
+    DIR *directory = opendir(cachePath);
+    if (!directory) return;
+
+    // AegirPoster reuses these generated PNGs even after the graphics fix.
+    int cache = dirfd(directory);
+    const char prefix[] = "aegir-preview-";
+    struct dirent *entry;
+    while ((entry = readdir(directory))) {
+        const char *name = entry->d_name;
+        size_t size = strlen(name);
+        if (size < sizeof(prefix) + 4 || strncmp(name, prefix, sizeof(prefix) - 1) != 0 ||
+            strcmp(name + size - 4, ".png") != 0)
+            continue;
+        struct stat info;
+        if (fstatat(cache, name, &info, AT_SYMLINK_NOFOLLOW) != 0 || !S_ISREG(info.st_mode))
+            continue;
+        struct timespec modified = info.st_mtimespec;
+        if (modified.tv_sec < cutoff.tv_sec ||
+            (modified.tv_sec == cutoff.tv_sec && modified.tv_nsec < cutoff.tv_nsec))
+            unlinkat(cache, name, 0);
+    }
+    closedir(directory);
+}
+
 void vpInstallIOS17AstronomyBackground(const char *marker) {
     struct stat markerInfo;
     if (stat(marker, &markerInfo) != 0) return;
@@ -79,4 +118,5 @@ void vpInstallIOS17AstronomyBackground(const char *marker) {
                                     "instanceCount:baseVertex:baseInstance:");
     vpOriginalBackdrop = (Backdrop)vpGetImplementation(backdrop);
     vpReplaceImplementation(backdrop, (IMP)vpRenderBackdrop);
+    vpRemoveStaleAstronomyPreviews(markerInfo.st_mtimespec);
 }
