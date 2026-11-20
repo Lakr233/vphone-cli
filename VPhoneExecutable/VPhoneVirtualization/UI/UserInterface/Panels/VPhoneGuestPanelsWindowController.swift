@@ -45,6 +45,10 @@ final class VPhoneGuestPanelsWindowController {
         didSet { attitudeDials?.attach(to: displayWindow) }
     }
 
+    /// Saves the memory of a guest process, by pid and kernel name; set by
+    /// the menu controller, which owns the VM.
+    var onDumpProcess: ((Int32, String) -> Void)?
+
     init(control: VPhoneGuestControl) {
         self.control = control
     }
@@ -76,6 +80,7 @@ final class VPhoneGuestPanelsWindowController {
             ) { VPhoneDeviceInfoView(model: model) }
         case .processes:
             let model = VPhoneProcessesModel(control: control)
+            model.onDumpMemory = { [weak self] row in self?.onDumpProcess?(Int32(row.pid), row.name) }
             return VPhoneGuestToolWindow(
                 title: String(localized: "Processes", bundle: VPhoneLocalization.bundle),
                 autosaveName: "vphone-panel-processes",

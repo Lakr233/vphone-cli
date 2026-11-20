@@ -158,6 +158,9 @@ class VPhoneMenuController {
         guestToolsWindowController = VPhoneGuestToolsWindowController(control: control)
         guestPanelsWindowController = VPhoneGuestPanelsWindowController(control: control)
         setupMenuBar()
+        guestPanelsWindowController.onDumpProcess = { [weak self] pid, name in
+            self?.dumpProcessMemory(pid: pid, name: name)
+        }
     }
 
     // MARK: - Menu Bar Setup

@@ -54,9 +54,18 @@ import VPhoneCoreKit
 ///                                                 into a new folder; the guest pauses while they are
 ///                                                 taken. `"result"` lists each core's `file`, `bytes` and
 ///                                                 `stored_bytes`, with `capture_seconds` and `write_seconds`
+///   {"t":"memory.dump","path":"/abs/new/folder","physical":true}
+///                                               → saves the guest's RAM by guest physical address as
+///                                                 `physical.elf` (see `VPhonePhysicalMemoryDump`)
+///   {"t":"process.dump","pid":123,"path":"/abs/new/folder","name":"SpringBoard"}
+///                                               → saves one guest process's resident memory as a Mach-O
+///                                                 core, read from the host through the guest kernel's page
+///                                                 tables (see `VPhoneProcessMemoryDump`). `name`, optional,
+///                                                 must match the process's `p_comm`. `"result"` has `file`,
+///                                                 `name`, `segments`, `bytes` and `paused_seconds`
 ///
-/// All commands except "screenshot", "rpc", "push", "pull", "network" and
-/// "memory.dump" wait briefly then capture a compact screen image returned as
+/// All commands except "screenshot", "rpc", "push", "pull", "network",
+/// "memory.dump" and "process.dump" wait briefly then capture a compact screen image returned as
 /// `"image":"<base64>"` in the response.
 /// Pass `"screen":false` to skip the capture; "rpc" captures only when sent
 /// `"screen":true`.
@@ -348,6 +357,19 @@ class VPhoneHostAutomationServer {
                     )
                 }
                 let machine = URL(fileURLWithPath: socketPath).deletingLastPathComponent().lastPathComponent
+                if json["physical"] as? Bool == true {
+                    let dump = try await VPhonePhysicalMemoryDump.save(
+                        from: virtualMachine,
+                        machineName: machine,
+                        to: URL(fileURLWithPath: path).standardizedFileURL,
+                    )
+                    return Self.reply(ok: true, path: dump.folder.path, result: [
+                        "file": dump.file.path,
+                        "bytes": dump.bytes,
+                        "stored_bytes": dump.storedBytes,
+                        "paused_seconds": VPhoneMemoryDump.tenths(dump.pausedSeconds),
+                    ])
+                }
                 let dump = try await VPhoneMemoryDump.save(
                     from: virtualMachine,
                     machineName: machine,
@@ -364,6 +386,38 @@ class VPhoneHostAutomationServer {
                     },
                     "capture_seconds": VPhoneMemoryDump.tenths(dump.captureSeconds),
                     "write_seconds": VPhoneMemoryDump.tenths(dump.writeSeconds),
+                ])
+
+            case "process.dump":
+                guard let virtualMachine else {
+                    return Self.reply(ok: false, error: "the VM is not running")
+                }
+                guard let pid = (json["pid"] as? NSNumber)?.int32Value, pid > 0,
+                      let path = json["path"] as? String, path.hasPrefix("/")
+                else {
+                    return Self.reply(
+                        ok: false,
+                        error: "process.dump requires pid (above 0) and path (an absolute host path for a new folder)",
+                    )
+                }
+                let machine = URL(fileURLWithPath: socketPath).deletingLastPathComponent().lastPathComponent
+                let dump = try await VPhoneProcessMemoryDump.save(
+                    from: virtualMachine,
+                    machineName: machine,
+                    pid: pid,
+                    expectedName: json["name"] as? String,
+                    to: URL(fileURLWithPath: path).standardizedFileURL,
+                )
+                return Self.reply(ok: true, path: dump.folder.path, result: [
+                    "file": dump.file.path,
+                    "pid": Int(dump.pid),
+                    "name": dump.name,
+                    "segments": dump.segments,
+                    "bytes": dump.bytes,
+                    "unreadable_bytes": dump.unreadableBytes,
+                    "paused_seconds": VPhoneMemoryDump.tenths(dump.pausedSeconds),
+                    "kernel_uuid": dump.kernelUUID,
+                    "symbol_map": dump.symbolMap,
                 ])
 
             default:

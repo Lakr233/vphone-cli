@@ -84,6 +84,12 @@ struct VPhoneProcessesView: View {
             }
             .help("Send another signal to the selected processes")
             .disabled(!model.canSignal)
+
+            if model.onDumpMemory != nil {
+                Button("Save Memory Dump…", systemImage: "memorychip") { model.dumpMemory() }
+                    .help("Save the selected process's resident memory as a Mach-O core, read from the host")
+                    .disabled(model.dumpTarget() == nil)
+            }
         }
     }
 
@@ -139,6 +145,11 @@ struct VPhoneProcessesView: View {
                     .disabled(model.isBusy)
                 Button("Kill…") { model.requestSignal(.kill, pids: pids) }
                     .disabled(model.isBusy)
+                if model.onDumpMemory != nil {
+                    Divider()
+                    Button("Save Memory Dump…") { model.dumpMemory(pids: pids) }
+                        .disabled(model.dumpTarget(pids: pids) == nil)
+                }
             }
         }
         .accessibilityLabel("Guest processes")
