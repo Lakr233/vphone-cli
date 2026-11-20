@@ -17,6 +17,9 @@ bases/<iOS version>_<iPhone build>/
 donors/<id>/
   manifest.json      the donor kernelcache and the cloudOS it is read from
   symbols.json.gz    symbol map, for a stripped donor
+kernels/<id>/
+  manifest.json      a kernelcache a guest boots unmixed (below)
+  symbols.json.gz    its symbol map
 ```
 
 Base `manifest.json`:
@@ -29,6 +32,29 @@ Base `manifest.json`:
 | `builderLayout` | `kernel-last` (iOS 26.4+, kmutil of macOS 26.4+) or `kernel-first` |
 | `guest`, `sources` | the guest family of a recipe of its own (`watch`, `homePod`), and its kext sources in order: each kext from the first that has it |
 | `kextOverrides` | bundle identifier to the source it is taken from although an earlier one has it (`homepod_26.5_23L471`: AMFI, corecrypto, AppleImage4 and IOTimeSyncFamily from the base, IOgPTPPlugin from `vphone600_26.4_23E5207q`) |
+
+Every manifest of a kernel a guest can boot (the iPhone bases, the vphone600
+donors and `kernels/`) also names that kernel, for host-side kernel
+introspection (the host reads the guest's memory and finds its symbols by
+the booted kernel's UUID):
+
+| Key | Meaning |
+|---|---|
+| `kernelUUID` | LC_UUID of the `com.apple.kernel` fileset entry, uppercase with hyphens |
+| `kernelSegments` | that entry's segments, name to `[vmaddr, vmsize]` in the map's address space (zero-size ones left out) |
+
+A mix moves the kernel's segments but keeps its UUID and every offset within
+a segment, so a map address is carried over as segment plus offset. The watch
+and HomePod bases share the kernel of `26.4_23E246` and `26.5_23F77` and do not
+repeat it.
+
+`kernels/` holds the vphone600 kernels that a guest of the beta cloudOS 26.2 and
+26.3 boots as shipped, without a mix. They are not used to build anything; they
+are there so that the host can read a running guest's kernel. Their manifests
+have the donors' keys (`cloudOSSource`: the cloudOS the kernelcache comes from).
+The 26.2 map is the earlier BinDiff symbolication of that kernelcache. The 26.3
+one is carried over by code alignment from the 26.2, 26.1 and 26.4 beta maps (a
+name stays where at least two of them agree, or where 26.2's is the only one).
 
 The bundle list is the base's kexts without the research-board-only ones
 (CIOMesh, MLX5, Thunderbolt, RDMA, ...), plus the donor kexts that link against

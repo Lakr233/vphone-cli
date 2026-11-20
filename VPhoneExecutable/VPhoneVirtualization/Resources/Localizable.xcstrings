@@ -36968,6 +36968,351 @@
           }
         }
       }
+    },
+    "Save Memory Dump…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Memory Dump…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリダンプを保存…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모리 덤프 저장…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu bản kết xuất bộ nhớ…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存储内存转储…"
+          }
+        }
+      }
+    },
+    "Saving Memory Dump…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving Memory Dump…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリダンプを保存中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모리 덤프 저장 중…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang lưu bản kết xuất bộ nhớ…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在存储内存转储…"
+          }
+        }
+      }
+    },
+    "Physical memory image" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Physical memory image"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "物理メモリイメージ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "물리 메모리 이미지"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ảnh bộ nhớ vật lý"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "物理内存映像"
+          }
+        }
+      }
+    },
+    "Save all of the guest's RAM, kernel and every process, at its physical addresses, instead of the cores of the kernel and the vCPUs." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save all of the guest's RAM, kernel and every process, at its physical addresses, instead of the cores of the kernel and the vCPUs."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カーネルと vCPU のコアの代わりに、カーネルとすべてのプロセスを含むゲストの RAM 全体を物理アドレスで保存します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커널과 vCPU 코어 대신, 커널과 모든 프로세스를 포함한 게스트 RAM 전체를 물리 주소로 저장합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu toàn bộ RAM của máy khách, gồm nhân và mọi tiến trình, theo địa chỉ vật lý, thay cho các tệp core của nhân và các vCPU."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按物理地址存储客户机的全部 RAM（包括内核和所有进程），而不是内核与 vCPU 的核心文件。"
+          }
+        }
+      }
+    },
+    "Saves the memory of %@ (pid %d) into a new folder here. The guest pauses for a few seconds." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saves the memory of %@ (pid %d) into a new folder here. The guest pauses for a few seconds."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（pid %d）のメモリを、ここに新しいフォルダを作って保存します。ゲストは数秒間一時停止します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(pid %d)의 메모리를 여기에 새 폴더를 만들어 저장합니다. 게스트가 몇 초간 일시 정지됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu bộ nhớ của %@ (pid %d) vào một thư mục mới tại đây. Máy khách tạm dừng vài giây."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 %@（pid %d）的内存保存到此处的新文件夹中。客户机会暂停几秒钟。"
+          }
+        }
+      }
+    },
+    "the process" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the process"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプロセス"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 프로세스"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tiến trình này"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该进程"
+          }
+        }
+      }
+    },
+    "Save the selected process's resident memory as a Mach-O core, read from the host" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save the selected process's resident memory as a Mach-O core, read from the host"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したプロセスの常駐メモリをホスト側から読み取り、Mach-O のコアとして保存します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 프로세스의 상주 메모리를 호스트에서 읽어 Mach-O 코어로 저장합니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đọc bộ nhớ thường trú của tiến trình đã chọn từ máy chủ và lưu thành tệp core Mach-O"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从宿主机读取所选进程的常驻内存，并存储为 Mach-O 核心文件"
+          }
+        }
+      }
+    },
+    "Memory Dump" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memory Dump"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリダンプ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모리 덤프"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết xuất bộ nhớ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内存转储"
+          }
+        }
+      }
+    },
+    "Save the guest's memory and every vCPU's registers as Mach-O cores that LLDB opens." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save the guest's memory and every vCPU's registers as Mach-O cores that LLDB opens."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲストのメモリとすべての vCPU のレジスタを、LLDB で開ける Mach-O コアとして保存します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게스트의 메모리와 모든 vCPU의 레지스터를 LLDB에서 열 수 있는 Mach-O 코어로 저장합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu bộ nhớ của máy khách và thanh ghi của mọi vCPU dưới dạng tệp core Mach-O mà LLDB mở được."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将客户机的内存和每个 vCPU 的寄存器存储为 LLDB 可以打开的 Mach-O 核心文件。"
+          }
+        }
+      }
+    },
+    "Saves into a new folder here, up to %@. The guest pauses for 10–20 seconds." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saves into a new folder here, up to %@. The guest pauses for 10–20 seconds."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ここに新しいフォルダを作って保存します（最大 %@）。ゲストは 10〜20 秒ほど一時停止します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여기에 새 폴더를 만들어 저장합니다(최대 %@). 게스트가 10~20초 정도 일시 정지됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu vào một thư mục mới tại đây, tối đa %@. Máy khách tạm dừng 10–20 giây."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存到此处的新文件夹中，最多 %@。客户机会暂停 10 到 20 秒。"
+          }
+        }
+      }
     }
   },
   "version" : "1.3"

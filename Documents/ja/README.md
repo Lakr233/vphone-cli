@@ -21,6 +21,7 @@ vphone を初めて使う場合は、[概要](get-started/overview.md)を読ん�
 | [デバイス名と時計](machines/device-name-and-clock.md) | ゲストが仮想マシン名と Mac の時計から受け取るもの |
 | [パッケージ環境](machines/package-environment.md) | ゲストへのパッケージマネージャのインストールと削除 |
 | [Cryptex](machines/cryptexes.md) | trusted darwinOS ゲストへの独自プログラムの cryptex としてのインストール |
+| [メモリダンプ](machines/memory-dumps.md) | 実行中のゲストのメモリとレジスタ、物理 RAM、または 1 つのプロセスのメモリを LLDB やオフライン解析用に保存する |
 
 ## ファームウェアとデバイス
 

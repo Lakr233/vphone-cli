@@ -90,7 +90,7 @@ vphone-cli vm stop myphone    # run from another terminal to stop it
 printf '%s\n' '{"t":"rpc","method":"device.info","params":{}}' | nc -U ~/.vphone/machines/myphone/vphone.sock
 ```
 
-예를 들어 `input.key`에 `{"name":"cmd+v"}`를 보내면 붙여 넣고, `input.type`은 텍스트를 입력합니다. 이 작업 흐름은 SSH나 VNC 엔드포인트를 설치하지 않습니다. HTTP와 WebSocket으로 접근하려면 [자동화 API](automation-api.md)를 참고하세요.
+예를 들어 `input.key`에 `{"name":"cmd+v"}`를 보내면 붙여 넣고, `input.type`은 텍스트를 입력합니다. 이 작업 흐름은 SSH나 VNC 엔드포인트를 설치하지 않습니다. HTTP와 WebSocket으로 접근하려면 [자동화 API](automation-api.md)를 참고하세요. 게스트의 메모리를 저장하려면 `memory.dump`를 보냅니다. [메모리 덤프](memory-dumps.md)를 참고하세요.
 
 ## 각 단계를 직접 실행하기
 
