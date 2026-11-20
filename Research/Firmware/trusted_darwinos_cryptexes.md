@@ -28,8 +28,8 @@ mode. It is built so that nothing runs that Apple did not sign for that node:
   (darwin-init on cloudOS) installs the cryptexes it needs; after it, only
   binaries whose trust cache entry allows "after" may run. An iOS guest never
   enters REM; it stays before it, which is why every entry gets both bits.
-- Developer Mode in that environment is reserved to Apple's research build of
-  AMFI (below), the one the PCC VRE ships.
+- Developer Mode in that environment is reserved to Apple's research build:
+  its AMFI (below) and its LLB, the ones the PCC VRE ships.
 
 What looks like loosening on a guest comes from elsewhere: Apple's signing
 server personalizes a cryptex built with `cryptexctl.research` for the
@@ -130,9 +130,22 @@ kernel mix (`kernel-boot-vresearch101_kext_mix`), whose base is the release
 the mix takes AMFI from its base. So on such a guest trusted darwinOS means no
 Developer Mode, which the osenv6 boot logged: no Xcode, Developer disk image or
 `userspace-debugging`. A cloudOS with vphone600 components restores its research
-`KernelCache`, whose AMFI should take the first branch; not yet tried. Taking
-AMFI from a research donor in the mix, or a kernel patch of `research_variant()`,
-would give it back on the research board; neither is done here.
+`KernelCache`, whose AMFI takes the first branch.
+
+**Tried and dropped (2026-11-13 to 2026-11-19).** AMFI only asks; TXM decides.
+For platform identity 7 (trusted darwinOS) TXM grants Developer Mode only when
+`/chosen/research-enabled` is set ("developer mode enabled due to PCC research
+build", TXM 135.100.37 to 217.0.2), and on the research board only the
+`LLB.vresearch101.RESEARCH_RELEASE` build sets it. Booting that LLB, patching
+the mix's `research_variant()` to 1, and letting AMFI's Restricted Execution
+Mode verdict allow every exec gave `AMFI: finished: 1 1` and Developer Mode on
+18.6, 26.5 and 27.2 guests, and with a trust cryptex for the Developer disk
+image its daemons ran. Apps built with Xcode still did not launch: TXM's policy
+for identity 7 is platform code only, so it registers no provisioning profile.
+Lifting that would take a TXM patch, so the experiment was dropped. App
+development uses the normal environment, where Developer Mode is the guest's
+own switch (`llb-exp-nvram_scrub_bypass`, 0_binary_patch_comparison.md), and a
+guest has either cryptexes or Developer Mode.
 
 ## NRDUpdated panics TXM
 

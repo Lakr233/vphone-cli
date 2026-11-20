@@ -37,7 +37,7 @@ vphone-cli fw catalog
 - `fw patch`는 연구용 보드의 디바이스 트리와 SEP를 vphone600용으로 바꾸고, 해당 kernelcache의 레시피에 따라 vphone600 가상화 kext를 넣어 kernelcache를 다시 빌드합니다.
 - KDK 추출과 링크 모두 사용자 권한으로 실행되며, 링크에는 그 kernelcache를 빌드할 때 사용된 kmutil을 씁니다(`vphone-cli fw kernelcache`). [kernelcache 레시피](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md)와 [펌웨어 준비](firmware-preparation.md)를 참고하세요.
 - `fw prepare`는 레시피가 없는 cloudOS를 거부합니다.
-- `fw catalog`는 각 iOS 릴리스 자체의 cloudOS를 권장 cloudOS 옆에 표시하며, Launchpad는 이를 **Firmware** 아래에서 제공합니다.
+- `fw catalog`는 각 iOS 릴리스 자체의 cloudOS를 권장 cloudOS 옆에 표시합니다. 릴리스에 자체 cloudOS가 있으면 Launchpad와 `vm create`는 그것을 사용하며, **Firmware**에서 권장 cloudOS를 선택할 수도 있습니다. 게스트가 자체 cloudOS에 있지 않으면 New Machine이 이를 알려 줍니다.
 
 | cloudOS | `vresearch101ap` | `vphone600ap` | kernelcache 레시피 |
 | --- | --- | --- | --- |

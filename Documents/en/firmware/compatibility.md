@@ -37,7 +37,7 @@ Every later cloudOS (checked on 2026-10-03) lists only the PCC boards and `vrese
 - `fw patch` turns the research board's device tree and SEP into vphone600's and rebuilds its kernelcache with the vphone600 virtualization kexts, from a recipe for that kernelcache.
 - KDK extraction and the link run as you (`vphone-cli fw kernelcache`), the link with the kmutil the kernelcache was built with. See [the kernelcache recipes](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md) and [Firmware preparation](firmware-preparation.md).
 - `fw prepare` refuses a cloudOS that no recipe covers.
-- `fw catalog` lists each iOS release's own cloudOS beside the recommended one, and Launchpad offers it under **Firmware**.
+- `fw catalog` lists each iOS release's own cloudOS beside the recommended one. Launchpad and `vm create` use a release's own cloudOS when it has one, and **Firmware** still offers the recommended one; New Machine says when the guest is not on its own cloudOS.
 
 | cloudOS | `vresearch101ap` | `vphone600ap` | kernelcache recipe |
 | --- | --- | --- | --- |

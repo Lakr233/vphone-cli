@@ -79,6 +79,14 @@ public enum FirmwarePatchSetCatalog {
             // classification (txm-cfw-executable_remap). Selected per VM when the
             // guest injects CS_ADHOC code (ellekit/roothide). See TXMDevPatcher.
             .union([TXMDevPatcher.precheckAdmissionID])
+            // Manual only, so standard, which patches launchd's jetsam guard
+            // instead, keeps the tree it has always had. minimal lists both, and
+            // experimental takes every manual patch.
+            .union([DeviceTreePatcher.syscfgPlaceholdersPatch, FirmwareDeviceTreePatchSet.boardTargetType])
+            // Only minimal and watchos are tested with LLB keeping NVRAM; every
+            // other preset, experimental included, keeps the scrub it has always
+            // booted with.
+            .union(["llb-exp-nvram_scrub_bypass"])
 
     /// ProMotion: the 120 Hz timing for the paravirtual display.
     ///
@@ -243,7 +251,7 @@ public enum FirmwarePatchSetCatalog {
         freshly restored 26.4 guest does not survive. The HomePod-only top cap is off.
         """,
         patchSets: bundledReferences,
-        selection: .block([FirmwareGuestSystemPatchSet.visionOSFramePacing, FirmwareGuestSystemPatchSet.visionOSEnvironments, FirmwareGuestSystemPatchSet.visionOSEnvironmentIPC, FirmwareGuestSystemPatchSet.visionOSSkipBuddy, FirmwareGuestSystemPatchSet.visionOSWakeboardSystemIPC, FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPC, FirmwareGuestSystemPatchSet.visionOSHMDSystemSetterIPC, FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPC, FirmwareGuestSystemPatchSet.visionOSUXMIPC, FirmwareGuestSystemPatchSet.visionOSVirtualProduct, FirmwareGuestSystemPatchSet.visionOSLegacyUXM, FirmwareGuestSystemPatchSet.visionOSNonfatalServices, FirmwareGuestSystemPatchSet.ios16KeybaglessUI, FirmwareGuestSystemPatchSet.ios16Touchscreen, FirmwareGuestSystemPatchSet.ios16EphemeralStorage, FirmwareGuestSystemPatchSet.ios16Framebuffer, FirmwareGuestSystemPatchSet.ios16Surface, FirmwareGuestSystemPatchSet.ios16Desktop, FirmwareGuestSystemPatchSet.ios16Keybag, FirmwareGuestSystemPatchSet.ios16Migration, FirmwareGuestSystemPatchSet.ios16PortsLookup, FirmwareGuestSystemPatchSet.ios16MachPorts, FirmwareGuestSystemPatchSet.ios17Desktop, FirmwareGuestSystemPatchSet.homeViewEnvironmentService, FirmwareGuestSystemPatchSet.homeViewProfileLookup, FirmwareGuestSystemPatchSet.homeViewDisplayLookups, FirmwareGuestSystemPatchSet.homeViewSetupBypass, FirmwareGuestSystemPatchSet.tvLegacySetup, FirmwareGuestSystemPatchSet.tvSetupDisplayLookup, FirmwareGuestSystemPatchSet.tvSetupFocus, FirmwareGuestSystemPatchSet.tvLocalActivation, FirmwareGuestSystemPatchSet.homePodTopCap, FirmwareGuestSystemPatchSet.homePodSetupBypass, FirmwareGuestSystemPatchSet.homePodAirPlayVM, FirmwareGuestSystemPatchSet.homePodAudioProduct, FirmwareGuestSystemPatchSet.homePodWelcome, FirmwareGuestSystemPatchSet.homePodSiriSpeech, FirmwareGuestSystemPatchSet.homePodOTAUserland, FirmwareGuestSystemPatchSet.homePodSoundGlow, FirmwareGuestSystemPatchSet.homePodCryptexStaging, FirmwareGuestSystemPatchSet.homePodCryptexClass, FirmwareGuestSystemPatchSet.homePodAdHocInstall]),
+        selection: .block([FirmwareGuestSystemPatchSet.visionOSFramePacing, FirmwareGuestSystemPatchSet.visionOSEnvironments, FirmwareGuestSystemPatchSet.visionOSEnvironmentIPC, FirmwareGuestSystemPatchSet.visionOSSkipBuddy, FirmwareGuestSystemPatchSet.visionOSWakeboardSystemIPC, FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPC, FirmwareGuestSystemPatchSet.visionOSHMDSystemSetterIPC, FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPC, FirmwareGuestSystemPatchSet.visionOSUXMIPC, FirmwareGuestSystemPatchSet.visionOSVirtualProduct, FirmwareGuestSystemPatchSet.visionOSLegacyUXM, FirmwareGuestSystemPatchSet.visionOSNonfatalServices, FirmwareGuestSystemPatchSet.ios16KeybaglessUI, FirmwareGuestSystemPatchSet.ios16Touchscreen, FirmwareGuestSystemPatchSet.ios16EphemeralStorage, FirmwareGuestSystemPatchSet.ios16Framebuffer, FirmwareGuestSystemPatchSet.ios16Surface, FirmwareGuestSystemPatchSet.ios16Desktop, FirmwareGuestSystemPatchSet.ios16Keybag, FirmwareGuestSystemPatchSet.ios16Migration, FirmwareGuestSystemPatchSet.ios16PortsLookup, FirmwareGuestSystemPatchSet.ios16MachPorts, FirmwareGuestSystemPatchSet.ios17Desktop, FirmwareGuestSystemPatchSet.homeViewEnvironmentService, FirmwareGuestSystemPatchSet.homeViewProfileLookup, FirmwareGuestSystemPatchSet.homeViewDisplayLookups, FirmwareGuestSystemPatchSet.homeViewSetupBypass, FirmwareGuestSystemPatchSet.tvLegacySetup, FirmwareGuestSystemPatchSet.tvSetupDisplayLookup, FirmwareGuestSystemPatchSet.tvSetupFocus, FirmwareGuestSystemPatchSet.tvLocalActivation, FirmwareGuestSystemPatchSet.homePodTopCap, FirmwareGuestSystemPatchSet.homePodSetupBypass, FirmwareGuestSystemPatchSet.homePodAirPlayVM, FirmwareGuestSystemPatchSet.homePodAudioProduct, FirmwareGuestSystemPatchSet.homePodWelcome, FirmwareGuestSystemPatchSet.homePodSiriSpeech, FirmwareGuestSystemPatchSet.homePodOTAUserland, FirmwareGuestSystemPatchSet.homePodSoundGlow, FirmwareGuestSystemPatchSet.homePodCryptexStaging, FirmwareGuestSystemPatchSet.homePodCryptexClass, FirmwareGuestSystemPatchSet.homePodAdHocInstall, "llb-exp-nvram_scrub_bypass"]),
     )
 
     /// The iOS payloads, hooks and shared-cache patches an Apple TV guest has no
@@ -400,10 +408,14 @@ public enum FirmwarePatchSetCatalog {
     )
 
     /// The device tree patches ``minimalPreset`` keeps: the board presentation the
-    /// guest UI lays out against, DriverKit for virtual USB input, and the
-    /// haptics and microphone array no VM has. They change no code, so they
+    /// guest UI lays out against, DriverKit for virtual USB input, the haptics
+    /// and microphone array no VM has, and answers for the syscfg placeholders
+    /// a VM cannot answer, with the XS Max's board target type that iOS 18's
+    /// launchd reads in place of one of them. They change no code, so they
     /// are no system modification.
     public static let minimalDeviceTreePatches: Set<String> = [
+        "devicetree-exp-syscfg_placeholders",
+        FirmwareDeviceTreePatchSet.boardTargetType,
         "devicetree-cfw-virtual_usb_driverkit",
         "devicetree-cfw-serial_number",
         "devicetree-cfw-home_button_type",
@@ -433,6 +445,7 @@ public enum FirmwarePatchSetCatalog {
         "llb-boot-rootfs",
         "llb-boot-panic_bypass",
         "llb-cfw-display_scale",
+        "llb-exp-nvram_scrub_bypass",
         SPTMSecondaryCPUPatcher.patchIdentifier,
     ]
 
@@ -498,8 +511,7 @@ public enum FirmwarePatchSetCatalog {
 
     /// Headless restore baseline. Native UI experiments remain separate choices.
     /// The headset jobs lose their panic-on-crash policy: polarisd exits at once
-    /// on a VM ("Failed to register expert session") and would panic every
-    /// freshly created guest at its first boot.
+    /// on a VM ("Failed to register expert session") and would panic     /// freshly created guest at its first boot.
     public static let visionOSGuestPatches: Set<String> = [
         "system-vphoned-boot-install", "system-launchd_cache_loader-boot-unsecure_cache_gate",
         "system-seputil-boot-gigalocker_uuid", "system-gigalocker-boot-rename",

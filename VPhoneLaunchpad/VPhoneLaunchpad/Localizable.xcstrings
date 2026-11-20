@@ -1194,6 +1194,40 @@
         }
       }
     },
+    "%@, matching %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, matching %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@（%2$@ に対応）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@(%2$@와 일치)"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, khớp với %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@（与 %2$@ 匹配）"
+          }
+        }
+      }
+    },
     "%lld Machines Selected" : {
       "localizations" : {
         "en" : {
@@ -23559,6 +23593,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "虚拟机运行期间，客户机会以模拟位置的形式收到这台 Mac 的位置。首次使用时 macOS 会请求权限。客户机中的 App 还需要在客户机的“设置”中打开定位服务。"
+          }
+        }
+      }
+    },
+    "With %@, not its own %@. Choose %@ in Advanced Options to match %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With %1$@, not its own %2$@. Choose %3$@ in Advanced Options to match %4$@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対応する %2$@ ではなく %1$@ を使います。%4$@ に合わせるには、詳細オプションで %3$@ を選択してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자체 %2$@가 아닌 %1$@를 사용합니다. %4$@에 맞추려면 고급 옵션에서 %3$@를 선택하세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dùng %1$@, không phải %2$@ của chính nó. Chọn %3$@ trong Tùy chọn nâng cao để khớp với %4$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用的是 %1$@，而不是它自己的 %2$@。如需与 %4$@ 匹配，请在“高级选项”中选择 %3$@。"
           }
         }
       }

@@ -52,11 +52,15 @@ public enum FirmwareManifest {
     /// - Parameters:
     ///   - iPhoneDir: Path to the extracted iPhone IPSW directory.
     ///   - cloudOSDir: Path to the extracted cloudOS IPSW directory.
+    ///   - boardTargetType: Give an iPhone XS Max guest an installed device
+    ///     tree of its own, as a board-presenting guest has, so `fw patch` can
+    ///     give it the board's `target-type` (`devicetree-exp-board_target_type`).
     ///   - verbose: Print progress messages.
     public static func generate(
         iPhoneDir: URL,
         cloudOSDir: URL,
         device chosen: VPhoneGuestDevice? = nil,
+        boardTargetType: Bool = false,
         verbose: Bool = true,
     ) throws {
         // Load source plists.
@@ -106,6 +110,7 @@ public enum FirmwareManifest {
             for: device,
             identity: buildIdentity,
             restoreDir: iPhoneDir,
+            boardTargetType: boardTargetType,
             verbose: verbose,
         )
 
@@ -237,14 +242,17 @@ public enum FirmwareManifest {
     /// installed `DeviceTree` is a separate manifest entry that restore only
     /// personalizes and writes to Preboot, so giving it its own file lets the
     /// board identity ride through restore without a root-only rewrite on the
-    /// host. An XS Max identity is returned unchanged.
+    /// host. An XS Max identity is returned unchanged unless `boardTargetType`
+    /// asks for its board's target type, which only the installed tree can
+    /// carry for the same reason.
     static func separateGuestDeviceTree(
         for device: VPhoneGuestDevice,
         identity: PlistDict,
         restoreDir: URL,
+        boardTargetType: Bool = false,
         verbose: Bool,
     ) throws -> PlistDict {
-        guard device.presentsBoard else { return identity }
+        guard device.presentsBoard || (boardTargetType && device.family == .iPhone) else { return identity }
         guard var manifest = identity["Manifest"] as? PlistDict,
               var deviceTree = manifest["DeviceTree"] as? PlistDict,
               var info = deviceTree["Info"] as? PlistDict,

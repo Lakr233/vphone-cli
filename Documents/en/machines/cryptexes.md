@@ -9,7 +9,7 @@ A cryptex is a signed disk image that the guest mounts while it runs, with a tru
 - The guest needs network. Installing a cryptex asks Apple's signing server to personalize it for this guest.
 - Pair iOS with the cloudOS of the same release. iOS 18.1 to 18.7.2, 26.1, 26.3 to 26.6 and 27.2, each with its own cloudOS, are checked. With a cloudOS of another release, a `minimal` guest may not boot at all.
 
-In this environment the guest enforces Restricted Execution Mode, and a guest on a research-board cloudOS (26.5 to 26.7) cannot turn on Developer Mode.
+In this environment the guest enforces Restricted Execution Mode, and Developer Mode does not work: TXM runs only platform code here, so it registers no provisioning profile and apps built with Xcode do not launch. For app development, leave the box off.
 
 ## Install a cryptex
 

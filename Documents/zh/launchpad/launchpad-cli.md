@@ -124,7 +124,7 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 
 另有两种情况会通过辅助程序以 root 身份运行某些步骤：
 
-- `--preset minimal`（Minimal：原装的启动链、内核和 TXM，在恢复前定制系统）也会单独恢复且不做精简，它的 `fw patch` 通过辅助程序以 root 身份运行。它的用户空间调试选项（`vphone-cli fw patches` 中 Features 下的 `userspace-debugging`）相当于对其列出的每个补丁使用 `--allow`。它的 Trusted darwinOS environment 选项（`trusted-darwinos`，即 `--allow filesystem-exp-trusted_darwinos`）会把 iPhone 或 iPad 以 trusted darwinOS 环境恢复，并加入 cloudOS 的 cryptexctl，这样就能在客体运行时安装 cryptex（VM 窗口中的 Apps › Install Cryptex…，参阅 [Cryptex](../machines/cryptexes.md)），选项下方的说明列出了它的影响。此后客体会强制执行 Restricted Execution Mode，研究板客体（cloudOS 26.5 至 26.7）无法打开开发者模式；更改此选项只有在重新恢复后才会生效。
+- `--preset minimal`（Minimal：原装的启动链、内核和 TXM，在恢复前定制系统）也会单独恢复且不做精简，它的 `fw patch` 通过辅助程序以 root 身份运行。它的用户空间调试选项（`vphone-cli fw patches` 中 Features 下的 `userspace-debugging`）相当于对其列出的每个补丁使用 `--allow`。开发者模式由客体自己开关，与 iPhone 相同：设置 › 隐私与安全性 › 开发者模式，重新启动，并在客体启动时显示的界面上确认（`llb-exp-nvram_scrub_bypass` 让这个请求通过 LLB）。之后，免费个人团队用 Xcode 构建的 App 无需 Apple 的服务器即可安装并运行（`filesystem-exp-internal_release_type`，适用于 iPhone 和 iPad）。它的 Trusted darwinOS environment 选项（`trusted-darwinos`，即 `--allow filesystem-exp-trusted_darwinos`）会把 iPhone 或 iPad 以 trusted darwinOS 环境恢复，并加入 cloudOS 的 cryptexctl，这样就能在客体运行时安装 cryptex（VM 窗口中的 Apps › Install Cryptex…，参阅 [Cryptex](../machines/cryptexes.md)），选项下方的说明列出了它的影响。此后客体会强制执行 Restricted Execution Mode，并且开发者模式无法使用：TXM 在此只运行平台代码，因此用 Xcode 构建的 App 无法启动。更改该选项只有在重新恢复后才会生效。
 - 对于 cloudOS 不含 vphone600 组件的虚拟机（使用其版本自己的 cloudOS、手表、iOS 18 客户机），`fw kernelcache` 以你的身份构建 kernelcache 组合。使用 Core Bundle 2.17 及更早版本时，它只负责准备，再由辅助程序以 root 身份链接。
 
 ### 补丁覆盖

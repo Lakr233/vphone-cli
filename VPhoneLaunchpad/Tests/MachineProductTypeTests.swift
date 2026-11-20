@@ -86,6 +86,16 @@ struct MachineProductTypeTests {
         try (["guestProductType": "AppleTV18,1"] as NSDictionary).write(to: tv.appendingPathComponent("config.plist"))
         machine.guestProductType = VPhoneLaunchpadMachine.guestProductType(in: tv)
         expect(machine.guestProductType == "AppleTV18,1" && machine.isAppleTV && machine.osName == "tvOS", "J265 identity wins over HD restore tree")
-        print("Machine product type tests passed: config, restore trees, OS name, catalog builds")
+
+        // A release's own cloudOS comes before the recommended one.
+        let iPhone = #"""
+        {"device":"iPhone17,3","pairings":[
+         {"ios":{"name":"iOS 26.5","url":"https://example.com/iPhone17,3_26.5_23F77_Restore.ipsw"},"recommendedCloudOS":{"name":"cloudOS 26.4","url":"https://example.com/c264"},"matchingCloudOS":{"name":"cloudOS 26.5","url":"https://example.com/c265"}},
+         {"ios":{"name":"iOS 26.2","url":"https://example.com/iPhone17,3_26.2_23C55_Restore.ipsw"},"recommendedCloudOS":{"name":"cloudOS 26.4","url":"https://example.com/c264"}}]}
+        """#
+        let pairings = try JSONDecoder().decode(VPhoneLaunchpadFirmwareCatalog.self, from: Data(iPhone.utf8)).pairings
+        expect(pairings[0].preferredCloudOS.url == "https://example.com/c265", "own cloudOS preferred")
+        expect(pairings[1].preferredCloudOS.url == "https://example.com/c264", "recommended cloudOS without an own one")
+        print("Machine product type tests passed: config, restore trees, OS name, catalog builds, preferred cloudOS")
     }
 }

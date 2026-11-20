@@ -89,10 +89,12 @@ extension FirmwarePipeline {
         let includeDeviceTree = includesSet(FirmwareDeviceTreePatchSet.identifier)
 
         // A guest that presents its board boots a device tree of its own (7b),
-        // and an iPad needs LLB to give it the iPad's display scale (4).
+        // and an iPad needs LLB to give it the iPad's display scale (4). So
+        // does an XS Max prepared with its board target type, which is
+        // presented as nothing else.
         let guestDevice = readGuestDevice(restoreDir)
         let guestTreeURL = restoreDir.appending(path: FirmwareManifest.guestDeviceTreePath)
-        let hasGuestTree = guestDevice.presentsBoard && FileManager.default.fileExists(atPath: guestTreeURL.path)
+        let hasGuestTree = FileManager.default.fileExists(atPath: guestTreeURL.path)
         let boardTreeURL = restoreDir.appending(path: guestDevice.boardDeviceTreePath)
 
         // Whether the plan turned a patch on. Without a plan, fall back to the
@@ -479,7 +481,10 @@ extension FirmwarePipeline {
                         // Read through the originals stash, which keeps a copy: the
                         // restore tree goes once the VM boots, and `cfw install` and
                         // the environment update take the board's audio node from it.
-                        sourceTree: self.loader.load(from: self.pristineInput(for: boardTreeURL).url),
+                        // An XS Max only borrows values from it, and has a fallback
+                        // from its board's name when the tree is missing.
+                        sourceTree: guestDevice.presentsBoard || self.hasPristineInput(for: boardTreeURL)
+                            ? self.loader.load(from: self.pristineInput(for: boardTreeURL).url) : nil,
                     )
                     p.gate = gate
                     p.convertsResearchBoard = convertsResearchBoard

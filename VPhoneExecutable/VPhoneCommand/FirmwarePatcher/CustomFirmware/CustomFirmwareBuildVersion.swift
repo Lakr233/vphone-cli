@@ -27,6 +27,13 @@ public enum CustomFirmwareBuildVersion {
     /// The single key this patcher touches.
     public static let key = "ProductBuildVersion"
 
+    /// The system's SystemVersion.plist, relative to the system volume's root,
+    /// and the merged OS cryptex's copy, which are kept the same.
+    public static let systemVersionPaths = [
+        "System/Library/CoreServices/SystemVersion.plist",
+        "System/Cryptexes/OS/System/Library/CoreServices/SystemVersion.plist",
+    ]
+
     /// What a patch attempt did.
     public enum Outcome: Sendable, Equatable {
         /// The plist already held the target build identifier.

@@ -476,6 +476,12 @@ public final class DeviceTreePatcher: BufferedPatcher {
         try applyVirtualUSBDriverKit(root: root)
         // After the board edits, which remove a placeholder the board has too.
         applyWatchCompanion(root: root)
+        // The XS Max's installed tree: the board's target type, which iOS 18's
+        // launchd names its jetsam properties after.
+        try applyBoardTargetType(root: root)
+        // Last of the value edits: a placeholder a patch above set or removed
+        // is no longer one.
+        try applySyscfgPlaceholderValues(root: root)
 
         // Every guest, every tree: no VM has the haptics the node promises.
         applyHapticsRemoval(root: root)

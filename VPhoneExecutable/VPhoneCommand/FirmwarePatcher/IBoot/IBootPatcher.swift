@@ -7,6 +7,7 @@
 //   ibss — serial labels + image4 callback
 //   ibec — serial labels + image4 callback + boot-args + bootx precondition (if present)
 //   llb  — serial labels + image4 callback + boot-args + rootfs bypass (5 patches) + panic bypass
+//          + NVRAM scrub bypass
 //          + display scale (iPad guests only)
 //
 // Each patch method is defined as an extension in its own file under IBoot/Patches/.
@@ -86,6 +87,7 @@ public class IBootPatcher: BufferedPatcher {
             patchBootArgs()
             patchRootfssBypass()
             patchPanicBypass()
+            patchNVRAMScrubBypass()
             if let displayScale {
                 patchDisplayScale(displayScale)
             }

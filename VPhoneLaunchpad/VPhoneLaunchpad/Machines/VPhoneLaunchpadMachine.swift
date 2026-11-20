@@ -255,6 +255,12 @@ nonisolated struct VPhoneLaunchpadFirmwareCatalog: Decodable, Sendable {
             ios.url
         }
 
+        /// The cloudOS a new machine gets unless told otherwise: the release's
+        /// own when the bundle links it, else the recommended one.
+        var preferredCloudOS: Image {
+            matchingCloudOS ?? recommendedCloudOS
+        }
+
         /// The build the bundle gives, else the one from an IPSW name such as
         /// `iPhone17,3_27.0_24A435_Restore.ipsw` or
         /// `iPad_Pro_M4_27.0.1_24A446_Restore.ipsw`: the field before `Restore`.

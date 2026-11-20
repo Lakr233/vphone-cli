@@ -176,7 +176,13 @@ enum VPhoneFirmwarePreparer {
         try mergeCloudOS(from: cloudTree, into: phoneTree)
         let originalManifest = phoneTree.appendingPathComponent("BuildManifest.plist")
         try clone(originalManifest, to: phoneTree.appendingPathComponent("iPhone-BuildManifest.plist"))
-        try FirmwareManifest.generate(iPhoneDir: phoneTree, cloudOSDir: cloudTree, device: restored, verbose: true)
+        try FirmwareManifest.generate(
+            iPhoneDir: phoneTree,
+            cloudOSDir: cloudTree,
+            device: restored,
+            boardTargetType: plan.isEnabled(FirmwareDeviceTreePatchSet.boardTargetType),
+            verbose: true,
+        )
         // A cloudOS without vphone600 components restores the research board's,
         // whose kernelcache `fw patch` rebuilds from a recipe.
         if FirmwarePipeline.researchBoardStandsIn(restoreDir: phoneTree) {
