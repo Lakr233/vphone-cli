@@ -1,0 +1,28 @@
+{
+  "id": "vphone600_26.3_23D129",
+  "description": "vphone600 kernelcache of the beta cloudOS 26.3 (23D129), which a guest paired with it boots unmixed; kept for host-side kernel introspection",
+  "kernel": {
+    "file": "kernelcache.release.vphone600",
+    "sha256": "408adad5ba61935cdb755518fd5b0ef5ccc40b549a8a825efb50acba5a9b446d",
+    "decompressedSHA256": "7ea2baacbb7650221c1e3e1024fe88628043c5cba7c7b957ecb22af585492ae4",
+    "kdk": "KDK_26.3_23D127.kdk"
+  },
+  "cloudOSSource": "https://updates.cdn-apple.com/private-cloud-compute/edc92b58ab7e2f207a6407fd0a0e1a60f7d43bf9d93325bf6d3db3e154ee5525",
+  "symbols": "symbols.json.gz",
+  "kernelUUID": "921316E8-6ACE-3EAD-B7F9-E91173418F95",
+  "kernelSegments": {
+    "__TEXT": [18446741874803769344, 933888],
+    "__DATA_CONST": [18446741874810486784, 1245184],
+    "__LASTDATA_CONST": [18446741874811731968, 16384],
+    "__TEXT_EXEC": [18446741874814779392, 8732672],
+    "__KLD": [18446741874823512064, 16384],
+    "__LAST": [18446741874823528448, 16384],
+    "__TEXT_BOOT_EXEC": [18446741874842320896, 32768],
+    "__DATA_SPTM": [18446741874843942912, 245760],
+    "__KLDDATA": [18446741874844188672, 16384],
+    "__DATA": [18446741874844205056, 753664],
+    "__BOOTDATA": [18446741874844958720, 557056],
+    "__LINKINFO": [18446741874846121984, 294912],
+    "__LINKEDIT": [18446741874846416896, 248433]
+  }
+}

@@ -32,6 +32,8 @@ final class VPhoneProcessesModel {
     var autoRefresh = false
     /// The signal the confirmation dialog is asking about.
     var pendingSignal: VPhoneProcessSignalRequest?
+    /// Saves the memory of one process from the host, without the guest.
+    var onDumpMemory: ((VPhoneProcessRow) -> Void)?
 
     init(control: VPhoneGuestControl) {
         self.control = control
@@ -56,6 +58,20 @@ final class VPhoneProcessesModel {
     /// The selected processes the filter still shows. vphoned refuses pid 1.
     var selectedRows: [VPhoneProcessRow] {
         visibleRows.filter { selection.contains($0.id) && $0.pid > 1 }
+    }
+
+    /// The one process whose memory Save Memory Dump saves: the selection,
+    /// or the right-clicked rows. pid 0 is the kernel, which Diagnostics >
+    /// Save Memory Dump covers.
+    func dumpTarget(pids: Set<VPhoneProcessRow.ID>? = nil) -> VPhoneProcessRow? {
+        let ids = pids ?? selection
+        let rows = visibleRows.filter { ids.contains($0.id) }
+        guard onDumpMemory != nil, rows.count == 1, let row = rows.first, row.pid > 0 else { return nil }
+        return row
+    }
+
+    func dumpMemory(pids: Set<VPhoneProcessRow.ID>? = nil) {
+        if let row = dumpTarget(pids: pids) { onDumpMemory?(row) }
     }
 
     var canSignal: Bool {

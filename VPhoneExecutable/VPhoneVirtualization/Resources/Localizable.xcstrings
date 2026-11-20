@@ -37284,6 +37284,176 @@
         }
       }
     },
+    "Physical memory image" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Physical memory image"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "物理メモリイメージ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "물리 메모리 이미지"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ảnh bộ nhớ vật lý"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "物理内存映像"
+          }
+        }
+      }
+    },
+    "Save all of the guest's RAM, kernel and every process, at its physical addresses, instead of the cores of the kernel and the vCPUs." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save all of the guest's RAM, kernel and every process, at its physical addresses, instead of the cores of the kernel and the vCPUs."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カーネルと vCPU のコアの代わりに、カーネルとすべてのプロセスを含むゲストの RAM 全体を物理アドレスで保存します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커널과 vCPU 코어 대신, 커널과 모든 프로세스를 포함한 게스트 RAM 전체를 물리 주소로 저장합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu toàn bộ RAM của máy khách, gồm nhân và mọi tiến trình, theo địa chỉ vật lý, thay cho các tệp core của nhân và các vCPU."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按物理地址存储客户机的全部 RAM（包括内核和所有进程），而不是内核与 vCPU 的核心文件。"
+          }
+        }
+      }
+    },
+    "Saves the memory of %@ (pid %d) into a new folder here. The guest pauses for a few seconds." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saves the memory of %@ (pid %d) into a new folder here. The guest pauses for a few seconds."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（pid %d）のメモリを、ここに新しいフォルダを作って保存します。ゲストは数秒間一時停止します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(pid %d)의 메모리를 여기에 새 폴더를 만들어 저장합니다. 게스트가 몇 초간 일시 정지됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu bộ nhớ của %@ (pid %d) vào một thư mục mới tại đây. Máy khách tạm dừng vài giây."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将 %@（pid %d）的内存保存到此处的新文件夹中。客户机会暂停几秒钟。"
+          }
+        }
+      }
+    },
+    "the process" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "the process"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプロセス"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 프로세스"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tiến trình này"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "该进程"
+          }
+        }
+      }
+    },
+    "Save the selected process's resident memory as a Mach-O core, read from the host" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save the selected process's resident memory as a Mach-O core, read from the host"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したプロセスの常駐メモリをホスト側から読み取り、Mach-O のコアとして保存します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 프로세스의 상주 메모리를 호스트에서 읽어 Mach-O 코어로 저장합니다"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đọc bộ nhớ thường trú của tiến trình đã chọn từ máy chủ và lưu thành tệp core Mach-O"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从宿主机读取所选进程的常驻内存，并存储为 Mach-O 核心文件"
+          }
+        }
+      }
+    },
     "Memory Dump" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -37354,37 +37524,37 @@
         }
       }
     },
-    "A folder for this dump is created in the folder you choose. It can take up to %@. The guest pauses while its memory is copied, usually 10 to 20 seconds, then carries on." : {
+    "Saves into a new folder here, up to %@. The guest pauses for 10–20 seconds." : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A folder for this dump is created in the folder you choose. It can take up to %@. The guest pauses while its memory is copied, usually 10 to 20 seconds, then carries on."
+            "value" : "Saves into a new folder here, up to %@. The guest pauses for 10–20 seconds."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択したフォルダの中に、このダンプ用のフォルダが作成されます。最大 %@ を使用します。メモリのコピー中はゲストが一時停止し（通常 10〜20 秒）、その後そのまま動作を続けます。"
+            "value" : "ここに新しいフォルダを作って保存します（最大 %@）。ゲストは 10〜20 秒ほど一時停止します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "선택한 폴더 안에 이 덤프용 폴더가 만들어집니다. 최대 %@를 사용할 수 있습니다. 메모리를 복사하는 동안 게스트가 일시 정지되며(보통 10~20초), 그 후 이어서 실행됩니다."
+            "value" : "여기에 새 폴더를 만들어 저장합니다(최대 %@). 게스트가 10~20초 정도 일시 정지됩니다."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Một thư mục cho bản kết xuất này sẽ được tạo trong thư mục bạn chọn. Nó có thể chiếm tới %@. Máy khách tạm dừng trong khi bộ nhớ được sao chép, thường từ 10 đến 20 giây, rồi tiếp tục chạy."
+            "value" : "Lưu vào một thư mục mới tại đây, tối đa %@. Máy khách tạm dừng 10–20 giây."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "将在你选择的文件夹中为此转储创建一个文件夹，最多占用 %@。复制内存期间客户机会暂停（通常 10 到 20 秒），然后继续运行。"
+            "value" : "保存到此处的新文件夹中，最多 %@。客户机会暂停 10 到 20 秒。"
           }
         }
       }

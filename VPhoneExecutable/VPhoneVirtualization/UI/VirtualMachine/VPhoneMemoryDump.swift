@@ -123,12 +123,10 @@ struct VPhoneMemoryDump {
         guard virtualMachine.state == .running || virtualMachine.state == .paused,
               canCreateCoreValue(virtualMachine)
         else { throw Failure.notRunning }
-        let key = ObjectIdentifier(virtualMachine)
-        guard !savingMachines.contains(key) else { throw Failure.busy }
-        savingMachines.insert(key)
-        defer { savingMachines.remove(key) }
+        try beginSaving(virtualMachine)
+        defer { endSaving(virtualMachine) }
 
-        try prepare(folder, expectedBytes: vm.memorySize)
+        try prepare(folder, needed: spaceNeeded(memorySize: vm.memorySize))
         do {
             let started = Date()
             print("[memdump] Saving the guest's memory to \(folder.path)")
@@ -187,9 +185,22 @@ struct VPhoneMemoryDump {
         memorySize + memorySize / 16 + (256 << 20)
     }
 
+    /// One dump of a machine at a time, of either kind.
+    @MainActor
+    static func beginSaving(_ virtualMachine: VZVirtualMachine) throws {
+        let key = ObjectIdentifier(virtualMachine)
+        guard !savingMachines.contains(key) else { throw Failure.busy }
+        savingMachines.insert(key)
+    }
+
+    @MainActor
+    static func endSaving(_ virtualMachine: VZVirtualMachine) {
+        savingMachines.remove(ObjectIdentifier(virtualMachine))
+    }
+
     /// Checks the destination before the guest is paused, so a dump that
-    /// cannot be written never stops it.
-    private static func prepare(_ folder: URL, expectedBytes: UInt64) throws {
+    /// cannot be written never stops it, and creates the folder.
+    static func prepare(_ folder: URL, needed: UInt64) throws {
         let manager = FileManager.default
         let parent = folder.deletingLastPathComponent()
         var isDirectory: ObjCBool = false
@@ -199,7 +210,6 @@ struct VPhoneMemoryDump {
         guard !manager.fileExists(atPath: folder.path) else {
             throw Failure.destinationExists(folder.path)
         }
-        let needed = spaceNeeded(memorySize: expectedBytes)
         // "Important usage" counts purgeable space, but some volumes, a disk
         // image for one, report it as 0; the larger of the two is the space.
         let values = try? parent.resourceValues(forKeys: [
@@ -289,47 +299,75 @@ struct VPhoneMemoryDump {
     /// Writes `length` bytes to a new file, leaving holes for the all-zero
     /// blocks. Returns the number of bytes written.
     static func writeSparse(_ bytes: UnsafeRawPointer, length: Int, to url: URL) throws -> UInt64 {
-        func failure(_ call: String) -> Failure {
-            Failure.writeFailed(url.path, "\(call): \(String(cString: strerror(errno)))")
-        }
         let fd = open(url.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o666)
-        guard fd >= 0 else { throw failure("open") }
+        guard fd >= 0 else {
+            throw Failure.writeFailed(url.path, "open: \(String(cString: strerror(errno)))")
+        }
         defer { close(fd) }
-        guard ftruncate(fd, off_t(length)) == 0 else { throw failure("ftruncate") }
+        guard ftruncate(fd, off_t(length)) == 0 else {
+            throw Failure.writeFailed(url.path, "ftruncate: \(String(cString: strerror(errno)))")
+        }
+        let stored = try writeSparse(bytes, length: length, into: fd, at: 0, path: url.path)
+        guard fsync(fd) == 0 else { throw Failure.writeFailed(url.path, "fsync: \(String(cString: strerror(errno)))") }
+        return stored
+    }
+
+    /// Writes `length` bytes at `offset` of an open file that is already
+    /// long enough, leaving the all-zero blocks as holes.
+    static func writeSparse(
+        _ bytes: UnsafeRawPointer,
+        length: Int,
+        into fd: Int32,
+        at offset: UInt64,
+        path: String,
+    ) throws -> UInt64 {
+        func failure(_ call: String) -> Failure {
+            Failure.writeFailed(path, "\(call): \(String(cString: strerror(errno)))")
+        }
+        let base = Int64(offset)
 
         let zero = [UInt8](repeating: 0, count: blockSize)
         var stored: UInt64 = 0
-        var offset = 0
-        while offset < length {
+        var position = 0
+        while position < length {
             // Skip a run of zero blocks, then gather the data blocks after it.
-            let size = min(blockSize, length - offset)
-            if memcmp(bytes + offset, zero, size) == 0 {
-                offset += size
+            let size = min(blockSize, length - position)
+            if memcmp(bytes + position, zero, size) == 0 {
+                position += size
                 continue
             }
-            var end = offset + size
-            while end < length, end - offset < maximumRun {
+            var end = position + size
+            while end < length, end - position < maximumRun {
                 let next = min(blockSize, length - end)
                 if memcmp(bytes + end, zero, next) == 0 { break }
                 end += next
             }
-            var written = offset
+            var written = position
             while written < end {
-                let result = pwrite(fd, bytes + written, end - written, off_t(written))
+                let result = pwrite(fd, bytes + written, end - written, off_t(base + Int64(written)))
                 if result < 0 {
                     if errno == EINTR { continue }
                     throw failure("pwrite")
                 }
                 written += result
             }
-            stored += UInt64(end - offset)
-            offset = end
+            stored += UInt64(end - position)
+            position = end
         }
-        guard fsync(fd) == 0 else { throw failure("fsync") }
         return stored
     }
 
     // MARK: - Description
+
+    /// Pretty, key-sorted JSON without escaped slashes, readable by everyone.
+    static func writeJSON(_ object: [String: Any], to url: URL) throws {
+        let data = try JSONSerialization.data(
+            withJSONObject: object,
+            options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes],
+        )
+        try data.write(to: url)
+        try VPhoneHostFilePermissions.makeAccessible(at: url)
+    }
 
     /// Seconds to one decimal, written as such: a Double would come out of
     /// JSONSerialization as 14.300000000000001.
