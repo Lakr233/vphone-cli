@@ -10,8 +10,9 @@ import Foundation
 ///
 /// Call `start()` when the guest reports the "clock" capability, on every
 /// connect: it sends the Mac's time, then again every minute, when the Mac
-/// wakes and when the Mac's own clock is set. vphoned leaves a clock within a
-/// second of the Mac's alone, and one set by hand in the guest's Settings.
+/// wakes, when the Mac's own clock is set and when a memory dump has paused
+/// the guest. vphoned leaves a clock within a second of the Mac's alone, and
+/// one set by hand in the guest's Settings.
 ///
 /// See Research/Guest/host_clock_sync.md.
 @MainActor
@@ -36,6 +37,7 @@ class VPhoneClockSync {
             let sources: [(NotificationCenter, Notification.Name)] = [
                 (.default, .NSSystemClockDidChange),
                 (NSWorkspace.shared.notificationCenter, NSWorkspace.didWakeNotification),
+                (.default, VPhoneMemoryDump.guestResumedNotification),
             ]
             observers = sources.map { center, name in
                 let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in

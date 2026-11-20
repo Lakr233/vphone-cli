@@ -9,6 +9,9 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     let virtualMachine: VZVirtualMachine
     /// The configuration actually used by this VM, rather than a pending preference.
     let usesHardwareKeyboard: Bool
+    /// Guest RAM and vCPUs as the VM was configured with them.
+    let memorySize: UInt64
+    let cpuCount: Int
     /// The manifest's unlock-at-startup setting as the VM started with it.
     let unlocksAtStartup: Bool
     /// The manifest's Sync Host Location setting as the VM started with it.
@@ -329,6 +332,8 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         try config.validate()
         print("[vphone] Configuration validated")
 
+        memorySize = config.memorySize
+        cpuCount = config.cpuCount
         virtualMachine = VZVirtualMachine(configuration: config)
         bootAttachment = virtualMachine.networkDevices.first?.attachment
         super.init()

@@ -90,7 +90,7 @@ Besides `tap`, `swipe`, `key` and `screenshot`, an `rpc` request calls any vphon
 printf '%s\n' '{"t":"rpc","method":"device.info","params":{}}' | nc -U ~/.vphone/machines/myphone/vphone.sock
 ```
 
-For example, `input.key` with `{"name":"cmd+v"}` pastes, and `input.type` types text. This workflow installs no SSH or VNC endpoint. For HTTP and WebSocket access, see [Automation API](automation-api.md).
+For example, `input.key` with `{"name":"cmd+v"}` pastes, and `input.type` types text. This workflow installs no SSH or VNC endpoint. For HTTP and WebSocket access, see [Automation API](automation-api.md). To save the guest's memory, send `memory.dump`; see [Memory Dumps](memory-dumps.md).
 
 ## Run each stage by hand
 

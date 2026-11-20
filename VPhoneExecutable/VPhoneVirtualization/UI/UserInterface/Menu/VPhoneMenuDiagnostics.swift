@@ -3,7 +3,8 @@ import AppKit
 // MARK: - Diagnostics Menu
 
 /// Read-mostly inspection of the running guest. Each panel item opens its
-/// own window; the last three items answer in an alert.
+/// own window; Save Memory Dump… writes a folder; the last three items answer
+/// in an alert.
 extension VPhoneMenuController {
     func buildDiagnosticsMenu() -> NSMenuItem {
         let item = NSMenuItem(title: "Diagnostics", action: nil, keyEquivalent: "")
@@ -16,6 +17,7 @@ extension VPhoneMenuController {
         menu.addItem(NSMenuItem.separator())
         menu.addItem(makePanelItem(.console, "Console", keyEquivalent: "l", symbol: "terminal"))
         menu.addItem(makePanelItem(.crashLogs, "Crash Logs", keyEquivalent: "c", symbol: "exclamationmark.triangle"))
+        menu.addItem(buildMemoryDumpItem())
         menu.addItem(NSMenuItem.separator())
 
         // A guest has no shell of its own, and the tvos preset has no

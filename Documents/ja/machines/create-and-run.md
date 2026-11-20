@@ -90,7 +90,7 @@ vphone-cli vm stop myphone    # run from another terminal to stop it
 printf '%s\n' '{"t":"rpc","method":"device.info","params":{}}' | nc -U ~/.vphone/machines/myphone/vphone.sock
 ```
 
-たとえば、`input.key` に `{"name":"cmd+v"}` を渡すとペーストし、`input.type` でテキストを入力します。この処理では SSH や VNC のエンドポイントはインストールされません。HTTP と WebSocket でアクセスするには、[自動化 API](automation-api.md) をご覧ください。
+たとえば、`input.key` に `{"name":"cmd+v"}` を渡すとペーストし、`input.type` でテキストを入力します。この処理では SSH や VNC のエンドポイントはインストールされません。HTTP と WebSocket でアクセスするには、[自動化 API](automation-api.md) をご覧ください。ゲストのメモリを保存するには `memory.dump` を送ります。[メモリダンプ](memory-dumps.md)をご覧ください。
 
 ## 各段階を手動で実行する
 
