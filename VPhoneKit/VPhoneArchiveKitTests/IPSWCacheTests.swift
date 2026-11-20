@@ -225,6 +225,36 @@ struct IPSWCacheTests {
         #expect(reused.file == cached)
     }
 
+    /// A cache moved to another volume and linked back in its place, the way
+    /// #655 suggests relocating storage, downloads into the link's target.
+    @Test func `a symlinked cache directory downloads into its target`() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = try fixture(in: root)
+        IPSWStubProtocol.payload = try Data(contentsOf: source)
+        IPSWStubProtocol.status = 200
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [IPSWStubProtocol.self]
+        let session = URLSession(configuration: configuration)
+        defer { session.invalidateAndCancel() }
+
+        let url = try #require(URL(string: "https://example.invalid/input.ipsw"))
+        let relocated = root.appendingPathComponent("relocated")
+        try FileManager.default.createDirectory(at: relocated, withIntermediateDirectories: true)
+        let cacheDir = root.appendingPathComponent("cache")
+        try FileManager.default.createSymbolicLink(at: cacheDir, withDestinationURL: relocated)
+
+        let result = try await VPhoneIPSWCache.resolve(
+            url.absoluteString,
+            in: cacheDir,
+            session: session,
+        )
+        #expect(result.build == "23G90")
+        let cached = relocated.appendingPathComponent(VPhoneIPSWCache.cacheName(for: url))
+        #expect(try Data(contentsOf: cached) == Data(contentsOf: source))
+    }
+
     @Test func `failed download leaves no reusable cache`() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)

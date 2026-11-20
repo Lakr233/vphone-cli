@@ -99,6 +99,28 @@ struct HostFilePermissionsTests {
         #expect(mode(of: outsideFile) == 0o600)
     }
 
+    @Test func `A directory named through a symlink is left as it is`() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let relocated = base.appendingPathComponent("relocated")
+        let link = base.appendingPathComponent("ipsws")
+        defer { try? FileManager.default.removeItem(at: base) }
+
+        try FileManager.default.createDirectory(at: relocated, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: relocated)
+        #expect(chmod(relocated.path, 0o700) == 0)
+
+        try VPhoneHostFilePermissions.makeDirectoryAccessible(at: link)
+        #expect(mode(of: relocated) == 0o700)
+    }
+
+    @Test func `Root accepts only a symlink it or the sudo invoker owns`() {
+        // Without root the kernel's own checks apply, so any link is accepted.
+        #expect(VPhoneHostFilePermissions.acceptsLink(owner: 502, permittedOwners: nil))
+        #expect(VPhoneHostFilePermissions.acceptsLink(owner: 0, permittedOwners: [0, 501]))
+        #expect(VPhoneHostFilePermissions.acceptsLink(owner: 501, permittedOwners: [0, 501]))
+        #expect(!VPhoneHostFilePermissions.acceptsLink(owner: 502, permittedOwners: [0, 501]))
+    }
+
     @Test func `The walk visits only single-link files and real directories`() throws {
         let base = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let vm = base.appendingPathComponent("VM")
