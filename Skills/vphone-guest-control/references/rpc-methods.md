@@ -33,6 +33,7 @@ invalid-request error, read the source named there instead of guessing keys.
 - Processes, logs, services
 - System and preferences
 - Bootstrap
+- Security
 - Running a script in the guest
 - Raw HTTP and WebSocket
 
@@ -242,6 +243,16 @@ are the usual way to hit the reply size problem.
 `bootstrap.install {layout, package_path?}`, `bootstrap.status` (a failed install answers `phase: failed` with `message`),
 `bootstrap.inspect`, `bootstrap.uninstall {roots, force, reboot?}`,
 `bootstrap.firmware`. Behavior and the install flow: [guest-layout](guest-layout.md).
+
+## Security
+
+`security.ca_install {pem, admin?}` adds a PEM-encoded CA certificate as a trust
+anchor in the guest TrustStore (user domain by default; `admin:true` for the
+admin domain) and replies `{sha256, subject}`. `security.ca_remove {sha256}`
+removes the anchor with that digest. `security.ca_list` replies
+`{anchors:[{sha256, subject}]}`. `ca_install` and `ca_remove` are force methods
+(`"force":true`). Install, remove and list are also available from the host with
+`vphone-cli vm ca install|remove|list`.
 
 ## Running a script in the guest
 

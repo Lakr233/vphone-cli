@@ -38,6 +38,9 @@ enum DeviceMethod: String, GuestMethod {
     case audioState = "audio.state"
     case networkCapture = "network.capture"
     case securitySslKillswitch = "security.ssl_killswitch"
+    case securityCaInstall = "security.ca_install"
+    case securityCaRemove = "security.ca_remove"
+    case securityCaList = "security.ca_list"
     case diagnosticsSelfTest = "diagnostics.self_test"
     case notifyPost = "notify.post"
     case notifyState = "notify.state"
@@ -243,6 +246,19 @@ enum DeviceMethod: String, GuestMethod {
                        .optional("interface", .string, "Interface to capture on, up to 15 letters, digits or underscores", default: "en0"),
                        .optional("filter", .string, "Capture filter: optional tcp, udp or icmp, then src/dst port N and host A clauses joined with and"), summary: "Capture packets on an interface into a pcap file in the guest and return a summary", result: [.optional("bytes", .integer), .hidden("error", .string), .required("file_bytes", .integer), .optional("filter", .string), .optional("interface", .string), .optional("link_type", .string), .optional("packets", .integer), .optional("path", .string), .required("seconds", .number), .optional("summary", .array)])
         case .securitySslKillswitch: MethodSpec(summary: "Report whether the SSL killswitch is present", result: [.required("present", .boolean)])
+        case .securityCaInstall:
+            MethodSpec(.required("pem", .string, "PEM-encoded CA certificate; one certificate, at most 64 KiB"),
+                       .optional("admin", .boolean, "Install into the admin trust domain instead of user (default false)"),
+                       summary: "Install a CA as a fully-trusted root anchor in the guest's user or admin trust domain",
+                       force: .always("install a trusted root CA in the guest"),
+                       result: [.required("sha256", .string), .required("subject", .string), .required("domain", .string)])
+        case .securityCaRemove:
+            MethodSpec(.required("sha256", .string, "64-character hex SHA-256 of the certificate DER, as shown by security.ca_list"),
+                       summary: "Remove a trusted root CA from the guest trust store by sha256",
+                       force: .always("remove a trusted root CA from the guest"),
+                       result: [.required("removed", .boolean), .required("sha256", .string)])
+        case .securityCaList:
+            MethodSpec(summary: "List trusted root CAs in the guest trust store as sha256 and subject summary (control chars as spaces)", result: [.required("anchors", .array)])
         case .diagnosticsSelfTest: MethodSpec(summary: "Run the guest's built-in self tests and report passed, failed and skipped", result: [.required("complete", .boolean),
                                                        .required("environment", .object),
                                                        .required("failed", .integer),
