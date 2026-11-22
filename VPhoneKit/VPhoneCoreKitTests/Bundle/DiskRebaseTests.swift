@@ -418,12 +418,27 @@ struct DiskRebaseTests {
         let fd = open(bundle.url.appendingPathComponent("SEPStorage").path, O_RDONLY)
         try #require(fd >= 0)
         defer { close(fd) }
-        let running = VPhoneBundleActivityError.running(name: held, pids: [getpid()])
-        #expect(throws: running) {
+
+        // The gate scans the live, system-wide process table, so under parallel
+        // test load a concurrent test's `vphone-vm` stand-in can momentarily
+        // hold a state file by device+inode and enlarge the holder set. Assert
+        // only this process's own, guaranteed hold — both plan and rebase refuse
+        // with `.running` naming the held machine and listing this process —
+        // rather than pinning the exact holder set, whose strict equality is
+        // what made this flaky under load.
+        let planError = try #require(throws: VPhoneBundleActivityError.self) {
             try VPhoneDiskRebase.plan(machines.target, onto: machines.base)
         }
-        #expect(throws: running) {
+        let rebaseError = try #require(throws: VPhoneBundleActivityError.self) {
             try VPhoneDiskRebase.rebase(machines.target, onto: machines.base)
+        }
+        for error in [planError, rebaseError] {
+            guard case let .running(name, holders) = error else {
+                Issue.record("expected .running, got \(error)")
+                continue
+            }
+            #expect(name == held)
+            #expect(holders.contains { $0.pid == getpid() })
         }
         var after = stat()
         try #require(stat(machines.targetImage.path, &after) == 0)
