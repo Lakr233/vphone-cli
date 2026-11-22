@@ -158,9 +158,19 @@ struct LaunchLayoutTests {
         process.standardInput = Pipe()
         try process.run()
         defer { process.terminate() }
-        Thread.sleep(forTimeInterval: 0.2)
 
-        #expect(VPhoneGuestProcesses.virtualMachinePIDs(config: config) == [process.processIdentifier])
+        // The stand-in takes a moment to become observable, and under parallel
+        // test load that moment exceeds any fixed delay. Poll on a bounded
+        // deadline until it appears instead of sleeping a fixed interval, so
+        // the outcome depends on observation, not wall-clock timing.
+        let deadline = Date().addingTimeInterval(5)
+        var found = VPhoneGuestProcesses.virtualMachinePIDs(config: config)
+        while found != [process.processIdentifier], Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.02)
+            found = VPhoneGuestProcesses.virtualMachinePIDs(config: config)
+        }
+
+        #expect(found == [process.processIdentifier])
         #expect(VPhoneGuestProcesses.virtualMachinePIDs(config: other).isEmpty)
     }
 
