@@ -83,7 +83,7 @@ final class RestoreRamDiskSealPatcher: BufferedPatcher {
             throw PatcherError.fileNotFound("\(component): \(Self.sealVolumePath)")
         }
 
-        var binary = try Data(contentsOf: executable, options: .mappedIfSafe)
+        var binary = try Data(contentsOfFileToRewrite: executable)
         let fieldOffset = try Self.locateHashTypeField(in: binary)
         let oldValue = binary.loadLE(UInt32.self, at: fieldOffset)
         guard oldValue == Self.sha256Type else {
