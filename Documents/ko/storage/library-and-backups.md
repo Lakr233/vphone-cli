@@ -38,6 +38,7 @@ vphone-cli vm import myphone.tzst --name restored
 | `~/.vphone/ipsws/` | 원격 소스 IPSW. 모든 가상 머신이 공유하며, 로컬 IPSW는 그 자리에서 읽습니다 |
 | `~/.vphone/gpu-drivers/<version>_<build>/` | cloudOS에서 추출한 GPU 드라이버 번들. 모든 가상 머신이 공유합니다 |
 | `~/.vphone/kernelcache/` | vphone600 구성 요소가 없는 cloudOS 릴리스용 kernelcache 믹스, 준비된 볼륨, 도너 추출물 |
+| `~/.vphone/x1-plans/` | iOS 27 X1 명령어 변환 계획. 공유 캐시와 vphone 빌드마다 파일 하나. 같은 펌웨어로 다시 설치할 때 계획 단계를 건너뜁니다. 삭제해도 됩니다 |
 
 위치를 옮기려면 다음을 사용합니다.
 

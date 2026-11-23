@@ -879,6 +879,43 @@ The [optional guest SOCKS5 add-on](../Addons/SOCKS5/README.md) applies its UDP a
 > by the hidden `cfw patch-dsc-undo-words` verb before the cache patches run.
 > See [Undo words](Guest/iphone_duo_bringup.md#undo-words-instead-of-page-runs-issue-789-2026-11-03).
 
+> **ARM64E_X1 plan cache and batched page runs (2026-11-23):** the two X1
+> cache patches write the same bytes; how long they take changed. Measured on
+> the pristine iPhone19,4 27.2 (24B91020) SystemOS cache on an M5 Pro under a
+> load average of 20 to 60, so single runs vary by tens of percent. Before:
+> bootstrap 1.8 s, whole cache 78 to 101 s, of which planning 36 to 42 s
+> (parallel), the write loop 34 s and re-attestation 25 s (both one thread).
+> Sampling the write loop put 50% of the main thread in `read()` of each
+> page's originals (cold 16 KiB reads) and 39% in an `open()` and `close()`
+> per page run, twice for each of 219,876 runs. Re-attestation spent its time
+> on a seek, read, read and write per page and on 219,876 log lines. Now
+> `DyldSharedCacheChunkSet.Batch` keeps one descriptor per chunk and reads
+> ahead 4 MiB blocks keyed by file offset, the words are patched in place
+> rather than through a `Data` each, and `DyldSharedCacheCodeSignature`
+> reads each chunk's slot table once, reads pages 4 MiB at a time, hashes
+> chunks in parallel and writes each changed run of slots back once; the
+> whole-cache pass logs only the summary (`logsEachSlot: false`). Write and
+> re-attest together take 4.6 s. The plan is then stored in
+> `~/.vphone/x1-plans/<key>.plan` (`DyldSharedCacheArm64eX1PlanCache`), keyed
+> by SHA-256 of the format version, the patch identifier, the LC_UUID of the
+> image holding the planner and of VPhonePatchKit, and each mapped chunk's
+> name, size and code directory (its whole contents if it had none; the
+> unmapped `.atlas` is left out). Every cache patch re-attests what it
+> writes, so any changed page changes the key, and any rebuild of the planner
+> plans again. A later run on the same cache with the same build reads the
+> plan instead: bootstrap 0.2 s, whole cache 4.4 s. The whole-cache plan is
+> 35 MB and the bootstrap plan 0.4 MB (LZFSE over address deltas and words).
+> A stored plan must name only words with a lowered top byte; otherwise the
+> run rolls back from its undo record and names the file to remove. As root
+> (Launchpad's `cfw install`) a plan is read only when it belongs to root or
+> the invoking user, and the folder is created only below an existing data
+> root without following a link, then handed to the user. Both verbs take
+> `--plan-cache <dir>` and `--no-plan-cache`. **Verified byte-identical:**
+> all 84 files of the cache folder (82 chunks, the undo log and its words)
+> after both verbs, against HEAD 6349636f, for the batched build without a
+> plan cache and for the cold and warm plan-cache runs. **Not exercised:** a
+> guest booted from the result (the bytes are the same), and the root path.
+
 > **Foldable VM sub-type (2026-10-23):** `preboot-cfw-devicetree_foldable_vm_subtype`
 > (guest system set, Preboot device-tree repair, on in `standard`, blocked in
 > `tvos` and `tvos-4k`, not applicable to boards without an entry; verb

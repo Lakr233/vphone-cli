@@ -389,6 +389,112 @@ public final class DyldSharedCacheChunkSet {
         stateLock.withLock { writeLog.removeAll() }
     }
 
+    // MARK: - Batched page runs
+
+    /// Reads and writes through one descriptor per chunk, for a patcher that
+    /// rewrites hundreds of thousands of page runs in ascending order: an open
+    /// and a close per run cost more than the I/O, and 16 KiB reads of pages
+    /// the planner's mapping no longer holds ran far below the disk's rate.
+    ///
+    /// Reads come out of a block of up to `blockSize` bytes read ahead in the
+    /// same file, keyed by file offset, and a write updates that block too, so
+    /// a later read sees it. Writes are recorded for re-attestation exactly as
+    /// `write(at:_:)` records them, and are never captured for undo: the one
+    /// caller keeps its own originals.
+    final class Batch {
+        static let blockSize = 4 << 20
+
+        private let chunks: DyldSharedCacheChunkSet
+        private let writable: Bool
+        private var descriptors: [URL: Int32] = [:]
+        private var block: (url: URL, offset: Int, bytes: [UInt8])?
+
+        fileprivate init(chunks: DyldSharedCacheChunkSet, writable: Bool) {
+            self.chunks = chunks
+            self.writable = writable
+        }
+
+        fileprivate func close() {
+            for descriptor in descriptors.values { Darwin.close(descriptor) }
+            descriptors.removeAll()
+        }
+
+        private func descriptor(for url: URL) throws -> Int32 {
+            if let known = descriptors[url] { return known }
+            let descriptor = open(url.path, writable ? O_RDWR : O_RDONLY)
+            guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+            descriptors[url] = descriptor
+            return descriptor
+        }
+
+        /// `bytesAtVMA(_:length:)`, served from the read-ahead block.
+        func bytesAtVMA(_ vma: UInt64, length: Int) throws -> Data {
+            guard length > 0 else { return Data() }
+            let (url, range) = try chunks.fileRange(of: DyldSharedCacheWriteSpan(vma: vma, length: length))
+            if let block, block.url == url, range.lowerBound >= block.offset,
+               range.upperBound <= block.offset + block.bytes.count {
+                return Data(block.bytes[(range.lowerBound - block.offset) ..< (range.upperBound - block.offset)])
+            }
+            let descriptor = try descriptor(for: url)
+            var bytes = [UInt8](repeating: 0, count: max(length, Self.blockSize))
+            var done = 0
+            try bytes.withUnsafeMutableBytes { raw in
+                while done < raw.count {
+                    let count = pread(descriptor, raw.baseAddress! + done, raw.count - done, off_t(range.lowerBound + done))
+                    if count < 0, errno == EINTR { continue }
+                    guard count >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+                    if count == 0 { break }
+                    done += count
+                }
+            }
+            guard done >= length else {
+                throw DyldSharedCacheError.shortRead(vma: vma, wanted: length, got: done)
+            }
+            bytes.removeSubrange(done...)
+            block = (url, range.lowerBound, bytes)
+            return Data(bytes[0 ..< length])
+        }
+
+        /// `write(at:_:capturingOriginal: false)` through the open descriptor.
+        func write(at vma: UInt64, _ data: Data) throws {
+            guard !data.isEmpty else { return }
+            precondition(writable, "a read-only batch cannot write")
+            let span = DyldSharedCacheWriteSpan(vma: vma, length: data.count)
+            let (url, range) = try chunks.fileRange(of: span)
+            let descriptor = try descriptor(for: url)
+            try data.withUnsafeBytes { raw in
+                var done = 0
+                while done < raw.count {
+                    let count = pwrite(descriptor, raw.baseAddress! + done, raw.count - done, off_t(range.lowerBound + done))
+                    if count < 0, errno == EINTR { continue }
+                    guard count > 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+                    done += count
+                }
+            }
+            // Offsets only: binding the block itself would hold a second
+            // reference and copy 4 MiB on every write.
+            if block?.url == url, let offset = block?.offset, let count = block?.bytes.count {
+                let lower = max(range.lowerBound, offset)
+                let upper = min(range.upperBound, offset + count)
+                if lower < upper {
+                    block!.bytes.replaceSubrange(
+                        (lower - offset) ..< (upper - offset),
+                        with: data[(data.startIndex + lower - range.lowerBound) ..< (data.startIndex + upper - range.lowerBound)],
+                    )
+                }
+            }
+            chunks.stateLock.withLock { chunks.writeLog.append(span) }
+        }
+    }
+
+    /// Run `body` with a `Batch` over these chunks, closing its descriptors
+    /// afterwards whether or not it threw.
+    func withBatch<T>(writable: Bool = true, _ body: (Batch) throws -> T) throws -> T {
+        let batch = Batch(chunks: self, writable: writable)
+        defer { batch.close() }
+        return try body(batch)
+    }
+
     // MARK: - Local symbols
 
     /// The cache's `.symbols` local symbol table, parsed once and kept.
