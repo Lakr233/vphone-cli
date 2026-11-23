@@ -240,4 +240,120 @@ struct ManifestTests {
         #expect(try String(contentsOf: outside, encoding: .utf8) == "keep")
         #expect(VPhoneVirtualMachineManifest.fileKind(at: url) == .regularFile)
     }
+
+    // MARK: - TASK-001: intercept / interceptBlockQUIC (REQ-001)
+
+    /// Encode `sampleManifest()`, overlay the given `networkConfig` entries,
+    /// and return the plist data so a decode can be asserted.
+    private func manifestData(networkConfig overrides: [String: Any]) throws -> Data {
+        let data = try PropertyListEncoder().encode(sampleManifest())
+        var plist = try #require(
+            PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        var net = (plist["networkConfig"] as? [String: Any]) ?? [:]
+        for (key, value) in overrides { net[key] = value }
+        plist["networkConfig"] = net
+        return try PropertyListSerialization.data(
+            fromPropertyList: plist, format: .binary, options: 0)
+    }
+
+    private func decodeManifest(networkConfig overrides: [String: Any]) throws
+        -> VPhoneVirtualMachineManifest {
+        try PropertyListDecoder().decode(
+            VPhoneVirtualMachineManifest.self, from: manifestData(networkConfig: overrides))
+    }
+
+    private typealias Cfg = VPhoneVirtualMachineManifest.NetworkConfig
+
+    @Test func `intercept endpoint parses and round-trips`() throws {
+        let loaded = try decodeManifest(networkConfig: ["intercept": "127.0.0.1:1080"])
+        #expect(loaded.networkConfig.intercept == "127.0.0.1:1080")
+        let parsed = try Cfg.parseInterceptEndpoint("127.0.0.1:1080")
+        #expect(parsed.host == "127.0.0.1")
+        #expect(parsed.port == 1080)
+        #expect(parsed.user == nil)
+        #expect(parsed.password == nil)
+
+        // Round-trips through encode/decode.
+        let data = try PropertyListEncoder().encode(loaded)
+        let again = try PropertyListDecoder().decode(VPhoneVirtualMachineManifest.self, from: data)
+        #expect(again.networkConfig.intercept == "127.0.0.1:1080")
+    }
+
+    /// Decode keeps the raw string verbatim; grammar validation is at
+    /// config/plan time, not manifest decode (REQ-001).
+    @Test func `intercept decodes verbatim without grammar validation`() throws {
+        let loaded = try decodeManifest(networkConfig: ["intercept": "not a valid endpoint"])
+        #expect(loaded.networkConfig.intercept == "not a valid endpoint")
+    }
+
+    @Test func `bracketed IPv6 intercept parses with brackets stripped`() throws {
+        let parsed = try Cfg.parseInterceptEndpoint("[::1]:1080")
+        #expect(parsed.host == "::1")
+        #expect(parsed.port == 1080)
+    }
+
+    @Test func `socks5 URL parses credentials`() throws {
+        let userOnly = try Cfg.parseInterceptEndpoint("socks5://u@127.0.0.1:1080")
+        #expect(userOnly.host == "127.0.0.1")
+        #expect(userOnly.port == 1080)
+        #expect(userOnly.user == "u")
+        #expect(userOnly.password == nil)
+
+        let userPass = try Cfg.parseInterceptEndpoint("socks5://u:p@127.0.0.1:1080")
+        #expect(userPass.user == "u")
+        #expect(userPass.password == "p")
+    }
+
+    /// The three recognised tokens are preserved verbatim for later
+    /// substitution: `${vm.name}`/`${vm.id}` as the username, `${env:NAME}`
+    /// as the password (its colon would otherwise split the userinfo).
+    @Test func `valid intercept tokens are accepted`() throws {
+        #expect(try Cfg.parseInterceptEndpoint("socks5://${vm.name}@h:1080").user == "${vm.name}")
+        #expect(try Cfg.parseInterceptEndpoint("socks5://${vm.id}@h:1080").user == "${vm.id}")
+        #expect(try Cfg.parseInterceptEndpoint("socks5://u:${env:PW}@h:1080").password == "${env:PW}")
+    }
+
+    @Test(arguments: [
+        "127.0.0.1",        // missing port
+        "127.0.0.1:0",      // port out of range
+        "127.0.0.1:65536",  // port out of range
+        ":1080",            // empty host
+        "http://h:1",       // wrong scheme
+        "socks5://h:abc",   // non-numeric port
+        "socks5://${bogus}@h:1", // unrecognised token
+    ])
+    func `malformed intercept is rejected by the parser`(value: String) {
+        #expect(throws: (any Error).self) { try Cfg.parseInterceptEndpoint(value) }
+    }
+
+    /// A literal password never leaks: the reject message redacts it to `***`,
+    /// whether or not `URLComponents` parses the value.
+    @Test(arguments: ["socks5://u:s3cret@h:abc", "socks5://u:s3cret@:1080"])
+    func `a literal password is redacted in the reject message`(value: String) {
+        do {
+            _ = try Cfg.parseInterceptEndpoint(value)
+            Issue.record("expected \(value) to be rejected")
+        } catch {
+            let message = String(describing: error)
+            #expect(message.contains("***"))
+            #expect(!message.contains("s3cret"))
+        }
+    }
+
+    @Test func `non-boolean interceptBlockQUIC is rejected`() throws {
+        for bad: Any in ["yes", 1] {
+            #expect(throws: DecodingError.self) {
+                _ = try decodeManifest(networkConfig: ["interceptBlockQUIC": bad])
+            }
+        }
+    }
+
+    @Test func `interceptBlockQUIC defaults false and round-trips true`() throws {
+        #expect(!(try decodeManifest(networkConfig: [:]).networkConfig.blockQUIC))
+        let on = try decodeManifest(networkConfig: ["interceptBlockQUIC": true])
+        #expect(on.networkConfig.blockQUIC)
+        let data = try PropertyListEncoder().encode(on)
+        let again = try PropertyListDecoder().decode(VPhoneVirtualMachineManifest.self, from: data)
+        #expect(again.networkConfig.blockQUIC)
+    }
 }

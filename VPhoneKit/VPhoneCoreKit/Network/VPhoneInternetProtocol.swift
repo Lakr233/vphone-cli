@@ -102,6 +102,30 @@ public struct VPhoneIPv4Subnet: Sendable, Equatable, Hashable, CustomStringConve
 
 // MARK: - Configuration
 
+/// An explicitly-specified SOCKS5 proxy the tunnel redirects guest TCP through.
+///
+/// The host is kept as written (a dotted IPv4 literal, a bracketed-IPv6 literal
+/// with the brackets stripped, or a name) so it can be resolved once when the
+/// userspace network starts; the forwarder stack is IPv4-only, so a host that
+/// yields no IPv4 address fails closed rather than connecting directly.
+public struct VPhoneInterceptEndpoint: Sendable, Equatable {
+    public var host: String
+    public var port: UInt16
+    /// The raw userinfo fields, still carrying any `${…}` token. Substitution
+    /// happens once at `VPhoneUserspaceNetwork.start()` (REQ-001), not here. A
+    /// nil `user` means no credentials (no-auth only); `password` is nil when
+    /// the userinfo has no `:`.
+    public var user: String?
+    public var password: String?
+
+    public init(host: String, port: UInt16, user: String? = nil, password: String? = nil) {
+        self.host = host
+        self.port = port
+        self.user = user
+        self.password = password
+    }
+}
+
 /// Addressing for the userspace network.
 ///
 /// The default subnet deliberately differs from vmnet's `192.168.64.0/24` so
@@ -131,6 +155,20 @@ public struct VPhoneUserspaceNetworkConfiguration: Sendable, Equatable {
     /// one of them was too big to hand the guest, and Safari -- which prefers
     /// HTTP/3 -- spent its time retrying rather than loading.
     public var mtu: Int
+    /// An explicitly-specified SOCKS5 upstream to redirect guest TCP through, or
+    /// nil for direct connect. Resolved once at `VPhoneUserspaceNetwork.start()`.
+    /// Never sourced from the Mac's system proxy setting (NFR-004).
+    public var intercept: VPhoneInterceptEndpoint?
+    /// Drop guest UDP to port 443 so QUIC apps fall back to interceptable TCP.
+    public var blockQUIC: Bool
+    /// The VM's name (the `.vphone` bundle directory name without extension),
+    /// the source for a `${vm.name}` token in `intercept` userinfo. Plumbed from
+    /// the `plan()` caller, which holds the bundle.
+    public var vmName: String
+    /// The VM's predicted UDID (`VPhoneRestoreOperations.resolveUDID`), the
+    /// source for a `${vm.id}` token. Nil when there is no predicted UDID, which
+    /// makes a `${vm.id}` token undefined and fails resolution closed.
+    public var vmID: String?
 
     public static let `default` = VPhoneUserspaceNetworkConfiguration(
         hostAddress: VPhoneIPv4Address(192, 168, 127, 1),
@@ -144,12 +182,20 @@ public struct VPhoneUserspaceNetworkConfiguration: Sendable, Equatable {
         prefixLength: Int = 24,
         dnsServers: [VPhoneIPv4Address] = [],
         mtu: Int = 1500,
+        intercept: VPhoneInterceptEndpoint? = nil,
+        blockQUIC: Bool = false,
+        vmName: String = "",
+        vmID: String? = nil,
     ) {
         self.hostAddress = hostAddress
         self.guestAddress = guestAddress
         self.prefixLength = prefixLength
         self.dnsServers = dnsServers
         self.mtu = mtu
+        self.intercept = intercept
+        self.blockQUIC = blockQUIC
+        self.vmName = vmName
+        self.vmID = vmID
     }
 
     /// The guest's subnet.
