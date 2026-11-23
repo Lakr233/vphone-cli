@@ -67,7 +67,12 @@ import VPhoneCoreKit
 ///                                                 core, read from the host through the guest kernel's page
 ///                                                 tables (see `VPhoneProcessMemoryDump`). `name`, optional,
 ///                                                 must match the process's `p_comm`. `"result"` has `file`,
-///                                                 `name`, `segments`, `bytes` and `paused_seconds`
+///                                                 `name`, `segments`, `bytes`, `paused_seconds` and
+///                                                 `threads` (the LC_THREADs in the core), with
+///                                                 `threads_error` when none could be read, and
+///                                                 `live_threads` (threads with the registers of the vCPU
+///                                                 running them), with `live_registers_error` when the
+///                                                 kernel debug stub could not be read
 ///                                               → with `physical`, and for `process.dump`, `"result"` also has
 ///                                                 `resume_error` when the dump was saved but the guest
 ///                                                 could not be resumed
@@ -443,7 +448,11 @@ class VPhoneHostAutomationServer {
                     "paused_seconds": VPhoneMemoryDump.tenths(dump.pausedSeconds),
                     "kernel_uuid": dump.kernelUUID,
                     "symbol_map": dump.symbolMap,
-                ].merging(dump.resumeFailure.map { ["resume_error": $0] } ?? [:]) { $1 })
+                    "threads": dump.threads,
+                    "live_threads": dump.liveThreads,
+                ].merging(dump.resumeFailure.map { ["resume_error": $0] } ?? [:]) { $1 }
+                    .merging(dump.threadsError.map { ["threads_error": $0] } ?? [:]) { $1 }
+                    .merging(dump.liveError.map { ["live_registers_error": $0] } ?? [:]) { $1 })
 
             default:
                 return Self.reply(ok: false, error: "unknown command: \(type)")

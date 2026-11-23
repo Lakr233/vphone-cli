@@ -47,6 +47,9 @@ struct VPhoneKernelSymbols {
     let addresses: [String: UInt64]
 
     static let required = ["_kernproc", "_kernel_pmap"]
+    /// Read when the map has them: the accessors whose code says where a
+    /// thread keeps its ID, TSD pointer and name (`VPhoneGuestThreads`).
+    static let optional = ["_thread_tid", "_thread_dispatchqaddr", "_thread_has_thread_name"]
 
     static var recipesDirectory: URL? {
         Bundle.main.resourceURL?.appendingPathComponent("kernelcache_recipes", isDirectory: true)
@@ -99,7 +102,7 @@ struct VPhoneKernelSymbols {
         }
         return try cache.map("\(kernelUUID.uppercased())|\(root.path)") {
             let addresses = try symbolAddresses(
-                required, map: entry.folder.appendingPathComponent(entry.mapName), id: entry.id,
+                required, optional: optional, map: entry.folder.appendingPathComponent(entry.mapName), id: entry.id,
             )
             return VPhoneKernelSymbols(id: entry.id, segments: entry.segments, addresses: addresses)
         }
@@ -147,13 +150,15 @@ struct VPhoneKernelSymbols {
     // MARK: - Map
 
     /// Reads `symbols.json.gz`, decimal address to a name or list of names,
-    /// keeping only `names`.
-    static func symbolAddresses(_ names: [String], map: URL, id: String) throws -> [String: UInt64] {
+    /// keeping only `names`, which must be there, and `optional`.
+    static func symbolAddresses(
+        _ names: [String], optional: [String] = [], map: URL, id: String,
+    ) throws -> [String: UInt64] {
         guard let compressed = try? Data(contentsOf: map),
               let json = gunzip(compressed),
               let table = try? JSONSerialization.jsonObject(with: json) as? [String: Any]
         else { throw Failure.unreadableMap(id) }
-        let wanted = Set(names)
+        let wanted = Set(names + optional)
         var result: [String: UInt64] = [:]
         for (key, value) in table {
             let labels = (value as? [String]) ?? [(value as? String)].compactMap(\.self)

@@ -69,15 +69,19 @@ vphone reads the process's memory from the Mac, without the guest's help: it loc
 
 A process dump needs the kernel debug stub. While a debugger such as LLDB is attached to the stub, the dump fails within a few seconds with "The kernel debug stub is not available: no reply in time". The guest is not affected; detach the debugger and save again.
 
-The folder holds a Mach-O core named for the process and an `info.json`. LLDB opens the core and finds the process's images from dyld's data in it:
+The folder holds a Mach-O core named for the process and an `info.json`. LLDB opens the core, finds the process's images from dyld's data in it, and shows each of the process's threads with its registers, thread ID and backtrace:
 
 ```sh
 lldb -c "myphone SpringBoard (36) Memory 2026-11-20 at 10.02.03/SpringBoard.core"
 (lldb) image list
+(lldb) thread list
+(lldb) bt all
 (lldb) memory read 0x104218000
 ```
 
-The core has the process's resident pages only. Pages it never touched, pages the guest compressed or paged out, and its threads and registers are not in it. Each segment's permissions come from the page table entries.
+The core has the process's resident pages only. Pages it never touched and pages the guest compressed or paged out are not in it. Each segment's permissions come from the page table entries.
+
+A thread's registers are the ones the guest kernel saved when the thread last entered the kernel: the general, exception and vector registers. For a thread that was waiting, in a system call or a fault, or preempted, they are exact. A thread that was running its own code on a vCPU at the moment of the pause, at most one per vCPU, gets that vCPU's registers instead, which vphone reads through the guest's kernel debug stub; `info.json` marks it `"live"` and keeps the saved `pc`, `lr`, `sp` and fault registers. The same stub session reads these registers and the ones that locate the kernel. If it reads the kernel's but not a vCPU's, the dump is saved anyway, such a thread shows the registers of its last entry into the kernel, and `live_registers_error` in `info.json` says why. LLDB shows the vector registers' `fpsr` and `fpcr` but not `v0`–`v31`; they are in the core, and `otool -l` prints them. `info.json` lists each thread's ID, name, TSD pointer, `pc`, `lr`, `sp` and fault registers.
 
 From Terminal, send `process.dump` with the pid. `name` is optional; when given, the dump is refused unless the process has that name:
 
