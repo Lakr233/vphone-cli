@@ -38,6 +38,7 @@ A `--new-identity` copy:
 | `~/.vphone/ipsws/` | Remote source IPSWs, shared by every VM; local IPSWs are read in place |
 | `~/.vphone/gpu-drivers/<version>_<build>/` | GPU driver bundles extracted from cloudOS, shared by every VM |
 | `~/.vphone/kernelcache/` | Kernelcache mixes for cloudOS releases without vphone600 components, their staged volumes and the donor extraction |
+| `~/.vphone/x1-plans/` | Plans of the iOS 27 X1 instruction lowering, one file per shared cache and vphone build. A later install from the same firmware skips the planning. Safe to delete |
 
 To move them:
 

@@ -38,6 +38,7 @@ vphone-cli vm import myphone.tzst --name restored
 | `~/.vphone/ipsws/` | 远程来源的 IPSW，所有虚拟机共用；本地 IPSW 在原位置读取 |
 | `~/.vphone/gpu-drivers/<version>_<build>/` | 从 cloudOS 中提取的 GPU 驱动 bundle，所有虚拟机共用 |
 | `~/.vphone/kernelcache/` | 不含 vphone600 组件的 cloudOS 版本所用的 kernelcache 组合、准备好的宗卷，以及从供体中提取的内容 |
+| `~/.vphone/x1-plans/` | iOS 27 X1 指令降级的规划结果，每个共享缓存和 vphone 版本各一个文件。之后用同一固件安装时会跳过规划。可以随时删除 |
 
 移动位置：
 

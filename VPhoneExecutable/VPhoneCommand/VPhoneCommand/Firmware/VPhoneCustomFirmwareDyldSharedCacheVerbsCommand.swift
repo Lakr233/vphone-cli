@@ -142,6 +142,23 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
     }
 }
 
+/// Where the X1 verbs keep their plans: the user's data root unless told
+/// otherwise. A plan is keyed on the cache's bytes and this build, so reusing
+/// one is the same as planning again.
+struct X1PlanCacheOptions: ParsableArguments {
+    @Option(name: .customLong("plan-cache"), help: "Directory for stored X1 plans (default: x1-plans in the vphone data root)")
+    var directory: String?
+
+    @Flag(name: .customLong("no-plan-cache"), help: "Plan from scratch and store nothing")
+    var disabled = false
+
+    var cache: DyldSharedCacheArm64eX1PlanCache? {
+        guard !disabled else { return nil }
+        return directory.map { DyldSharedCacheArm64eX1PlanCache(root: URL(fileURLWithPath: $0)) }
+            ?? DyldSharedCacheArm64eX1PlanCache()
+    }
+}
+
 struct VPhoneCustomFirmwarePatchArm64eX1BootstrapCacheCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "patch-arm64e-x1-bootstrap-cache",
@@ -151,6 +168,7 @@ struct VPhoneCustomFirmwarePatchArm64eX1BootstrapCacheCommand: ParsableCommand {
     @Argument(transform: URL.init(fileURLWithPath:)) var directory: URL
     @Flag(name: .customLong("dry-run")) var dryRun = false
     @OptionGroup var undo: DyldSharedCacheUndoOptions
+    @OptionGroup var planCache: X1PlanCacheOptions
 
     func run() throws {
         var captured = DyldSharedCacheUndoLog()
@@ -159,6 +177,7 @@ struct VPhoneCustomFirmwarePatchArm64eX1BootstrapCacheCommand: ParsableCommand {
             dryRun: dryRun,
             captureUndo: undo.captures,
             onUndo: { captured.merge($0) },
+            planCache: planCache.cache,
             log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout,
         )
         try undo.persist(captured, dryRun: dryRun)
@@ -174,6 +193,7 @@ struct VPhoneCustomFirmwarePatchArm64eX1CacheCommand: ParsableCommand {
     @Argument(transform: URL.init(fileURLWithPath:)) var directory: URL
     @Flag(name: .customLong("dry-run")) var dryRun = false
     @OptionGroup var undo: DyldSharedCacheUndoOptions
+    @OptionGroup var planCache: X1PlanCacheOptions
 
     func run() throws {
         var captured = DyldSharedCacheUndoLog()
@@ -182,6 +202,7 @@ struct VPhoneCustomFirmwarePatchArm64eX1CacheCommand: ParsableCommand {
             dryRun: dryRun,
             captureUndo: undo.captures,
             onUndo: { captured.merge($0) },
+            planCache: planCache.cache,
             log: VPhoneCustomFirmwareDyldSharedCacheVerbs.stdout,
         )
         try undo.persist(captured, dryRun: dryRun)

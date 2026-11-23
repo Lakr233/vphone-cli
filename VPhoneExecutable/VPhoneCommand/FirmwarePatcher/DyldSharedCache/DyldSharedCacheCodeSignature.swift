@@ -47,6 +47,7 @@
 
 import CryptoKit
 import Foundation
+import Synchronization
 import VPhonePatchKit
 
 /// The `CS_CodeDirectory` of one chunk, reduced to what re-signing needs.
@@ -268,11 +269,15 @@ public enum DyldSharedCacheCodeSignature {
     /// A page whose stored slot already matches what the page hashes to is left
     /// alone and reported in `alreadyAttested`, which is what makes a second
     /// run over an already-patched cache a no-op rather than a rewrite.
+    ///
+    /// `logsEachSlot: false` keeps skips and the summary but drops the line per
+    /// slot, for a patch that rewrites a slot in most pages of the cache.
     @discardableResult
     public static func reattest(
         in chunks: DyldSharedCacheChunkSet,
         modifiedSpans: some Sequence<DyldSharedCacheWriteSpan>,
         dryRun: Bool = false,
+        logsEachSlot: Bool = true,
         log: ((String) -> Void)? = stderrLog,
     ) throws -> DyldSharedCacheReattestation {
         var pagesByChunk: [URL: Set<Int>] = [:]
@@ -341,67 +346,53 @@ public enum DyldSharedCacheCodeSignature {
             return DyldSharedCacheReattestation(updated: [], alreadyAttested: [], skipped: skipped)
         }
 
+        // Chunks are separate files with separate code directories, so they
+        // hash in parallel; their results are taken in path order, which keeps
+        // the records and the log as a serial run would leave them.
+        let chunkOrder = pagesByChunk.keys.sorted(by: { $0.path < $1.path }).compactMap { url in
+            (directories[url] ?? nil).map { (url: url, directory: $0, pages: pagesByChunk[url, default: []].sorted()) }
+        }
+        let outcomes = Mutex([Result<ChunkAttestation, any Error>?](repeating: nil, count: chunkOrder.count))
+        DispatchQueue.concurrentPerform(iterations: chunkOrder.count) { index in
+            let chunk = chunkOrder[index]
+            let outcome = Result {
+                try attestChunk(chunk.url, directory: chunk.directory, pages: chunk.pages, dryRun: dryRun)
+            }
+            outcomes.withLock { $0[index] = outcome }
+        }
+
         var records: [DyldSharedCacheSlotReattestation] = []
         var alreadyAttested: [DyldSharedCachePageReference] = []
-        for chunkURL in pagesByChunk.keys.sorted(by: { $0.path < $1.path }) {
-            guard let directory = directories[chunkURL] ?? nil else { continue }
-            let handle = dryRun
-                ? try FileHandle(forReadingFrom: chunkURL)
-                : try FileHandle(forUpdating: chunkURL)
-            defer { try? handle.close() }
-
-            for pageIndex in pagesByChunk[chunkURL, default: []].sorted() {
-                let pageOffset = pageIndex * directory.pageSize
-                let slotOffset = directory.slotOffset(forPage: pageIndex)
-
-                try handle.seek(toOffset: UInt64(pageOffset))
-                // FileHandle hands back autoreleased buffers, and a command-line
-                // run has no pool to drain them: 200,000 pages kept 3.4 GB alive.
-                let pageData = try autoreleasepool { try handle.read(upToCount: directory.pageSize) } ?? Data()
-                guard pageData.count == directory.pageSize else {
-                    skip(.shortPageRead(
-                        chunk: chunkURL.lastPathComponent,
-                        page: pageIndex,
-                        got: pageData.count,
-                        wanted: directory.pageSize,
-                    ))
-                    continue
-                }
-                let newHash = Data(SHA256.hash(data: pageData))
-
-                try handle.seek(toOffset: UInt64(slotOffset))
-                let oldHash = try autoreleasepool { try handle.read(upToCount: directory.hashSize) } ?? Data()
-
-                guard oldHash != newHash else {
-                    alreadyAttested.append(
-                        DyldSharedCachePageReference(chunkURL: chunkURL, pageIndex: pageIndex),
+        for (chunk, outcome) in zip(chunkOrder, outcomes.withLock { $0 }) {
+            let name = chunk.url.lastPathComponent
+            for event in try outcome!.get().events {
+                switch event {
+                case let .short(pageIndex, got):
+                    skip(.shortPageRead(chunk: name, page: pageIndex, got: got, wanted: chunk.directory.pageSize))
+                case let .matches(pageIndex):
+                    alreadyAttested.append(DyldSharedCachePageReference(chunkURL: chunk.url, pageIndex: pageIndex))
+                    if logsEachSlot {
+                        log?("      [.] re-attest: page \(pageIndex) of \(name) slot already matches (no-op)")
+                    }
+                case let .rewritten(pageIndex, before, after):
+                    if logsEachSlot {
+                        log?(
+                            "      [+] re-attest: \(dryRun ? "would write" : "wrote") slot "
+                                + "\(pageIndex) of \(name)  "
+                                + "(\(Data(before.prefix(4)).hex).. -> \(Data(after.prefix(4)).hex)..)",
+                        )
+                    }
+                    records.append(
+                        DyldSharedCacheSlotReattestation(
+                            chunkURL: chunk.url,
+                            pageIndex: pageIndex,
+                            chunkOffset: pageIndex * chunk.directory.pageSize,
+                            slotOffset: chunk.directory.slotOffset(forPage: pageIndex),
+                            hashBefore: before,
+                            hashAfter: after,
+                        ),
                     )
-                    log?(
-                        "      [.] re-attest: page \(pageIndex) of "
-                            + "\(chunkURL.lastPathComponent) slot already matches (no-op)",
-                    )
-                    continue
                 }
-
-                if !dryRun {
-                    try handle.seek(toOffset: UInt64(slotOffset))
-                    try handle.write(contentsOf: newHash)
-                }
-                log?(
-                    "      [+] re-attest: \(dryRun ? "would write" : "wrote") slot "
-                        + "\(pageIndex) of \(chunkURL.lastPathComponent)  "
-                        + "(\(Data(oldHash.prefix(4)).hex).. -> \(Data(newHash.prefix(4)).hex)..)",
-                )
-                records.append(
-                    DyldSharedCacheSlotReattestation(
-                        chunkURL: chunkURL,
-                        pageIndex: pageIndex,
-                        chunkOffset: pageOffset,
-                        slotOffset: slotOffset,
-                        hashBefore: oldHash,
-                        hashAfter: newHash,
-                    ),
-                )
             }
         }
 
@@ -417,6 +408,111 @@ public enum DyldSharedCacheCodeSignature {
         )
     }
 
+    /// What re-attesting one chunk found, page by page in ascending order.
+    struct ChunkAttestation: Sendable {
+        enum Event: Sendable {
+            case short(page: Int, got: Int)
+            case matches(page: Int)
+            case rewritten(page: Int, before: Data, after: Data)
+        }
+
+        var events: [Event] = []
+    }
+
+    /// Pages read per `pread`: a run of dirty pages costs one call, not one
+    /// open, seek and read each, and the buffer stays at 4 MiB.
+    static let pagesPerRead = 256
+
+    /// Hash `pages` (ascending) of one chunk and store every slot that
+    /// changed. The slot table between the first and last page is read once
+    /// and each changed run of it written back once.
+    static func attestChunk(
+        _ url: URL,
+        directory: DyldSharedCacheChunkCodeDirectory,
+        pages: [Int],
+        dryRun: Bool,
+    ) throws -> ChunkAttestation {
+        var result = ChunkAttestation()
+        guard let firstPage = pages.first, let lastPage = pages.last else { return result }
+        let descriptor = open(url.path, dryRun ? O_RDONLY : O_RDWR)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        defer { close(descriptor) }
+
+        func readFully(_ buffer: UnsafeMutableRawBufferPointer, at offset: Int) throws -> Int {
+            var done = 0
+            while done < buffer.count {
+                let count = pread(descriptor, buffer.baseAddress! + done, buffer.count - done, off_t(offset + done))
+                if count < 0, errno == EINTR { continue }
+                guard count >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+                if count == 0 { break }
+                done += count
+            }
+            return done
+        }
+
+        let hashSize = directory.hashSize
+        let slotBase = directory.slotOffset(forPage: firstPage)
+        var slots = [UInt8](repeating: 0, count: (lastPage - firstPage + 1) * hashSize)
+        let slotBytes = try slots.withUnsafeMutableBytes { try readFully($0, at: slotBase) }
+        guard slotBytes == slots.count else {
+            throw PatcherError.invalidFormat("short code-slot read in \(url.lastPathComponent)")
+        }
+        var changed: [Range<Int>] = []
+
+        let pageSize = directory.pageSize
+        var buffer = [UInt8](repeating: 0, count: pageSize * pagesPerRead)
+        var index = 0
+        while index < pages.count {
+            // A run of consecutive pages, capped at the buffer.
+            var end = index + 1
+            while end < pages.count, end - index < pagesPerRead, pages[end] == pages[end - 1] + 1 { end += 1 }
+            let runLength = (end - index) * pageSize
+            let got = try buffer.withUnsafeMutableBytes {
+                try readFully(UnsafeMutableRawBufferPointer(rebasing: $0[0 ..< runLength]), at: pages[index] * pageSize)
+            }
+            for position in index ..< end {
+                let pageIndex = pages[position]
+                let start = (position - index) * pageSize
+                guard got >= start + pageSize else {
+                    result.events.append(.short(page: pageIndex, got: max(0, got - start)))
+                    continue
+                }
+                let digest = buffer.withUnsafeBytes {
+                    Data(SHA256.hash(data: UnsafeRawBufferPointer(rebasing: $0[start ..< start + pageSize])))
+                }
+                let slot = (pageIndex - firstPage) * hashSize
+                let stored = Data(slots[slot ..< slot + hashSize])
+                guard stored != digest else {
+                    result.events.append(.matches(page: pageIndex))
+                    continue
+                }
+                slots.replaceSubrange(slot ..< slot + hashSize, with: digest)
+                if let last = changed.last, last.upperBound == slot {
+                    changed[changed.count - 1] = last.lowerBound ..< slot + hashSize
+                } else {
+                    changed.append(slot ..< slot + hashSize)
+                }
+                result.events.append(.rewritten(page: pageIndex, before: stored, after: digest))
+            }
+            index = end
+        }
+
+        guard !dryRun else { return result }
+        for range in changed {
+            try slots.withUnsafeBytes { raw in
+                var done = 0
+                while done < range.count {
+                    let count = pwrite(descriptor, raw.baseAddress! + range.lowerBound + done,
+                                       range.count - done, off_t(slotBase + range.lowerBound + done))
+                    if count < 0, errno == EINTR { continue }
+                    guard count > 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+                    done += count
+                }
+            }
+        }
+        return result
+    }
+
     /// Re-attest every page that `chunks`'s own writes dirtied.
     ///
     /// The path a patcher should take: write through `DyldSharedCacheChunkSet.write(at:_:)`
@@ -426,12 +522,14 @@ public enum DyldSharedCacheCodeSignature {
     public static func reattestRecordedWrites(
         in chunks: DyldSharedCacheChunkSet,
         dryRun: Bool = false,
+        logsEachSlot: Bool = true,
         log: ((String) -> Void)? = stderrLog,
     ) throws -> DyldSharedCacheReattestation {
         try reattest(
             in: chunks,
             modifiedSpans: chunks.recordedWrites,
             dryRun: dryRun,
+            logsEachSlot: logsEachSlot,
             log: log,
         )
     }

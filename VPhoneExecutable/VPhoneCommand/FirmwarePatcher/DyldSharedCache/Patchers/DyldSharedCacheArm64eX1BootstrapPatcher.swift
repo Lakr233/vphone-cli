@@ -71,10 +71,12 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
         dryRun: Bool = false,
         captureUndo: Bool = false,
         onUndo: (DyldSharedCacheUndoLog) -> Void = { _ in },
+        planCache: DyldSharedCacheArm64eX1PlanCache? = nil,
         log: @escaping (String) -> Void = { print($0) },
     ) throws {
         try lower(
             directory: directory, dryRun: dryRun, captureUndo: captureUndo, onUndo: onUndo, log: log,
+            planCache: planCache,
             patchID: FirmwareGuestSystemPatchSet.arm64eX1CacheBootstrap, label: "X1 bootstrap cache",
         ) { paths in
             let missing = bootstrapImages.subtracting(paths)
@@ -100,10 +102,12 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
         dryRun: Bool = false,
         captureUndo: Bool = false,
         onUndo: (DyldSharedCacheUndoLog) -> Void = { _ in },
+        planCache: DyldSharedCacheArm64eX1PlanCache? = nil,
         log: @escaping (String) -> Void = { print($0) },
     ) throws {
         try lower(
             directory: directory, dryRun: dryRun, captureUndo: captureUndo, onUndo: onUndo, log: log,
+            planCache: planCache,
             patchID: FirmwareGuestSystemPatchSet.arm64eX1CacheRemaining, label: "X1 cache",
             skipsUnplannable: true,
         ) { paths in
@@ -117,6 +121,7 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
         captureUndo: Bool,
         onUndo: (DyldSharedCacheUndoLog) -> Void,
         log: @escaping (String) -> Void,
+        planCache: DyldSharedCacheArm64eX1PlanCache?,
         patchID: String,
         label: String,
         skipsUnplannable: Bool = false,
@@ -145,6 +150,198 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
         let wanted = try select(Set(images.map(\.path)))
         let selected = images.filter { wanted.contains($0.path) }
 
+        // A plan stored for these exact cache bytes and this planner build is
+        // the plan this run would make (see DyldSharedCacheArm64eX1PlanCache);
+        // the key is taken before anything here writes.
+        let paths = selected.map(\.path)
+        var key: String?
+        var stored: [DyldSharedCacheArm64eX1PlanCache.Image]?
+        if let planCache {
+            do {
+                let keyed = try DyldSharedCacheArm64eX1PlanCache.key(for: chunks, patchID: patchID)
+                key = keyed
+                stored = try planCache.load(key: keyed, paths: paths)
+            } catch {
+                key = nil
+                log("  [!] \(label): plan cache unavailable, planning: \(error)")
+            }
+        }
+        let fromCache = stored != nil
+        let plans: [Result<ImagePlan, any Error>]
+        if let stored {
+            log("  [=] \(label): plan reused from \(planCache!.url(for: key!).path)")
+            plans = stored.map { image in
+                switch image {
+                case let .planned(plan): .success(plan)
+                case let .skipped(reason): .failure(DyldSharedCacheArm64eX1PlanCache.ReplayedError(description: reason))
+                }
+            }
+        } else {
+            plans = try planImages(selected, among: images, directory: directory, patchID: patchID)
+            // A failed image fails the bootstrap pass, so only a pass that
+            // skips unplannable images keeps a plan with failures in it.
+            if let planCache, let key, skipsUnplannable || plans.allSatisfy({ (try? $0.get()) != nil }) {
+                let images = plans.map { plan -> DyldSharedCacheArm64eX1PlanCache.Image in
+                    switch plan {
+                    case let .success(plan): .planned(plan)
+                    case let .failure(error): .skipped("\(error)")
+                    }
+                }
+                do {
+                    if try planCache.store(images, paths: paths, key: key) {
+                        log("  [+] \(label): plan stored at \(planCache.url(for: key).path)")
+                    }
+                } catch {
+                    log("  [!] \(label): plan not stored: \(error)")
+                }
+            }
+        }
+
+        var writes: [Write] = []
+        var unvisited = 0
+        var lowered = 0
+        var skipped: [String] = []
+        for (image, plan) in zip(selected, plans) {
+            let result: ImagePlan
+            do {
+                result = try plan.get()
+            } catch where skipsUnplannable {
+                skipped.append(image.path)
+                log("  [!] \(label): \(image.path): left to the on-demand handler: \(error)")
+                continue
+            }
+            unvisited += result.unvisitedCandidates
+            if !result.writes.isEmpty { lowered += 1 }
+            writes += result.writes
+            if !skipsUnplannable || !result.writes.isEmpty {
+                log("  [.] \(label): \(image.path): \(result.writes.count) instructions, \(result.unvisitedCandidates) unvisited")
+            }
+        }
+        writes.sort { $0.address < $1.address }
+        log("  [*] \(label): \(selected.count) image(s), \(lowered) with X1 code, \(skipped.count) skipped, \(writes.count) rewrites, \(unvisited) unvisited candidates")
+        guard !dryRun else { return }
+
+        // The originals of the changed instructions, word by word: as page runs
+        // the chunk set would keep 3.3 GB for the whole cache (issue #789).
+        var originals = DyldSharedCacheUndoLog.Words()
+        do {
+            var index = 0
+            var groups = 0
+            var pageSizes: [URL: Int] = [:]
+            // One descriptor per chunk for every page run, read ahead in blocks.
+            try chunks.withBatch { batch in
+                while index < writes.count {
+                    let first = index
+                    let start = writes[index].address
+                    let firstChunk = try chunks.fileRange(of: .init(vma: start, length: 4)).chunkURL
+                    let pageSize: Int
+                    if let known = pageSizes[firstChunk] {
+                        pageSize = known
+                    } else {
+                        guard let directory = try DyldSharedCacheCodeSignature.readCodeDirectory(ofChunk: firstChunk) else {
+                            throw PatcherError.invalidFormat("\(label) code chunk has no supported signature")
+                        }
+                        pageSize = directory.pageSize
+                        pageSizes[firstChunk] = pageSize
+                    }
+                    // One page run: the writes in start's code page, while the span
+                    // they cover stays one run of one chunk. A page never straddles
+                    // a mapping, so one lookup for the page's last write settles the
+                    // run; only a page that fails it is walked a write at a time.
+                    // Either way the run is what a lookup per write would give:
+                    // a span that is addressable makes every shorter one so.
+                    func sameRun(through end: Int) -> Bool {
+                        let range = try? chunks.fileRange(
+                            of: .init(vma: start, length: Int(writes[end].address + 4 - start)),
+                        )
+                        return range?.chunkURL == firstChunk
+                    }
+                    let page = start / UInt64(pageSize)
+                    var end = index + 1
+                    while end < writes.count, writes[end].address / UInt64(pageSize) == page { end += 1 }
+                    if sameRun(through: end - 1) {
+                        index = end
+                    } else {
+                        index += 1
+                        while index < end, sameRun(through: index) { index += 1 }
+                    }
+
+                    let length = Int(writes[index - 1].address + 4 - start)
+                    var bytes = try batch.bytesAtVMA(start, length: length)
+                    var changed = 0
+                    // Words in place: a Data per instruction cost more than the
+                    // file I/O across 25 million rewrites.
+                    try bytes.withUnsafeMutableBytes { raw in
+                        for position in first ..< index {
+                            let write = writes[position]
+                            if position > first, writes[position - 1].address == write.address,
+                               writes[position - 1].word != write.word {
+                                throw PatcherError.invalidFormat("conflicting \(label) rewrites")
+                            }
+                            let offset = Int(write.address - start)
+                            let current = UInt32(littleEndian: raw.loadUnaligned(fromByteOffset: offset, as: UInt32.self))
+                            guard current != write.word else { continue }
+                            // The planner lowers only words with these top
+                            // bytes; a stored plan that names another word
+                            // was made for other bytes, and nothing is kept.
+                            if fromCache, !CustomFirmwareArm64eX1.loweredTopBytes[Int(current >> 24)] {
+                                throw PatcherError.invalidFormat(
+                                    "\(label): the stored plan does not match the cache at 0x\(String(write.address, radix: 16)); "
+                                        + "remove \(planCache!.url(for: key!).path) and run again",
+                                )
+                            }
+                            changed += 1
+                            originals.append(vma: write.address, original: current)
+                            raw.storeBytes(of: write.word.littleEndian, toByteOffset: offset, as: UInt32.self)
+                        }
+                    }
+                    if changed > 0 {
+                        try batch.write(at: start, bytes)
+                        groups += 1
+                        if !skipsUnplannable {
+                            log("  0x\(String(start, radix: 16)): \(changed) instruction(s) [\(patchID)]")
+                        }
+                    }
+                }
+            }
+            try finish(chunks, selected)
+            // The whole-cache pass rewrites a slot in most code pages; a line
+            // per slot was a quarter of a million lines of install log.
+            let attestation = try DyldSharedCacheCodeSignature.reattestRecordedWrites(
+                in: chunks, logsEachSlot: !skipsUnplannable, log: log,
+            )
+            guard attestation.isFullyAttested else {
+                throw PatcherError.invalidFormat(
+                    "\(label) re-attestation skipped \(attestation.skipped.count) pages",
+                )
+            }
+            var undo = chunks.takeUndoLog()!
+            undo.capture(words: originals)
+            onUndo(undo)
+            log("  [+] \(label): \(writes.count) instruction rewrites in \(groups) page run(s)")
+        } catch {
+            var undo = chunks.takeUndoLog()!
+            undo.capture(words: originals)
+            if !undo.isEmpty {
+                undo.stamp(patchID: patchID)
+                let spans = try undo.restore(patchIDs: undo.patchIDs, in: directory, log: log)
+                _ = try DyldSharedCacheCodeSignature.reattest(
+                    in: chunks,
+                    modifiedSpans: spans,
+                    log: log,
+                )
+            }
+            throw error
+        }
+    }
+
+    /// Plan every selected image, in parallel, in the order `selected` has.
+    private static func planImages(
+        _ selected: [(address: UInt64, path: String)],
+        among images: [(address: UInt64, path: String)],
+        directory: URL,
+        patchID: String,
+    ) throws -> [Result<ImagePlan, any Error>] {
         // Planning only reads; each worker gets its own chunk set and Capstone
         // handle, and results keep image order so the writes are deterministic.
         #if os(Linux)
@@ -204,119 +401,7 @@ public enum DyldSharedCacheArm64eX1BootstrapPatcher {
                 queue.withLock { $0.plans[index] = plan }
             }
         }
-        let plans = queue.withLock { $0.plans }
-
-        var writes: [Write] = []
-        var unvisited = 0
-        var lowered = 0
-        var skipped: [String] = []
-        for (image, plan) in zip(selected, plans) {
-            let result: ImagePlan
-            do {
-                result = try plan!.get()
-            } catch where skipsUnplannable {
-                skipped.append(image.path)
-                log("  [!] \(label): \(image.path): left to the on-demand handler: \(error)")
-                continue
-            }
-            unvisited += result.unvisitedCandidates
-            if !result.writes.isEmpty { lowered += 1 }
-            writes += result.writes
-            if !skipsUnplannable || !result.writes.isEmpty {
-                log("  [.] \(label): \(image.path): \(result.writes.count) instructions, \(result.unvisitedCandidates) unvisited")
-            }
-        }
-        writes.sort { $0.address < $1.address }
-        log("  [*] \(label): \(selected.count) image(s), \(lowered) with X1 code, \(skipped.count) skipped, \(writes.count) rewrites, \(unvisited) unvisited candidates")
-        guard !dryRun else { return }
-
-        // The originals of the changed instructions, word by word: as page runs
-        // the chunk set would keep 3.3 GB for the whole cache (issue #789).
-        var originals = DyldSharedCacheUndoLog.Words()
-        do {
-            var index = 0
-            var groups = 0
-            var pageSizes: [URL: Int] = [:]
-            while index < writes.count {
-                let first = index
-                let start = writes[index].address
-                let firstChunk = try chunks.fileRange(of: .init(vma: start, length: 4)).chunkURL
-                let pageSize: Int
-                if let known = pageSizes[firstChunk] {
-                    pageSize = known
-                } else {
-                    guard let directory = try DyldSharedCacheCodeSignature.readCodeDirectory(ofChunk: firstChunk) else {
-                        throw PatcherError.invalidFormat("\(label) code chunk has no supported signature")
-                    }
-                    pageSize = directory.pageSize
-                    pageSizes[firstChunk] = pageSize
-                }
-                index += 1
-                while index < writes.count {
-                    let previous = writes[index - 1]
-                    let next = writes[index]
-                    if next.address == previous.address {
-                        guard next.word == previous.word else {
-                            throw PatcherError.invalidFormat("conflicting \(label) rewrites")
-                        }
-                        index += 1
-                        continue
-                    }
-                    guard start / UInt64(pageSize) == next.address / UInt64(pageSize),
-                          let range = try? chunks.fileRange(
-                            of: .init(vma: start, length: Int(next.address + 4 - start)),
-                          ),
-                          range.chunkURL == firstChunk
-                    else { break }
-                    index += 1
-                }
-
-                let length = Int(writes[index - 1].address + 4 - start)
-                let before = try chunks.bytesAtVMA(start, length: length)
-                var after = before
-                var changed = 0
-                for write in writes[first ..< index] {
-                    let offset = Int(write.address - start)
-                    let replacement = ARM64.encodeU32(write.word)
-                    if after.subdata(in: offset ..< offset + 4) != replacement {
-                        changed += 1
-                        originals.append(vma: write.address, original: before.loadLE(UInt32.self, at: offset))
-                    }
-                    after.replaceSubrange(offset ..< offset + 4, with: replacement)
-                }
-                if before != after {
-                    try chunks.write(at: start, after, capturingOriginal: false)
-                    groups += 1
-                    if !skipsUnplannable {
-                        log("  0x\(String(start, radix: 16)): \(changed) instruction(s) [\(patchID)]")
-                    }
-                }
-            }
-            try finish(chunks, selected)
-            let attestation = try DyldSharedCacheCodeSignature.reattestRecordedWrites(in: chunks, log: log)
-            guard attestation.isFullyAttested else {
-                throw PatcherError.invalidFormat(
-                    "\(label) re-attestation skipped \(attestation.skipped.count) pages",
-                )
-            }
-            var undo = chunks.takeUndoLog()!
-            undo.capture(words: originals)
-            onUndo(undo)
-            log("  [+] \(label): \(writes.count) instruction rewrites in \(groups) page run(s)")
-        } catch {
-            var undo = chunks.takeUndoLog()!
-            undo.capture(words: originals)
-            if !undo.isEmpty {
-                undo.stamp(patchID: patchID)
-                let spans = try undo.restore(patchIDs: undo.patchIDs, in: directory, log: log)
-                _ = try DyldSharedCacheCodeSignature.reattest(
-                    in: chunks,
-                    modifiedSpans: spans,
-                    log: log,
-                )
-            }
-            throw error
-        }
+        return queue.withLock { $0.plans.map { $0! } }
     }
 
     static func refreshCoreCryptoIntegrity(
