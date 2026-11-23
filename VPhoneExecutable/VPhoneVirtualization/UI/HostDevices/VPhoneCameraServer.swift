@@ -35,6 +35,7 @@ final class VPhoneCameraServer {
 
     private(set) var sourceKind: SourceKind = .off
     private(set) var cameraDeviceID: String?
+    private(set) var cameraRotation: VPhoneCameraRotation = .upright
     private(set) var isConnected = false
 
     private var device: VZVirtioSocketDevice?
@@ -74,6 +75,11 @@ final class VPhoneCameraServer {
 
     // MARK: - Source selection
 
+    func setCameraRotation(_ rotation: VPhoneCameraRotation) {
+        cameraRotation = rotation
+        (producer as? VPhoneSystemCameraProducer)?.setRotation(rotation)
+    }
+
     func setSource(_ kind: SourceKind, videoURL: URL? = nil, cameraDeviceID: String? = nil) throws {
         if sourceKind == kind, kind != .videoFile,
            kind != .systemCamera || self.cameraDeviceID == cameraDeviceID {
@@ -81,7 +87,7 @@ final class VPhoneCameraServer {
         }
         // Construct first so a failed camera setup preserves the old source.
         let camera = kind == .systemCamera ? try VPhoneSystemCameraProducer(
-            width: Self.defaultWidth, height: Self.defaultHeight, deviceID: cameraDeviceID) : nil
+            width: Self.defaultWidth, height: Self.defaultHeight, deviceID: cameraDeviceID, rotation: cameraRotation) : nil
         let wasStreaming = (timer != nil)
         if wasStreaming {
             stopStreaming()
