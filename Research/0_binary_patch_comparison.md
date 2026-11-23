@@ -913,8 +913,17 @@ The [optional guest SOCKS5 add-on](../Addons/SOCKS5/README.md) applies its UDP a
 > `--plan-cache <dir>` and `--no-plan-cache`. **Verified byte-identical:**
 > all 84 files of the cache folder (82 chunks, the undo log and its words)
 > after both verbs, against HEAD 6349636f, for the batched build without a
-> plan cache and for the cold and warm plan-cache runs. **Not exercised:** a
-> guest booted from the result (the bytes are the same), and the root path.
+> plan cache and for the cold and warm plan-cache runs. **Validated on a
+> guest:** test VM `x1test-duo` (iPhone19,4 27.2 24B91020, cloudOS 26.4
+> 23E5207q, `--no-template`) created through Launchpad, whose `cfw install`
+> runs as root: every create step passed (installCFW 305 s), both passes wrote
+> the same rewrite counts, and root created `~/.vphone/x1-plans` (0777) and
+> both plans owned by the invoking user. The guest reached the home screen
+> with widgets drawn, Settings opened, and launchd settled at 32 CPU-seconds
+> (17 s at 41 s of uptime, 32.0 s at 200 s, 32.1 s at 230 s). No panic; the
+> one crash report, ReportSystemMemory, is an EXC_BREAKPOINT "BUG IN
+> LIBDISPATCH: mach semaphore API failure", not an X1 SIGILL. **Not
+> exercised:** reusing a stored plan as root.
 
 > **Foldable VM sub-type (2026-10-23):** `preboot-cfw-devicetree_foldable_vm_subtype`
 > (guest system set, Preboot device-tree repair, on in `standard`, blocked in
