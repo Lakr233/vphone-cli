@@ -78,10 +78,36 @@ public func pressButton(_ name: String) throws -> [String: Any] { unscoped() }
 public func pressKey(_ name: String) throws -> [String: Any] { unscoped() }
 public func typeText(_ text: String, delayMS: Double) throws -> [String: Any] { unscoped() }
 public func pasteText(_ text: String) throws -> [String: Any] { unscoped() }
-public struct ElementSelector { public init(text: String?, identifier: String?, role: String?, match: String, index: Int) throws {} }
-public func uiElements(maxElements: Int, visibleOnly: Bool, clickableOnly: Bool, limit: Int?) throws -> [String: Any] { unscoped() }
-public func elementAt(x: Double, y: Double) throws -> [String: Any] { unscoped() }
-public func tapElement(_ selector: ElementSelector) throws -> [String: Any] { unscoped() }
-public func waitForElement(_ selector: ElementSelector, appear: Bool, timeout: Double) throws -> [String: Any] { unscoped() }
+public enum SemanticInputWitness {
+    nonisolated(unsafe) public static var foreground: [String: Any] = [:]
+    nonisolated(unsafe) public static var apps: [[String: Any]] = []
+    nonisolated(unsafe) public static var axPID = 42
+    nonisolated(unsafe) public static var elements: [[String: Any]] = []
+    nonisolated(unsafe) public static var truncated = false
+    nonisolated(unsafe) public static var queriedWidths: [Double] = []
+    nonisolated(unsafe) public static var afterQuery: (() -> Void)?
+}
+public func frontmostApp() -> [String: Any] { SemanticInputWitness.foreground }
+public func runningApps() throws -> [String: Any] { ["apps": SemanticInputWitness.apps] }
+func requirePointInput() throws {}
+public func uiElements(maxElements: Int = 2000, visibleOnly: Bool = true, clickableOnly: Bool = false,
+                       limit: Int? = nil) throws -> [String: Any] {
+    let geometry = PointInputWitness.metrics()
+    SemanticInputWitness.queriedWidths.append(geometry.width)
+    let elements = SemanticInputWitness.elements.filter { element in
+        let x = element["x"] as? Double ?? 0, y = element["y"] as? Double ?? 0
+        return (!visibleOnly || (x >= 0 && y >= 0 && x < geometry.width && y < geometry.height))
+            && (!clickableOnly || element["clickable"] as? Bool == true)
+    }
+    let result: [String: Any] = ["source": "ax", "pid": SemanticInputWitness.axPID,
+                               "elements": Array(elements.prefix(limit ?? maxElements)),
+                               "truncated": SemanticInputWitness.truncated]
+    SemanticInputWitness.afterQuery?()
+    return result
+}
+public func elementAt(x: Double, y: Double) throws -> [String: Any] {
+    let result = try uiElements()
+    return ["source": "ax", "element": (result["elements"] as? [[String: Any]])?.first ?? [:], "x": x, "y": y]
+}
 public func recognizeScreen(languages: [String], minConfidence: Float) throws -> [String: Any] { unscoped() }
 public func describeScreen() throws -> [String: Any] { unscoped() }

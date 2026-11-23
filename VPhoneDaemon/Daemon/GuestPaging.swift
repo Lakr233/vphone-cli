@@ -1,3 +1,4 @@
+import CoreFoundation
 import Foundation
 
 /// Bounded replies for the list methods: `limit`/`cursor` in, `truncated`/`total`/`next_cursor`

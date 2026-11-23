@@ -5713,3 +5713,56 @@ the wallpaper.
 
 This time Launchpad's `vm create` restored the VM without the iBEC
 failure, at a host load average of about 20.
+
+## Binding semantic input to the active app scene (2026-11-15)
+
+An inner display can expose AX points in 951 x 669 coordinates while the
+capture-derived Icli fallback reports 678 x 466. A selector can still find
+the element at (587, 48), then normalize its activation point against the
+wrong display and tap a different control. An element at x=900 can disappear
+from the visible AX list before selection. These dimensions are regression
+fixtures, not runtime constants.
+
+The flat tree, semantic tap and element wait handlers now use
+Icli 1.0's synchronous `withInterfaceGeometry` scope. A bounded FrontBoard
+observation supplies the active geometry and the requested application's
+scenes. The handler requires a verified foreground bundle and unique PID,
+one identified scene within both display coordinate bounds, and a complete
+scene inventory. AX list results must report that PID. A second observation
+must confirm the same process, scene and display before results are accepted
+or a tap is sent. Activation points outside that scene are refused.
+An unreadable scene owner invalidates the inventory, including any matching
+scene already collected. Only a successfully read nil owner is treated as a
+non-app element. Missing getters, incompatible ABIs, exceptions and malformed
+owner values cannot establish scene uniqueness.
+
+Each wait poll obtains a new binding. The handler refuses a transition it
+observes during the AX query. On the iPhone17,3, FrontBoard can report
+orientation 0 with 393 × 852 bounds. The handler uses native coordinates
+when the scene fills the same bounds in both coordinate spaces and the
+default-main display is the sole panel with usable bounds. Dormant wireless
+outputs (CADisplay type 2) with verified zero bounds do not count. An
+unreadable or capped display inventory, a second panel, or mismatched frames
+prevents this fallback. Explicit point input retains its existing
+unknown-orientation fallback. Point hit testing (`ui.element_at`), capture,
+OCR, normalized input and the opt-in nested diagnostic tree keep their
+existing coordinate contracts. Icli's point hit test does not return the
+queried PID, so it cannot provide the ownership check required for this binding.
+
+`VPhoneDaemon/Tests/run-point-geometry-tests.sh --icli <pinned-checkout>`
+compiles the real handlers, pinned Icli selector functions and C coordinate
+conversion with AX/HID boundary fixtures. It covers the wrong-tap regression,
+right-edge selection, single-panel orientation 0, ownership changes,
+ambiguous scenes, and fresh geometry between wait polls. Running it with
+`--input-source` set to the previous handler fails the (587, 48) conversion
+assertion. The native admission test also exercises both layout entry points
+sharing one bounded admission slot.
+
+The bundle build at `c05b1060` passed the native layout tests, semantic handler tests, bundle verification and RPC schema checks. The handler tests use simulated display and AX data. On an earlier build, a reviewer confirmed that taps landed on both Duo panels and reproduced the orientation-zero refusal on two iPhone17,3 guests. [Bundle CI](https://github.com/Lakr233/vphone-cli/actions/runs/44117261247) and [guest test results](https://github.com/Lakr233/vphone-cli/pull/938#pullrequestreview-5935649335).
+
+To retest the orientation-zero fix, use both reported iPhone17,3 configurations (iOS 27.2 build 24B119 on cloudOS 26.4 and 27.2). Start at the top level of Settings in English with General visible.
+
+1. Confirm that `display.layout` reports `interface_orientation: 0` and 393 × 852 bounds. Find General in the flat `ui.tree`.
+2. Call `ui.tap_element` with `{"text":"General","match":"exact"}`. Check that the General page shows Software Update.
+3. Call `ui.wait` and then `ui.tap_element` with `{"text":"About","match":"exact"}`. Verify that the About page opens.
+4. Call `ui.wait_gone` with `{"text":"Software Update","match":"exact"}`. Expect `disappeared: true`.

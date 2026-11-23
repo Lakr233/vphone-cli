@@ -85,7 +85,7 @@ extension GuestAPI {
             if bool(params, "nested") {
                 return try nestedHierarchy(params)
             }
-            return try uiElements(
+            return try semanticElements(
                 maxElements: (params["max_elements"] as? NSNumber)?.intValue ?? 500,
                 visibleOnly: bool(params, "visible_only", default: true),
                 clickableOnly: bool(params, "clickable_only"),
@@ -94,7 +94,7 @@ extension GuestAPI {
         case .uiElementAt:
             return try elementAt(x: requiredNumber(params, "x"), y: requiredNumber(params, "y"))
         case .uiTapElement:
-            return try tapElement(selector(params))
+            return try tapSemanticElement(selector(params))
         case .uiWait, .uiWaitGone:
             // Checked here so the refusal names timeout_ms in milliseconds;
             // IcliKit's own check speaks in seconds.
@@ -102,7 +102,7 @@ extension GuestAPI {
             guard timeout.isFinite, (0 ... 60000).contains(timeout) else {
                 throw GuestAPIError.invalidRequest("timeout_ms must be 0–60000")
             }
-            return try waitForElement(selector(params), appear: m == .uiWait, timeout: timeout / 1000)
+            return try waitForSemanticElement(selector(params), appear: m == .uiWait, timeout: timeout / 1000)
         case .uiOcr:
             try requireTextRecognition()
             return try recognizeScreen(

@@ -1,4 +1,4 @@
-accessibility.tree	VPhoneDaemon/Daemon/GuestAPI+Input.swift#executeInterface;VPhoneDaemon/Daemon/GuestAPI+Hierarchy.swift#nestedHierarchy
+accessibility.tree	icli:IcliKit/Input/Screen.swift#uiElements;VPhoneDaemon/Daemon/GuestAPI+Hierarchy.swift#nestedHierarchy
 agent.apply_update	VPhoneDaemon/Daemon/GuestAPI.swift#executeCore
 apfs.snapshot.delete	VPhoneDaemon/Daemon/GuestAPI+Storage.swift#deleteSnapshots
 apfs.snapshots	VPhoneDaemon/Daemon/GuestAPI+Storage.swift#executeStorage
@@ -198,9 +198,9 @@ udid.set	VPhoneDaemon/Daemon/GuestAPI+DeviceIdentity.swift#applyUDID
 ui.describe	icli:IcliKit/Input/Screen.swift#describeScreen
 ui.element_at	icli:IcliKit/Input/Screen.swift#elementAt
 ui.ocr	icli:IcliKit/Input/Screen.swift#recognizeScreen
-ui.tap_element	icli:IcliKit/Input/Screen.swift#tapElement
-ui.tree	VPhoneDaemon/Daemon/GuestAPI+Input.swift#executeInterface;VPhoneDaemon/Daemon/GuestAPI+Hierarchy.swift#nestedHierarchy
-ui.wait	icli:IcliKit/Input/Screen.swift#waitForElement
-ui.wait_gone	icli:IcliKit/Input/Screen.swift#waitForElement
+ui.tap_element	VPhoneDaemon/Daemon/GuestAPI+SemanticGeometry.swift#tapSemanticElement
+ui.tree	icli:IcliKit/Input/Screen.swift#uiElements;VPhoneDaemon/Daemon/GuestAPI+Hierarchy.swift#nestedHierarchy
+ui.wait	VPhoneDaemon/Daemon/GuestAPI+SemanticGeometry.swift#waitForSemanticElement
+ui.wait_gone	VPhoneDaemon/Daemon/GuestAPI+SemanticGeometry.swift#waitForSemanticElement
 visionos.immersion.get	VPhoneDaemon/Daemon/GuestAPI+VisionOSImmersion.swift#visionOSImmersionReadResult
 visionos.immersion.set	VPhoneDaemon/Daemon/GuestAPI+VisionOSImmersion.swift#visionOSImmersionSetResult
