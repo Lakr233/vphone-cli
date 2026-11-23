@@ -13,6 +13,7 @@ class VPhoneMenuController {
     weak var vm: VPhoneVirtualMachine? {
         didSet {
             updateMemoryDumpItem()
+            updatePauseItem()
             hardwareKeyboardItem?.state = vm?.usesHardwareKeyboard == true ? .on : .off
             hardwareKeyboardItem?.isEnabled = vm != nil
             if let vm, let item = hardwareKeyboardItem {
@@ -79,6 +80,7 @@ class VPhoneMenuController {
     var connectPingItem: NSMenuItem?
     var connectGuestHashItem: NSMenuItem?
     var memoryDumpItem: NSMenuItem?
+    var pauseItem: NSMenuItem?
     var isSavingMemoryDump = false
     var installBootstrapItem: NSMenuItem?
     var installBootstrapFromFileItem: NSMenuItem?

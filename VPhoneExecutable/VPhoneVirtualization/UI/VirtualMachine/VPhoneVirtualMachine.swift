@@ -37,6 +37,18 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     /// The attachment the VM booted with, put back by `setNetworkLink(up: true)`
     /// after a runtime change.
     private var bootAttachment: VZNetworkDeviceAttachment?
+    /// Paused with `pause()`, from the menu, `vphone.sock` or `vm pause`. A
+    /// memory dump's own short pause does not count. True from the moment
+    /// `pause()` is called.
+    private(set) var isPaused = false
+    /// When `pause()` last stopped the guest, for the log line at the resume.
+    private var pausedSince: Date?
+    /// A pause or resume is on its way through Virtualization.
+    private var isChangingPause = false
+    /// Run by `pause()` while the guest still answers: lets go of keys and
+    /// buttons held through vphoned, whose release would be refused while
+    /// paused and leave them held in the guest after the resume.
+    var releasesHeldInputBeforePause: (@MainActor () async -> Void)?
 
     struct Options {
         var configURL: URL
@@ -478,6 +490,99 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
         }
         device.attachment = up ? bootAttachment : nil
         print("[vphone] Network link \(up ? "up" : "down")")
+    }
+
+    // MARK: - Pause
+
+    /// Posted with the VM as object whenever `isPaused` changes: as `pause()`
+    /// starts, and once `resume()` has let the guest run.
+    static let pauseDidChangeNotification = Notification.Name("VPhoneVirtualMachinePauseDidChange")
+
+    enum PauseError: LocalizedError, CustomStringConvertible {
+        case notRunning
+        case busy
+        case memoryDump
+
+        var errorDescription: String? {
+            switch self {
+            case .notRunning: "The guest is not running, so it cannot be paused."
+            case .busy: "The guest is already being paused or resumed."
+            case .memoryDump: "A memory dump of this machine is being saved. Try again once it has finished."
+            }
+        }
+
+        var description: String { errorDescription ?? "pause failed" }
+    }
+
+    /// Stops every vCPU and the guest's devices through Virtualization, as
+    /// the core writer does for a memory dump; nothing in the guest runs
+    /// until `resume()`. Its clocks stand still too, so no watchdog sees the
+    /// time go by. Pausing a paused guest does nothing.
+    func pause() async throws {
+        // Checked first: `isPaused` is already set while a pause is on its way.
+        guard !isChangingPause else { throw PauseError.busy }
+        guard !isPaused else { return }
+        guard !VPhoneMemoryDump.isSaving(virtualMachine) else { throw PauseError.memoryDump }
+        guard virtualMachine.state == .running, virtualMachine.canPause else { throw PauseError.notRunning }
+        isChangingPause = true
+        defer { isChangingPause = false }
+        await releasesHeldInputBeforePause?()
+        guard virtualMachine.state == .running, virtualMachine.canPause else { throw PauseError.notRunning }
+        // Guest requests are refused from here, before the vCPUs stop: one
+        // sent in between would wait out the whole pause.
+        isPaused = true
+        NotificationCenter.default.post(name: Self.pauseDidChangeNotification, object: self)
+        nonisolated(unsafe) let vm = virtualMachine
+        do {
+            try await vm.pause()
+        } catch {
+            isPaused = false
+            NotificationCenter.default.post(name: Self.pauseDidChangeNotification, object: self)
+            throw error
+        }
+        pausedSince = Date()
+        print("[vphone] Guest paused")
+    }
+
+    /// Lets a guest paused with `pause()` run on where it stopped. Resuming
+    /// a guest that runs does nothing.
+    func resume() async throws {
+        guard !isChangingPause else { throw PauseError.busy }
+        guard isPaused else { return }
+        guard !VPhoneMemoryDump.isSaving(virtualMachine) else { throw PauseError.memoryDump }
+        isChangingPause = true
+        defer { isChangingPause = false }
+        nonisolated(unsafe) let vm = virtualMachine
+        try await vm.resume()
+        isPaused = false
+        let seconds = pausedSince.map { Date().timeIntervalSince($0) } ?? 0
+        pausedSince = nil
+        print(String(format: "[vphone] Guest resumed after %.1f s", seconds))
+        NotificationCenter.default.post(name: Self.pauseDidChangeNotification, object: self)
+        NotificationCenter.default.post(name: VPhoneMemoryDump.guestResumedNotification, object: nil)
+    }
+
+    /// `resume()` for a stop, restart or shutdown that needs the guest to
+    /// answer: a pause or resume on its way, or a memory dump, is waited for
+    /// first instead of refused. A dump is not cut short by the stop that
+    /// follows: the guest cannot shut down while the core writer holds it.
+    func resumeWhenSettled() async throws {
+        if VPhoneMemoryDump.isSaving(virtualMachine) {
+            print("[vphone] Waiting for the memory dump to finish")
+        }
+        while isChangingPause || VPhoneMemoryDump.isSaving(virtualMachine) {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        try await resume()
+    }
+
+    /// `pause` and `resume` as the control socket reports them.
+    var pauseStatus: [String: Any] {
+        var status: [String: Any] = ["paused": isPaused]
+        if let pausedSince {
+            status["paused_seconds"] = VPhoneMemoryDump.tenths(Date().timeIntervalSince(pausedSince))
+        }
+        return status
     }
 
     static func describe(_ plan: VPhoneNetworkPlan) -> String {

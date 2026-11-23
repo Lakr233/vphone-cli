@@ -56,10 +56,12 @@ extension VPhoneMenuController {
         let folder = parent.appendingPathComponent(VPhoneMemoryDump.folderName(machine: name, date: Date()))
         isSavingMemoryDump = true
         updateMemoryDumpItem()
+        updatePauseItem()
         Task { @MainActor in
             defer {
                 isSavingMemoryDump = false
                 updateMemoryDumpItem()
+                updatePauseItem()
             }
             do {
                 let dump = try await VPhoneMemoryDump.save(from: vm, machineName: name, to: folder)

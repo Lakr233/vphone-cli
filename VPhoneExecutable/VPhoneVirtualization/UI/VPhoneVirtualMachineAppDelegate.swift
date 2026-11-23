@@ -113,6 +113,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
         control.isHomePodGuest = options.isHomePodGuest
         control.isHomeViewGuest = options.isHomeViewGuest
         self.control = control
+        observePause(of: vm)
         if !command.dfu {
             control.unlocksAtStartup = vm.unlocksAtStartup
             control.syncsGuestEnvironment = !options.usesTVOS
@@ -445,6 +446,30 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
         hostAutomationServer = server
     }
 
+    /// `pause()` and `resume()` post on the main actor and the observer runs at
+    /// once, so requests are refused before the guest stops and allowed again
+    /// before `guestResumedNotification` sets its clock.
+    @MainActor
+    private func observePause(of vm: VPhoneVirtualMachine) {
+        vm.releasesHeldInputBeforePause = { [weak self] in
+            (NSApp as? VPhoneApplication)?.releaseHeldGuestKeys()
+            await self?.control?.releaseHeldHIDKeys()
+        }
+        let center = NotificationCenter.default
+        center.removeObserver(self, name: VPhoneVirtualMachine.pauseDidChangeNotification, object: nil)
+        center.addObserver(
+            self, selector: #selector(pauseDidChange(_:)),
+            name: VPhoneVirtualMachine.pauseDidChangeNotification, object: vm,
+        )
+    }
+
+    @MainActor @objc private func pauseDidChange(_ notification: Notification) {
+        guard let vm = notification.object as? VPhoneVirtualMachine, vm === self.vm else { return }
+        control?.isGuestPaused = vm.isPaused
+        windowController?.isGuestPaused = vm.isPaused
+        menuController?.updatePauseItem()
+    }
+
     /// The guest shows the VM's name, the folder holding config.plist, as its
     /// device name. A VM name that cannot be one is not used, and the guest
     /// keeps its own.
@@ -689,6 +714,22 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
         isShuttingDownGuest = true
         print("[vphone] Asking the guest to shut down")
         Task { @MainActor [weak self] in
+            // A paused guest cannot answer; it runs on to shut down, once a
+            // pause, resume or memory dump on its way has finished. The
+            // shutdown's time limit starts only then, so it cannot cut a dump
+            // short.
+            do {
+                try await self?.vm?.resumeWhenSettled()
+            } catch {
+                print("[vphone] Could not resume the paused guest to shut it down: \(error); turning it off")
+                self?.powerOff()
+                return
+            }
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: Self.guestShutdownTimeout)
+                print("[vphone] Guest still running after \(Self.guestShutdownTimeout); turning it off")
+                self?.powerOff()
+            }
             do {
                 try await control.shutDownGuest()
             } catch let VPhoneGuestControl.ControlError.guestError(message) {
@@ -697,11 +738,6 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             } catch {
                 // The guest can stop before it replies, so the connection drops.
             }
-        }
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: Self.guestShutdownTimeout)
-            print("[vphone] Guest still running after \(Self.guestShutdownTimeout); turning it off")
-            self?.powerOff()
         }
         return .terminateCancel
     }

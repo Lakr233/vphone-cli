@@ -18,11 +18,15 @@ final class VPhoneGuestControl {
         /// The guest's Location Services switch is off, so it has no location to
         /// give an app, a simulated one included.
         case locationServicesOff(String)
+        /// The VM is paused (`VPhoneVirtualMachine.pause()`).
+        case guestPaused
 
         var description: String {
             switch self {
             case .notConnected:
                 VPhoneLocalization.text("The guest agent is not connected. Wait for it to connect, then try again.")
+            case .guestPaused:
+                VPhoneLocalization.text("The guest is paused. Resume it, then try again.")
             case let .unsupportedCapability(value): "guest does not support capability: \(value)"
             case let .protocolError(value): "API protocol error: \(value)"
             case let .guestError(value), let .bootstrapAlreadyInstalled(value), let .locationServicesOff(value): value
@@ -100,6 +104,11 @@ final class VPhoneGuestControl {
     /// a start. Guest counters such as the clipboard's change count start
     /// again with each instance.
     @ObservationIgnored private(set) var connectedInstance: String?
+    /// Set while the VM is paused with `VPhoneVirtualMachine.pause()`. Requests
+    /// fail at once instead of waiting for the guest: one held until the resume
+    /// would act on what the host knew at the pause, such as the Mac's time
+    /// for the clock. The probe waits too, so a pause is not a disconnect.
+    @ObservationIgnored var isGuestPaused = false
     /// Called whenever the address the guest reports changes, nil on disconnect.
     @ObservationIgnored var onGuestIPAddressChange: ((String?) -> Void)?
 
@@ -325,6 +334,7 @@ final class VPhoneGuestControl {
     }
 
     private func probe() async {
+        guard !isGuestPaused else { return }
         do {
             let response: VPhoneHTTPResponse
             do {
@@ -407,6 +417,11 @@ final class VPhoneGuestControl {
                 }
             }
         } catch {
+            // A probe sent before a pause goes unanswered until the socket
+            // times out, and its retry is refused as paused. Neither says the
+            // guest has gone: counting it so would turn a stop of the paused
+            // guest into a power-off instead of a resume and shutdown.
+            if isGuestPaused { return }
             if !isConnected {
                 print("[control] probe failed: \(error)")
             }
@@ -451,6 +466,37 @@ final class VPhoneGuestControl {
     }
 
     @ObservationIgnored private var heldHIDKeys: [UInt64: ContinuousClock.Instant] = [:]
+
+    /// Lets go of every key and button the guest holds through `input.hid`
+    /// and returns once the input queue has run, so the releases have reached
+    /// the guest. A pause calls this first: a release sent while paused is
+    /// refused, and the key would stay held after the resume. A guest that
+    /// does not answer holds the pause up for no more than `limit`.
+    func releaseHeldHIDKeys(within limit: Duration = .seconds(2)) async {
+        let deadline = ContinuousClock.now + limit
+        // Releases already queued, such as the window's for 🌐, go first, so
+        // none is sent twice.
+        await waitForOrderedInput(until: deadline)
+        guard !heldHIDKeys.isEmpty else { return }
+        for key in heldHIDKeys.keys {
+            sendHIDUp(page: UInt32(key >> 32), usage: UInt32(key & 0xFFFF_FFFF))
+        }
+        await waitForOrderedInput(until: deadline)
+    }
+
+    private final class Flag { var isSet = false }
+
+    private func waitForOrderedInput(until deadline: ContinuousClock.Instant) async {
+        guard let pending = orderedInput else { return }
+        let done = Flag()
+        Task { @MainActor in
+            await pending.value
+            done.isSet = true
+        }
+        while !done.isSet, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(20))
+        }
+    }
 
     private func sendHID(page: UInt32, usage: UInt32, down: Bool?, minimumHold: Duration = .zero, longPress: Bool = false) {
         var params: [String: Any] = ["page": page, "usage": usage]
@@ -1194,6 +1240,7 @@ final class VPhoneGuestControl {
     /// complete, neither of which suits a terminal that is idle most of the
     /// time. `VPhoneGuestShellChannel` is the only caller.
     func openGuestStream() async throws -> VPhoneGuestStream {
+        guard !isGuestPaused else { throw ControlError.guestPaused }
         guard let device else { throw ControlError.notConnected }
         let socket = await withCheckedContinuation {
             (continuation: CheckedContinuation<VPhoneSocketResult, Never>) in
@@ -1217,6 +1264,7 @@ final class VPhoneGuestControl {
         upload: URL? = nil,
         download: FileHandle? = nil,
     ) async throws -> VPhoneHTTPResponse {
+        guard !isGuestPaused else { throw ControlError.guestPaused }
         guard let device else { throw ControlError.notConnected }
         let socket = await withCheckedContinuation {
             (continuation: CheckedContinuation<VPhoneSocketResult, Never>) in

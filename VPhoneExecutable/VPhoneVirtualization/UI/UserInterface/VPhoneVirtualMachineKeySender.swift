@@ -26,6 +26,14 @@ class VPhoneVirtualMachineKeySender {
     // MARK: - Connection Guard
 
     private func requireConnection() -> Bool {
+        if control.isGuestPaused {
+            VPhoneAlert.present(
+                title: "Guest Paused",
+                message: "The guest is paused. Resume it, then try again.",
+                style: .warning,
+            )
+            return false
+        }
         if control.isConnected {
             return true
         }
@@ -43,6 +51,7 @@ class VPhoneVirtualMachineKeySender {
     /// The TV's Back/Menu key through the same native keyboard as arrows and
     /// Return. This works without the guest daemon, including during setup.
     func sendTVBack() {
+        guard !control.isGuestPaused else { return }
         guard let keyboard = firstKeyboard else { return }
         for type in [0, 1] {
             if let event = Dynamic._VZKeyEvent(type: type, keyCode: UInt16(0x35)).asAnyObject {
@@ -122,6 +131,10 @@ class VPhoneVirtualMachineKeySender {
     }
 
     func typeString(_ string: String) {
+        guard !control.isGuestPaused else {
+            print("[keys] The guest is paused; nothing typed")
+            return
+        }
         guard let keyboard = firstKeyboard else {
             print("[keys] No keyboard found")
             return

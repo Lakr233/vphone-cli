@@ -92,6 +92,23 @@ printf '%s\n' '{"t":"rpc","method":"device.info","params":{}}' | nc -U ~/.vphone
 
 例如，`input.key` 配合 `{"name":"cmd+v"}` 可以粘贴，`input.type` 可以输入文本。这个流程不会安装 SSH 或 VNC 端点。需要 HTTP 和 WebSocket 访问时，请参阅[自动化 API](automation-api.md)。要存储客户机的内存，请发送 `memory.dump`，参阅[内存转储](memory-dumps.md)。
 
+## 暂停与继续
+
+暂停会让客户机停在当前状态：它的 App、时钟和网络连接都会等到你让它继续运行，在此期间 Mac 的处理器不被占用。客户机会保留内存，但仅限于虚拟机运行期间；暂停状态不会被存储。
+
+- 在虚拟机窗口中选择 **Device > Pause Guest**，选择 **Device > Resume Guest** 可继续运行。
+- 在终端中：`vphone-cli vm pause myphone` 和 `vphone-cli vm resume myphone`。
+- 通过[控制套接字](#控制套接字)：`{"t":"pause"}` 和 `{"t":"resume"}`。
+
+客户机暂停期间：
+
+- 显示画面变暗，窗口副标题显示“已暂停”。轻点、按键和指针都不会传给客户机，因此继续运行时不会有迟到的输入。
+- 需要 vphoned 的请求（例如 `rpc`、`screenshot` 或 `push`）会失败，并说明客户机已暂停。
+- 暂停时已在进行的请求（例如文件 `push`）会等待客户机。如果暂停超过两分钟，它会失败；请在恢复后重新发送。
+- 仍然可以存储[内存转储](memory-dumps.md)。客户机保持暂停，转储记录的是它暂停时的状态。
+
+客户机继续运行时，它的时钟会重新设为 Mac 的时间。用上述任一方式停止已暂停的虚拟机时，会先让客户机继续运行，因此它仍会正常关闭。暂停时间过长可能超过客户机所连接服务器的超时时间，就像 iPhone 长时间休眠一样。
+
 ## 手动运行各个阶段
 
 排查问题或重复某个阶段时使用。`restore` 与虚拟机通信期间，要让 DFU 启动保持运行：
