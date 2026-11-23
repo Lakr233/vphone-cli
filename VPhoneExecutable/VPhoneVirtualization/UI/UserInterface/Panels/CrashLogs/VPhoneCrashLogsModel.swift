@@ -85,7 +85,7 @@ final class VPhoneCrashLogsModel {
         activity = .listing
         defer { activity = nil }
         do {
-            let result = try await control.call("logs.crashes")
+            let result = try await control.callList("logs.crashes", key: "crashes")
             apply(crashesResult: result)
             succeed(String(localized: "Crash reports: \(reports.count)", bundle: VPhoneLocalization.bundle))
         } catch {

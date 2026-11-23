@@ -679,7 +679,7 @@ public final class VPhoneTemplateSetupBoot {
         let end = deadline(timeouts.stallCapture)
         log("  capturing the stall:")
         do {
-            let rows = try call("processes.list", [:], deadline: end)["processes"] as? [[String: Any]] ?? []
+            let rows = try callList("processes.list", key: "processes", deadline: end)["processes"] as? [[String: Any]] ?? []
             let picked = rows.filter {
                 Self.isStallProcess(name: $0["name"] as? String ?? "", executable: $0["executable"] as? String ?? "")
             }
@@ -1040,7 +1040,7 @@ public final class VPhoneTemplateSetupBoot {
 
     private func verificationProblems(deadline end: Date) throws -> [String] {
         var problems: [String] = []
-        let snapshots = try strings(call("apfs.snapshots", [:], deadline: end)["snapshots"])
+        let snapshots = try strings(callList("apfs.snapshots", key: "snapshots", deadline: end)["snapshots"])
             .filter { $0.hasPrefix(Self.snapshotPrefix) }
         if !snapshots.isEmpty {
             problems.append("snapshots left: \(snapshots.joined(separator: ", "))")
@@ -1060,7 +1060,7 @@ public final class VPhoneTemplateSetupBoot {
         }
         let removed = Set(outcome.removedApps)
         if !removed.isEmpty {
-            let listed = try (call("apps.list", [:], deadline: end)["apps"] as? [[String: Any]] ?? [])
+            let listed = try (callList("apps.list", key: "apps", deadline: end)["apps"] as? [[String: Any]] ?? [])
                 .compactMap { $0["bundle_id"] as? String }
             let back = listed.filter { removed.contains($0) }
             if !back.isEmpty {
@@ -1085,7 +1085,7 @@ public final class VPhoneTemplateSetupBoot {
         guard plan.clearsCrashReports else { return }
         let end = deadline(timeouts.crashReports)
         do {
-            let reports = try (call("logs.crashes", [:], deadline: end)["crashes"] as? [[String: Any]] ?? [])
+            let reports = try (callList("logs.crashes", key: "crashes", deadline: end)["crashes"] as? [[String: Any]] ?? [])
                 .compactMap { $0["path"] as? String }
                 .filter(Self.isCrashReport)
             var left: [String] = []
@@ -1167,6 +1167,14 @@ public final class VPhoneTemplateSetupBoot {
     private func checkMachine() throws {
         if let reason = machine.failure() {
             throw StepError(reason)
+        }
+    }
+
+    /// A paged list method read whole, one `call` per page: vphoned answers
+    /// 200 rows at a time.
+    private func callList(_ method: String, key: String, deadline: Date) throws -> [String: Any] {
+        try VPhoneGuestPagedList.collect(key: key) { page in
+            try call(method, page, deadline: deadline)
         }
     }
 

@@ -5,7 +5,7 @@ extension VPhoneGuestControl {
 
     /// Every registered app with its running PID; the browser filters locally.
     func appList() async throws -> [String: Any] {
-        try await call("apps.list", params: ["filter": "all"])
+        try await callList("apps.list", key: "apps", params: ["filter": "all"])
     }
 
     func appLaunch(bundleID: String) async throws -> [String: Any] {
