@@ -52,10 +52,65 @@ struct VPhoneKernelSymbols {
         Bundle.main.resourceURL?.appendingPathComponent("kernelcache_recipes", isDirectory: true)
     }
 
+    /// What has been read, by recipes folder: the manifests' kernel UUIDs, and
+    /// each map once it is used. A map is unzipped and parsed once per process,
+    /// so later dumps of a guest pause it for less time, and a kernel UUID
+    /// without a map is refused without reading anything.
+    private static let cache = Cache()
+
+    private struct Entry {
+        let id: String
+        let folder: URL
+        let segments: [Segment]
+        let mapName: String
+    }
+
+    private final class Cache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var indexes: [String: [String: Entry]] = [:]
+        private var maps: [String: VPhoneKernelSymbols] = [:]
+
+        func index(_ root: URL) -> [String: Entry] {
+            if let hit = lock.withLock({ indexes[root.path] }) { return hit }
+            let index = VPhoneKernelSymbols.readIndex(root)
+            lock.withLock { indexes[root.path] = index }
+            return index
+        }
+
+        func map(_ key: String, _ make: () throws -> VPhoneKernelSymbols) throws -> VPhoneKernelSymbols {
+            if let hit = lock.withLock({ maps[key] }) { return hit }
+            let value = try make()
+            lock.withLock { maps[key] = value }
+            return value
+        }
+    }
+
+    /// Whether a recipe names `kernelUUID`; reads only the manifests, once.
+    static func hasMap(kernelUUID: String, root: URL? = recipesDirectory) -> Bool {
+        guard let root else { return false }
+        return cache.index(root)[kernelUUID.uppercased()] != nil
+    }
+
     /// The map whose manifest names `kernelUUID`.
     static func load(kernelUUID: String, root: URL? = recipesDirectory) throws -> VPhoneKernelSymbols {
         guard let root else { throw Failure.noRecipes }
+        guard let entry = cache.index(root)[kernelUUID.uppercased()] else {
+            throw Failure.unknownKernel(kernelUUID)
+        }
+        return try cache.map("\(kernelUUID.uppercased())|\(root.path)") {
+            let addresses = try symbolAddresses(
+                required, map: entry.folder.appendingPathComponent(entry.mapName), id: entry.id,
+            )
+            return VPhoneKernelSymbols(id: entry.id, segments: entry.segments, addresses: addresses)
+        }
+    }
+
+    /// Kernel UUID (uppercase) to its recipe, from every manifest that has
+    /// `kernelUUID` and `kernelSegments`; the first in `bases`, `kernels`,
+    /// `donors` order wins.
+    private static func readIndex(_ root: URL) -> [String: Entry] {
         let manager = FileManager.default
+        var index: [String: Entry] = [:]
         for group in ["bases", "kernels", "donors"] {
             let directory = root.appendingPathComponent(group, isDirectory: true)
             let entries = (try? manager.contentsOfDirectory(atPath: directory.path)) ?? []
@@ -63,21 +118,21 @@ struct VPhoneKernelSymbols {
                 let folder = directory.appendingPathComponent(entry, isDirectory: true)
                 guard let data = try? Data(contentsOf: folder.appendingPathComponent("manifest.json")),
                       let manifest = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      (manifest["kernelUUID"] as? String)?.uppercased() == kernelUUID.uppercased(),
-                      let segmentTable = manifest["kernelSegments"] as? [String: [NSNumber]]
+                      let uuid = (manifest["kernelUUID"] as? String)?.uppercased(),
+                      let segmentTable = manifest["kernelSegments"] as? [String: [NSNumber]],
+                      index[uuid] == nil
                 else { continue }
                 let segments = segmentTable.compactMap { name, pair -> Segment? in
                     guard pair.count == 2 else { return nil }
                     return Segment(name: name, address: pair[0].uint64Value, size: pair[1].uint64Value)
                 }
-                let mapName = manifest["symbols"] as? String ?? "symbols.json.gz"
-                let addresses = try symbolAddresses(
-                    required, map: folder.appendingPathComponent(mapName), id: entry,
+                index[uuid] = Entry(
+                    id: entry, folder: folder, segments: segments,
+                    mapName: manifest["symbols"] as? String ?? "symbols.json.gz",
                 )
-                return VPhoneKernelSymbols(id: entry, segments: segments, addresses: addresses)
             }
         }
-        throw Failure.unknownKernel(kernelUUID)
+        return index
     }
 
     /// The segment-relative position of a symbol: segment name and offset.

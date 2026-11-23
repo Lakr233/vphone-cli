@@ -6,15 +6,17 @@ import Virtualization
 // MARK: - Mapping a VM's Memory
 
 extension VPhoneGuestPhysicalMemory {
-    /// Maps the guest memory of `virtualMachine`. Call on the main actor, where
-    /// the VM lives; the result may be used from any thread. The mapping ends
-    /// when the result is released.
+    /// Maps the guest memory of `virtualMachine`. Only the service's pid is
+    /// asked for on the main actor, where the VM lives; the mapping and the
+    /// device-tree search run on another thread, so the window and the control
+    /// socket stay responsive. The result may be used from any thread, and the
+    /// mapping ends when it is released.
     @MainActor
-    static func map(_ virtualMachine: VZVirtualMachine) throws -> VPhoneGuestPhysicalMemory {
+    static func map(_ virtualMachine: VZVirtualMachine) async throws -> VPhoneGuestPhysicalMemory {
         guard let pid = serviceProcessIdentifier(virtualMachine), pid > 0 else {
             throw Failure.serviceUnknown
         }
-        return try map(servicePID: pid)
+        return try await Task.detached(priority: .userInitiated) { try map(servicePID: pid) }.value
     }
 
     /// Maps the guest memory held by the Virtualization service process `pid`.
@@ -41,15 +43,20 @@ extension VPhoneGuestPhysicalMemory {
             )
             guard status == KERN_SUCCESS else { throw Failure.remap(status) }
             mapped.append((target, size))
-            // A view, never a way to change the guest.
-            mach_vm_protect(mach_task_self_, target, size, 0, VM_PROT_READ)
+            // A view, never a way to change the guest: the maximum protection
+            // first, so the alias can never be made writable again, then the
+            // current one.
+            for setMaximum: boolean_t in [1, 0] {
+                let status = mach_vm_protect(mach_task_self_, target, size, setMaximum, VM_PROT_READ)
+                guard status == KERN_SUCCESS else { throw Failure.protect(status) }
+            }
             return UnsafeRawPointer(bitPattern: UInt(target))!
         }
         do {
             let dramBase = try remap(largest.address, largest.size)
-            guard let base = deviceTreeValue("dram-base", in: dramBase, size: largest.size) else {
-                throw Failure.dramBaseUnknown
-            }
+            guard let base = deviceTreeValue("dram-base", in: dramBase, size: largest.size),
+                  base & (pageSize - 1) == 0, !base.addingReportingOverflow(largest.size).overflow
+            else { throw Failure.dramBaseUnknown }
             let dram = Region(guestAddress: base, size: largest.size, base: dramBase, serviceAddress: largest.address)
 
             // The carve-out block sits directly below DRAM: accept a region as
@@ -59,7 +66,8 @@ extension VPhoneGuestPhysicalMemory {
             if !carveOuts.isEmpty {
                 for region in regions where region.address != largest.address && region.size < base {
                     let low = base - region.size
-                    if carveOuts.allSatisfy({ low <= $0.base && $0.base + $0.size <= base }) {
+                    // Written without a sum of guest values.
+                    if carveOuts.allSatisfy({ low <= $0.base && $0.size <= base - $0.base }) {
                         found = try Region(
                             guestAddress: low,
                             size: region.size,

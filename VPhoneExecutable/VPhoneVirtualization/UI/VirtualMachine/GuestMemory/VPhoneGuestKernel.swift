@@ -82,46 +82,134 @@ final class VPhoneGuestKernel: @unchecked Sendable {
     let root: UInt64
     let symbols: VPhoneKernelSymbols
     /// The kernel's own pmap (`kernel_pmap_store`).
-    private(set) var kernelPmap: UInt64 = 0
+    let kernelPmap: UInt64
     /// The offsets `processes()` found, once it has run.
     private(set) var layout: Layout?
     private let imageLow: UInt64
     private let imageHigh: UInt64
 
     static let pageSize: UInt64 = 0x4000
+    /// More processes than iOS allows; a longer list is not followed.
+    static let processLimit = 20000
     private static let tableMask: UInt64 = 0x0000_FFFF_FFFF_C000
 
     init(memory: VPhoneGuestPhysicalMemory, symbolsRoot: URL? = VPhoneKernelSymbols.recipesDirectory) throws {
         self.memory = memory
-        guard let (kernelcache, kernel) = Self.findKernel(memory) else { throw Failure.noKernelcache }
-        kernelcachePhysical = kernelcache
-        kernelUUID = kernel.uuid
-        segments = kernel.segments
-        imageLow = kernel.segments.map(\.address).min() ?? 0
-        imageHigh = kernel.segments.map { $0.address + $0.size }.max() ?? 0
+        let (candidates, unknownUUID) = Self.findKernels(memory, symbolsRoot: symbolsRoot)
+        guard !candidates.isEmpty else {
+            if symbolsRoot == nil { throw VPhoneKernelSymbols.Failure.noRecipes }
+            if let unknownUUID { throw VPhoneKernelSymbols.Failure.unknownKernel(unknownUUID) }
+            throw Failure.noKernelcache
+        }
 
-        // __TEXT and __DATA_CONST are where the file put them: pairs of a
-        // virtual address and the physical address it must translate to.
-        var known: [(UInt64, UInt64)] = []
-        for name in ["__TEXT", "__DATA_CONST"] {
-            guard let segment = kernel.segments.first(where: { $0.name == name }), segment.size >= Self.pageSize
-            else { throw Failure.unexpected("the kernel has no \(name)") }
-            for offset in [0, (segment.size / 2) & ~(Self.pageSize - 1), segment.size - Self.pageSize] {
-                known.append((segment.address + offset, kernelcache + segment.fileOffset + offset))
+        // Every candidate is checked against one list of possible root tables,
+        // taken in a single pass over DRAM, so a copied header costs a few
+        // thousand table lookups rather than a pass of its own.
+        var firstError: Error?
+        let checks = candidates.compactMap { kernelcache, kernel -> Candidate? in
+            do {
+                return try Candidate(kernelcache: kernelcache, kernel: kernel)
+            } catch {
+                firstError = firstError ?? error
+                return nil
             }
         }
-        guard let root = Self.findRoot(memory, known: known) else { throw Failure.noPageTables }
-        self.root = root
+        let roots = Self.possibleRoots(memory, indexes: Set(checks.map(\.rootIndex)))
+        var found: Resolved?
+        search: for candidate in checks {
+            var rootFound = false
+            for root in roots[candidate.rootIndex] ?? [] where candidate.translates(through: root, memory) {
+                rootFound = true
+                do {
+                    found = try Self.resolve(memory, candidate, root: root, symbolsRoot: symbolsRoot)
+                    break search
+                } catch {
+                    firstError = firstError ?? error
+                }
+            }
+            if !rootFound { firstError = firstError ?? Failure.noPageTables }
+        }
+        guard let found else { throw firstError ?? Failure.noKernelcache }
+        kernelcachePhysical = found.kernelcache
+        kernelUUID = found.kernel.uuid
+        segments = found.kernel.segments
+        root = found.root
+        symbols = found.symbols
+        kernelPmap = found.pmap
+        imageLow = segments.map(\.address).min() ?? 0
+        imageHigh = segments.map { $0.address &+ $0.size }.max() ?? 0
+    }
 
-        symbols = try VPhoneKernelSymbols.load(kernelUUID: kernel.uuid, root: symbolsRoot)
-        guard let pointer = try read64(symbol: "_kernel_pmap") else {
+    private struct Resolved {
+        let kernelcache: UInt64
+        let kernel: KernelImage
+        let root: UInt64
+        let symbols: VPhoneKernelSymbols
+        let pmap: UInt64
+    }
+
+    /// A kernelcache header and the translations its kernel implies:
+    /// `__TEXT` and `__DATA_CONST` are where the file put them, so three
+    /// virtual addresses of each must translate to the header's physical
+    /// address plus their file offsets.
+    private struct Candidate {
+        let kernelcache: UInt64
+        let kernel: KernelImage
+        let known: [(virtual: UInt64, physical: UInt64)]
+
+        init(kernelcache: UInt64, kernel: KernelImage) throws {
+            var known: [(UInt64, UInt64)] = []
+            for name in ["__TEXT", "__DATA_CONST"] {
+                guard let segment = kernel.segments.first(where: { $0.name == name }),
+                      segment.size >= VPhoneGuestKernel.pageSize
+                else { throw Failure.unexpected("the kernel has no \(name)") }
+                let page = VPhoneGuestKernel.pageSize
+                for offset in [0, (segment.size / 2) & ~(page - 1), segment.size - page] {
+                    known.append((segment.address &+ offset, kernelcache &+ segment.fileOffset &+ offset))
+                }
+            }
+            self.kernelcache = kernelcache
+            self.kernel = kernel
+            self.known = known
+        }
+
+        /// The root-table entry the first address uses.
+        var rootIndex: Int { Int((known[0].virtual >> 36) & 0x7FF) }
+
+        func translates(through root: UInt64, _ memory: VPhoneGuestPhysicalMemory) -> Bool {
+            let tables = VPhoneGuestPageTables(memory: memory, root: root)
+            return known.allSatisfy { tables.translate($0.virtual) == $0.physical }
+        }
+    }
+
+    /// Checks the rest of a candidate whose segments translate through
+    /// `root`: its symbol map and `kernel_pmap` must agree with that root.
+    private static func resolve(
+        _ memory: VPhoneGuestPhysicalMemory,
+        _ candidate: Candidate,
+        root: UInt64,
+        symbolsRoot: URL?,
+    ) throws -> Resolved {
+        let tables = VPhoneGuestPageTables(memory: memory, root: root)
+        func read64(_ address: UInt64) -> UInt64? {
+            tables.translate(address).flatMap { memory.read64(physical: $0) }
+        }
+        let kernel = candidate.kernel
+        let symbols = try VPhoneKernelSymbols.load(kernelUUID: kernel.uuid, root: symbolsRoot)
+        let (segmentName, offset) = try symbols.location(of: "_kernel_pmap")
+        guard let segment = kernel.segments.first(where: { $0.name == segmentName }) else {
+            throw Failure.unexpected("the kernel has no \(segmentName)")
+        }
+        guard let pointer = read64(segment.address &+ offset) else {
             throw Failure.unexpected("kernel_pmap is not mapped")
         }
-        let pmap = Self.strip(pointer)
-        guard let tte = read64(virtual: pmap), let ttep = read64(virtual: pmap + 8),
-              ttep == root, translate(Self.strip(tte)) == ttep
+        let pmap = strip(pointer)
+        guard let tte = read64(pmap), let ttep = read64(pmap &+ 8),
+              ttep == root, tables.translate(strip(tte)) == ttep
         else { throw Failure.unexpected("kernel_pmap does not hold the kernel's page tables") }
-        kernelPmap = pmap
+        return Resolved(
+            kernelcache: candidate.kernelcache, kernel: kernel, root: root, symbols: symbols, pmap: pmap,
+        )
     }
 
     // MARK: - Translation
@@ -159,7 +247,7 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         guard let segment = segments.first(where: { $0.name == segmentName }) else {
             throw Failure.unexpected("the kernel has no \(segmentName)")
         }
-        return segment.address + offset
+        return segment.address &+ offset
     }
 
     func read64(symbol name: String) throws -> UInt64? {
@@ -183,7 +271,7 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         var list = [first]
         var seen: Set<UInt64> = [first]
         var current = first
-        while list.count < 100_000, let previous = read64(virtual: current + 8).map(Self.strip),
+        while list.count < Self.processLimit, let previous = read64(virtual: current &+ 8).map(Self.strip),
               previous != 0, !(imageLow ..< imageHigh).contains(previous), !seen.contains(previous),
               translate(previous) != nil
         {
@@ -196,8 +284,8 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         self.layout = layout
         return list.map { address in
             Process(
-                pid: Int32(bitPattern: read32(virtual: address + layout.pid) ?? 0),
-                name: string(virtual: address + layout.name, maximum: 17) ?? "",
+                pid: Int32(bitPattern: read32(virtual: address &+ layout.pid) ?? 0),
+                name: string(virtual: address &+ layout.name, maximum: 17) ?? "",
                 address: address,
                 pageTableRoot: pageTableRoot(process: address, map: layout.map, pmap: layout.pmap),
             )
@@ -221,10 +309,10 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         // paused.
         var best: (offset: UInt64, distinct: Int)?
         for offset in stride(from: UInt64(0), to: 0x400, by: 4) {
-            guard read32(virtual: kernelTask + offset) == 0, read32(virtual: launchd + offset) == 1 else { continue }
+            guard read32(virtual: kernelTask &+ offset) == 0, read32(virtual: launchd &+ offset) == 1 else { continue }
             var values: Set<UInt32> = []
             for process in list {
-                if let value = read32(virtual: process + offset), value < 100_000 { values.insert(value) }
+                if let value = read32(virtual: process &+ offset), value < 100_000 { values.insert(value) }
             }
             if values.count > best?.distinct ?? 0 { best = (offset, values.count) }
         }
@@ -232,8 +320,8 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         let pid = best.offset
 
         let name = try stride(from: UInt64(0), to: 0x1000, by: 4).first { offset in
-            string(virtual: kernelTask + offset, maximum: 17) == "kernel_task"
-                && string(virtual: launchd + offset, maximum: 17) == "launchd"
+            string(virtual: kernelTask &+ offset, maximum: 17) == "kernel_task"
+                && string(virtual: launchd &+ offset, maximum: 17) == "launchd"
         }.unwrap(or: Failure.unexpected("no p_comm field"))
 
         // The task follows the proc in one allocation; its map points to a
@@ -251,10 +339,10 @@ final class VPhoneGuestKernel: @unchecked Sendable {
     }
 
     func pageTableRoot(process: UInt64, map: UInt64, pmap: UInt64) -> UInt64? {
-        guard let mapPointer = read64(virtual: process + map).map(Self.strip), translate(mapPointer) != nil,
-              let pmapPointer = read64(virtual: mapPointer + pmap).map(Self.strip),
+        guard let mapPointer = read64(virtual: process &+ map).map(Self.strip), translate(mapPointer) != nil,
+              let pmapPointer = read64(virtual: mapPointer &+ pmap).map(Self.strip),
               pmapPointer != kernelPmap, translate(pmapPointer) != nil,
-              let tte = read64(virtual: pmapPointer), let ttep = read64(virtual: pmapPointer + 8),
+              let tte = read64(virtual: pmapPointer), let ttep = read64(virtual: pmapPointer &+ 8),
               ttep & (Self.pageSize - 1) == 0, memory.contains(physical: ttep),
               translate(Self.strip(tte)) == ttep
         else { return nil }
@@ -262,22 +350,45 @@ final class VPhoneGuestKernel: @unchecked Sendable {
     }
 
     /// The valid translations of a process's address space, in address order.
-    func userMappings(root: UInt64) -> [Mapping] {
-        VPhoneGuestPageTables(memory: memory, root: root).mappings()
+    /// A process maps at most a little more than the guest has RAM (shared
+    /// pages twice); twice that is refused rather than written out.
+    func userMappings(root: UInt64) throws -> [Mapping] {
+        var limits = VPhoneGuestPageTables.Limits()
+        limits.bytes = max(2 * memory.dram.size, 4 << 30)
+        return try VPhoneGuestPageTables(memory: memory, root: root).mappings(limits: limits)
     }
 
     // MARK: - Locating
 
-    private struct KernelImage {
+    struct KernelImage {
         let uuid: String
         let segments: [Segment]
     }
 
-    /// The kernelcache's Mach-O header in DRAM, and the kernel inside it.
-    private static func findKernel(_ memory: VPhoneGuestPhysicalMemory) -> (UInt64, KernelImage)? {
+    /// Kernelcache headers in DRAM whose kernel has a symbol map, lowest
+    /// first, each with the kernel inside it, and the UUID of the first header
+    /// without a map. Any process can write such a header into its own pages,
+    /// and the kernel hands out memory below the kernelcache too (see
+    /// Research/Host/process_memory_dump.md), so copies may come first. One
+    /// with an unknown UUID costs nothing here; the caller checks the others
+    /// cheaply against one list of possible root tables and takes the first
+    /// whose page tables and `kernel_pmap` agree.
+    /// More headers than fit below the kernelcache on these guests (about
+    /// 58 MB into DRAM, 3,700 pages), so copies there cannot use up the
+    /// limit before the real one is reached.
+    static let kernelCandidateLimit = 16384
+    /// The kernel has about 15 segments; a header with more is not one.
+    static let segmentLimit = 64
+
+    static func findKernels(
+        _ memory: VPhoneGuestPhysicalMemory,
+        symbolsRoot: URL?,
+    ) -> (candidates: [(UInt64, KernelImage)], unknownUUID: String?) {
         let dram = memory.dram
+        var result: [(UInt64, KernelImage)] = []
+        var unknownUUID: String?
         var offset: UInt64 = 0
-        while offset + pageSize <= dram.size {
+        while offset + pageSize <= dram.size, result.count < kernelCandidateLimit {
             let header = dram.base + Int(offset)
             if header.loadUnaligned(as: UInt32.self) == 0xFEED_FACF,
                header.loadUnaligned(fromByteOffset: 4, as: UInt32.self) == 0x0100_000C,
@@ -286,17 +397,31 @@ final class VPhoneGuestKernel: @unchecked Sendable {
                entry < dram.size - offset,
                let kernel = image(header + Int(entry), available: dram.size - offset - entry)
             {
-                return (dram.guestAddress + offset, kernel)
+                if VPhoneKernelSymbols.hasMap(kernelUUID: kernel.uuid, root: symbolsRoot) {
+                    result.append((dram.guestAddress + offset, kernel))
+                } else {
+                    unknownUUID = unknownUUID ?? kernel.uuid
+                }
             }
             offset += pageSize
         }
-        return nil
+        return (result, unknownUUID)
     }
 
-    private static func loadCommands(_ header: UnsafeRawPointer, available: UInt64) -> [(UInt32, UnsafeRawPointer, Int)] {
+    /// The smallest valid length of the load commands that are read:
+    /// `LC_SEGMENT_64`, `LC_UUID` and `LC_FILESET_ENTRY`. A shorter one is
+    /// skipped, so no field is read past its command.
+    static let minimumCommandLength: [UInt32: Int] = [0x19: 72, 0x1B: 24, 0x8000_0035: 32]
+
+    /// The load commands of the Mach-O header at `header`, of which
+    /// `available` bytes are mapped. Each lies wholly within the header's
+    /// `sizeofcmds`, and that within `available`.
+    static func loadCommands(_ header: UnsafeRawPointer, available: UInt64) -> [(UInt32, UnsafeRawPointer, Int)] {
+        guard available >= 32 else { return [] }
         let count = Int(header.loadUnaligned(fromByteOffset: 16, as: UInt32.self))
         let size = Int(header.loadUnaligned(fromByteOffset: 20, as: UInt32.self))
-        guard count < 100_000, UInt64(32 + size) <= available else { return [] }
+        // The real kernelcache has about 160 commands in 11 KB.
+        guard count <= 4096, size <= 1 << 20, UInt64(32 + size) <= available else { return [] }
         var result: [(UInt32, UnsafeRawPointer, Int)] = []
         var cursor = 32
         for _ in 0 ..< count {
@@ -304,17 +429,19 @@ final class VPhoneGuestKernel: @unchecked Sendable {
             let command = header.loadUnaligned(fromByteOffset: cursor, as: UInt32.self)
             let length = Int(header.loadUnaligned(fromByteOffset: cursor + 4, as: UInt32.self))
             guard length >= 8, cursor + length <= 32 + size else { break }
-            result.append((command, header + cursor, length))
+            if length >= minimumCommandLength[command] ?? 8 {
+                result.append((command, header + cursor, length))
+            }
             cursor += length
         }
         return result
     }
 
     /// The file offset of a fileset entry (`LC_FILESET_ENTRY`).
-    private static func filesetEntry(_ name: String, header: UnsafeRawPointer, available: UInt64) -> UInt64? {
+    static func filesetEntry(_ name: String, header: UnsafeRawPointer, available: UInt64) -> UInt64? {
         for (command, pointer, length) in loadCommands(header, available: available) where command == 0x8000_0035 {
             let nameOffset = Int(pointer.loadUnaligned(fromByteOffset: 24, as: UInt32.self))
-            guard nameOffset < length else { continue }
+            guard nameOffset >= 32, nameOffset < length else { continue }
             let bytes = UnsafeRawBufferPointer(start: pointer + nameOffset, count: length - nameOffset)
             let entryName = String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
             if entryName == name {
@@ -324,22 +451,23 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         return nil
     }
 
-    private static func image(_ header: UnsafeRawPointer, available: UInt64) -> KernelImage? {
-        guard header.loadUnaligned(as: UInt32.self) == 0xFEED_FACF else { return nil }
+    /// The kernel's UUID and segments from its Mach-O header. A segment whose
+    /// end would pass 2^64 is left out.
+    static func image(_ header: UnsafeRawPointer, available: UInt64) -> KernelImage? {
+        guard available >= 32, header.loadUnaligned(as: UInt32.self) == 0xFEED_FACF else { return nil }
         var segments: [Segment] = []
         var uuid: String?
         for (command, pointer, _) in loadCommands(header, available: available) {
             if command == 0x19 {  // LC_SEGMENT_64
                 let bytes = UnsafeRawBufferPointer(start: pointer + 8, count: 16)
                 let name = String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
+                let address = pointer.loadUnaligned(fromByteOffset: 24, as: UInt64.self)
                 let size = pointer.loadUnaligned(fromByteOffset: 32, as: UInt64.self)
-                guard size > 0 else { continue }
-                segments.append(Segment(
-                    name: name,
-                    address: pointer.loadUnaligned(fromByteOffset: 24, as: UInt64.self),
-                    size: size,
-                    fileOffset: pointer.loadUnaligned(fromByteOffset: 40, as: UInt64.self),
-                ))
+                let fileOffset = pointer.loadUnaligned(fromByteOffset: 40, as: UInt64.self)
+                guard size > 0, !address.addingReportingOverflow(size).overflow,
+                      !fileOffset.addingReportingOverflow(size).overflow
+                else { continue }
+                segments.append(Segment(name: name, address: address, size: size, fileOffset: fileOffset))
             } else if command == 0x1B {  // LC_UUID
                 let bytes = (0 ..< 16).map { pointer.load(fromByteOffset: 8 + $0, as: UInt8.self) }
                 uuid = UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
@@ -347,28 +475,30 @@ final class VPhoneGuestKernel: @unchecked Sendable {
                     .uuidString
             }
         }
-        guard let uuid, !segments.isEmpty else { return nil }
+        guard let uuid, !segments.isEmpty, segments.count <= segmentLimit else { return nil }
         return KernelImage(uuid: uuid, segments: segments)
     }
 
-    /// The page in DRAM that, as a root table, maps every known pair.
-    private static func findRoot(_ memory: VPhoneGuestPhysicalMemory, known: [(UInt64, UInt64)]) -> UInt64? {
-        guard let (firstAddress, _) = known.first else { return nil }
-        let index = Int((firstAddress >> 36) & 0x7FF)
+    /// For each root-table index in `indexes`, the DRAM pages, lowest first,
+    /// whose entry at that index is a table descriptor into DRAM: the pages
+    /// that could be the kernel's root table. One pass over DRAM; on a booted
+    /// 27.2 guest about 2,800 of its 524,288 pages for the kernel's index.
+    static func possibleRoots(_ memory: VPhoneGuestPhysicalMemory, indexes: Set<Int>) -> [Int: [UInt64]] {
+        let sorted = indexes.sorted()
+        var result: [Int: [UInt64]] = [:]
         let dram = memory.dram
         var offset: UInt64 = 0
         while offset + pageSize <= dram.size {
-            let entry = (dram.base + Int(offset) + index * 8).loadUnaligned(as: UInt64.self)
-            if entry & 3 == 3, memory.contains(physical: entry & tableMask) {
-                let candidate = dram.guestAddress + offset
-                let probe = VPhoneGuestPageTables(memory: memory, root: candidate)
-                if known.allSatisfy({ probe.translate($0.0) == $0.1 }) {
-                    return candidate
+            let page = dram.base + Int(offset)
+            for index in sorted {
+                let entry = page.loadUnaligned(fromByteOffset: index * 8, as: UInt64.self)
+                if entry & 3 == 3, memory.contains(physical: entry & tableMask) {
+                    result[index, default: []].append(dram.guestAddress + offset)
                 }
             }
             offset += pageSize
         }
-        return nil
+        return result
     }
 }
 
@@ -403,28 +533,65 @@ struct VPhoneGuestPageTables {
         return nil
     }
 
+    /// What a walk of one address space may produce. Guest page tables can
+    /// point anywhere, themselves included; without these bounds a crafted
+    /// tree yields billions of entries while the guest stays paused.
+    struct Limits {
+        /// Table pages read below the root, each at most once.
+        var tables = 1 << 16
+        /// Translations returned.
+        var mappings = 1 << 21
+        /// Bytes those translations cover.
+        var bytes: UInt64 = 64 << 30
+    }
+
+    struct TooLarge: LocalizedError, CustomStringConvertible {
+        let limits: Limits
+
+        var errorDescription: String? {
+            "The process's page tables describe more than \(limits.mappings) pages, "
+                + "\(VPhoneMemoryDump.Failure.gigabytes(limits.bytes)) or \(limits.tables) tables; "
+                + "nothing was saved."
+        }
+
+        var description: String { errorDescription ?? "address space too large" }
+    }
+
     /// Every valid translation below 2^47, in address order; `entry` is the
-    /// descriptor, for the permissions.
-    func mappings() -> [VPhoneGuestKernel.Mapping] {
+    /// descriptor, for the permissions. A table that appears a second time in
+    /// the tree is not walked again, and a tree beyond `limits` is refused.
+    func mappings(limits: Limits = Limits()) throws -> [VPhoneGuestKernel.Mapping] {
         var result: [VPhoneGuestKernel.Mapping] = []
-        func level(_ table: UInt64, shift: UInt64, base: UInt64) {
+        var visited: Set<UInt64> = [root & Self.tableMask]
+        var bytes: UInt64 = 0
+        func add(_ mapping: VPhoneGuestKernel.Mapping) throws {
+            bytes += mapping.size  // at most 2^36 each, with the count bounded
+            guard result.count < limits.mappings, bytes <= limits.bytes else { throw TooLarge(limits: limits) }
+            result.append(mapping)
+        }
+        func level(_ table: UInt64, shift: UInt64, base: UInt64) throws {
+            guard let page = memory.pointer(physical: table, count: 2048 * 8) else { return }
             for index in UInt64(0) ..< 2048 {
-                guard let entry = memory.read64(physical: table + index * 8), entry & 1 != 0 else { continue }
+                let entry = page.loadUnaligned(fromByteOffset: Int(index) * 8, as: UInt64.self)
+                guard entry & 1 != 0 else { continue }
                 let address = base | (index << shift)
                 let span: UInt64 = 1 << shift
                 if shift == 14 {
                     if entry & 2 != 0 {
-                        result.append(.init(virtual: address, physical: entry & Self.tableMask, size: span, entry: entry))
+                        try add(.init(virtual: address, physical: entry & Self.tableMask, size: span, entry: entry))
                     }
                 } else if entry & 2 == 0 {
                     let physical = entry & Self.outputMask & ~(span - 1)
-                    result.append(.init(virtual: address, physical: physical, size: span, entry: entry))
+                    try add(.init(virtual: address, physical: physical, size: span, entry: entry))
                 } else {
-                    level(entry & Self.tableMask, shift: shift - 11, base: address)
+                    let next = entry & Self.tableMask
+                    guard visited.insert(next).inserted else { continue }
+                    guard visited.count <= limits.tables + 1 else { throw TooLarge(limits: limits) }
+                    try level(next, shift: shift - 11, base: address)
                 }
             }
         }
-        level(root & Self.tableMask, shift: 36, base: 0)
+        try level(root & Self.tableMask, shift: 36, base: 0)
         return result
     }
 }

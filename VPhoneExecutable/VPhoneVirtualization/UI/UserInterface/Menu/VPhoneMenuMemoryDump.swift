@@ -106,9 +106,10 @@ extension VPhoneMenuController {
         let folder = parent.appendingPathComponent(VPhoneMemoryDump.folderName(machine: name, date: Date()))
         runMemoryDump {
             if physical {
-                try await VPhonePhysicalMemoryDump.save(from: vm, machineName: name, to: folder).folder
+                let dump = try await VPhonePhysicalMemoryDump.save(from: vm, machineName: name, to: folder)
+                return (dump.folder, dump.resumeFailure)
             } else {
-                try await VPhoneMemoryDump.save(from: vm, machineName: name, to: folder).folder
+                return try await (VPhoneMemoryDump.save(from: vm, machineName: name, to: folder).folder, nil)
             }
         }
     }
@@ -120,14 +121,16 @@ extension VPhoneMenuController {
             machine: machineName, process: name.isEmpty ? "pid" : name, pid: pid, date: Date(),
         ))
         runMemoryDump {
-            try await VPhoneProcessMemoryDump.save(
+            let dump = try await VPhoneProcessMemoryDump.save(
                 from: vm, machineName: machineName, pid: pid, expectedName: name.isEmpty ? nil : name, to: folder,
-            ).folder
+            )
+            return (dump.folder, dump.resumeFailure)
         }
     }
 
-    /// Runs one dump at a time, then says where it went or why it failed.
-    private func runMemoryDump(_ save: @escaping @MainActor () async throws -> URL) {
+    /// Runs one dump at a time, then says where it went or why it failed,
+    /// and whether the guest is still paused.
+    private func runMemoryDump(_ save: @escaping @MainActor () async throws -> (URL, String?)) {
         isSavingMemoryDump = true
         updateMemoryDumpItem()
         updatePauseItem()
@@ -138,11 +141,12 @@ extension VPhoneMenuController {
                 updatePauseItem()
             }
             do {
-                let folder = try await save()
+                let (folder, resumeFailure) = try await save()
+                let saved = VPhoneLocalization.format("Saved to %@", folder.path)
                 VPhoneAlert.present(
                     title: "Memory Dump",
-                    message: VPhoneLocalization.format("Saved to %@", folder.path),
-                    style: .informational,
+                    message: resumeFailure.map { saved + "\n\n" + $0 } ?? saved,
+                    style: resumeFailure == nil ? .informational : .warning,
                     buttons: ["OK", "Reveal in Finder"],
                 ) { response in
                     if response == .alertSecondButtonReturn {

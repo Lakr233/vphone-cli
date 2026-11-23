@@ -7,11 +7,15 @@ import VPhoneCoreKit
 /// Runs `body` while Virtualization holds the guest paused, so the memory it
 /// reads is one consistent state, and lets the guest run again afterwards
 /// even when `body` fails. A VM the user had paused stays paused.
+///
+/// If Virtualization cannot resume the guest, even on a second try, a dump
+/// that was saved is still returned, with `resumeFailure` saying so; a dump
+/// that failed throws `VPhoneGuestStillPaused`.
 @MainActor
 func vphoneWithGuestPaused<T: Sendable>(
     _ vm: VPhoneVirtualMachine,
     _ body: @escaping @Sendable () throws -> T,
-) async throws -> (value: T, pausedSeconds: Double) {
+) async throws -> (value: T, pausedSeconds: Double, resumeFailure: String?) {
     nonisolated(unsafe) let machine = vm.virtualMachine
     let wasRunning = machine.state == .running
     if wasRunning {
@@ -23,16 +27,46 @@ func vphoneWithGuestPaused<T: Sendable>(
     let started = Date()
     let result = await Task.detached(priority: .userInitiated) { Result { try body() } }.value
     let seconds = Date().timeIntervalSince(started)
+    var resumeFailure: String?
     if wasRunning {
-        do {
-            try await machine.resume()
-        } catch {
-            print("[memdump] Unable to resume the guest: \(error.localizedDescription)")
-            throw error
+        for attempt in 1 ... 2 {
+            do {
+                try await machine.resume()
+                resumeFailure = nil
+                break
+            } catch {
+                resumeFailure = error.localizedDescription
+                print("[memdump] Unable to resume the guest (attempt \(attempt)): \(error.localizedDescription)")
+                if attempt == 1 { try? await Task.sleep(for: .milliseconds(500)) }
+            }
         }
-        NotificationCenter.default.post(name: VPhoneMemoryDump.guestResumedNotification, object: nil)
+        if resumeFailure == nil {
+            NotificationCenter.default.post(name: VPhoneMemoryDump.guestResumedNotification, object: nil)
+        }
     }
-    return (try result.get(), seconds)
+    switch result {
+    case let .success(value):
+        return (value, seconds, resumeFailure.map(VPhoneGuestStillPaused.advice))
+    case let .failure(error):
+        if let resumeFailure { throw VPhoneGuestStillPaused(dumpError: error, resumeError: resumeFailure) }
+        throw error
+    }
+}
+
+/// A dump failed, and the guest could not be resumed afterwards either.
+struct VPhoneGuestStillPaused: LocalizedError, CustomStringConvertible {
+    let dumpError: Error
+    let resumeError: String
+
+    var errorDescription: String? {
+        "\(dumpError.localizedDescription) \(Self.advice(resumeError))"
+    }
+
+    var description: String { errorDescription ?? "guest still paused" }
+
+    static func advice(_ resumeError: String) -> String {
+        "The guest could not be resumed (\(resumeError)) and is still paused. Stop the VM and start it again."
+    }
 }
 
 // MARK: - Physical Memory
@@ -47,6 +81,8 @@ struct VPhonePhysicalMemoryDump {
     let bytes: UInt64
     let storedBytes: UInt64
     let pausedSeconds: Double
+    /// Set when the guest could not be resumed after the dump was saved.
+    let resumeFailure: String?
 
     static let noteType: UInt32 = 0x5650
 
@@ -54,18 +90,18 @@ struct VPhonePhysicalMemoryDump {
     static func save(from vm: VPhoneVirtualMachine, machineName: String, to folder: URL) async throws -> Self {
         try VPhoneMemoryDump.beginSaving(vm.virtualMachine)
         defer { VPhoneMemoryDump.endSaving(vm.virtualMachine) }
-        let memory = try VPhoneGuestPhysicalMemory.map(vm.virtualMachine)
+        let memory = try await VPhoneGuestPhysicalMemory.map(vm.virtualMachine)
         let regions = [memory.carveOut, memory.dram].compactMap(\.self)
         try VPhoneMemoryDump.prepare(folder, needed: regions.reduce(0) { $0 + $1.size } + (256 << 20))
         let file = folder.appendingPathComponent("physical.elf")
         do {
             print("[memdump] Saving the guest's physical memory to \(folder.path)")
-            let (stored, seconds) = try await vphoneWithGuestPaused(vm) {
+            let (stored, seconds, resumeFailure) = try await vphoneWithGuestPaused(vm) {
                 try write(memory: memory, regions: regions, machineName: machineName, to: file)
             }
             let dump = Self(
                 folder: folder, file: file, bytes: regions.reduce(0) { $0 + $1.size },
-                storedBytes: stored, pausedSeconds: seconds,
+                storedBytes: stored, pausedSeconds: seconds, resumeFailure: resumeFailure,
             )
             try dump.writeInfo(machineName: machineName, memory: memory)
             print("[memdump] Saved physical.elf (\(VPhoneMemoryDump.Failure.gigabytes(stored)) stored); "
@@ -253,6 +289,8 @@ struct VPhoneProcessMemoryDump {
     let bytes: UInt64
     let unreadableBytes: UInt64
     let pausedSeconds: Double
+    /// Set when the guest could not be resumed after the dump was saved.
+    let resumeFailure: String?
     let kernelUUID: String
     let symbolMap: String
 
@@ -286,16 +324,17 @@ struct VPhoneProcessMemoryDump {
     ) async throws -> Self {
         try VPhoneMemoryDump.beginSaving(vm.virtualMachine)
         defer { VPhoneMemoryDump.endSaving(vm.virtualMachine) }
-        let memory = try VPhoneGuestPhysicalMemory.map(vm.virtualMachine)
+        let memory = try await VPhoneGuestPhysicalMemory.map(vm.virtualMachine)
         try VPhoneMemoryDump.prepare(folder, needed: spaceNeeded)
         do {
             print("[memdump] Saving the memory of pid \(pid) to \(folder.path)")
-            let (dump, seconds) = try await vphoneWithGuestPaused(vm) {
+            let (dump, seconds, resumeFailure) = try await vphoneWithGuestPaused(vm) {
                 try capture(memory: memory, pid: pid, expectedName: expectedName, folder: folder)
             }
             let result = Self(
                 folder: folder, file: dump.file, pid: pid, name: dump.name, segments: dump.segments,
                 bytes: dump.bytes, unreadableBytes: dump.unreadable, pausedSeconds: seconds,
+                resumeFailure: resumeFailure,
                 kernelUUID: dump.kernelUUID, symbolMap: dump.symbolMap,
             )
             try result.writeInfo(machineName: machineName, pageTableRoot: dump.root, kernelDetails: dump.kernelDetails)
@@ -337,7 +376,7 @@ struct VPhoneProcessMemoryDump {
             throw Failure.renamed(pid, expected: expectedName, found: process.name)
         }
         guard let root = process.pageTableRoot else { throw Failure.noAddressSpace(pid, process.name) }
-        let mappings = kernel.userMappings(root: root)
+        let mappings = try kernel.userMappings(root: root)
         let file = folder.appendingPathComponent(VPhoneMemoryDump.fileName(forCore: process.name.isEmpty ? "process" : process.name))
         let (segments, bytes, unreadable) = try writeCore(mappings: mappings, memory: memory, to: file)
         return Captured(
@@ -379,6 +418,11 @@ struct VPhoneProcessMemoryDump {
             } else {
                 runs.append((mapping.virtual, mapping.size, protection, index, 1))
             }
+        }
+        // The mappings are bounded (`VPhoneGuestPageTables.Limits`), so this
+        // holds; a header beyond it would not fit its 32-bit fields.
+        guard runs.count <= Int(UInt32.max) / 72 else {
+            throw VPhoneMemoryDump.Failure.writeFailed(url.path, "too many segments (\(runs.count))")
         }
         let commandsSize = runs.count * 72
         var fileOffset = (UInt64(32 + commandsSize) + 0x3FFF) & ~0x3FFF

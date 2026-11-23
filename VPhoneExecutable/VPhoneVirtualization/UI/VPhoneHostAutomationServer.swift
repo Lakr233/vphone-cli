@@ -68,6 +68,9 @@ import VPhoneCoreKit
 ///                                                 tables (see `VPhoneProcessMemoryDump`). `name`, optional,
 ///                                                 must match the process's `p_comm`. `"result"` has `file`,
 ///                                                 `name`, `segments`, `bytes` and `paused_seconds`
+///                                               → with `physical`, and for `process.dump`, `"result"` also has
+///                                                 `resume_error` when the dump was saved but the guest
+///                                                 could not be resumed
 ///
 /// All commands except "screenshot", "rpc", "push", "pull", "network",
 /// "memory.dump" and "process.dump" wait briefly then capture a compact screen image returned as
@@ -390,7 +393,7 @@ class VPhoneHostAutomationServer {
                         "bytes": dump.bytes,
                         "stored_bytes": dump.storedBytes,
                         "paused_seconds": VPhoneMemoryDump.tenths(dump.pausedSeconds),
-                    ])
+                    ].merging(dump.resumeFailure.map { ["resume_error": $0] } ?? [:]) { $1 })
                 }
                 let dump = try await VPhoneMemoryDump.save(
                     from: virtualMachine,
@@ -440,7 +443,7 @@ class VPhoneHostAutomationServer {
                     "paused_seconds": VPhoneMemoryDump.tenths(dump.pausedSeconds),
                     "kernel_uuid": dump.kernelUUID,
                     "symbol_map": dump.symbolMap,
-                ])
+                ].merging(dump.resumeFailure.map { ["resume_error": $0] } ?? [:]) { $1 })
 
             default:
                 return Self.reply(ok: false, error: "unknown command: \(type)")

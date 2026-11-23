@@ -31,6 +31,7 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
         case taskPort(kern_return_t)
         case noGuestMemory
         case remap(kern_return_t)
+        case protect(kern_return_t)
         case dramBaseUnknown
 
         var errorDescription: String? {
@@ -44,6 +45,8 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
                 "The VM's process holds no guest memory."
             case let .remap(code):
                 "Unable to map the guest's memory (mach_vm_remap: \(code))."
+            case let .protect(code):
+                "Unable to make the view of the guest's memory read-only (mach_vm_protect: \(code))."
             case .dramBaseUnknown:
                 "The guest's device tree does not give the physical address of its RAM."
             }
@@ -117,13 +120,17 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
     /// A pointer to `count` bytes at a guest physical address, or nil when
     /// they are not all in one mapped region.
     func pointer(physical address: UInt64, count: Int = 8) -> UnsafeRawPointer? {
-        for region in [dram] + (carveOut.map { [$0] } ?? []) {
-            let start = region.guestAddress
-            if address >= start, address - start + UInt64(count) <= region.size {
-                return region.base + Int(address - start)
-            }
-        }
-        return nil
+        guard count >= 0 else { return nil }
+        return Self.pointer(address, count: UInt64(count), in: dram)
+            ?? carveOut.flatMap { Self.pointer(address, count: UInt64(count), in: $0) }
+    }
+
+    /// No sum of guest values: an address near 2^64 must not trap.
+    private static func pointer(_ address: UInt64, count: UInt64, in region: Region) -> UnsafeRawPointer? {
+        guard address >= region.guestAddress else { return nil }
+        let offset = address - region.guestAddress
+        guard offset <= region.size, count <= region.size - offset else { return nil }
+        return region.base + Int(offset)
     }
 
     func read64(physical address: UInt64) -> UInt64? {
@@ -175,53 +182,78 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
 
     /// Where the device tree sits, among the first pages of DRAM.
     private static let deviceTreeSearchLimit: UInt64 = 512 << 20
+    /// How many matches of a property name are looked at. Any app can write
+    /// these patterns into its own pages; the real device tree has a few
+    /// dozen carve-outs.
+    static let deviceTreeMatchLimit = 4096
 
     /// A property of the flattened Apple device tree in guest memory: a
     /// 32-byte name, a 32-bit length, then the value. Only 8-byte values.
     static func deviceTreeValue(_ name: String, in base: UnsafeRawPointer, size: UInt64) -> UInt64? {
         let limit = Int(min(size, deviceTreeSearchLimit))
-        for offset in occurrences(of: Array(name.utf8) + [0], in: base, count: limit) where offset % 4 == 0 {
-            guard offset + 44 <= limit else { continue }
+        var value: UInt64?
+        forEachOccurrence(of: Array(name.utf8) + [0], in: base, count: limit) { offset in
+            guard offset % 4 == 0, offset + 44 <= limit else { return true }
             let length = (base + offset + 32).loadUnaligned(as: UInt32.self) & 0x7FFF_FFFF
-            if length == 8 {
-                return (base + offset + 36).loadUnaligned(as: UInt64.self)
-            }
+            guard length == 8 else { return true }
+            value = (base + offset + 36).loadUnaligned(as: UInt64.self)
+            return false
         }
-        return nil
+        return value
+    }
+
+    struct CarveOut: Hashable {
+        let base: UInt64
+        let size: UInt64
     }
 
     /// The device tree's `region-id-N` properties: (base, size) of each
-    /// firmware carve-out.
-    static func deviceTreeCarveOuts(in base: UnsafeRawPointer, size: UInt64) -> [(base: UInt64, size: UInt64)] {
+    /// firmware carve-out, without duplicates and without any whose end
+    /// would pass 2^64.
+    static func deviceTreeCarveOuts(in base: UnsafeRawPointer, size: UInt64) -> [CarveOut] {
         let limit = Int(min(size, deviceTreeSearchLimit))
-        var result: [(UInt64, UInt64)] = []
-        for offset in occurrences(of: Array("region-id-".utf8), in: base, count: limit) where offset % 4 == 0 {
-            guard offset + 52 <= limit else { continue }
+        var result: [CarveOut] = []
+        var seen: Set<CarveOut> = []
+        forEachOccurrence(of: Array("region-id-".utf8), in: base, count: limit) { offset in
+            guard offset % 4 == 0, offset + 52 <= limit else { return true }
             let name = UnsafeRawBufferPointer(start: base + offset, count: 32)
-            guard let end = name.firstIndex(of: 0), name[10 ..< end].allSatisfy({ $0 >= 0x30 && $0 <= 0x39 }),
-                  end > 10
-            else { continue }
+            guard let end = name.firstIndex(of: 0), end > 10,
+                  name[10 ..< end].allSatisfy({ $0 >= 0x30 && $0 <= 0x39 })
+            else { return true }
             let length = (base + offset + 32).loadUnaligned(as: UInt32.self) & 0x7FFF_FFFF
-            if length == 16 {
-                let pair = ((base + offset + 36).loadUnaligned(as: UInt64.self),
-                            (base + offset + 44).loadUnaligned(as: UInt64.self))
-                if !result.contains(where: { $0 == pair }) { result.append(pair) }
+            guard length == 16 else { return true }
+            let carveOut = CarveOut(
+                base: (base + offset + 36).loadUnaligned(as: UInt64.self),
+                size: (base + offset + 44).loadUnaligned(as: UInt64.self),
+            )
+            if !carveOut.base.addingReportingOverflow(carveOut.size).overflow, seen.insert(carveOut).inserted {
+                result.append(carveOut)
             }
+            return true
         }
         return result
     }
 
-    private static func occurrences(of needle: [UInt8], in base: UnsafeRawPointer, count: Int) -> [Int] {
-        var result: [Int] = []
+    /// Calls `body` with the offset of each match of `needle` in the first
+    /// `count` bytes, at most `deviceTreeMatchLimit` times, until it returns
+    /// false.
+    private static func forEachOccurrence(
+        of needle: [UInt8],
+        in base: UnsafeRawPointer,
+        count: Int,
+        _ body: (Int) -> Bool,
+    ) {
         var offset = 0
+        var matches = 0
         needle.withUnsafeBytes { pattern in
-            while offset < count,
+            while offset < count, matches < deviceTreeMatchLimit,
                   let hit = memmem(base + offset, count - offset, pattern.baseAddress, pattern.count)
             {
-                result.append(base.distance(to: UnsafeRawPointer(hit)))
-                offset = result.last! + 1
+                let found = base.distance(to: UnsafeRawPointer(hit))
+                matches += 1
+                guard body(found) else { return }
+                offset = found + 1
             }
         }
-        return result
     }
 }

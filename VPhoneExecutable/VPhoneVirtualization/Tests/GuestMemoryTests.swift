@@ -71,7 +71,7 @@ enum GuestMemoryTests {
         expect(tables.translate(address + 0x8000) == nil, "unmapped page")
         expect(tables.translate(0x2_0000_0000) == nil, "unmapped table")
 
-        let mappings = tables.mappings()
+        let mappings = try tables.mappings()
         expect(mappings.map(\.virtual) == [address, address + 0x4000, 0x1_0200_0000], "mappings in order")
         expect(mappings.map(\.size) == [0x4000, 0x4000, 0x200_0000], "mapping sizes")
         expect(VPhoneProcessMemoryDump.protection(mappings[0].entry) == 3, "rw-, from AP=01 and UXN")
@@ -149,6 +149,11 @@ enum GuestMemoryTests {
         let name = VPhoneProcessMemoryDump.folderName(machine: "phone", process: "a/b:c", pid: 42, date: date)
         expect(name.hasPrefix("phone a_b_c (42) Memory "), "process folder name: \(name)")
 
+        // Malformed guest data: none of it may trap, read past its memory,
+        // or grow without bound.
+        malformedInput(expect)
+        try plantedHeaders(expect, recipes: recipes)
+
         // Symbol maps: every map with a kernelUUID has both required symbols.
         var maps = 0
         for kind in ["bases", "kernels", "donors"] {
@@ -177,5 +182,252 @@ enum GuestMemoryTests {
 
         try? FileManager.default.removeItem(at: folder)
         print("GuestMemoryTests: \(checks) checks passed (\(maps) symbol maps)")
+    }
+}
+
+// MARK: - Malformed Input
+
+extension GuestMemoryTests {
+    /// `count` bytes followed by an inaccessible page: a read past them
+    /// crashes the test instead of passing unseen.
+    static func guarded(_ count: Int) -> UnsafeMutableRawPointer {
+        let pages = (count + page - 1) / page
+        let total = (pages + 1) * page
+        let base = mmap(nil, total, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0)!
+        mprotect(base + pages * page, page, PROT_NONE)
+        return base + (pages * page - count)
+    }
+
+    static func malformedInput(_ expect: (Bool, String) -> Void) {
+        // Addresses near 2^64 are refused, not added up.
+        let ram = guarded(64 * page)
+        ram.initializeMemory(as: UInt8.self, repeating: 0, count: 64 * page)
+        let memory = VPhoneGuestPhysicalMemory(
+            dram: .init(guestAddress: dramBase, size: UInt64(64 * page), base: UnsafeRawPointer(ram)),
+            carveOut: nil, mappings: [],
+        )
+        expect(memory.read64(physical: .max) == nil && memory.read64(physical: .max - 4) == nil, "address near 2^64")
+        expect(memory.pointer(physical: dramBase + UInt64(64 * page) - 4, count: 8) == nil, "read across the end")
+        expect(memory.pointer(physical: dramBase, count: .max) == nil, "huge count")
+
+        // Device tree: a carve-out whose end passes 2^64 is dropped, a
+        // repeated one is kept once, and a property at the very end of the
+        // searched range is not read past it.
+        func property(_ name: String, at offset: Int, value: [UInt64]) {
+            for (index, byte) in Array(name.utf8).enumerated() {
+                ram.storeBytes(of: byte, toByteOffset: offset + index, as: UInt8.self)
+            }
+            ram.storeBytes(of: UInt32(value.count * 8), toByteOffset: offset + 32, as: UInt32.self)
+            for (index, word) in value.enumerated() {
+                ram.storeBytes(of: word, toByteOffset: offset + 36 + index * 8, as: UInt64.self)
+            }
+        }
+        property("region-id-1", at: 0x100, value: [0x7000_0000, .max])
+        property("region-id-2", at: 0x200, value: [0x7F00_0000, 0x4000])
+        property("region-id-3", at: 0x300, value: [0x7F00_0000, 0x4000])
+        let tail = 64 * page - 40
+        for (index, byte) in Array("region-id-9".utf8).enumerated() {
+            ram.storeBytes(of: byte, toByteOffset: tail + index, as: UInt8.self)
+        }
+        let carveOuts = VPhoneGuestPhysicalMemory.deviceTreeCarveOuts(in: ram, size: UInt64(64 * page))
+        expect(carveOuts == [.init(base: 0x7F00_0000, size: 0x4000)], "carve-outs: overflow dropped, duplicate once")
+
+        // Thousands of planted names: the search stops at its limit.
+        let sprayed = guarded(16 << 20)
+        sprayed.initializeMemory(as: UInt8.self, repeating: 0, count: 16 << 20)
+        let entry = Array("region-id-7".utf8) + [0]
+        var planted = 0
+        for offset in stride(from: 0, to: (16 << 20) - 64, by: 64) {
+            for (index, byte) in entry.enumerated() {
+                sprayed.storeBytes(of: byte, toByteOffset: offset + index, as: UInt8.self)
+            }
+            sprayed.storeBytes(of: UInt32(16), toByteOffset: offset + 32, as: UInt32.self)
+            sprayed.storeBytes(of: UInt64(planted) << 14, toByteOffset: offset + 36, as: UInt64.self)
+            sprayed.storeBytes(of: UInt64(0x4000), toByteOffset: offset + 44, as: UInt64.self)
+            planted += 1
+        }
+        let started = Date()
+        let found = VPhoneGuestPhysicalMemory.deviceTreeCarveOuts(in: sprayed, size: 16 << 20)
+        expect(found.count == VPhoneGuestPhysicalMemory.deviceTreeMatchLimit && planted > found.count,
+               "sprayed carve-outs capped: \(found.count) of \(planted)")
+        expect(Date().timeIntervalSince(started) < 1, "sprayed carve-outs fast")
+
+        // Mach-O: commands too short for their fields, or a header with
+        // fewer than 32 bytes left, are skipped without reading past them.
+        func header(at pointer: UnsafeMutableRawPointer, commands: [(UInt32, UInt32)], sizeofcmds: UInt32? = nil) {
+            pointer.storeBytes(of: UInt32(0xFEED_FACF), as: UInt32.self)
+            pointer.storeBytes(of: UInt32(commands.count), toByteOffset: 16, as: UInt32.self)
+            let total = commands.reduce(0) { $0 + $1.1 }
+            pointer.storeBytes(of: sizeofcmds ?? total, toByteOffset: 20, as: UInt32.self)
+            var cursor = 32
+            for (command, length) in commands {
+                pointer.storeBytes(of: command, toByteOffset: cursor, as: UInt32.self)
+                pointer.storeBytes(of: length, toByteOffset: cursor + 4, as: UInt32.self)
+                cursor += Int(length)
+            }
+        }
+        for (command, name) in [(UInt32(0x19), "LC_SEGMENT_64"), (0x1B, "LC_UUID"), (0x8000_0035, "LC_FILESET_ENTRY")] {
+            let size = 32 + 8
+            let buffer = guarded(size)
+            buffer.initializeMemory(as: UInt8.self, repeating: 0, count: size)
+            header(at: buffer, commands: [(command, 8)])
+            expect(VPhoneGuestKernel.loadCommands(buffer, available: UInt64(size)).isEmpty, "short \(name) skipped")
+            expect(VPhoneGuestKernel.image(buffer, available: UInt64(size)) == nil, "short \(name): no image")
+            expect(VPhoneGuestKernel.filesetEntry("com.apple.kernel", header: buffer, available: UInt64(size)) == nil,
+                   "short \(name): no fileset entry")
+        }
+        let short = guarded(16)
+        short.storeBytes(of: UInt32(0xFEED_FACF), as: UInt32.self)
+        expect(VPhoneGuestKernel.image(short, available: 16) == nil, "header shorter than 32 bytes")
+        let lying = guarded(64)
+        lying.initializeMemory(as: UInt8.self, repeating: 0, count: 64)
+        header(at: lying, commands: [(0x19, 72)], sizeofcmds: 0xFFFF_FFF0)
+        expect(VPhoneGuestKernel.loadCommands(lying, available: 64).isEmpty, "sizeofcmds beyond the memory")
+
+        // A segment whose end passes 2^64 is left out.
+        let segmentHeader = guarded(32 + 72 + 24)
+        segmentHeader.initializeMemory(as: UInt8.self, repeating: 0, count: 32 + 72 + 24)
+        header(at: segmentHeader, commands: [(0x19, 72), (0x1B, 24)])
+        segmentHeader.storeBytes(of: UInt64.max - 0x1000, toByteOffset: 32 + 24, as: UInt64.self)
+        segmentHeader.storeBytes(of: UInt64(0x4000), toByteOffset: 32 + 32, as: UInt64.self)
+        expect(VPhoneGuestKernel.image(segmentHeader, available: UInt64(32 + 72 + 24)) == nil,
+               "overflowing segment left out")
+
+        // No kernel in RAM full of fake fileset headers: an error, not a trap.
+        for index in 0 ..< 64 {
+            header(at: ram + index * page, commands: [(0x8000_0035, 32)])
+            (ram + index * page).storeBytes(of: UInt32(0x0100_000C), toByteOffset: 4, as: UInt32.self)
+            (ram + index * page).storeBytes(of: UInt32(0xC), toByteOffset: 12, as: UInt32.self)
+            (ram + index * page).storeBytes(of: UInt64.max, toByteOffset: 32 + 16, as: UInt64.self)
+        }
+        expect(VPhoneGuestKernel.findKernels(memory, symbolsRoot: nil).candidates.isEmpty, "fake fileset headers")
+        do {
+            _ = try VPhoneGuestKernel(memory: memory, symbolsRoot: nil)
+            expect(false, "no kernel refused")
+        } catch {
+            expect(true, "no kernel refused")
+        }
+
+        // Page tables pointing at themselves: each table is walked once.
+        ram.initializeMemory(as: UInt8.self, repeating: 0, count: 64 * page)
+        func physical(_ pageIndex: Int) -> UInt64 { dramBase + UInt64(pageIndex * page) }
+        for index in 0 ..< 2048 {
+            ram.storeBytes(of: physical(1) | 3, toByteOffset: 1 * page + index * 8, as: UInt64.self)
+        }
+        let cyclic = VPhoneGuestPageTables(memory: memory, root: physical(1))
+        expect((try? cyclic.mappings())?.isEmpty == true, "self-referencing root")
+
+        // Every level-1 entry to one level-2 table, every level-2 entry to
+        // one level-3 table of 2048 pages: 2048^3 entries without the
+        // visited set, 2048 with it.
+        for index in 0 ..< 2048 {
+            ram.storeBytes(of: physical(2) | 3, toByteOffset: 1 * page + index * 8, as: UInt64.self)
+            ram.storeBytes(of: physical(3) | 3, toByteOffset: 2 * page + index * 8, as: UInt64.self)
+            ram.storeBytes(of: physical(10) | 3, toByteOffset: 3 * page + index * 8, as: UInt64.self)
+        }
+        let fanned = VPhoneGuestPageTables(memory: memory, root: physical(1))
+        let walkStarted = Date()
+        let walked = try? fanned.mappings()
+        expect(walked?.count == 2048 && Date().timeIntervalSince(walkStarted) < 1, "shared tables walked once")
+
+        var few = VPhoneGuestPageTables.Limits()
+        few.mappings = 100
+        expect(throwsTooLarge { try fanned.mappings(limits: few) }, "mapping limit")
+        var small = VPhoneGuestPageTables.Limits()
+        small.bytes = 0x10_0000
+        expect(throwsTooLarge { try fanned.mappings(limits: small) }, "byte limit")
+
+        // 32 MB blocks in every level-2 entry: refused by size.
+        for index in 0 ..< 2048 {
+            ram.storeBytes(of: physical(4) | 3, toByteOffset: 1 * page + index * 8, as: UInt64.self)
+            ram.storeBytes(of: UInt64(index) << 25 | 1, toByteOffset: 4 * page + index * 8, as: UInt64.self)
+        }
+        var oneGigabyte = VPhoneGuestPageTables.Limits()
+        oneGigabyte.bytes = 1 << 30
+        expect(throwsTooLarge { try VPhoneGuestPageTables(memory: memory, root: physical(1)).mappings(limits: oneGigabyte) },
+               "blocks beyond the byte limit")
+
+        // A table outside guest RAM is skipped.
+        ram.initializeMemory(as: UInt8.self, repeating: 0, count: 64 * page)
+        ram.storeBytes(of: 0xFFFF_FFFF_C000 | 3, toByteOffset: 1 * page, as: UInt64.self)
+        expect((try? VPhoneGuestPageTables(memory: memory, root: physical(1)).mappings())?.isEmpty == true,
+               "table outside guest RAM")
+        expect(VPhoneGuestPageTables(memory: memory, root: .max).translate(.max) == nil, "root near 2^64")
+    }
+
+    static func throwsTooLarge(_ body: () throws -> [VPhoneGuestKernel.Mapping]) -> Bool {
+        do {
+            _ = try body()
+            return false
+        } catch is VPhoneGuestPageTables.TooLarge {
+            return true
+        } catch {
+            return false
+        }
+    }
+}
+
+// MARK: - Planted Headers
+
+extension GuestMemoryTests {
+    /// A kernelcache header at `pointer`: an `MH_FILESET` whose
+    /// `com.apple.kernel` entry, one page further, has `uuid` and a `__TEXT`.
+    static func plantKernelcache(at pointer: UnsafeMutableRawPointer, uuid: UUID) {
+        pointer.initializeMemory(as: UInt8.self, repeating: 0, count: 2 * page)
+        func u32(_ value: UInt32, _ offset: Int) { pointer.storeBytes(of: value, toByteOffset: offset, as: UInt32.self) }
+        func u64(_ value: UInt64, _ offset: Int) { pointer.storeBytes(of: value, toByteOffset: offset, as: UInt64.self) }
+        u32(0xFEED_FACF, 0); u32(0x0100_000C, 4); u32(0xC, 12); u32(1, 16); u32(56, 20)
+        u32(0x8000_0035, 32); u32(56, 36); u64(UInt64(page), 48); u32(32, 56)
+        for (index, byte) in Array("com.apple.kernel".utf8).enumerated() {
+            pointer.storeBytes(of: byte, toByteOffset: 32 + 32 + index, as: UInt8.self)
+        }
+        let kernel = pointer + page
+        kernel.storeBytes(of: UInt32(0xFEED_FACF), as: UInt32.self)
+        kernel.storeBytes(of: UInt32(2), toByteOffset: 16, as: UInt32.self)
+        kernel.storeBytes(of: UInt32(72 + 24), toByteOffset: 20, as: UInt32.self)
+        kernel.storeBytes(of: UInt32(0x19), toByteOffset: 32, as: UInt32.self)
+        kernel.storeBytes(of: UInt32(72), toByteOffset: 36, as: UInt32.self)
+        for (index, byte) in Array("__TEXT".utf8).enumerated() {
+            kernel.storeBytes(of: byte, toByteOffset: 40 + index, as: UInt8.self)
+        }
+        kernel.storeBytes(of: UInt64(0xFFFF_FE00_0000_0000), toByteOffset: 32 + 24, as: UInt64.self)
+        kernel.storeBytes(of: UInt64(page), toByteOffset: 32 + 32, as: UInt64.self)
+        kernel.storeBytes(of: UInt32(0x1B), toByteOffset: 32 + 72, as: UInt32.self)
+        kernel.storeBytes(of: UInt32(24), toByteOffset: 32 + 76, as: UInt32.self)
+        withUnsafeBytes(of: uuid.uuid) { bytes in
+            for (index, byte) in bytes.enumerated() {
+                kernel.storeBytes(of: byte, toByteOffset: 32 + 80 + index, as: UInt8.self)
+            }
+        }
+    }
+
+    /// Headers whose kernel has no symbol map are passed over without
+    /// counting against the candidate limit, so many of them below the real
+    /// kernelcache do not hide it.
+    static func plantedHeaders(_ expect: (Bool, String) -> Void, recipes: URL) throws {
+        let manifest = recipes.appendingPathComponent("bases/27.2_24B119/manifest.json")
+        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: manifest)) as? [String: Any]
+        guard let known = (object?["kernelUUID"] as? String).flatMap(UUID.init(uuidString:)) else {
+            expect(false, "27.2 manifest has a kernelUUID")
+            return
+        }
+        let pages = 64
+        let ram = guarded(pages * page)
+        let memory = VPhoneGuestPhysicalMemory(
+            dram: .init(guestAddress: dramBase, size: UInt64(pages * page), base: UnsafeRawPointer(ram)),
+            carveOut: nil, mappings: [],
+        )
+        let planted = 20
+        for index in 0 ..< planted {
+            plantKernelcache(at: ram + index * 2 * page, uuid: UUID())
+        }
+        plantKernelcache(at: ram + planted * 2 * page, uuid: known)
+        let (candidates, unknown) = VPhoneGuestKernel.findKernels(memory, symbolsRoot: recipes)
+        expect(candidates.count == 1 && candidates[0].1.uuid == known.uuidString
+            && candidates[0].0 == dramBase + UInt64(planted * 2 * page),
+            "known kernel found after \(planted) headers with unknown UUIDs")
+        expect(unknown != nil && unknown != known.uuidString, "first unknown UUID reported")
+        expect(VPhoneKernelSymbols.hasMap(kernelUUID: known.uuidString.lowercased(), root: recipes),
+               "UUID lookup ignores case")
     }
 }
