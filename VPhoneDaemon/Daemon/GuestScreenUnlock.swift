@@ -191,7 +191,7 @@ enum GuestScreenUnlock {
         return notify_get_state(token, &value) != 0 || value != 1
     }
 
-    private struct State {
+    private struct State: Equatable {
         let locked: Bool
         let screenOff: Bool
     }
@@ -204,14 +204,29 @@ enum GuestScreenUnlock {
         )
     }
 
-    /// The state to start from. Until SpringBoard has finished starting, the
-    /// two notify states read "unlocked and lit" whatever the screen will
-    /// show, so that reading is trusted only once SpringBoard says it is up.
+    /// The state to start from. A locked or dark reading drives an active
+    /// unlock, so it is acted on from a single read. "Not locked, not
+    /// screen-off" is the only no-op decision, and a SpringBoard still coming
+    /// up reads "unlocked, lit" for a read or two before it raises the Lock
+    /// Screen, even after it reports startup finished — so that reading is
+    /// returned only once SpringBoard says startup is over and a second read, a
+    /// poll later, still agrees. A reading that no longer agrees is dropped and
+    /// the loop re-reads. At the deadline the latest reading is returned.
     private static func startingState(until deadline: Date) -> State {
         while true {
             let now = state()
-            if now.locked || now.screenOff || springBoardStarted() || Date() >= deadline {
+            if now.locked || now.screenOff {
                 return now
+            }
+            if Date() >= deadline {
+                return now
+            }
+            if springBoardStarted() {
+                Thread.sleep(forTimeInterval: pollInterval)
+                if state() == now {
+                    return now
+                }
+                continue
             }
             Thread.sleep(forTimeInterval: pollInterval)
         }
