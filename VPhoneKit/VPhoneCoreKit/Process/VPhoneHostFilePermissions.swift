@@ -24,13 +24,25 @@ public enum VPhoneHostFilePermissions {
         )
     }
 
+    /// Make one directory world accessible. A missing directory is left for
+    /// its caller to create. A symbolic link, such as a cache moved to another
+    /// volume and linked back in its place, is not followed: the link stays as
+    /// it is and its target keeps the mode its owner gave it. Under root only a
+    /// link owned by root or the sudo invoker is accepted; one a third account
+    /// could have put in a shared folder still fails.
     public static func makeDirectoryAccessible(at url: URL) throws {
         let descriptor = open(url.path, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else {
-            if errno == ENOENT {
+            let failure = currentError()
+            if failure.code == .ENOENT {
                 return
             }
-            throw currentError()
+            if failure.code == .ELOOP, let link = symbolicLink(at: url),
+               acceptsLink(owner: link.st_uid, permittedOwners: permittedOwners())
+            {
+                return
+            }
+            throw failure
         }
         defer { close(descriptor) }
         var metadata = stat()
@@ -56,6 +68,22 @@ public enum VPhoneHostFilePermissions {
         guard metadata.st_mode & 0o7777 != 0o777 else { return false }
         let user = geteuid()
         return user == 0 || metadata.st_uid == user
+    }
+
+    /// Whether a symbolic link with this owner may stand in for a directory:
+    /// any link without root, where the kernel's own checks apply to whatever
+    /// is done through it, and under root only one an owner in `owners` made.
+    static func acceptsLink(owner: uid_t, permittedOwners owners: Set<uid_t>?) -> Bool {
+        owners.map { $0.contains(owner) } ?? true
+    }
+
+    /// The link's own metadata when `url` names a symbolic link, else nil.
+    private static func symbolicLink(at url: URL) -> stat? {
+        var metadata = stat()
+        guard lstat(url.path, &metadata) == 0, metadata.st_mode & S_IFMT == S_IFLNK else {
+            return nil
+        }
+        return metadata
     }
 
     /// Owners whose entries a root process may change: root itself and the
