@@ -77,6 +77,7 @@ struct KernelCacheMixerTests {
         #expect(bases.map(\.id) == [
             "18.1_22B83", "18.2.1_22C161", "18.3.1_22D72", "18.5_22F76", "18.6_22G86", "18.7.2_22H124", "18.7_22H20",
             "26.4_23E246", "26.5_23F77", "26.6_23G71", "26.7_23H20", "27.2_24B119", "homepod_26.5_23L471", "watch_26.4_23T240",
+            "watch_27.2_24S116",
         ])
         for base in bases {
             #expect(FileManager.default.fileExists(atPath: base.symbolsURL.path), "\(base.id)")
@@ -100,6 +101,19 @@ struct KernelCacheMixerTests {
         #expect(Set(shared.map(\.id)) == ["26.4_23E246", "watch_26.4_23T240"])
         #expect(watch.kextSources == ["watch7c_26.4_23T240", "base", "vphone600_26.4_23E5207q"])
         #expect(try Self.recipes.donor(id: "watch7c_26.4_23T240").cloudOSSource == nil)
+    }
+
+    @Test("watchOS 27.2 links its kexts against the cloudOS 27.2 kernel of the iPhone recipe")
+    func watch272Recipe() throws {
+        let watch = try #require(try Self.recipes.bases().first { $0.id == "watch_27.2_24S116" })
+        #expect(watch.guest == "watch")
+        let shared = try Self.recipes.bases().filter { $0.kernel.matches(sha: watch.kernel.sha256) }
+        #expect(Set(shared.map(\.id)) == ["27.2_24B119", "watch_27.2_24S116"])
+        #expect(watch.kextSources == ["watch7c_27.2_24S116", "base", "vphone600_26.4_23E5207q"])
+        #expect(try Self.recipes.donor(id: "watch7c_27.2_24S116").cloudOSSource == nil)
+        let identifiers = try watch.kextIdentifiers()
+        #expect(!identifiers.contains("com.apple.filesystems.hfs.kext"))
+        #expect(identifiers.contains("com.apple.security.Image4"))
     }
 
     @Test("A HomePod links its own kexts against the 26.5 research kernel, with the security-monitor kexts of the base and the virtual machine's gPTP")
