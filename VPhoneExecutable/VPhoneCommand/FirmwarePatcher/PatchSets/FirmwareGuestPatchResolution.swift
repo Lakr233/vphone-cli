@@ -74,6 +74,7 @@ public enum FirmwareGuestPatchResolution {
             FirmwareGuestSystemPatchSet.metalVertexIDFormat,
             FirmwareGuestSystemPatchSet.glesPrimitiveRestart,
             FirmwareGuestSystemPatchSet.glesPointDraw,
+            FirmwareGuestSystemPatchSet.glesBlitOrientation,
             FirmwareGuestSystemPatchSet.glesUpperLeft,
         ]
         return GLESUpdatePolicy(skipped: skipped, preserved: preserve ? group : [])
