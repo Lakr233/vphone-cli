@@ -1,5 +1,6 @@
 import ArgumentParser
 import Darwin
+import FirmwarePatcher
 import Foundation
 import VPhoneArchiveKit
 import VPhoneCoreKit
@@ -253,7 +254,7 @@ struct VPhoneVirtualMachineTemplateFindCommand: ParsableCommand {
     var ipswCache: String?
     @Option(help: ArgumentHelp("Guest device, when the IPSW covers several models", valueName: "product-type"))
     var device: String?
-    @Option(name: .customLong("preset"), help: "Patch preset name or preset plist path (default standard)") var preset: String?
+    @Option(name: .customLong("preset"), help: "Patch preset name or preset plist path (default: the guest's, as vm create)") var preset: String?
     @Option(name: .shortAndLong, help: "Disk size (GB, default 64)") var diskSize: UInt64?
     @Option(name: .customLong("block"), help: ArgumentHelp("A patch the preset turns on, turned off", valueName: "id"))
     var blocked: [String] = []
@@ -277,7 +278,7 @@ struct VPhoneVirtualMachineTemplateFindCommand: ParsableCommand {
                 device: builds.device,
                 ios: builds.ios,
                 cloudOS: builds.cloudOS,
-                preset: VPhonePatchPresetStore.resolve(preset ?? VPhonePatchPreset.standardIdentifier).preset,
+                preset: VPhonePatchPresetStore.resolve(preset ?? VPhoneGuestDevice.defaultPresetIdentifier(for: VPhoneGuestDevice.named(device ?? builds.device))).preset,
                 blocked: blocked,
                 allowed: allowed,
                 diskSizeGB: diskSize ?? 64,
