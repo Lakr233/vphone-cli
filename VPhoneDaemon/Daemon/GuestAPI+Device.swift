@@ -239,6 +239,12 @@ extension GuestAPI {
             )
         case .securitySslKillswitch:
             return sslKillswitchStatus()
+        case .securityCaInstall:
+            return try GuestSecurityCADispatch.install(params)
+        case .securityCaRemove:
+            return try GuestSecurityCADispatch.remove(params)
+        case .securityCaList:
+            return try GuestSecurityCADispatch.list()
         case .diagnosticsSelfTest:
             return try runSelfTests()
         case .notifyPost:

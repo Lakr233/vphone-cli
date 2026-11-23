@@ -159,6 +159,9 @@ screen.screenshot	VPhoneDaemon/Daemon/GuestAPI.swift#executeCore
 screen.unlock	VPhoneDaemon/Daemon/GuestAPI+Device.swift#executeDevice
 script.eval	VPhoneDaemon/Daemon/GuestScriptSession.swift#reply;VPhoneDaemon/Daemon/GuestAPI+Script.swift#evaluateScript
 script.info	VPhoneDaemon/Daemon/GuestAPI+Script.swift#scriptInfo
+security.ca_install	VPhoneDaemon/Daemon/GuestSecurityCADispatch.swift#install
+security.ca_list	VPhoneDaemon/Daemon/GuestSecurityCADispatch.swift#list
+security.ca_remove	VPhoneDaemon/Daemon/GuestSecurityCADispatch.swift#remove
 security.ssl_killswitch	icli:IcliKit/Host/Host.swift#sslKillswitchStatus
 services.disable	icli:IcliKit/Services.swift#setServiceEnabled
 services.disabled	icli:IcliSystem/Services.swift#disabledServiceOverrides

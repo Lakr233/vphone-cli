@@ -331,6 +331,8 @@
 	<true/>
 	<key>com.apple.private.security.storage.trustd-private</key>
 	<true/>
+	<key>modify-anchor-certificates</key>
+	<true/>
 	<key>com.apple.private.security.storage.universalaccess</key>
 	<true/>
 	<key>com.apple.private.system-keychain</key>

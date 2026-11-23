@@ -159,6 +159,9 @@ screen.screenshot	never	max_dimension:integer,quality:number,region:object	-	byt
 screen.unlock	never	passcode:string,timeout_ms:number	-	locked:boolean,screen_off:boolean,was_locked:boolean,was_screen_off:boolean	mutating
 script.eval	never	source:string!,timeout_ms:number	-	crashed:boolean,error:string?,message:string?,ok:boolean?,output:string?,result:string?	mutating
 script.info	never	-	-	available:boolean,engine:string,globals:array,programs:object	read
+security.ca_install	always	pem:string!,admin:boolean	install a trusted root CA in the guest	domain:string,sha256:string,subject:string	mutating
+security.ca_list	never	-	-	anchors:array	read
+security.ca_remove	always	sha256:string!	remove a trusted root CA from the guest	removed:boolean,sha256:string	mutating
 security.ssl_killswitch	never	-	-	present:boolean	read
 services.disable	always	label:string!	disable `<label>`	changed:boolean,enabled:boolean,label:string	mutating
 services.disabled	never	-	-	count:integer,disabled:object*	read
