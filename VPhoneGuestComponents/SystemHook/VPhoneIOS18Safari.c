@@ -1,5 +1,45 @@
+#include <stdbool.h>
 #include <dlfcn.h>
 #include <objc/objc.h>
+#include <objc/runtime.h>
+
+static void (*vpInitializeWebView)(id, SEL, id);
+static void (*vpSetCanvasUsesAcceleratedDrawing)(id, bool);
+static void *vpCanvasMessageSend;
+static SEL vpCanvasPreferencesSelector;
+
+static void vpInitializeWebViewWithSoftwareCanvas(id view, SEL command, id configuration) {
+    id preferences = ((id (*)(id, SEL))vpCanvasMessageSend)(configuration, vpCanvasPreferencesSelector);
+    // Cocoa's opaque WKPreferencesRef is the Objective-C wrapper.
+    if (preferences) vpSetCanvasUsesAcceleratedDrawing(preferences, false);
+    vpInitializeWebView(view, command, configuration);
+}
+
+static void vpInstallSoftwareCanvas(Class (*getClass)(const char *),
+                                    SEL (*selector)(const char *), void *send) {
+    Method (*getMethod)(Class, SEL) = dlsym(RTLD_DEFAULT, "class_getInstanceMethod");
+    IMP (*implementation)(Method) = dlsym(RTLD_DEFAULT, "method_getImplementation");
+    IMP (*replace)(Method, IMP) = dlsym(RTLD_DEFAULT, "method_setImplementation");
+    vpSetCanvasUsesAcceleratedDrawing = dlsym(RTLD_DEFAULT, "WKPreferencesSetCanvasUsesAcceleratedDrawing");
+    if (!getMethod || !implementation || !replace || !vpSetCanvasUsesAcceleratedDrawing) return;
+
+    Class webView = getClass("WKWebView");
+    Class configuration = getClass("WKWebViewConfiguration");
+    SEL initialize = selector("_initializeWithConfiguration:");
+    vpCanvasPreferencesSelector = selector("preferences");
+    if (!webView || !configuration || !getMethod(configuration, vpCanvasPreferencesSelector))
+        return;
+
+    Method method = getMethod(webView, initialize);
+    if (!method) return;
+
+    // Turning off GPU-process canvas rendering leaves the WebContent process
+    // free to allocate an accelerated buffer for larger 2D canvases. Select
+    // software before WebKit copies the configuration into its new page.
+    vpCanvasMessageSend = send;
+    vpInitializeWebView = (void (*)(id, SEL, id))implementation(method);
+    replace(method, (IMP)vpInitializeWebViewWithSoftwareCanvas);
+}
 
 // SystemHook is loaded into daemons too. Use Safari's already loaded
 // Objective-C runtime and Foundation classes without linking Foundation
@@ -39,4 +79,5 @@ void vpUseIOS18SafariSoftwareRendering(void) {
         string((id)strings, utf8, "WebKitExperimentalUseGPUProcessForCanvasRenderingEnabled"));
     set(defaults, selector("setVolatileDomain:forName:"), arguments, name);
     ((void (*)(id, SEL))send)(arguments, selector("release"));
+    vpInstallSoftwareCanvas(getClass, selector, send);
 }

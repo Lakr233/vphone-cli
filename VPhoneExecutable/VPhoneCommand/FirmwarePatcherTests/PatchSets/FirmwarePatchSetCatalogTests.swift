@@ -724,6 +724,29 @@ struct FirmwarePatchSetCatalogTests {
     }
 
     @Test
+    func `Astronomy background fallback is gated to iOS 17.7 and cloudOS 26.1`() throws {
+        let patch = FirmwareGuestSystemPatchSet.ios17AstronomyBackground
+        let catalog = FirmwarePatchSetCatalog.bundled
+        for (base, cloud, expected) in [
+            ("17.7", "26.1", true),
+            ("17.7", "26.4", false),
+            ("18.6.2", "26.1", false),
+        ] {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: FirmwarePatchSetCatalog.standardPreset, patchSets: catalog,
+                iOSBase: VPhoneVersion(base), cloudOS: VPhoneVersion(cloud),
+            )
+            #expect(plan.isEnabled(patch) == expected, "\(base)/\(cloud)")
+        }
+        let blocked = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.standardPreset, patchSets: catalog,
+            iOSBase: VPhoneVersion("17.7"), cloudOS: VPhoneVersion("26.1"),
+            blocked: [patch],
+        )
+        #expect(!blocked.isEnabled(patch))
+    }
+
+    @Test
     func `Safari software rendering is scoped to the affected iOS and cloudOS pair`() throws {
         let patch = FirmwareGuestSystemPatchSet.ios18SafariSoftwareRendering
         for (base, cloud, expected) in [
