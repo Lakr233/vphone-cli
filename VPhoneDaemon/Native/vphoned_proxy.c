@@ -45,8 +45,42 @@ static void *watch_proxy(void *context) {
     char byte;
     while (read(fd, &byte, 1) < 0 && errno == EINTR) {}
     // Only the proxy owns the write end. Its death must not leave an
-    // unaccounted worker holding the VSOCK ports open.
+    // unaccounted worker holding the VSOCK ports open. Say so: jetsam kills
+    // the proxy without a word, and this line is the only trace it leaves.
+    static const char line[] = "vphoned: the proxy is gone; worker exiting\n";
+    (void)write(STDERR_FILENO, line, sizeof(line) - 1);
     _exit(0);
+}
+
+// MARK: - Jetsam band
+
+// Private in XNU's kern_memorystatus.h; vphoned holds
+// com.apple.private.memorystatus.
+extern int memorystatus_control(uint32_t command, int32_t pid, uint32_t flags, void *buffer, size_t size);
+
+enum { VPMemorystatusSetPriorityProperties = 2 };
+
+typedef struct {
+    int32_t priority;
+    uint64_t user_data;
+} vp_memorystatus_priority_properties;
+
+// JETSAM_PRIORITY_DEFAULT: the band the kernel gives a process launchd does
+// not manage, which is where the worker runs.
+static const int32_t worker_jetsam_band = 180;
+
+static void move_to_worker_jetsam_band(void) {
+    // launchd starts the proxy as a daemon it has no jetsam entry for, in
+    // band 40, which jetsam empties long before it reaches the foreground app
+    // (100). The worker exits with the proxy, so a guest short of memory lost
+    // its API every time: a 2 GiB iPadOS 27.0.1 guest started a new worker
+    // 30 times in one day and, after the last kill, none at all.
+    vp_memorystatus_priority_properties properties = {.priority = worker_jetsam_band, .user_data = 0};
+    if (memorystatus_control(VPMemorystatusSetPriorityProperties, getpid(), 0, &properties,
+                             sizeof(properties)) != 0) {
+        fprintf(stderr, "vphoned proxy: could not move to jetsam band %d: %s\n", worker_jetsam_band,
+                strerror(errno));
+    }
 }
 
 int vp_native_watch_proxy(void) {
@@ -87,6 +121,7 @@ int vp_native_run_proxy(void) {
     char executable[4096];
     uint32_t size = sizeof(executable);
     if (_NSGetExecutablePath(executable, &size) != 0) return 1;
+    move_to_worker_jetsam_band();
 
     struct sigaction action = {.sa_handler = request_stop};
     sigemptyset(&action.sa_mask);

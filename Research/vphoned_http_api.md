@@ -1398,9 +1398,28 @@ also sets `ThrottleInterval` to 1 so launchd restarts the proxy itself one
 second after it exits, not the default ten, and `ProcessType` to
 `Interactive` so boot-time CPU and I/O throttling does not apply. A pipe
 makes the worker exit if launchd kills the proxy, so the old worker cannot
-retain the ports after launchd starts a replacement.
+retain the ports after launchd starts a replacement. The worker writes
+`vphoned: the proxy is gone; worker exiting` to the log as it goes.
+
+The proxy moves itself to jetsam band 180 (`JETSAM_PRIORITY_DEFAULT`, the
+worker's band) with `memorystatus_control(MEMORYSTATUS_CMD_SET_PRIORITY_PROPERTIES)`
+as it starts; a failure is logged and the proxy carries on. launchd has no
+jetsam entry for `com.vphone.vphoned` and starts it in band 40, while the
+worker, which launchd does not manage, runs in 180. Jetsam empties band 40
+before it reaches the foreground app (100), and the worker exits with the
+proxy. On 2026-11-22 an iPad16,1 guest (iPadOS 27.0.1, 2 GiB, a
+third-party app in the foreground) started a new worker 30 times, each after a
+proxy that died without a log line or crash report, and after the last kill
+none came back: the guest kernel kept running while every connection to 1339
+was reset, until the VM was restarted about 11 hours later. Jetsam reports
+were missing because `ReportSystemMemory` itself crashed writing them
+(`BUG IN LIBDISPATCH: mach semaphore API failure`, the 27-on-26.4 libdispatch
+failure). `memory.jetsam` shows both processes: before this change the proxy
+read `priority 40, limit_mb 18` and the worker `priority 180, limit_mb -1`.
+
 The proxy never initializes NIO, IcliKit, or the camera server under its
-6 MB per-process Jetsam limit. A successful `agent.apply_update` worker exit
+per-process Jetsam limit (6 MB on the first guests measured, 18 MB on that
+iPadOS 27.0.1 guest). A successful `agent.apply_update` worker exit
 makes the proxy exit so launchd can restart the updated cached binary. If a
 cached worker fails before binding, the bundled-binary fallback remains in
 effect. Before it execs `/var/root/Library/Caches/vphoned`, the proxy
