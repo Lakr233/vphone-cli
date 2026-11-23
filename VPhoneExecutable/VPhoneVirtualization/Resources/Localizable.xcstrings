@@ -36968,6 +36968,181 @@
           }
         }
       }
+    },
+    "Save Memory Dump…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Memory Dump…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリダンプを保存…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모리 덤프 저장…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu bản kết xuất bộ nhớ…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "存储内存转储…"
+          }
+        }
+      }
+    },
+    "Saving Memory Dump…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving Memory Dump…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリダンプを保存中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모리 덤프 저장 중…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang lưu bản kết xuất bộ nhớ…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在存储内存转储…"
+          }
+        }
+      }
+    },
+    "Memory Dump" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memory Dump"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリダンプ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모리 덤프"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết xuất bộ nhớ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内存转储"
+          }
+        }
+      }
+    },
+    "Save the guest's memory and every vCPU's registers as Mach-O cores that LLDB opens." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save the guest's memory and every vCPU's registers as Mach-O cores that LLDB opens."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲストのメモリとすべての vCPU のレジスタを、LLDB で開ける Mach-O コアとして保存します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게스트의 메모리와 모든 vCPU의 레지스터를 LLDB에서 열 수 있는 Mach-O 코어로 저장합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lưu bộ nhớ của máy khách và thanh ghi của mọi vCPU dưới dạng tệp core Mach-O mà LLDB mở được."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将客户机的内存和每个 vCPU 的寄存器存储为 LLDB 可以打开的 Mach-O 核心文件。"
+          }
+        }
+      }
+    },
+    "A folder for this dump is created in the folder you choose. It can take up to %@. The guest pauses while its memory is copied, usually 10 to 20 seconds, then carries on." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A folder for this dump is created in the folder you choose. It can take up to %@. The guest pauses while its memory is copied, usually 10 to 20 seconds, then carries on."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択したフォルダの中に、このダンプ用のフォルダが作成されます。最大 %@ を使用します。メモリのコピー中はゲストが一時停止し（通常 10〜20 秒）、その後そのまま動作を続けます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 폴더 안에 이 덤프용 폴더가 만들어집니다. 최대 %@를 사용할 수 있습니다. 메모리를 복사하는 동안 게스트가 일시 정지되며(보통 10~20초), 그 후 이어서 실행됩니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Một thư mục cho bản kết xuất này sẽ được tạo trong thư mục bạn chọn. Nó có thể chiếm tới %@. Máy khách tạm dừng trong khi bộ nhớ được sao chép, thường từ 10 đến 20 giây, rồi tiếp tục chạy."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将在你选择的文件夹中为此转储创建一个文件夹，最多占用 %@。复制内存期间客户机会暂停（通常 10 到 20 秒），然后继续运行。"
+          }
+        }
+      }
     }
   },
   "version" : "1.3"
