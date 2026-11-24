@@ -255,6 +255,54 @@ extension GuestMemoryTests {
                "sprayed carve-outs capped: \(found.count) of \(planted)")
         expect(Date().timeIntervalSince(started) < 1, "sprayed carve-outs fast")
 
+        // dram-base: stray matches (wrong length, misaligned value) in front
+        // of the device tree do not count, however many there are.
+        let strays = guarded(16 << 20)
+        strays.initializeMemory(as: UInt8.self, repeating: 0, count: 16 << 20)
+        let dramName = Array("dram-base".utf8) + [0]
+        func plantDRAMBase(in memory: UnsafeMutableRawPointer, at offset: Int, length: UInt32, value: UInt64) {
+            for (index, byte) in dramName.enumerated() {
+                memory.storeBytes(of: byte, toByteOffset: offset + index, as: UInt8.self)
+            }
+            memory.storeBytes(of: length, toByteOffset: offset + 32, as: UInt32.self)
+            memory.storeBytes(of: value, toByteOffset: offset + 36, as: UInt64.self)
+        }
+        let strayEnd = (16 << 20) - 4096
+        var strayCount = 0
+        for offset in stride(from: 0, to: strayEnd, by: 64) {
+            plantDRAMBase(in: strays, at: offset, length: strayCount % 2 == 0 ? 4 : 8, value: UInt64(strayCount) << 14 | 0x123)
+            strayCount += 1
+        }
+        plantDRAMBase(in: strays, at: strayEnd, length: 8, value: VPhoneGuestPhysicalMemory.usualDRAMBase)
+        let strayStarted = Date()
+        let pastStrays = VPhoneGuestPhysicalMemory.deviceTreeValues("dram-base", in: strays, size: 16 << 20) {
+            $0 & 0x3FFF == 0
+        }
+        expect(strayCount > 4 * VPhoneGuestPhysicalMemory.deviceTreeMatchLimit
+            && pastStrays == [VPhoneGuestPhysicalMemory.usualDRAMBase],
+            "dram-base found past \(strayCount) stray matches")
+        expect(Date().timeIntervalSince(strayStarted) < 1, "stray matches fast")
+
+        // Well-formed planted values can still fill the limit; the usual base
+        // is tried first regardless, and the unverified one is never a planted
+        // value when the usual base was found.
+        for offset in stride(from: 0, to: strayEnd, by: 64) {
+            plantDRAMBase(in: strays, at: offset, length: 8, value: UInt64(offset + 1) << 14)
+        }
+        let filled = VPhoneGuestPhysicalMemory.deviceTreeValues("dram-base", in: strays, size: 16 << 20)
+        expect(filled.count == VPhoneGuestPhysicalMemory.deviceTreeMatchLimit
+            && !filled.contains(VPhoneGuestPhysicalMemory.usualDRAMBase), "planted values fill the limit")
+        let usual = VPhoneGuestPhysicalMemory.usualDRAMBase
+        let fromFilled = VPhoneGuestPhysicalMemory.dramBases(found: filled)
+        expect(fromFilled.tried.first == usual && fromFilled.tried.count == filled.count + 1
+            && fromFilled.unverified == usual, "usual base tried first, and unverified when the search was capped")
+        let fromFew = VPhoneGuestPhysicalMemory.dramBases(found: [0x4000, 0x8000])
+        expect(fromFew.tried == [usual, 0x4000, 0x8000] && fromFew.unverified == 0x4000,
+               "another base: unverified is the first found")
+        let withUsual = VPhoneGuestPhysicalMemory.dramBases(found: [0x4000, usual, 0x8000])
+        expect(withUsual.tried == [usual, 0x4000, 0x8000] && withUsual.unverified == usual, "usual base found: used")
+        expect(VPhoneGuestPhysicalMemory.dramBases(found: []) == ([usual], usual), "nothing found: usual base")
+
         // Mach-O: commands too short for their fields, or a header with
         // fewer than 32 bytes left, are skipped without reading past them.
         func header(at pointer: UnsafeMutableRawPointer, commands: [(UInt32, UInt32)], sizeofcmds: UInt32? = nil) {
@@ -483,6 +531,50 @@ extension GuestMemoryTests {
             carveOut: nil, mappings: [], dramBases: [0x1_0000_0000, dramBase + 0x4000],
         )
         expect(onlyDecoys.placed(kernel: registers) == nil, "no dram-base agrees")
+
+        // Contiguous in guest physical memory but not on the host: the last
+        // carve-out page, then DRAM's first page, are separate mappings.
+        let carvePage = guarded(page)
+        carvePage.initializeMemory(as: UInt8.self, repeating: 0, count: page)
+        let split = VPhoneGuestPhysicalMemory(
+            dram: .init(guestAddress: dramBase, size: UInt64(pages * page), base: UnsafeRawPointer(ram)),
+            carveOut: .init(guestAddress: dramBase - UInt64(page), size: UInt64(page), base: UnsafeRawPointer(carvePage)),
+            mappings: [],
+        )
+        let straddle = kernelBase + 0x20_0000
+        ram.storeBytes(of: (dramBase - UInt64(page)) | 3, toByteOffset: 3 * page + Int((straddle >> 14) & 0x7FF) * 8,
+                       as: UInt64.self)
+        map(straddle + UInt64(page), to: 0)
+        let straddled = VPhoneGuestKernel.mapped(VPhoneGuestPageTables(memory: split, root: physical(1)), at: straddle)
+        expect(straddled?.pointer == UnsafeRawPointer(carvePage) && straddled?.available == UInt64(page),
+               "mapped bytes stop at the carve-out's end")
+        let within = VPhoneGuestKernel.mapped(VPhoneGuestPageTables(memory: split, root: physical(1)), at: kernelBase)
+        expect(within?.available ?? 0 > UInt64(page), "mapped bytes go on within DRAM")
+
+        // The physical image's note without the kernel: the base is unverified,
+        // with every candidate.
+        let unverifiedNote = VPhonePhysicalMemoryDump.kernelDescription(
+            memory: VPhoneGuestPhysicalMemory(
+                dram: .init(guestAddress: 0x1_0000_0000, size: UInt64(pages * page), base: UnsafeRawPointer(ram)),
+                carveOut: nil, mappings: [], dramBases: [VPhoneGuestPhysicalMemory.usualDRAMBase, 0x1_0000_0000], dramCandidates: [0x1_0000_0000, dramBase],
+            ),
+            kernel: .failure(VPhoneGuestDebugStub.Failure.unavailable("test")), machineName: "test",
+        )
+        let noteBase = unverifiedNote["dram_base"] as? [String: Any]
+        let noteVerified = noteBase?["verified"] as? Bool
+        let noteCandidates = noteBase?["candidates"] as? [String]
+        expect(noteVerified == false && noteCandidates == ["0x100000000", "0x80000000"]
+            && unverifiedNote["kernel_error"] != nil, "note: base unverified, candidates listed")
+        let verifiedNote = VPhonePhysicalMemoryDump.kernelDescription(memory: placed.memory, kernel: .success(placed),
+                                                                      machineName: "test")
+        expect((verifiedNote["dram_base"] as? [String: Any])?["verified"] as? Bool == true, "note: base verified")
+
+        // Room for a process core: its pages and commands, not twice guest RAM.
+        let someMappings = (0 ..< 3).map {
+            VPhoneGuestKernel.Mapping(virtual: UInt64($0) << 20, physical: dramBase, size: 1 << 20, entry: 3)
+        }
+        expect(VPhoneProcessMemoryDump.spaceNeeded(someMappings)
+            == 3 << 20 + 3 * 72 + VPhoneProcessMemoryDump.spaceNeededBeforePause, "space for a process core")
         func fails(_ registers: VPhoneGuestDebugStub.KernelRegisters, _ check: (Error) -> Bool) -> Bool {
             do {
                 _ = try VPhoneGuestKernel.locate(in: memory, registers: registers, symbolsRoot: recipes)
@@ -535,17 +627,27 @@ extension GuestMemoryTests {
         expect(VPhoneGuestDebugStub.frame("OK") == Array("$OK#9a".utf8), "packet checksum")
         expect(VPhoneGuestDebugStub.decode(Array("0* 1".utf8)) == Array("00001".utf8), "run length")
         expect(VPhoneGuestDebugStub.decode(Array("a}\u{03}b".utf8)) == Array("a#b".utf8), "escaped byte")
+        let bomb = [UInt8]([UInt8(ascii: "0")]) + [UInt8](repeating: 0, count: 40000).enumerated().map {
+            $0.offset % 2 == 0 ? UInt8(ascii: "*") : 126
+        }
+        expect(VPhoneGuestDebugStub.decode(bomb) == nil, "run lengths past 1 MB refused")
+        expect(VPhoneGuestDebugStub.hex("1f") == 31 && VPhoneGuestDebugStub.hex("A") == 10, "hex numbers")
+        expect(VPhoneGuestDebugStub.hex("-1") == nil && VPhoneGuestDebugStub.hex("+1") == nil
+            && VPhoneGuestDebugStub.hex("") == nil && VPhoneGuestDebugStub.hex("0x1") == nil, "signs and prefixes refused")
         expect(VPhoneGuestDebugStub.little([0x78, 0x56, 0x34, 0x12]) == 0x1234_5678, "little-endian value")
         expect(VPhoneGuestDebugStub.fields("T11thread:1;threads:1,2;")["threads"] == "1,2", "reply fields")
 
         func read(
             names: [String] = ["x0", "cpsr", "ttbr1_el1", "vbar_el1"],
+            listsThreadsInStop: Bool = true, raw: [String: String] = [:],
             _ values: [Int: [String: [UInt8]]],
         ) -> (Result<VPhoneGuestDebugStub.KernelRegisters, Error>, [String]) {
             var pair: [Int32] = [0, 0]
             guard socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0 else { return (.failure(POSIXError(.EIO)), []) }
             let stub = FakeDebugStub(descriptor: pair[1], names: names)
             stub.values = values
+            stub.listsThreadsInStop = listsThreadsInStop
+            stub.raw = raw
             stub.start()
             let session = VPhoneGuestDebugStub.Session(descriptor: pair[0])
             let result = Result { try VPhoneGuestDebugStub.kernelRegisters(session) }
@@ -568,6 +670,23 @@ extension GuestMemoryTests {
         let early = ["ttbr1_el1": littleBytes(0), "vbar_el1": littleBytes(0x1_0000_0800)]
         expect((try? read([1: early]).0.get()) == nil, "a kernel without page tables yet refused")
         expect((try? read(names: ["x0", "cpsr", "ttbr1_el1"], [1: same]).0.get()) == nil, "no vbar_el1: refused")
+
+        // The vCPUs from qfThreadInfo/qsThreadInfo when the stop reply has none.
+        let (listed, listPackets) = read(listsThreadsInStop: false, [1: same, 2: same])
+        expect((try? listed.get()) != nil && listPackets.contains("qsThreadInfo"), "vCPUs from the thread list")
+        let (bare, barePackets) = read(listsThreadsInStop: false, raw: ["qfThreadInfo": "m"], [1: same])
+        expect((try? bare.get()) == nil && !barePackets.contains("qsThreadInfo"), "a bare m refused")
+        let (endless, endlessPackets) = read(listsThreadsInStop: false, raw: ["qsThreadInfo": "m1"], [1: same])
+        expect((try? endless.get()) == nil
+            && endlessPackets.filter { $0 == "qsThreadInfo" }.count == VPhoneGuestDebugStub.threadListReplyLimit,
+            "a thread list that never ends refused")
+        let (signed, _) = read(raw: ["?": "T11thread:1;threads:-1;", "qfThreadInfo": "m-1", "qsThreadInfo": "l"], [1: same])
+        expect((try? signed.get()) == nil, "thread -1 (all threads) never read")
+        let (unparsedStop, unparsedStopPackets) = read(raw: ["?": "T11thread:1;threads:1,zz;"], [1: same])
+        expect((try? unparsedStop.get()) == nil && !unparsedStopPackets.contains { $0.hasPrefix("p") },
+               "an unreadable vCPU in the stop reply refused")
+        let (unparsedList, _) = read(listsThreadsInStop: false, raw: ["qfThreadInfo": "m1,zz"], [1: same])
+        expect((try? unparsedList.get()) == nil, "an unreadable vCPU in the thread list refused")
 
         var pair: [Int32] = [0, 0]
         _ = socketpair(AF_UNIX, SOCK_STREAM, 0, &pair)

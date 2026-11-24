@@ -57,10 +57,10 @@ extension VPhoneGuestPhysicalMemory {
             // Only pages the guest ever got are searched: reading the others
             // would make the host allocate them.
             let runs = usedRuns(usedPages(task: task, address: largest.address, size: largest.size), size: largest.size)
-            let bases = deviceTreeValues("dram-base", in: dramBase, size: largest.size, runs: runs).filter {
+            let found = deviceTreeValues("dram-base", in: dramBase, size: largest.size, runs: runs) {
                 $0 & (pageSize - 1) == 0 && !$0.addingReportingOverflow(largest.size).overflow
             }
-            guard let base = bases.first else { throw Failure.dramBaseUnknown }
+            let (bases, base) = dramBases(found: found)
             let dram = Region(guestAddress: base, size: largest.size, base: dramBase, serviceAddress: largest.address)
 
             // The carve-out block sits directly below DRAM: a region is taken
@@ -78,7 +78,7 @@ extension VPhoneGuestPhysicalMemory {
             keepsTask = true
             return VPhoneGuestPhysicalMemory(
                 dram: dram, carveOut: carveOut(below: base, carveOuts: carveOuts, regions: others),
-                mappings: mapped, task: task, dramBases: bases, carveOuts: carveOuts, otherRegions: others,
+                mappings: mapped, task: task, dramBases: bases, dramCandidates: found, carveOuts: carveOuts, otherRegions: others,
             )
         } catch {
             for (address, size) in mapped {

@@ -50,6 +50,11 @@ enum VPhoneGuestDebugStub {
     static let replyTimeout = timeval(tv_sec: 1, tv_usec: 0)
     /// More registers than any target describes ends the enumeration.
     static let registerLimit = 1024
+    /// The longest reply taken, before and after run-length decoding (each
+    /// `*` pair can stand for up to 97 bytes).
+    static let replyLimit = 1 << 20
+    /// More `qsThreadInfo` replies than any vCPU list needs.
+    static let threadListReplyLimit = 64
 
     static let kernelNames = ["ttbr1_el1", "vbar_el1"]
 
@@ -98,6 +103,16 @@ enum VPhoneGuestDebugStub {
         return registers
     }
 
+    /// A comma-separated list of thread IDs. One that is not bare hex is
+    /// refused rather than left out: every vCPU must be asked for its
+    /// registers, or "the vCPUs agree" would hold for only some of them.
+    static func threadIDs(_ list: some StringProtocol) throws -> [Int] {
+        try list.split(separator: ",").map { text in
+            guard let id = hex(text) else { throw Failure.malformed("thread ID \(text.prefix(16))") }
+            return id
+        }
+    }
+
     /// `key:value;` pairs of a reply.
     static func fields(_ reply: String) -> [String: String] {
         var fields: [String: String] = [:]
@@ -113,12 +128,23 @@ enum VPhoneGuestDebugStub {
         bytes.prefix(8).enumerated().reduce(UInt64(0)) { $0 | UInt64($1.element) << (8 * UInt64($1.offset)) }
     }
 
+    /// A hexadecimal number as the protocol writes one: digits only, so no
+    /// sign (`Int(_:radix:)` would read `-1`, which means all threads).
+    static func hex(_ text: some StringProtocol) -> Int? {
+        guard !text.isEmpty, text.utf8.count <= 15,
+              text.utf8.allSatisfy({ UInt8(ascii: "0") ... UInt8(ascii: "9") ~= $0
+                  || UInt8(ascii: "a") ... UInt8(ascii: "f") ~= $0 || UInt8(ascii: "A") ... UInt8(ascii: "F") ~= $0 })
+        else { return nil }
+        return Int(text, radix: 16)
+    }
+
     /// The payload of a received packet: `}` escapes and `*` run lengths
-    /// undone.
-    static func decode(_ raw: [UInt8]) -> [UInt8] {
+    /// undone; nil if that makes it longer than `limit`.
+    static func decode(_ raw: [UInt8], limit: Int = replyLimit) -> [UInt8]? {
         var out: [UInt8] = []
         var index = 0
         while index < raw.count {
+            guard out.count <= limit else { return nil }
             let byte = raw[index]
             if byte == UInt8(ascii: "}"), index + 1 < raw.count {
                 out.append(raw[index + 1] ^ 0x20)
@@ -132,7 +158,7 @@ enum VPhoneGuestDebugStub {
                 index += 1
             }
         }
-        return out
+        return out.count <= limit ? out : nil
     }
 
     /// A packet as sent: `$payload#checksum`.
@@ -206,15 +232,19 @@ enum VPhoneGuestDebugStub {
                    buffer.count >= end + 3
                 {
                     let raw = Array(buffer[(start + 1) ..< end])
-                    let sum = String(bytes: buffer[(end + 1) ... (end + 2)], encoding: .ascii).flatMap { UInt8($0, radix: 16) }
+                    let sum = String(bytes: buffer[(end + 1) ... (end + 2)], encoding: .ascii)
+                        .flatMap { VPhoneGuestDebugStub.hex($0) }
                     buffer.removeFirst(end + 3)
                     if acknowledging {
-                        guard sum == raw.reduce(UInt8(0), { $0 &+ $1 }) else { throw Failure.malformed("bad checksum") }
+                        guard sum == Int(raw.reduce(UInt8(0), { $0 &+ $1 })) else { throw Failure.malformed("bad checksum") }
                         try write([UInt8(ascii: "+")])
                     }
-                    return String(decoding: VPhoneGuestDebugStub.decode(raw), as: UTF8.self)
+                    guard let payload = VPhoneGuestDebugStub.decode(raw) else {
+                        throw Failure.malformed("a reply over 1 MB once decoded")
+                    }
+                    return String(decoding: payload, as: UTF8.self)
                 }
-                guard buffer.count < 1 << 20 else { throw Failure.malformed("a reply over 1 MB") }
+                guard buffer.count < VPhoneGuestDebugStub.replyLimit else { throw Failure.malformed("a reply over 1 MB") }
                 var chunk = [UInt8](repeating: 0, count: 4096)
                 let count = chunk.withUnsafeMutableBytes { read(descriptor, $0.baseAddress, $0.count) }
                 if count < 0, errno == EINTR { continue }
@@ -243,8 +273,7 @@ enum VPhoneGuestDebugStub {
             guard stop.hasPrefix("T") || stop.hasPrefix("S") else {
                 throw Failure.malformed("stop reply \(stop.prefix(32))")
             }
-            var cpus = VPhoneGuestDebugStub.fields(stop)["threads"]
-                .map { $0.split(separator: ",").compactMap { Int($0, radix: 16) } } ?? []
+            var cpus = try VPhoneGuestDebugStub.fields(stop)["threads"].map { try VPhoneGuestDebugStub.threadIDs($0) } ?? []
             if cpus.isEmpty { cpus = try threadList() }
             guard !cpus.isEmpty else { throw Failure.malformed("no vCPUs") }
             guard try request("QThreadSuffixSupported") == "OK" else {
@@ -253,15 +282,20 @@ enum VPhoneGuestDebugStub {
             return cpus
         }
 
-        /// The vCPUs, when the stop reply does not list them.
+        /// The vCPUs, when the stop reply does not list them. A list that
+        /// does not end within `threadListReplyLimit` replies, or a reply
+        /// that adds no vCPU, is refused.
         func threadList() throws -> [Int] {
             var cpus: [Int] = []
             var reply = try request("qfThreadInfo")
-            while reply.hasPrefix("m"), cpus.count < 4096 {
-                cpus += reply.dropFirst().split(separator: ",").compactMap { Int($0, radix: 16) }
+            for _ in 0 ..< VPhoneGuestDebugStub.threadListReplyLimit {
+                guard reply.hasPrefix("m") else { return cpus }
+                let added = try VPhoneGuestDebugStub.threadIDs(reply.dropFirst())
+                guard !added.isEmpty else { throw Failure.malformed("a thread list reply without threads") }
+                cpus += added
                 reply = try request("qsThreadInfo")
             }
-            return cpus
+            throw Failure.malformed("a thread list that does not end")
         }
 
         /// The numbers of the registers named in `names` (by name or
@@ -290,10 +324,11 @@ enum VPhoneGuestDebugStub {
             }
             var bytes: [UInt8] = []
             for index in stride(from: 0, to: digits.count, by: 2) {
-                guard let byte = UInt8(String(decoding: digits[index ..< index + 2], as: UTF8.self), radix: 16) else {
+                guard let byte = VPhoneGuestDebugStub.hex(String(decoding: digits[index ..< index + 2], as: UTF8.self))
+                else {
                     throw Failure.malformed("register \(number) of vCPU \(cpu): \(reply.prefix(16))")
                 }
-                bytes.append(byte)
+                bytes.append(UInt8(byte))
             }
             return bytes
         }

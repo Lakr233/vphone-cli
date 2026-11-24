@@ -172,7 +172,10 @@ final class VPhoneGuestKernel: @unchecked Sendable {
     }
 
     /// The bytes at a kernel address that are mapped contiguously in guest
-    /// RAM, up to 1 MB: enough for any header `loadCommands` reads.
+    /// RAM, up to 1 MB: enough for any header `loadCommands` reads. Each
+    /// further page must follow on both in guest physical memory and in
+    /// this process: the carve-outs end where DRAM starts, but the two are
+    /// separate mappings on the host.
     static func mapped(_ tables: VPhoneGuestPageTables, at address: UInt64) -> (pointer: UnsafeRawPointer, available: UInt64)? {
         guard let physical = tables.translate(address),
               let pointer = tables.memory.pointer(physical: physical, count: 1)
@@ -180,7 +183,7 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         var available = pageSize - (address & (pageSize - 1))
         while available < 1 << 20,
               tables.translate(address &+ available) == physical &+ available,
-              tables.memory.pointer(physical: physical &+ available, count: Int(pageSize)) != nil
+              tables.memory.pointer(physical: physical &+ available, count: Int(pageSize)) == pointer + Int(available)
         {
             available += pageSize
         }

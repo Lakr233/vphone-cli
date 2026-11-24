@@ -210,9 +210,20 @@ struct VPhoneMemoryDump {
         guard !manager.fileExists(atPath: folder.path) else {
             throw Failure.destinationExists(folder.path)
         }
+        try checkSpace(at: parent, needed: needed)
+        do {
+            try manager.createDirectory(at: folder, withIntermediateDirectories: false)
+        } catch {
+            throw Failure.writeFailed(folder.path, error.localizedDescription)
+        }
+    }
+
+    /// Throws unless the volume of `url` has `needed` bytes free. A volume
+    /// that does not say is let through.
+    static func checkSpace(at url: URL, needed: UInt64) throws {
         // "Important usage" counts purgeable space, but some volumes, a disk
         // image for one, report it as 0; the larger of the two is the space.
-        let values = try? parent.resourceValues(forKeys: [
+        let values = try? url.resourceValues(forKeys: [
             .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey,
         ])
         let important = values?.volumeAvailableCapacityForImportantUsage.map { UInt64(max($0, 0)) }
@@ -222,11 +233,6 @@ struct VPhoneMemoryDump {
             if available < needed {
                 throw Failure.insufficientSpace(needed: needed, available: available)
             }
-        }
-        do {
-            try manager.createDirectory(at: folder, withIntermediateDirectories: false)
-        } catch {
-            throw Failure.writeFailed(folder.path, error.localizedDescription)
         }
     }
 

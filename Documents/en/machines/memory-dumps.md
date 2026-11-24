@@ -50,6 +50,8 @@ A dump does not include physical addresses, system registers such as the transla
 
 Select **Physical memory image** in the Save Memory Dump panel to save `physical.elf` instead of the cores. It is an ELF core with one `PT_LOAD` for the guest's DRAM and one for the firmware carve-outs below it; each segment's address is the guest physical address. A `VPHONE` note (type `0x5650`) holds JSON naming the machine, the guest's kernel, its physical address and the root of its page tables. Use it with tools that read physical memory, or to translate addresses through the guest's page tables yourself.
 
+The kernel's registers, read through Virtualization's kernel debug stub, also confirm where DRAM starts. When the stub cannot be reached, for example while a debugger is attached to it, the image is still saved, and the note says that the kernel was not found and that DRAM's base is unverified, with every base found in guest memory. An app in the guest can plant such a value.
+
 Pages the guest never used are left out of the file. The guest stays paused until the whole image is written, usually 10 to 20 seconds when the Mac has enough free memory.
 
 From Terminal, add `"physical":true` to `memory.dump`:
@@ -64,6 +66,8 @@ printf '%s\n' '{"t":"memory.dump","path":"/Users/me/Dumps/myphone-2","physical":
 2. Choose **Save Memory Dump…** in the toolbar or the context menu, then a folder. The new folder is named for the machine, the process and its pid, such as `myphone SpringBoard (36) Memory 2026-11-20 at 10.02.03`.
 
 vphone reads the process's memory from the Mac, without the guest's help: it locates the guest kernel from two of its vCPU registers, read through Virtualization's kernel debug stub, walks its process list to the pid, and copies every page the process's page tables map. The guest is paused for this, usually a few seconds. vphoned only supplies the process list you choose from. If the pid belongs to a different process by the time you save, the dump is refused; refresh the list and try again.
+
+A process dump needs the kernel debug stub. While a debugger such as LLDB is attached to the stub, the dump fails within a few seconds with "The kernel debug stub is not available: no reply in time". The guest is not affected; detach the debugger and save again.
 
 The folder holds a Mach-O core named for the process and an `info.json`. LLDB opens the core and finds the process's images from dyld's data in it:
 
@@ -86,7 +90,7 @@ Process dumps work for guests whose kernel is one of the kernelcache recipes vph
 ## Space and time
 
 - `AP.core` is a little larger than the guest's RAM, 8.6 GB for an 8 GB guest. All-zero blocks are left out of the file, so on an APFS volume it takes only the space of its data, usually most of the guest's RAM.
-- Saving refuses, before the guest is paused, when the volume has less free space than the guest's RAM and a little more. A process dump asks for twice the guest's RAM, at least 4 GB: the most it may write.
+- Saving refuses, before the guest is paused, when the volume has less free space than the guest's RAM and a little more. A process dump asks for 256 MB before the pause, then, once the process's pages are known, for their size and 256 MB more.
 - While the guest is paused, macOS holds a copy of its memory. On a Mac that is short of memory the pause and the writing take longer.
 - The guest's clock stands still while it is paused. `vphone-vm` puts it back on the Mac's time as soon as the guest runs again.
 - One dump of a machine is saved at a time.

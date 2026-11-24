@@ -38,12 +38,22 @@ Guest physical addresses come from the device tree iBoot leaves in DRAM:
 `dram-base` places DRAM (`0x70a00000` on all three guests), and the
 `region-id-N` carve-outs below it identify the small region. The device tree
 is not below every app page (on a booted 27.2 guest it was at DRAM + 75.4 MB,
-the lowest user page at DRAM + 32 KB), so an app can write a `dram-base`
-property that comes first. Every `dram-base` value is kept, in order, and
-inside the pause the first one under which the kernel's registers make sense
-is used (see [Kernel registers](#kernel-registers)). Both searches read only
-pages the service has given the guest (`mach_vm_page_range_query`), so the
-host allocates nothing for them.
+the lowest user page at DRAM + 32 KB), so an app can write `dram-base`
+properties that come first. Inside the pause, the dump tries `0x70a00000`
+first, then every other `dram-base` value in the order found, and takes the
+first under which the kernel's registers make sense (see
+[Kernel registers](#kernel-registers)). Both searches read only pages the
+service has given the guest (`mach_vm_page_range_query`), so the host
+allocates nothing for them.
+
+The searches keep at most 4,096 distinct values each, and only well-formed
+properties count: a 4-byte aligned name, the right length and, for
+`dram-base`, a page-aligned value. Until 2026-11-24 every raw match counted,
+so about 40 KB of `"dram-base\0"` in an app's pages used the limit up before
+the device tree was reached, and every process dump failed. Planted
+well-formed properties with distinct values can still fill the limit (4,096
+of them take 180 KB); trying `0x70a00000` first keeps that from mattering
+while Virtualization places DRAM there.
 
 Reading a page through the mapping that the guest never used makes the host
 allocate it. On `mp-272` (with a second VM restoring beside it) a first
@@ -124,16 +134,17 @@ A first pass checked every map's `_kernproc` and `_kernel_pmap` against code
 that uses them (`_proc_pid` compares with `kernproc`; `kernel_pmap` is a const
 pointer to `kernel_pmap_store`, which 140 to 170 functions reference) and
 against same-name functions of the macOS 15.7.3, 26.1 and 26.5.1 KDKs. All 16
-were right, so the existing maps are unchanged: the mixer hashes them into
-its cache key, and an edit would change mixed kernelcaches. The manifests only
-gain `kernelUUID` and `kernelSegments`, which the mixer does not read. The
+were right, so the dump changes no existing map: they stay as they are on
+main. The manifests only gain `kernelUUID` and `kernelSegments`, which the
+mixer does not read. The
 vphone600 26.2 (`23C55`) and 26.3 (`23D129`) kernels got maps under
 `kernels/`; how they and the two keys are made is in the recipes'
 [README](../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md).
 
 The same pass found `_get_task_map` wrong in eleven maps and missing in four
 (the one leaf that loads `[x0,#0x28]` with discriminator `0x5ef8`). The dump
-does not use it; the correction belongs to the mixer and is kept apart.
+does not use it; the mixer does, and the maps were corrected for it on their
+own, together with `_get_task_pmap` (#967).
 
 ## Guest data is untrusted
 
@@ -159,7 +170,13 @@ memory, which then sits somewhere in DRAM. None of it may crash or hang
   back to itself or is shared is not walked again), at most 65,536 tables,
   and refuses a process with more than 2^21 pages, or with more than twice the
   guest's RAM, instead of writing it out. The process list stops after 20,000
-  entries.
+  entries. Free space is checked twice: 256 MB before the pause, then, once
+  the process's mappings are known, their size plus 256 MB; before, a process
+  dump asked for twice the guest's RAM up front (16.25 GB on an 8 GB guest,
+  for a core of about 1.3 GB).
+- Pages read together (a Mach-O header) must follow on both in guest physical
+  memory and in `vphone-vm`'s view: the carve-outs end where DRAM starts, but
+  they are separate host mappings.
 - The mapping and the device-tree search run off the main actor, so the
   window and the control socket stay responsive; only the service's pid is
   asked for on it.
@@ -189,7 +206,11 @@ mode, the vCPUs from the stop reply, `qRegisterInfo` until both names are
 found, then `p<n>;thread:<cpu>;` for each vCPU and `D`. Connecting halts the
 vCPUs; while Virtualization holds the guest paused they are halted already,
 and the `D` does not let them run before Virtualization resumes the guest.
-Every reply must arrive within a second and stay under 1 MB. On a booted
+Every reply must arrive within a second and stay under 1 MB, also once its
+run lengths are expanded; numbers are bare hex digits (a signed `-1` would mean
+all threads), a thread ID that is not one fails the dump instead of being
+left out, so every vCPU is compared, and a thread list must end within 64
+replies. On a booted
 27.2 guest all five vCPUs held `TTBR1_EL1` `0x76160000` (that boot) and
 `VBAR_EL1` `0xfffffe003fe1c000`. The dump refuses vCPUs that disagree, and a
 guest whose kernel has not set up its tables yet (no root, or vectors below
@@ -211,8 +232,18 @@ the kernel names the kernel the registers point to.
 the root lies in DRAM under it and `VBAR_EL1` translates through the root
 into DRAM. An app that writes the property below the device tree does not
 know where the kernel's tables are, so its value fails this. If the stub
-cannot be reached, a physical image keeps the first `dram-base` found, and
-its note says why the kernel is missing; a process dump fails.
+cannot be reached, a process dump fails. A physical image is still written,
+with DRAM at `0x70a00000` if the search found that value, found none or
+stopped at its limit, and at the first value found otherwise; its note says why the kernel is missing,
+marks the base unverified (`dram_base.verified`: false) and lists every
+`dram-base` value found (`dram_base.candidates`), and `info.json` has
+`dram_base_verified`.
+
+While LLDB is attached to the kernel debug stub, the dump's own connection
+gets no reply: on an iOS 27.2 guest (8 GB) a process dump failed within 3 s
+with "The kernel debug stub is not available: no reply in time". The guest
+ran on normally after LLDB detached, and the next dump worked (guest paused
+0.6 s).
 
 `TTBR1_EL1` is also in the Virtualization service's own memory:
 Hypervisor.framework keeps one 16 KB state page per vCPU (VM tag 28, then a

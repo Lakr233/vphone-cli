@@ -32,7 +32,6 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
         case noGuestMemory
         case remap(kern_return_t)
         case protect(kern_return_t)
-        case dramBaseUnknown
 
         var errorDescription: String? {
             switch self {
@@ -47,8 +46,6 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
                 "Unable to map the guest's memory (mach_vm_remap: \(code))."
             case let .protect(code):
                 "Unable to make the view of the guest's memory read-only (mach_vm_protect: \(code))."
-            case .dramBaseUnknown:
-                "The guest's device tree does not give the physical address of its RAM."
             }
         }
 
@@ -62,12 +59,15 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
     let dram: Region
     /// The firmware carve-out block directly below DRAM, if one was found.
     let carveOut: Region?
-    /// Every `dram-base` value found in guest RAM, in the order found and
-    /// without repeats; `dram` starts at the first. Apps get pages below the
-    /// device tree and can write the property there, so the first need not
-    /// be the device tree's: `placed(kernel:)` picks the one the kernel's
-    /// registers agree with.
+    /// The DRAM bases `placed(kernel:)` tries, in order: `usualDRAMBase`,
+    /// then every other `dram-base` value found in guest RAM. Apps get pages
+    /// below the device tree and can write the property there, so a value
+    /// found need not be the device tree's; only the kernel's registers
+    /// tell.
     let dramBases: [UInt64]
+    /// Every `dram-base` value found in guest RAM, in the order found and
+    /// without repeats (at most `deviceTreeMatchLimit`).
+    let dramCandidates: [UInt64]
     /// The host mappings and the task port, shared by every placement.
     private let owner: Owner
     /// The device tree's carve-outs and the service's other guest memory
@@ -80,12 +80,14 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
         mappings: [(address: mach_vm_address_t, size: mach_vm_size_t)],
         task: mach_port_t = mach_port_t(MACH_PORT_NULL),
         dramBases: [UInt64]? = nil,
+        dramCandidates: [UInt64]? = nil,
         carveOuts: [CarveOut] = [],
         otherRegions: [Region] = [],
     ) {
         self.dram = dram
         self.carveOut = carveOut
         self.dramBases = dramBases ?? [dram.guestAddress]
+        self.dramCandidates = dramCandidates ?? [dram.guestAddress]
         owner = Owner(mappings: mappings, task: task)
         carveOutSources = (carveOuts, otherRegions)
     }
@@ -97,6 +99,7 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
         )
         carveOut = Self.carveOut(below: base, carveOuts: sources.carveOuts, regions: sources.regions)
         dramBases = other.dramBases
+        dramCandidates = other.dramCandidates
         owner = other.owner
         carveOutSources = sources
     }
@@ -172,6 +175,24 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
     }
 
     // MARK: - Placing DRAM
+
+    /// Where Virtualization has put DRAM on every guest so far (iOS 18.6,
+    /// 26.5 and 27.2, 8 GB each), right above its 10 MB of firmware
+    /// carve-outs. Tried first, so values an app plants in its pages do not
+    /// decide whether the device tree's is reached; still taken only when
+    /// the kernel's registers agree.
+    static let usualDRAMBase: UInt64 = 0x70A0_0000
+
+    /// The bases to try with the kernel's registers, and the one to use
+    /// without them: `usualDRAMBase` when the device tree search found it,
+    /// found nothing, or stopped at `deviceTreeMatchLimit` (then values were
+    /// planted, and the device tree's may not have been reached), else the
+    /// first value found.
+    static func dramBases(found: [UInt64]) -> (tried: [UInt64], unverified: UInt64) {
+        let tried = [usualDRAMBase] + found.filter { $0 != usualDRAMBase }
+        let usual = found.isEmpty || found.count >= deviceTreeMatchLimit || found.contains(usualDRAMBase)
+        return (tried, usual ? usualDRAMBase : found[0])
+    }
 
     /// This view with DRAM at the first of `dramBases` that the kernel's
     /// registers agree with: the root table (`TTBR1_EL1`) lies in DRAM and
@@ -272,20 +293,25 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
 
     /// Where the device tree sits, among the first pages of DRAM.
     private static let deviceTreeSearchLimit: UInt64 = 512 << 20
-    /// How many matches of a property name are looked at. Any app can write
-    /// these patterns into its own pages; the real device tree has a few
-    /// dozen carve-outs.
+    /// How many distinct values of a property are kept. Any app can write
+    /// these patterns into its own pages; the real device tree has one
+    /// `dram-base` and a few dozen carve-outs. Only well-formed properties
+    /// with a new value count, so stray matches cannot use the limit up;
+    /// planted well-formed ones still can, which is why `usualDRAMBase` is
+    /// tried first and every base is checked against the kernel's registers.
     static let deviceTreeMatchLimit = 4096
 
     /// The values of a property of the flattened Apple device tree in guest
     /// memory, in the order found and without repeats: a 32-byte name, a
-    /// 32-bit length, then the value. Only 8-byte values. Only the byte
-    /// ranges in `runs` are searched.
+    /// 32-bit length, then the value. Only 8-byte values that `accept`
+    /// takes, at most `deviceTreeMatchLimit`. Only the byte ranges in
+    /// `runs` are searched.
     static func deviceTreeValues(
         _ name: String,
         in base: UnsafeRawPointer,
         size: UInt64,
         runs: [Range<UInt64>]? = nil,
+        accept: (UInt64) -> Bool = { _ in true },
     ) -> [UInt64] {
         let limit = Int(min(size, deviceTreeSearchLimit))
         var values: [UInt64] = []
@@ -295,8 +321,8 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
             let length = (base + offset + 32).loadUnaligned(as: UInt32.self) & 0x7FFF_FFFF
             guard length == 8 else { return true }
             let value = (base + offset + 36).loadUnaligned(as: UInt64.self)
-            if seen.insert(value).inserted { values.append(value) }
-            return true
+            if accept(value), seen.insert(value).inserted { values.append(value) }
+            return values.count < deviceTreeMatchLimit
         }
         return values
     }
@@ -328,15 +354,17 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
             if !carveOut.base.addingReportingOverflow(carveOut.size).overflow, seen.insert(carveOut).inserted {
                 result.append(carveOut)
             }
-            return true
+            return result.count < deviceTreeMatchLimit
         }
         return result
     }
 
     /// Calls `body` with the offset of each match of `needle` in the first
-    /// `count` bytes, within `runs` (all of them when nil), at most
-    /// `deviceTreeMatchLimit` times, until it returns false. Pages outside
-    /// `runs` are never read, so the host does not allocate them.
+    /// `count` bytes, within `runs` (all of them when nil), until it returns
+    /// false. Pages outside `runs` are never read, so the host does not
+    /// allocate them. The search is bounded by `count`, not by the number of
+    /// matches: a match costs a few comparisons, and the device tree must
+    /// not be hidden behind any number of stray ones.
     private static func forEachOccurrence(
         of needle: [UInt8],
         in base: UnsafeRawPointer,
@@ -344,18 +372,16 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
         runs: [Range<UInt64>]?,
         _ body: (Int) -> Bool,
     ) {
-        var matches = 0
         needle.withUnsafeBytes { pattern in
             for run in runs ?? [0 ..< UInt64(count)] {
                 // A run may end inside a match; the device tree is in used
                 // pages, so it is whole within one run.
                 var offset = Int(min(run.lowerBound, UInt64(count)))
                 let end = Int(min(run.upperBound, UInt64(count)))
-                while offset < end, matches < deviceTreeMatchLimit,
+                while offset < end,
                       let hit = memmem(base + offset, end - offset, pattern.baseAddress, pattern.count)
                 {
                     let found = base.distance(to: UnsafeRawPointer(hit))
-                    matches += 1
                     guard body(found) else { return }
                     offset = found + 1
                 }
