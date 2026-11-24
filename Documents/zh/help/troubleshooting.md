@@ -25,6 +25,8 @@ PV=3 客户机不能嵌套运行。请在 Apple Silicon Mac 上直接启动，�
 vphone-cli vm launch <name>
 ```
 
+加上 `--detach` 可以在 vphoned 响应后立即拿回终端；虚拟机的输出会写入 `~/Library/Logs/vphone-launchpad/<name>.log`（非默认库使用 `<name>-<digest>.log`）。如果虚拟机退出、panic 或在 `--timeout` 内没有响应，命令会以 1 退出；发生 panic 或超时的虚拟机会一直运行，直到 `vphone-cli vm stop <name>`。
+
 ## 停在“Press home to continue”
 
 点击虚拟机窗口标题栏中的主屏幕按钮。当前的 JB 流程不会安装 VNC 服务器。

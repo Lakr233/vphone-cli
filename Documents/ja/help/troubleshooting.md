@@ -25,6 +25,8 @@ PV=3 のゲストは入れ子にできません。別の macOS 仮想マシン�
 vphone-cli vm launch <name>
 ```
 
+`--detach` を付けると、vphoned が応答した時点でターミナルが戻ります。仮想マシンの出力は `~/Library/Logs/vphone-launchpad/<name>.log`（デフォルト以外のライブラリでは `<name>-<digest>.log`）に書き込まれます。仮想マシンが終了・パニックした場合、または `--timeout` 以内に応答しない場合、コマンドは 1 で終了します。パニックやタイムアウトになった仮想マシンは、`vphone-cli vm stop <name>` を実行するまで動作し続けます。
+
 ## 「Press home to continue」で止まる
 
 仮想マシンのウィンドウのタイトルバーにあるホームボタンをクリックします。現在の JB の手順では VNC サーバはインストールされません。

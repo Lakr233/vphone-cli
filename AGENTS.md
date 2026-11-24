@@ -7,6 +7,7 @@ Virtual iPhone boot tool using Apple's Virtualization.framework with PCC researc
 - **Build:** `xcodebuild -workspace VPhone.xcworkspace -scheme VPhone -configuration Debug -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/XcodeBundle build`
 - **Test:** Run the Xcode test schemes in their owning projects. The `VPhone` build validates the finished bundle.
 - **Boot (GUI):** `vphone-cli vm launch <name>`
+- **Boot (detached):** `vphone-cli vm launch <name> --detach [--timeout <s>]` returns 0 once vphoned answers. Log: `~/Library/Logs/vphone-launchpad/<name>.log`, or `<name>-<digest>.log` for a machine outside the default library (`VPHONE_LIBRARY_ROOT`, else `~/.vphone/machines`, e.g. a Host Setup library). Exit 1 if the VM exits; on panic or timeout it keeps running (`vphone-cli vm stop <name>`).
 - **Boot (DFU):** `vphone-cli vm launch <name> --dfu`
 - **AMFI refuses `vphone-vm`?** Launchpad uses its SMJobBless helper to run the installed bundle's `vphone-escalator` after checking its receipt. Standalone CLI users can run the allowlist tool as shown in `Documents/en/get-started/host-setup.md`. Repeat after the VM cdhash changes.
 - **Restore:** `vphone-cli restore` runs in process over the vendored recovery and restore C modules in `VPhoneExecutable/VPhoneCommand/VPhoneRestore`.

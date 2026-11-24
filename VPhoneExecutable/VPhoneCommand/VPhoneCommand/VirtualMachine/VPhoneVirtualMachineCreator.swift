@@ -758,7 +758,7 @@ public struct VPhoneVirtualMachineCreator {
             case .timedOut:
                 break
             }
-            if VPhoneHostAutomationProbe.ping(socketPath: socketPath) {
+            if VPhoneControlSocket.ping(socketPath: socketPath) {
                 print("[+] First boot: vphoned ping succeeded.")
                 if let bootstrapLayout {
                     try installBootstrap(layout: bootstrapLayout, socketPath: socketPath)

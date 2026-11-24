@@ -64,10 +64,13 @@ vphone-cli vm create myphone \
 
 ```sh
 vphone-cli vm launch myphone  # start the VM window and keep it running
+vphone-cli vm launch myphone --detach  # start it in its own session and return once vphoned answers
 vphone-cli vm stop myphone    # run from another terminal to stop it
 ```
 
 `vm launch`는 vphoned를 기다리지 않고 게스트를 시작하며, 데몬은 부팅 중에 연결됩니다. 가상 머신 창과 메뉴에서 홈 버튼과 전원 버튼, 앱 설치, 파일 탐색을 사용할 수 있습니다. `vm launch --headless`는 가상 머신 창과 메뉴 막대 없이 부팅합니다.
+
+`vm launch --detach [--timeout <seconds>]`는 가상 머신을 자체 세션에서 시작하므로 터미널을 닫아도 멈추지 않으며, vphoned를 기다립니다. `pid <n>`과 `log <path>`를 출력하고, 가상 머신의 출력을 `~/Library/Logs/vphone-launchpad/<name>.log`(기본값이 아닌 라이브러리에서는 `<name>-<digest>.log`. 시작할 때마다 비워지며, `vphone-launchpad-cli vm log <name>`가 읽는 파일입니다)에 덧붙인 뒤 `vphoned answered after <n>s`를 출력하고 0으로 종료합니다. 가상 머신이 먼저 종료되거나, 로그에 커널 패닉이 표시되거나, vphoned가 응답하기 전에 `--timeout`(기본값 300)이 지나면 1로 종료합니다. 패닉이나 타임아웃이 발생하면 가상 머신은 계속 실행되므로 `vphone-cli vm stop <name>`으로 중지하세요. 이미 사용 중인 머신은 거부되어 1로 종료하며, `--detach`는 `--dfu`와 함께 사용할 수 없습니다.
 
 다음은 모두 게스트를 정상적으로 종료합니다(vphoned `system.shutdown`).
 

@@ -64,10 +64,13 @@ vphone-cli vm create myphone \
 
 ```sh
 vphone-cli vm launch myphone  # start the VM window and keep it running
+vphone-cli vm launch myphone --detach  # start it in its own session and return once vphoned answers
 vphone-cli vm stop myphone    # run from another terminal to stop it
 ```
 
 `vm launch` 启动客户机时不等待 vphoned；该守护进程会在启动过程中连接。虚拟机窗口和菜单提供主屏幕键和电源键、App 安装和文件浏览。`vm launch --headless` 启动时不显示虚拟机窗口和菜单栏。
+
+`vm launch --detach [--timeout <seconds>]` 会在独立的会话中启动虚拟机，因此关闭终端不会停止它，并会等待 vphoned。它会打印 `pid <n>` 和 `log <path>`，把虚拟机的输出追加到 `~/Library/Logs/vphone-launchpad/<name>.log`（非默认库使用 `<name>-<digest>.log`；该文件在每次启动时都会被截断，也就是 `vphone-launchpad-cli vm log <name>` 读取的文件），随后打印 `vphoned answered after <n>s` 并以 0 退出。如果虚拟机先退出，或日志显示内核 panic，或在 vphoned 响应之前超过 `--timeout`（默认 300），它会以 1 退出。panic 或超时会让虚拟机继续运行；请用 `vphone-cli vm stop <name>` 停止它。已在使用中的虚拟机会被拒绝并以 1 退出，而且 `--detach` 不能与 `--dfu` 一起使用。
 
 以下操作都会正常关闭客户机（vphoned `system.shutdown`）：
 

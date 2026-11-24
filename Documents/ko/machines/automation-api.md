@@ -21,6 +21,7 @@ vphone-cli vm launch myphone --api-listen 127.0.0.1:8765
 - `--api-listen`이 없으면 호스트에서 수신하는 리스너가 없습니다.
 - 포트를 `0`으로 지정하면 macOS가 비어 있는 포트를 할당하며, 실제 주소는 가상 머신이 시작된 뒤 출력됩니다.
 - `--api-listen`은 `--dfu`와 함께 사용할 수 없습니다.
+- `vm launch --detach`를 사용하면 이 줄들은 `~/Library/Logs/vphone-launchpad/<name>.log`(기본값이 아닌 라이브러리에서는 `<name>-<digest>.log`)로 기록됩니다. 명령은 vphoned가 응답하면 0으로 종료하고, 가상 머신이 종료되거나 패닉하거나 시간이 초과되면 1로 종료합니다(패닉이나 타임아웃에서는 계속 실행되므로 `vphone-cli vm stop <name>`으로 중지하세요).
 
 > [!WARNING]
 > vphoned는 root로 실행되며, API로 게스트의 모든 파일을 읽고 쓰고, 키체인을 나열하고, launch daemon을 로드할 수 있습니다. 로컬에서만 사용하려면 `127.0.0.1` 또는 `[::1]`에서 수신하세요. 그 밖의 주소를 지정하면 경고가 출력됩니다. 그 주소에 접근할 수 있는 모든 컴퓨터는 token만 있으면 되고, token은 일반 HTTP로 평문 전송되므로 신뢰할 수 있는 네트워크에서만 사용하세요.

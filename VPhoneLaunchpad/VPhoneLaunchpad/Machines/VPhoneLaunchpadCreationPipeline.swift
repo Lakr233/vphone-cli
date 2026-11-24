@@ -1,6 +1,8 @@
 import Darwin
 import Foundation
 import Observation
+import os
+import VPhoneCoreKit
 
 /// `vm create`, one command at a time.
 ///
@@ -10,8 +12,8 @@ import Observation
 /// that needs it: `cfw install`, run by the helper (or, for the Minimal preset,
 /// which customises the system before the restore, `fw patch`). The waits mirror
 /// VPhoneVirtualMachineCreator: the device identity file, 90 recovery probes,
-/// up to 30 seconds for the post-restore panic, 5 seconds before CFW, and up
-/// to 300 seconds for vphoned to answer on first boot.
+/// up to 30 seconds for the post-restore panic, 5 seconds before CFW, and a
+/// fixed number of poll attempts for vphoned to answer on first boot.
 ///
 /// By default the machine is cloned from a template (`VPhoneLaunchpadCreationPlan`
 /// lists the steps). A template that is missing is built first in a
@@ -755,22 +757,27 @@ final class VPhoneLaunchpadCreationPipeline {
             throw VPhoneLaunchpadError(String(localized: "\(name) could not be started."))
         }
         let socket = machine.url.appendingPathComponent("vphone.sock").path
-        append("waiting up to 300s for vphoned")
-        for _ in 0 ..< 300 {
-            try Task.checkCancellation()
-            if library.panicked.contains(machine) {
-                throw VPhoneLaunchpadError(String(localized: "The machine had a kernel panic during first boot."), detail: String(localized: "See the machine's console."))
-            }
-            guard child.isRunning else {
-                throw VPhoneLaunchpadError(String(localized: "The machine stopped before first boot finished."))
-            }
-            if await Task.detached(operation: { Self.ping(socketPath: socket) }).value {
-                append("vphoned answered")
-                return
-            }
-            try await Task.sleep(for: .seconds(1))
+        append("waiting for vphoned")
+        let machine = machine
+        let outcome = await Self.waitForGuest(
+            socketPath: socket,
+            budget: .attempts(300),
+            pollInterval: 1,
+            panicked: { DispatchQueue.main.sync { MainActor.assumeIsolated { library.panicked.contains(machine) } } },
+            exited: { !child.isRunning },
+        )
+        switch outcome {
+        case .answered:
+            append("vphoned answered")
+        case .cancelled:
+            throw CancellationError()
+        case .panicked:
+            throw VPhoneLaunchpadError(String(localized: "The machine had a kernel panic during first boot."), detail: String(localized: "See the machine's console."))
+        case .exited:
+            throw VPhoneLaunchpadError(String(localized: "The machine stopped before first boot finished."))
+        case .timedOut:
+            throw VPhoneLaunchpadError(String(localized: "The machine did not finish starting; vphoned did not answer. See the machine's console log."))
         }
-        throw VPhoneLaunchpadError(String(localized: "The machine did not finish starting within 5 minutes."))
     }
 
     private func requireDFURunning() throws {
@@ -815,59 +822,37 @@ final class VPhoneLaunchpadCreationPipeline {
         return String(cString: resolved)
     }
 
-    /// The probe `vm create` uses: a ping over vphone.sock that vphoned
-    /// answers with `"ok": true`.
-    nonisolated static func ping(socketPath: String) -> Bool {
-        let path = socketPath.utf8CString
-        var address = sockaddr_un()
-        guard path.count <= MemoryLayout.size(ofValue: address.sun_path) else {
-            return false
-        }
-        address.sun_family = sa_family_t(AF_UNIX)
-        withUnsafeMutablePointer(to: &address.sun_path) { pointer in
-            pointer.withMemoryRebound(to: CChar.self, capacity: path.count) { destination in
-                for (index, byte) in path.enumerated() {
-                    destination[index] = byte
+    /// Runs the kit's guest wait on a dedicated thread. `panicked` reads main-actor
+    /// state through `DispatchQueue.main.sync`; cancelling the calling task stops
+    /// the wait at its next poll.
+    nonisolated static func waitForGuest(
+        socketPath: String,
+        budget: VPhoneGuestWait.Budget,
+        pollInterval: TimeInterval,
+        panicked: @escaping @Sendable () -> Bool,
+        exited: @escaping @Sendable () -> Bool,
+        progress: @escaping @Sendable (Int) -> Void = { _ in },
+    ) async -> VPhoneGuestWait.Outcome {
+        let cancelled = OSAllocatedUnfairLock(initialState: false)
+        return await withTaskCancellationHandler {
+            // The wait sleeps and blocks on the main queue for up to minutes, so
+            // it gets its own thread rather than one of the cooperative pool's.
+            await withCheckedContinuation { continuation in
+                Thread.detachNewThread {
+                    continuation.resume(returning: VPhoneGuestWait.run(
+                        budget: budget,
+                        pollInterval: pollInterval,
+                        ping: { VPhoneControlSocket.ping(socketPath: socketPath) },
+                        exited: exited,
+                        panicked: panicked,
+                        cancelled: { cancelled.withLock { $0 } },
+                        progress: progress,
+                    ))
                 }
             }
+        } onCancel: {
+            cancelled.withLock { $0 = true }
         }
-        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
-        guard fd >= 0 else {
-            return false
-        }
-        defer { close(fd) }
-        var timeout = timeval(tv_sec: 2, tv_usec: 0)
-        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, socklen_t(MemoryLayout<timeval>.size))
-        var noSigPipe: Int32 = 1
-        setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &noSigPipe, socklen_t(MemoryLayout<Int32>.size))
-        let connected = withUnsafePointer(to: &address) { pointer in
-            pointer.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-                connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
-            }
-        }
-        guard connected == 0 else {
-            return false
-        }
-        let request = Data("{\"t\":\"ping\",\"screen\":false}\n".utf8)
-        let written = request.withUnsafeBytes { write(fd, $0.baseAddress, $0.count) }
-        guard written == request.count else {
-            return false
-        }
-        var reply = Data()
-        var buffer = [UInt8](repeating: 0, count: 512)
-        while reply.count < 4096 {
-            let count = buffer.withUnsafeMutableBytes { read(fd, $0.baseAddress, $0.count) }
-            guard count > 0 else {
-                return false
-            }
-            reply.append(contentsOf: buffer.prefix(count))
-            if let newline = reply.firstIndex(of: 0x0A),
-               let json = try? JSONSerialization.jsonObject(with: Data(reply[..<newline])) as? [String: Any]
-            {
-                return json["ok"] as? Bool == true
-            }
-        }
-        return false
     }
 }
 

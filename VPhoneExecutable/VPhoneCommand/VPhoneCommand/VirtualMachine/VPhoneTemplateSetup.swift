@@ -116,7 +116,7 @@ final class VPhoneTemplateSetupVirtualMachine: VPhoneTemplateSetupMachine {
     }
 
     func ping() -> Bool {
-        VPhoneHostAutomationProbe.ping(socketPath: socketPath)
+        VPhoneControlSocket.ping(socketPath: socketPath)
     }
 
     func call(_ method: String, params: [String: Any], timeout: TimeInterval) throws -> [String: Any] {
