@@ -52,6 +52,7 @@
 | [隧道模式](networking/tunnel.md) | Mac 使用 VPN 或代理 App 时 |
 | [MAC 与 IP 地址](networking/addresses.md) | 保存的 MAC 地址、旧租约、固定地址 |
 | [端口转发](networking/port-forwarding.md) | 把 Mac 上的端口转发到客户机 |
+| [自定义 CA 证书](networking/custom-ca.md) | 用 `vm ca` 让客户机信任根 CA |
 | [网络上的名称](networking/names.md) | 客户机的 `.local` 名称，以及客户机中 Mac 的名称 |
 | [虚拟机互访](networking/peers.md) | 位于同一共享网络中的 `nat` 虚拟机 |
 

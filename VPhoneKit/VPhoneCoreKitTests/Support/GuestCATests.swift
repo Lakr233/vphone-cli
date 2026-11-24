@@ -91,7 +91,13 @@ struct GuestCATests {
             if let detail = json["guest_error"] as? [String: Any] {
                 throw VPhoneGuestCallError(kind: .refused, message: message, detail: detail)
             }
-            throw VPhoneGuestCallError(kind: .transport, message: message)
+            // The VM answered for the guest with no guest_error: not connected
+            // yet, or the request to vphoned failed on the way. Kept faithful to
+            // the real probe (VPhoneHostAutomationProbe.rpc), which is in the
+            // non-linkable command binary. Tests using this stand-in prove only
+            // how VPhoneGuestCA.call maps the error; the probe's own throw is
+            // covered by the live-guest run.
+            throw VPhoneGuestCallError(kind: .notConnected, message: message)
         }
         throw VPhoneGuestCallError(kind: .transport, message: "no answer from vphone.sock")
     }
@@ -195,7 +201,7 @@ struct GuestCATests {
         let pemText = validPEM()
         let pem = try writePEM(pemText)
 
-        try VPhoneGuestCA.install(vmName: "vm", library: fixture.library, pemPath: pem, rpc: controlSocketRPC)
+        _ = try VPhoneGuestCA.install(vmName: "vm", library: fixture.library, pemPath: pem, rpc: controlSocketRPC)
 
         let request = try #require(server.lastRequest())
         #expect(request["method"] as? String == "security.ca_install")
@@ -217,7 +223,8 @@ struct GuestCATests {
         defer { server.stop() }
         let pem = try writePEM(validPEM())
 
-        try VPhoneGuestCA.install(vmName: "vm", library: fixture.library, pemPath: pem, admin: true, rpc: controlSocketRPC)
+        let result = try VPhoneGuestCA.install(vmName: "vm", library: fixture.library, pemPath: pem, admin: true, rpc: controlSocketRPC)
+        #expect(result.domain == "admin")
 
         let params = try #require(server.lastRequest()?["params"] as? [String: Any])
         #expect(params["admin"] as? Bool == true)
@@ -235,7 +242,7 @@ struct GuestCATests {
             + "-----BEGIN CERTIFICATE-----\nMIIBcert==\n-----END CERTIFICATE-----\n"
         let pem = try writePEM(combined)
 
-        try VPhoneGuestCA.install(vmName: "vm", library: fixture.library, pemPath: pem, rpc: controlSocketRPC)
+        _ = try VPhoneGuestCA.install(vmName: "vm", library: fixture.library, pemPath: pem, rpc: controlSocketRPC)
 
         let sent = try #require((server.lastRequest()?["params"] as? [String: Any])?["pem"] as? String)
         #expect(sent.contains("BEGIN CERTIFICATE"))
@@ -421,7 +428,8 @@ struct GuestCATests {
 
     @Test(arguments: ["user", "admin"])
     func `an install reply with a valid domain is accepted`(domain: String) throws {
-        try VPhoneGuestCA.validateInstallReply(["sha256": sha256A, "subject": "x", "domain": domain])
+        let fields = try VPhoneGuestCA.validateInstallReply(["sha256": sha256A, "subject": "x", "domain": domain])
+        #expect(fields.domain == domain)
     }
 
     @Test func `a remove reply with removed not exactly true is malformed`() throws {
@@ -500,6 +508,96 @@ struct GuestCATests {
             let text = ($0 as? VPhoneGuestCA.RuntimeError)?.description ?? ""
             return text.contains("timed out") && text.contains("unknown") && text.contains("ca list")
         }
+    }
+
+    // MARK: install result rendering
+
+    // HOSTILE reply: an UPPERCASE sha256 and a subject carrying a newline and an
+    // ESC control char. `install` must normalize (lowercase the sha256, replace
+    // each C0/DEL with a space) BEFORE building the InstallResult, so the
+    // rendered line is a single unambiguous `sha256<TAB>subject` row. This fails
+    // if install builds the result from the raw reply fields.
+    @Test func `install renders a normalized single-line sha256 TAB subject`() throws {
+        let fixture = try makeLibrary()
+        let upperSHA = String(repeating: "A", count: 64)
+        let server = try StubSocketServer(
+            path: fixture.socketPath,
+            reply: ["ok": true, "result": ["sha256": upperSHA, "subject": "A\nB\u{1b}C", "domain": "user"]],
+        )
+        defer { server.stop() }
+        let pem = try writePEM(validPEM())
+
+        let result = try VPhoneGuestCA.install(vmName: "vm", library: fixture.library, pemPath: pem, rpc: controlSocketRPC)
+        let rendered = String(decoding: try result.rendered(json: false), as: UTF8.self)
+        #expect(rendered == "\(String(repeating: "a", count: 64))\tA B C\n")
+    }
+
+    // The same hostile reply through `--json`: a pretty object whose sorted keys
+    // are exactly domain/sha256/subject, with the normalized values.
+    @Test func `install --json emits a three-key sorted object with normalized values`() throws {
+        let fixture = try makeLibrary()
+        let upperSHA = String(repeating: "A", count: 64)
+        let server = try StubSocketServer(
+            path: fixture.socketPath,
+            reply: ["ok": true, "result": ["sha256": upperSHA, "subject": "A\nB\u{1b}C", "domain": "user"]],
+        )
+        defer { server.stop() }
+        let pem = try writePEM(validPEM())
+
+        let result = try VPhoneGuestCA.install(vmName: "vm", library: fixture.library, pemPath: pem, rpc: controlSocketRPC)
+        let data = try result.rendered(json: true)
+        #expect(String(decoding: data, as: UTF8.self).hasSuffix("\n"))
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(object.keys.sorted() == ["domain", "sha256", "subject"])
+        #expect(object["sha256"] as? String == String(repeating: "a", count: 64))
+        #expect(object["subject"] as? String == "A B C")
+        #expect(object["domain"] as? String == "user")
+    }
+
+    // MARK: .notConnected mapping
+
+    // The VM answers ok:false with NO guest_error: the stand-in throws
+    // .notConnected and VPhoneGuestCA.call surfaces the real guest message first,
+    // then, for the mutating install/remove, the check-with-list recovery tail —
+    // and NEVER the timeout wording. list surfaces the bare message with no tail.
+    @Test func `install not-connected surfaces the guest message then the recovery tail`() throws {
+        let fixture = try makeLibrary()
+        let server = try StubSocketServer(path: fixture.socketPath, reply: ["ok": false, "error": "guest not connected"])
+        defer { server.stop() }
+        let pem = try writePEM(validPEM())
+        #expect {
+            _ = try VPhoneGuestCA.install(vmName: "vm", library: fixture.library, pemPath: pem, rpc: controlSocketRPC)
+        } throws: {
+            let text = ($0 as? VPhoneGuestCA.RuntimeError)?.description ?? ""
+            return text.hasPrefix("guest not connected")
+                && text.hasSuffix("; if unsure whether the change took effect, check with vm ca list vm.")
+                && !text.contains("outcome is unknown")
+                && !text.contains("timed out")
+        }
+    }
+
+    @Test func `remove not-connected surfaces the guest message then the recovery tail`() throws {
+        let fixture = try makeLibrary()
+        let server = try StubSocketServer(path: fixture.socketPath, reply: ["ok": false, "error": "guest not connected"])
+        defer { server.stop() }
+        #expect {
+            try VPhoneGuestCA.remove(vmName: "vm", library: fixture.library, sha256: String(repeating: "a", count: 64), rpc: controlSocketRPC)
+        } throws: {
+            let text = ($0 as? VPhoneGuestCA.RuntimeError)?.description ?? ""
+            return text.hasPrefix("guest not connected")
+                && text.hasSuffix("; if unsure whether the change took effect, check with vm ca list vm.")
+                && !text.contains("outcome is unknown")
+                && !text.contains("timed out")
+        }
+    }
+
+    @Test func `list not-connected surfaces only the bare guest message`() throws {
+        let fixture = try makeLibrary()
+        let server = try StubSocketServer(path: fixture.socketPath, reply: ["ok": false, "error": "guest not connected"])
+        defer { server.stop() }
+        #expect {
+            _ = try VPhoneGuestCA.list(vmName: "vm", library: fixture.library, rpc: controlSocketRPC)
+        } throws: { ($0 as? VPhoneGuestCA.RuntimeError)?.description == "guest not connected" }
     }
 }
 

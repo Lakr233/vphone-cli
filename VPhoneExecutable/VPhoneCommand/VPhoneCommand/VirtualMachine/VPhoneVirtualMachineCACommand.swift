@@ -46,18 +46,21 @@ struct VPhoneVirtualMachineCACommand: ParsableCommand {
         )
 
         @OptionGroup var lib: VPhoneLibraryOption
-        @Argument(help: "VM name") var name: String?
         @Argument(help: "PEM file with exactly one certificate") var pemFile: String
+        @Argument(help: "VM name") var name: String?
         @Flag(help: "Install into the admin trust domain instead of user (default user)")
         var admin = false
+        @Flag(name: .shortAndLong, help: "Emit JSON")
+        var json = false
 
         func run() throws {
             let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
             try VPhoneVirtualMachineCACommand.dispatch {
-                try VPhoneGuestCA.install(
+                let result = try VPhoneGuestCA.install(
                     vmName: name, library: lib.library, pemPath: pemFile, admin: admin,
                     rpc: VPhoneHostAutomationProbe.rpc,
                 )
+                FileHandle.standardOutput.write(try result.rendered(json: json))
             }
         }
     }
@@ -71,8 +74,8 @@ struct VPhoneVirtualMachineCACommand: ParsableCommand {
         )
 
         @OptionGroup var lib: VPhoneLibraryOption
-        @Argument(help: "VM name") var name: String?
         @Argument(help: "64-char hex sha256 of the anchor, as shown by ca list") var sha256: String
+        @Argument(help: "VM name") var name: String?
 
         func run() throws {
             let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)

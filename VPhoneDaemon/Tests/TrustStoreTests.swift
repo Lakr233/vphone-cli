@@ -107,7 +107,11 @@ final class FakeSPI: @unchecked Sendable {
             forDomain: { code in
                 self.calls.append("forDomain")
                 self.domainCodes.append(code)
-                return self.forDomainReturnsNull ? nil : self.handle
+                if self.forDomainReturnsNull { return nil }
+                // A DISTINCT handle per domain code, but every handle aliases the
+                // one shared `store` (set/remove/copyAll ignore the handle), as
+                // the guest's single trustd keys both domains to one keyspace.
+                return OpaquePointer(bitPattern: Int(code))!
             },
             set: { _, cert in
                 self.calls.append("set")
@@ -669,12 +673,30 @@ enum TrustStoreTests {
             let adminResult = try? GuestTrustStore.install(pem: certPEM, admin: true, resolveSPI: admin.spi)
             expectEqual(adminResult?.domain.name, "admin", "install admin:true reports the admin domain")
             expectEqual(admin.domainCodes, [3], "admin install opens only the admin store")
-            // Single trustd: a user-domain write is visible to the admin-handle list and removable by remove.
-            let shared = FakeSPI()
-            _ = try? GuestTrustStore.install(pem: certPEM, resolveSPI: shared.spi)
-            expectEqual((try? GuestTrustStore.list(resolveSPI: shared.spi))?.count, 1, "a user-domain install is listed via the admin handle")
-            _ = try? GuestTrustStore.removeAnchor(sha256Hex: hex, resolveSPI: shared.spi)
-            expect(shared.store.isEmpty, "a user-domain install is removable via remove")
+        }
+
+        // Single trustd: a user-domain write is visible to the admin-handle list
+        // and removable through it, over distinct per-domain handles.
+        crossDomainVisibility(der: der, hex: hex)
+
+        // (k) a NULL store handle means the store is UNAVAILABLE: list/remove
+        // throw naming SecTrustStoreForDomain (from storeHandle) and never
+        // reach CopyAll; a -50 on a present store is empty (next block).
+        do {
+            let listFake = FakeSPI(store: [der])
+            listFake.forDomainReturnsNull = true
+            let message = caughtMessage { _ = try GuestTrustStore.list(resolveSPI: listFake.spi) }
+            expect(message?.contains("SecTrustStoreForDomain returned NULL") == true,
+                   "(k) list: a NULL store handle names SecTrustStoreForDomain, got \(String(describing: message))")
+            expect(!listFake.calls.contains("copyAll"), "(k) list: no CopyAll on an unavailable store")
+
+            let removeFake = FakeSPI(store: [der])
+            removeFake.forDomainReturnsNull = true
+            let removeMessage = caughtMessage { _ = try GuestTrustStore.removeAnchor(sha256Hex: hex, resolveSPI: removeFake.spi) }
+            expect(removeMessage?.contains("SecTrustStoreForDomain returned NULL") == true,
+                   "(k) remove: a NULL store handle names SecTrustStoreForDomain, got \(String(describing: removeMessage))")
+            expect(!removeFake.calls.contains("remove"),
+                   "(k) remove makes no RemoveCertificate call when the store is unavailable, calls=\(removeFake.calls)")
         }
 
         // errSecParam (-50) from CopyAll is an EMPTY store, not an error.
@@ -734,6 +756,28 @@ enum TrustStoreTests {
             expectEqual(removed, hex, "(j) post-remove re-check -50 reports removed")
             expect(after.calls.contains("remove") && after.store.isEmpty, "(j) remove was called and the store is empty")
         }
+    }
+
+    // MARK: cross-domain visibility
+
+    /// The single-trustd topology: both domains alias one physical keyspace. A
+    /// user-domain install (code 2) must be (a) VISIBLE through the admin
+    /// enumeration handle (code 3, which `list` uses) and (b) REMOVABLE through
+    /// the admin handle. The fake gives each domain code a DISTINCT handle over
+    /// one shared backing store, so this proves cross-domain visibility and
+    /// removal — not handle identity.
+    static func crossDomainVisibility(der: Data, hex: String) {
+        let sha256 = SHA256Shim.hash(der)
+        let fake = FakeSPI()
+        _ = try? GuestTrustStore.install(pem: pem(fromDER: der), resolveSPI: fake.spi) // user, code 2
+        let listed = try? GuestTrustStore.list(resolveSPI: fake.spi)                    // admin, code 3
+        expect(listed?.count == 1 && listed?.first?.sha256 == sha256,
+               "(a) a user-domain install is visible through the admin enumeration handle")
+        _ = try? GuestTrustStore.removeAnchor(sha256Hex: hex, resolveSPI: fake.spi)      // admin, code 3
+        expect(fake.store.isEmpty,
+               "(b) a user-domain install is removable through the admin handle")
+        expect(fake.domainCodes.contains(2) && fake.domainCodes.contains(3),
+               "distinct per-domain handles (user 2, admin 3) were used over one shared store, codes=\(fake.domainCodes)")
     }
 }
 

@@ -52,6 +52,7 @@ New to vphone? Read [Overview](get-started/overview.md), then follow [Quick Star
 | [Tunnel Mode](networking/tunnel.md) | A Mac behind a VPN or proxy app |
 | [MAC and IP Addresses](networking/addresses.md) | The saved MAC, old leases, fixed addresses |
 | [Port Forwarding](networking/port-forwarding.md) | Carrying a port on the Mac into the guest |
+| [Custom CA Certificates](networking/custom-ca.md) | Trusting a root CA in the guest with `vm ca` |
 | [Names on the Network](networking/names.md) | The guest's `.local` name and the Mac's name in the guest |
 | [Machines Reaching Each Other](networking/peers.md) | `nat` machines on one shared network |
 
