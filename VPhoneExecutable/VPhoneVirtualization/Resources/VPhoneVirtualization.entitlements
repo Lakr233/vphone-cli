@@ -12,6 +12,8 @@
 	<true/>
 	<key>com.apple.security.get-task-allow</key>
 	<true/>
+	<key>com.apple.security.cs.debugger</key>
+	<true/>
 	<key>com.apple.private.bmk.allow</key>
 	<true/>
 </dict>

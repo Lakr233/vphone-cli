@@ -106,7 +106,7 @@ swap, and the pause and the write both get longer.
 - Physical addresses, `TTBR0/1_EL1`, the PAC keys and the other system
   registers. The kernel's own data reaches all of RAM through its mappings,
   and the registers that matter for a backtrace are in the thread states.
-  The CTF-style physical image remains possible with the GDB stub and
-  `task_for_pid` when those are needed.
+  A physical image and single-process dumps read from the host are
+  described in [`process_memory_dump.md`](process_memory_dump.md).
 - Memory no page table maps, such as the firmware carve-outs below
   `dram-base` (about 10 MB on an 8 GB guest).

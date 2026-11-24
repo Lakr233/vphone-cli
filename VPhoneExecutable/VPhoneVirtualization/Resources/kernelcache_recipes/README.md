@@ -17,6 +17,9 @@ bases/<iOS version>_<iPhone build>/
 donors/<id>/
   manifest.json      the donor kernelcache and the cloudOS it is read from
   symbols.json.gz    symbol map, for a stripped donor
+kernels/<id>/
+  manifest.json      a kernelcache a guest boots unmixed (below)
+  symbols.json.gz    its symbol map
 ```
 
 Base `manifest.json`:
@@ -29,6 +32,29 @@ Base `manifest.json`:
 | `builderLayout` | `kernel-last` (iOS 26.4+, kmutil of macOS 26.4+) or `kernel-first` |
 | `guest`, `sources` | the guest family of a recipe of its own (`watch`, `homePod`), and its kext sources in order: each kext from the first that has it |
 | `kextOverrides` | bundle identifier to the source it is taken from although an earlier one has it (`homepod_26.5_23L471`: AMFI, corecrypto, AppleImage4 and IOTimeSyncFamily from the base, IOgPTPPlugin from `vphone600_26.4_23E5207q`) |
+
+Every manifest of a kernel a guest can boot (the iPhone bases, the vphone600
+donors and `kernels/`) also names that kernel, for host-side kernel
+introspection (the host reads the guest's memory and finds its symbols by
+the booted kernel's UUID):
+
+| Key | Meaning |
+|---|---|
+| `kernelUUID` | LC_UUID of the `com.apple.kernel` fileset entry, uppercase with hyphens |
+| `kernelSegments` | that entry's segments, name to `[vmaddr, vmsize]` in the map's address space (zero-size ones left out) |
+
+A mix moves the kernel's segments but keeps its UUID and every offset within
+a segment, so a map address is carried over as segment plus offset. The watch
+and HomePod bases share the kernel of `26.4_23E246` and `26.5_23F77` and do not
+repeat it.
+
+`kernels/` holds the vphone600 kernels that a guest of the beta cloudOS 26.2 and
+26.3 boots as shipped, without a mix. They are not used to build anything; they
+are there so that the host can read a running guest's kernel. Their manifests
+have the donors' keys (`cloudOSSource`: the cloudOS the kernelcache comes from).
+The 26.2 map is the earlier BinDiff symbolication of that kernelcache. The 26.3
+one is carried over by function alignment from the 26.2, 26.1 and 26.4 beta maps,
+as described under [Adding a base](#adding-a-base).
 
 The bundle list is the base's kexts without the research-board-only ones
 (CIOMesh, MLX5, Thunderbolt, RDMA, ...), plus the donor kexts that link against
@@ -123,3 +149,32 @@ A recipe comes from research, not from this repository:
    first one; another order makes kmutil fail with "could not find a kext which
    exports this symbol".
 5. Build the mix, boot it, and add the map, bundle list and manifest here.
+6. Name the kernel in the manifest (`kernelUUID`, `kernelSegments`), for every
+   kernel a guest can boot: read the `LC_UUID` and the `LC_SEGMENT_64`s
+   (`vmaddr`, `vmsize`) of the kernelcache's `com.apple.kernel` fileset entry,
+   for example with `ipsw macho info --fileset-entry com.apple.kernel <kc>`, and
+   leave out zero-size segments. The addresses are those of the kernelcache the
+   map was made for. A base whose kernel is another recipe's (watch, HomePod)
+   does not repeat them. `VPhoneVirtualization/Tests/run-guest-memory-tests.sh`
+   checks that each map with a `kernelUUID` places `_kernproc` and
+   `_kernel_pmap` inside those segments. The mixer reads neither key.
+
+A kernel under `kernels/` is not mixed, so steps 2 to 5 do not apply; it needs
+a map with `_kernproc` and `_kernel_pmap` right, and step 6. When no symbolicated
+KDK of its family exists, as for the vphone600 26.3 kernel, the map can be carried
+over from neighbouring builds by function alignment:
+
+1. Take the functions of both kernels from `LC_FUNCTION_STARTS`.
+2. Anchor on names defined at a function start in both (not `_kc.`
+   placeholders), and keep the longest chain of anchors in the same address
+   order in both; one xnu tree links in one order, so an anchor outside the
+   chain marks a wrong name in one map.
+3. Between two anchors, pair functions by position when both gaps hold the
+   same number of them, and by similarity of their code with addresses and
+   immediates masked otherwise.
+4. Align against more than one neighbour and keep a name where at least two
+   agree; for 26.3 the neighbours were 26.2, 26.1 and the 26.4 beta, and 26.2's
+   name was kept where it was the only one.
+5. Check `_kernproc` and `_kernel_pmap` by their uses: `_proc_pid` compares
+   with `kernproc`, and `kernel_pmap` is a constant pointer to
+   `kernel_pmap_store` that well over a hundred functions read.
