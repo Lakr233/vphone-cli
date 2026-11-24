@@ -13,6 +13,7 @@
 import FirmwarePatcher
 import Foundation
 import Testing
+import VPhoneCoreKit
 import VPhonePatchKit
 
 @Suite("Bundled patch set catalogue")
@@ -315,6 +316,49 @@ struct FirmwarePatchSetCatalogTests {
                                                            FirmwareRestoreImagePatchSet.internalReleaseType])
             .union(FirmwarePatchSetCatalog.watchOSDeviceTreePatches).union(bootChain).union(nvram).union(researchBoard))
         #expect(watch.enabled.intersection(allBootChain) == bootChain.union(nvram))
+    }
+
+    @Test(arguments: [
+        // iPhone17,3 27.2 on the cloudOS 26.4 beta, 2026-11-24: its cache spans
+        // 0x18FC94000, over the stock kernel's 6 GiB shared region.
+        ("27.2", "26.4", VPhoneGuestDevice.Family.iPhone, "cloudOS 27.2 (24B115)" as String?),
+        // iPad16,1 27.0.1: the cache maps, then launchd aborts. No cloudOS 27.0.
+        ("27.0.1", "26.4", .iPad, "standard preset"),
+        ("27.2", "27.2", .iPhone, nil),
+        ("26.5", "26.4", .iPhone, nil),
+        ("27.2", "26.4", .watch, nil),
+    ])
+    func `minimal refuses an iOS 27 userland on a stock cloudOS 26 kernel`(
+        iOSBase: String, cloudOS: String, family: VPhoneGuestDevice.Family, names: String?,
+    ) throws {
+        let minimal = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.minimalPreset,
+            patchSets: FirmwarePatchSetCatalog.bundled,
+            iOSBase: VPhoneVersion(iOSBase),
+            cloudOS: VPhoneVersion(cloudOS),
+        )
+        let refusal = FirmwareRestoreImagePatchSet.cloudOSRefusal(
+            plan: minimal, family: family, iOSBase: VPhoneVersion(iOSBase), cloudOS: VPhoneVersion(cloudOS),
+        )
+        if let names {
+            let refusal = try #require(refusal)
+            #expect(refusal.contains(names))
+        } else {
+            #expect(refusal == nil)
+        }
+    }
+
+    @Test
+    func `standard patches the kernel, so it is never refused the cloudOS 26 pairing`() throws {
+        let standard = try VPhonePatchPlan.resolve(
+            preset: FirmwarePatchSetCatalog.standardPreset,
+            patchSets: FirmwarePatchSetCatalog.bundled,
+            iOSBase: VPhoneVersion("27.2"),
+            cloudOS: VPhoneVersion("26.4"),
+        )
+        #expect(FirmwareRestoreImagePatchSet.cloudOSRefusal(
+            plan: standard, family: .iPhone, iOSBase: VPhoneVersion("27.2"), cloudOS: VPhoneVersion("26.4"),
+        ) == nil)
     }
 
     @Test

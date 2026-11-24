@@ -206,6 +206,14 @@ public final class FirmwarePipeline {
         // two ProductVersions that were just read, and a conflict or a misnamed
         // patch must stop the run before a single byte is written.
         let plan = try resolvePlan(iOSBase: baseVersion, cloudOS: cloudOSVersion)
+        // fw prepare refuses the pairing too; this catches a preset changed since.
+        if let plan,
+           let family = VPhoneGuestDevice.Family(rawValue: Self.guestFamily(restoreDir: restoreDir)),
+           let refusal = FirmwareRestoreImagePatchSet.cloudOSRefusal(
+               plan: plan, family: family, iOSBase: baseVersion, cloudOS: cloudOSVersion,
+           ) {
+            throw PatcherError.patchVerificationFailed(refusal)
+        }
         try resolveFirmwareApplicability(
             restoreDir: restoreDir,
             iOSBase: baseVersion,

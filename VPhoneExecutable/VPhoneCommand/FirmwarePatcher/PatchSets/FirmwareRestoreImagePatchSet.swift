@@ -16,6 +16,7 @@
 // guest payload.
 
 import Foundation
+import VPhoneCoreKit
 import VPhonePatchKit
 
 public enum FirmwareRestoreImagePatchSet {
@@ -59,6 +60,38 @@ public enum FirmwareRestoreImagePatchSet {
     /// opt-in patches.
     public static var presetPatches: Set<String> {
         Set(manifest.patches.map(\.identifier)).subtracting(optInPatches)
+    }
+
+    /// Why a restore image cannot run on this pairing, or nil when it can.
+    ///
+    /// The restore image runs on a stock kernel, and an iOS 27 userland does
+    /// not boot on a stock cloudOS 26 kernel (2026-11-24, Research
+    /// 0_binary_patch_comparison.md, the `minimal` notes). iPhone17,3 27.2's
+    /// shared cache spans 0x18FC94000, more than the kernel's 6 GiB region at
+    /// any slide. iPad16,1 27.0.1's maps with its slide zeroed, and then
+    /// launchd aborts, as on every iOS 27 userland whose libSystem queries the
+    /// lockdown-mode sysctl that kernel lacks. `standard` patches the kernel
+    /// for both. iPhone and iPad only: no other guest was tried.
+    public static func cloudOSRefusal(
+        plan: VPhonePatchPlan,
+        family: VPhoneGuestDevice.Family,
+        iOSBase: VPhoneVersion?,
+        cloudOS: VPhoneVersion?,
+    ) -> String? {
+        guard plan.isEnabled(cryptexMerge),
+              family == .iPhone || family == .iPad,
+              let iOSBase, iOSBase.major >= 27,
+              let cloudOS, cloudOS.major < 27
+        else { return nil }
+        let reason = "The \(plan.presetIdentifier) preset restores a resealed system onto a stock kernel, "
+            + "and \(family.osName) \(iOSBase) does not boot on the stock cloudOS \(cloudOS) kernel: "
+            + "its shared cache does not fit that kernel's shared region, and its launchd needs a "
+            + "lockdown-mode sysctl that kernel lacks."
+        guard let own = VPhoneFirmwareCatalog.researchBoardCloudOS(forVersion: iOSBase.description) else {
+            return reason + " Use the standard preset, which patches the kernel for iOS \(iOSBase.major)."
+        }
+        return reason + " Use its own \(own.name), whose research board kernel needs no patch: "
+            + "--cloudos-source \(own.url). Or use the standard preset, which patches the kernel."
     }
 
     private static func filesystem(_ identifier: String, _ title: String, _ summary: String) -> VPhonePatchDeclaration {
