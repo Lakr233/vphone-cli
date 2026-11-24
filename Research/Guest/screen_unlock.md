@@ -46,7 +46,10 @@ passcode-free guest, and it needs a private entitlement. Both were dropped.
    `com.apple.springboard.hasBlankedScreen` (IcliKit's `lockState()`). Until
    `com.apple.springboard.finishedstartup` is non-zero these read
    "unlocked, lit" no matter what will show, so at startup it waits for that
-   notification before trusting them.
+   notification before trusting them. Even after it, a single read can still
+   catch "unlocked, lit" for a moment before the Lock Screen is raised, so an
+   "already unlocked" reading is trusted only when a second read a poll later
+   corroborates it; a locked or dark reading is acted on from one read.
 2. Not locked, only dark: `SBSUndimScreen`, and done. This lights the display
    with no toggle and needs no entitlement (it is what icli's `wake` calls).
 3. Locked: if dark, `SBSUndimScreen` first so the next step lands on a live
