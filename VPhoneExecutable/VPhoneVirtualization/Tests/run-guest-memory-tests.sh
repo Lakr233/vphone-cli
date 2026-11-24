@@ -27,6 +27,7 @@ xcrun --sdk macosx swiftc -swift-version 6 -parse-as-library \
     "$sources/GuestMemory/VPhoneGuestPhysicalMemory.swift" \
     "$sources/GuestMemory/VPhoneGuestPhysicalMemory+VirtualMachine.swift" \
     "$sources/GuestMemory/VPhoneGuestKernel.swift" \
+    "$sources/GuestMemory/VPhoneGuestDebugStub.swift" \
     "$sources/GuestMemory/VPhoneKernelSymbols.swift" \
     "$sources/GuestMemory/VPhoneGuestMemoryDumps.swift" \
     "${0:a:h}/GuestMemoryTests.swift" -o "$out/GuestMemoryTests"

@@ -69,6 +69,26 @@ struct VPhoneGuestStillPaused: LocalizedError, CustomStringConvertible {
     }
 }
 
+/// The guest's kernel, placed by its vCPUs' `TTBR1_EL1` and `VBAR_EL1`,
+/// read through the kernel debug stub at `stubPort`, and the view of guest
+/// RAM it was found in: `memory` with DRAM at the `dram-base` the registers
+/// agree with, or as mapped when the kernel was not found. Call it while the
+/// guest is paused: connecting to the stub halts the vCPUs, and only a paused
+/// guest stays halted when the session ends.
+func vphoneFindGuestKernel(
+    _ memory: VPhoneGuestPhysicalMemory,
+    stubPort: Int?,
+) -> (memory: VPhoneGuestPhysicalMemory, kernel: Result<VPhoneGuestKernel, Error>) {
+    let kernel = Result { () throws -> VPhoneGuestKernel in
+        guard let stubPort else {
+            throw VPhoneGuestDebugStub.Failure.unavailable("Virtualization did not report its port")
+        }
+        let registers = try VPhoneGuestDebugStub.kernelRegisters(port: stubPort)
+        return try VPhoneGuestKernel.locate(in: memory, registers: registers)
+    }
+    return ((try? kernel.get())?.memory ?? memory, kernel)
+}
+
 // MARK: - Physical Memory
 
 /// Guest RAM by guest physical address, as an ELF core: a `PT_LOAD` for
@@ -90,17 +110,23 @@ struct VPhonePhysicalMemoryDump {
     static func save(from vm: VPhoneVirtualMachine, machineName: String, to folder: URL) async throws -> Self {
         try VPhoneMemoryDump.beginSaving(vm.virtualMachine)
         defer { VPhoneMemoryDump.endSaving(vm.virtualMachine) }
-        let memory = try await VPhoneGuestPhysicalMemory.map(vm.virtualMachine)
-        let regions = [memory.carveOut, memory.dram].compactMap(\.self)
-        try VPhoneMemoryDump.prepare(folder, needed: regions.reduce(0) { $0 + $1.size } + (256 << 20))
+        let mapped = try await VPhoneGuestPhysicalMemory.map(vm.virtualMachine)
+        let stubPort = VPhoneGuestDebugStub.port(of: vm.virtualMachine)
+        let size = [mapped.carveOut, mapped.dram].compactMap(\.self).reduce(0) { $0 + $1.size }
+        try VPhoneMemoryDump.prepare(folder, needed: size + (256 << 20))
         let file = folder.appendingPathComponent("physical.elf")
         do {
             print("[memdump] Saving the guest's physical memory to \(folder.path)")
-            let (stored, seconds, resumeFailure) = try await vphoneWithGuestPaused(vm) {
-                try write(memory: memory, regions: regions, machineName: machineName, to: file)
+            let ((stored, memory), seconds, resumeFailure) = try await vphoneWithGuestPaused(vm) {
+                // The kernel's registers place DRAM; without them it stays at
+                // the first dram-base found.
+                let (memory, kernel) = vphoneFindGuestKernel(mapped, stubPort: stubPort)
+                let regions = [memory.carveOut, memory.dram].compactMap(\.self)
+                let stored = try write(memory: memory, regions: regions, kernel: kernel, machineName: machineName, to: file)
+                return (stored, memory)
             }
             let dump = Self(
-                folder: folder, file: file, bytes: regions.reduce(0) { $0 + $1.size },
+                folder: folder, file: file, bytes: [memory.carveOut, memory.dram].compactMap(\.self).reduce(0) { $0 + $1.size },
                 storedBytes: stored, pausedSeconds: seconds, resumeFailure: resumeFailure,
             )
             try dump.writeInfo(machineName: machineName, memory: memory)
@@ -114,14 +140,16 @@ struct VPhonePhysicalMemoryDump {
         }
     }
 
-    /// Writes the ELF core; returns the bytes stored.
+    /// Writes the ELF core; returns the bytes stored. `kernel` is what the
+    /// note says about the kernel, if it was looked for.
     static func write(
         memory: VPhoneGuestPhysicalMemory,
         regions: [VPhoneGuestPhysicalMemory.Region],
+        kernel: Result<VPhoneGuestKernel, Error>? = nil,
         machineName: String,
         to url: URL,
     ) throws -> UInt64 {
-        let note = noteRecord(json: kernelDescription(memory: memory, machineName: machineName))
+        let note = noteRecord(json: kernelDescription(memory: memory, kernel: kernel, machineName: machineName))
         let headersSize = 64 + 56 * (1 + regions.count)
         let noteOffset = UInt64(headersSize)
         var offset = (noteOffset + UInt64(note.count) + 0x3FFF) & ~0x3FFF
@@ -165,7 +193,7 @@ struct VPhonePhysicalMemoryDump {
         var stored = UInt64(head.count)
         for (region, fileOffset) in placements {
             // Pages the guest never used are holes, read or not.
-            for run in usedRuns(memory.usedPages(of: region), size: region.size) {
+            for run in VPhoneGuestPhysicalMemory.usedRuns(memory.usedPages(of: region), size: region.size) {
                 stored += try VPhoneMemoryDump.writeSparse(
                     region.base + Int(run.lowerBound), length: Int(run.upperBound - run.lowerBound),
                     into: fd, at: fileOffset + run.lowerBound, path: url.path,
@@ -178,27 +206,13 @@ struct VPhonePhysicalMemoryDump {
         return stored
     }
 
-    /// What the note tells a reader: the RAM layout and, when the kernel is
+    /// What the note tells a reader: the RAM layout and, when the kernel was
     /// found, where it is and its root translation table.
-    /// Byte ranges of a region made of used pages; the whole region when
-    /// that is unknown.
-    static func usedRuns(_ used: [Bool]?, size: UInt64) -> [Range<UInt64>] {
-        guard let used else { return [0 ..< size] }
-        let page = VPhoneGuestPhysicalMemory.pageSize
-        var runs: [Range<UInt64>] = []
-        var start: Int?
-        for (index, isUsed) in used.enumerated() {
-            if isUsed, start == nil { start = index }
-            if !isUsed, let first = start {
-                runs.append(UInt64(first) * page ..< UInt64(index) * page)
-                start = nil
-            }
-        }
-        if let first = start { runs.append(UInt64(first) * page ..< min(UInt64(used.count) * page, size)) }
-        return runs
-    }
-
-    static func kernelDescription(memory: VPhoneGuestPhysicalMemory, machineName: String) -> [String: Any] {
+    static func kernelDescription(
+        memory: VPhoneGuestPhysicalMemory,
+        kernel: Result<VPhoneGuestKernel, Error>?,
+        machineName: String,
+    ) -> [String: Any] {
         var json: [String: Any] = [
             "format": "vphone-physical-memory/1",
             "machine": machineName,
@@ -209,7 +223,7 @@ struct VPhonePhysicalMemoryDump {
             json["carve_out"] = ["guest_address": hex(carveOut.guestAddress), "size": carveOut.size]
         }
         do {
-            let kernel = try VPhoneGuestKernel(memory: memory)
+            guard let kernel = try kernel?.get() else { return json }
             json["kernel"] = [
                 "kernelcache_physical": hex(kernel.kernelcachePhysical),
                 "kernel_uuid": kernel.kernelUUID,
@@ -310,9 +324,12 @@ struct VPhoneProcessMemoryDump {
         var description: String { errorDescription ?? "process dump failed" }
     }
 
-    /// Room asked for before the guest is paused; a process with its share
-    /// of the shared cache is usually well under this.
-    static let spaceNeeded: UInt64 = 4 << 30
+    /// Room asked for before the guest is paused: the most a process may
+    /// map (`VPhoneGuestKernel.userBytesLimit`) and its load commands. A
+    /// process with its share of the shared cache is usually well under 2 GB.
+    static func spaceNeeded(_ memory: VPhoneGuestPhysicalMemory) -> UInt64 {
+        VPhoneGuestKernel.userBytesLimit(memory) + (256 << 20)
+    }
 
     @MainActor
     static func save(
@@ -325,11 +342,12 @@ struct VPhoneProcessMemoryDump {
         try VPhoneMemoryDump.beginSaving(vm.virtualMachine)
         defer { VPhoneMemoryDump.endSaving(vm.virtualMachine) }
         let memory = try await VPhoneGuestPhysicalMemory.map(vm.virtualMachine)
-        try VPhoneMemoryDump.prepare(folder, needed: spaceNeeded)
+        let stubPort = VPhoneGuestDebugStub.port(of: vm.virtualMachine)
+        try VPhoneMemoryDump.prepare(folder, needed: spaceNeeded(memory))
         do {
             print("[memdump] Saving the memory of pid \(pid) to \(folder.path)")
             let (dump, seconds, resumeFailure) = try await vphoneWithGuestPaused(vm) {
-                try capture(memory: memory, pid: pid, expectedName: expectedName, folder: folder)
+                try capture(memory: memory, pid: pid, expectedName: expectedName, folder: folder, stubPort: stubPort)
             }
             let result = Self(
                 folder: folder, file: dump.file, pid: pid, name: dump.name, segments: dump.segments,
@@ -366,8 +384,11 @@ struct VPhoneProcessMemoryDump {
         pid: Int32,
         expectedName: String?,
         folder: URL,
+        stubPort: Int?,
     ) throws -> Captured {
-        let kernel = try VPhoneGuestKernel(memory: memory)
+        let kernel = try vphoneFindGuestKernel(memory, stubPort: stubPort).kernel.get()
+        // DRAM where the kernel's registers place it.
+        let memory = kernel.memory
         let process = try kernel.process(pid: pid)
         // vphoned's name is p_comm, cut at 16 characters.
         if let expectedName, !expectedName.isEmpty, !process.name.isEmpty,

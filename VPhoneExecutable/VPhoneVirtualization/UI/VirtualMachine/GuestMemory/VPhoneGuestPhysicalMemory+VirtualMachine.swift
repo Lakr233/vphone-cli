@@ -54,32 +54,32 @@ extension VPhoneGuestPhysicalMemory {
         }
         do {
             let dramBase = try remap(largest.address, largest.size)
-            guard let base = deviceTreeValue("dram-base", in: dramBase, size: largest.size),
-                  base & (pageSize - 1) == 0, !base.addingReportingOverflow(largest.size).overflow
-            else { throw Failure.dramBaseUnknown }
+            // Only pages the guest ever got are searched: reading the others
+            // would make the host allocate them.
+            let runs = usedRuns(usedPages(task: task, address: largest.address, size: largest.size), size: largest.size)
+            let bases = deviceTreeValues("dram-base", in: dramBase, size: largest.size, runs: runs).filter {
+                $0 & (pageSize - 1) == 0 && !$0.addingReportingOverflow(largest.size).overflow
+            }
+            guard let base = bases.first else { throw Failure.dramBaseUnknown }
             let dram = Region(guestAddress: base, size: largest.size, base: dramBase, serviceAddress: largest.address)
 
-            // The carve-out block sits directly below DRAM: accept a region as
-            // it only if every device-tree carve-out below DRAM falls inside.
-            let carveOuts = deviceTreeCarveOuts(in: dramBase, size: largest.size).filter { $0.base < base }
-            var found: Region?
+            // The carve-out block sits directly below DRAM: a region is taken
+            // as it only if every device-tree carve-out below DRAM falls inside.
+            let carveOuts = deviceTreeCarveOuts(in: dramBase, size: largest.size, runs: runs)
+            var others: [Region] = []
             if !carveOuts.isEmpty {
-                for region in regions where region.address != largest.address && region.size < base {
-                    let low = base - region.size
-                    // Written without a sum of guest values.
-                    if carveOuts.allSatisfy({ low <= $0.base && $0.size <= base - $0.base }) {
-                        found = try Region(
-                            guestAddress: low,
-                            size: region.size,
-                            base: remap(region.address, region.size),
-                            serviceAddress: region.address,
-                        )
-                        break
-                    }
+                for region in regions where region.address != largest.address {
+                    try others.append(Region(
+                        guestAddress: 0, size: region.size, base: remap(region.address, region.size),
+                        serviceAddress: region.address,
+                    ))
                 }
             }
             keepsTask = true
-            return VPhoneGuestPhysicalMemory(dram: dram, carveOut: found, mappings: mapped, task: task)
+            return VPhoneGuestPhysicalMemory(
+                dram: dram, carveOut: carveOut(below: base, carveOuts: carveOuts, regions: others),
+                mappings: mapped, task: task, dramBases: bases, carveOuts: carveOuts, otherRegions: others,
+            )
         } catch {
             for (address, size) in mapped {
                 mach_vm_deallocate(mach_task_self_, address, size)

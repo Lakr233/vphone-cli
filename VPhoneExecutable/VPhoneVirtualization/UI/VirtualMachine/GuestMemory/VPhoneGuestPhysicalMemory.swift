@@ -62,28 +62,63 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
     let dram: Region
     /// The firmware carve-out block directly below DRAM, if one was found.
     let carveOut: Region?
-    private let mappings: [(address: mach_vm_address_t, size: mach_vm_size_t)]
-    /// The service's task port, for asking which pages exist; owned.
-    private let task: mach_port_t
+    /// Every `dram-base` value found in guest RAM, in the order found and
+    /// without repeats; `dram` starts at the first. Apps get pages below the
+    /// device tree and can write the property there, so the first need not
+    /// be the device tree's: `placed(kernel:)` picks the one the kernel's
+    /// registers agree with.
+    let dramBases: [UInt64]
+    /// The host mappings and the task port, shared by every placement.
+    private let owner: Owner
+    /// The device tree's carve-outs and the service's other guest memory
+    /// regions, to find the carve-out block below another DRAM base.
+    private let carveOutSources: (carveOuts: [CarveOut], regions: [Region])
 
     init(
         dram: Region,
         carveOut: Region?,
         mappings: [(address: mach_vm_address_t, size: mach_vm_size_t)],
         task: mach_port_t = mach_port_t(MACH_PORT_NULL),
+        dramBases: [UInt64]? = nil,
+        carveOuts: [CarveOut] = [],
+        otherRegions: [Region] = [],
     ) {
         self.dram = dram
         self.carveOut = carveOut
-        self.mappings = mappings
-        self.task = task
+        self.dramBases = dramBases ?? [dram.guestAddress]
+        owner = Owner(mappings: mappings, task: task)
+        carveOutSources = (carveOuts, otherRegions)
     }
 
-    deinit {
-        for (address, size) in mappings {
-            mach_vm_deallocate(mach_task_self_, address, size)
+    private init(placing other: VPhoneGuestPhysicalMemory, at base: UInt64) {
+        let sources = other.carveOutSources
+        dram = Region(
+            guestAddress: base, size: other.dram.size, base: other.dram.base, serviceAddress: other.dram.serviceAddress,
+        )
+        carveOut = Self.carveOut(below: base, carveOuts: sources.carveOuts, regions: sources.regions)
+        dramBases = other.dramBases
+        owner = other.owner
+        carveOutSources = sources
+    }
+
+    /// Owns what the view is made of; the placements of one view share it.
+    private final class Owner {
+        let mappings: [(address: mach_vm_address_t, size: mach_vm_size_t)]
+        /// The service's task port, for asking which pages exist; owned.
+        let task: mach_port_t
+
+        init(mappings: [(address: mach_vm_address_t, size: mach_vm_size_t)], task: mach_port_t) {
+            self.mappings = mappings
+            self.task = task
         }
-        if task != MACH_PORT_NULL {
-            mach_port_deallocate(mach_task_self_, task)
+
+        deinit {
+            for (address, size) in mappings {
+                mach_vm_deallocate(mach_task_self_, address, size)
+            }
+            if task != MACH_PORT_NULL {
+                mach_port_deallocate(mach_task_self_, task)
+            }
         }
     }
 
@@ -92,8 +127,12 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
     /// reading it through the mapping would make the host allocate it. Nil
     /// when the service cannot be asked; then every page counts as used.
     func usedPages(of region: Region) -> [Bool]? {
-        guard task != MACH_PORT_NULL, let address = region.serviceAddress else { return nil }
-        let pages = Int(region.size / Self.pageSize)
+        Self.usedPages(task: owner.task, address: region.serviceAddress, size: region.size)
+    }
+
+    static func usedPages(task: mach_port_t, address: mach_vm_address_t?, size: UInt64) -> [Bool]? {
+        guard task != MACH_PORT_NULL, let address else { return nil }
+        let pages = Int(size / Self.pageSize)
         var dispositions = [Int32](repeating: 0, count: pages)
         let chunk = 65536
         var done = 0
@@ -113,6 +152,57 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
             done += count
         }
         return dispositions.map { $0 != 0 }
+    }
+
+    /// Byte ranges of a region made of used pages; the whole region when
+    /// that is unknown.
+    static func usedRuns(_ used: [Bool]?, size: UInt64) -> [Range<UInt64>] {
+        guard let used else { return [0 ..< size] }
+        var runs: [Range<UInt64>] = []
+        var start: Int?
+        for (index, isUsed) in used.enumerated() {
+            if isUsed, start == nil { start = index }
+            if !isUsed, let first = start {
+                runs.append(UInt64(first) * pageSize ..< UInt64(index) * pageSize)
+                start = nil
+            }
+        }
+        if let first = start { runs.append(UInt64(first) * pageSize ..< min(UInt64(used.count) * pageSize, size)) }
+        return runs
+    }
+
+    // MARK: - Placing DRAM
+
+    /// This view with DRAM at the first of `dramBases` that the kernel's
+    /// registers agree with: the root table (`TTBR1_EL1`) lies in DRAM and
+    /// the exception vectors (`VBAR_EL1`) translate through it into DRAM. An
+    /// app can write a `dram-base` property but does not know where the
+    /// kernel's tables are, so a wrong base fails this. Nil when none agrees.
+    func placed(kernel registers: VPhoneGuestDebugStub.KernelRegisters) -> VPhoneGuestPhysicalMemory? {
+        for base in dramBases {
+            let memory = base == dram.guestAddress ? self : VPhoneGuestPhysicalMemory(placing: self, at: base)
+            guard memory.contains(physical: registers.root),
+                  let vectors = VPhoneGuestPageTables(memory: memory, root: registers.root).translate(registers.vbar),
+                  memory.contains(physical: vectors)
+            else { continue }
+            return memory
+        }
+        return nil
+    }
+
+    /// The service region directly below `base` that holds every carve-out
+    /// the device tree places below it.
+    static func carveOut(below base: UInt64, carveOuts: [CarveOut], regions: [Region]) -> Region? {
+        let below = carveOuts.filter { $0.base < base }
+        guard !below.isEmpty else { return nil }
+        for region in regions where region.size < base {
+            let low = base - region.size
+            // Written without a sum of guest values.
+            if below.allSatisfy({ low <= $0.base && $0.size <= base - $0.base }) {
+                return Region(guestAddress: low, size: region.size, base: region.base, serviceAddress: region.serviceAddress)
+            }
+        }
+        return nil
     }
 
     // MARK: - Reading
@@ -187,19 +277,28 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
     /// dozen carve-outs.
     static let deviceTreeMatchLimit = 4096
 
-    /// A property of the flattened Apple device tree in guest memory: a
-    /// 32-byte name, a 32-bit length, then the value. Only 8-byte values.
-    static func deviceTreeValue(_ name: String, in base: UnsafeRawPointer, size: UInt64) -> UInt64? {
+    /// The values of a property of the flattened Apple device tree in guest
+    /// memory, in the order found and without repeats: a 32-byte name, a
+    /// 32-bit length, then the value. Only 8-byte values. Only the byte
+    /// ranges in `runs` are searched.
+    static func deviceTreeValues(
+        _ name: String,
+        in base: UnsafeRawPointer,
+        size: UInt64,
+        runs: [Range<UInt64>]? = nil,
+    ) -> [UInt64] {
         let limit = Int(min(size, deviceTreeSearchLimit))
-        var value: UInt64?
-        forEachOccurrence(of: Array(name.utf8) + [0], in: base, count: limit) { offset in
+        var values: [UInt64] = []
+        var seen: Set<UInt64> = []
+        forEachOccurrence(of: Array(name.utf8) + [0], in: base, count: limit, runs: runs) { offset in
             guard offset % 4 == 0, offset + 44 <= limit else { return true }
             let length = (base + offset + 32).loadUnaligned(as: UInt32.self) & 0x7FFF_FFFF
             guard length == 8 else { return true }
-            value = (base + offset + 36).loadUnaligned(as: UInt64.self)
-            return false
+            let value = (base + offset + 36).loadUnaligned(as: UInt64.self)
+            if seen.insert(value).inserted { values.append(value) }
+            return true
         }
-        return value
+        return values
     }
 
     struct CarveOut: Hashable {
@@ -209,12 +308,12 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
 
     /// The device tree's `region-id-N` properties: (base, size) of each
     /// firmware carve-out, without duplicates and without any whose end
-    /// would pass 2^64.
-    static func deviceTreeCarveOuts(in base: UnsafeRawPointer, size: UInt64) -> [CarveOut] {
+    /// would pass 2^64. Only the byte ranges in `runs` are searched.
+    static func deviceTreeCarveOuts(in base: UnsafeRawPointer, size: UInt64, runs: [Range<UInt64>]? = nil) -> [CarveOut] {
         let limit = Int(min(size, deviceTreeSearchLimit))
         var result: [CarveOut] = []
         var seen: Set<CarveOut> = []
-        forEachOccurrence(of: Array("region-id-".utf8), in: base, count: limit) { offset in
+        forEachOccurrence(of: Array("region-id-".utf8), in: base, count: limit, runs: runs) { offset in
             guard offset % 4 == 0, offset + 52 <= limit else { return true }
             let name = UnsafeRawBufferPointer(start: base + offset, count: 32)
             guard let end = name.firstIndex(of: 0), end > 10,
@@ -235,24 +334,31 @@ final class VPhoneGuestPhysicalMemory: @unchecked Sendable {
     }
 
     /// Calls `body` with the offset of each match of `needle` in the first
-    /// `count` bytes, at most `deviceTreeMatchLimit` times, until it returns
-    /// false.
+    /// `count` bytes, within `runs` (all of them when nil), at most
+    /// `deviceTreeMatchLimit` times, until it returns false. Pages outside
+    /// `runs` are never read, so the host does not allocate them.
     private static func forEachOccurrence(
         of needle: [UInt8],
         in base: UnsafeRawPointer,
         count: Int,
+        runs: [Range<UInt64>]?,
         _ body: (Int) -> Bool,
     ) {
-        var offset = 0
         var matches = 0
         needle.withUnsafeBytes { pattern in
-            while offset < count, matches < deviceTreeMatchLimit,
-                  let hit = memmem(base + offset, count - offset, pattern.baseAddress, pattern.count)
-            {
-                let found = base.distance(to: UnsafeRawPointer(hit))
-                matches += 1
-                guard body(found) else { return }
-                offset = found + 1
+            for run in runs ?? [0 ..< UInt64(count)] {
+                // A run may end inside a match; the device tree is in used
+                // pages, so it is whole within one run.
+                var offset = Int(min(run.lowerBound, UInt64(count)))
+                let end = Int(min(run.upperBound, UInt64(count)))
+                while offset < end, matches < deviceTreeMatchLimit,
+                      let hit = memmem(base + offset, end - offset, pattern.baseAddress, pattern.count)
+                {
+                    let found = base.distance(to: UnsafeRawPointer(hit))
+                    matches += 1
+                    guard body(found) else { return }
+                    offset = found + 1
+                }
             }
         }
     }

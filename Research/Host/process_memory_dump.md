@@ -34,9 +34,16 @@ task port with `task_for_pid`, and maps both regions into itself with
 in `VPhoneVirtualization.entitlements` and SIP's debugging restrictions off,
 which Host Setup already requires. A read is then a memory access.
 
-Guest physical addresses come from the device tree iBoot leaves in low DRAM:
+Guest physical addresses come from the device tree iBoot leaves in DRAM:
 `dram-base` places DRAM (`0x70a00000` on all three guests), and the
-`region-id-N` carve-outs below it identify the small region.
+`region-id-N` carve-outs below it identify the small region. The device tree
+is not below every app page (on a booted 27.2 guest it was at DRAM + 75.4 MB,
+the lowest user page at DRAM + 32 KB), so an app can write a `dram-base`
+property that comes first. Every `dram-base` value is kept, in order, and
+inside the pause the first one under which the kernel's registers make sense
+is used (see [Kernel registers](#kernel-registers)). Both searches read only
+pages the service has given the guest (`mach_vm_page_range_query`), so the
+host allocates nothing for them.
 
 Reading a page through the mapping that the guest never used makes the host
 allocate it. On `mp-272` (with a second VM restoring beside it) a first
@@ -50,31 +57,31 @@ image.
 
 ## Finding a process
 
-Everything below comes from guest RAM; vphoned only lists the processes the
+Everything below comes from guest RAM and two vCPU registers; vphoned only lists the processes the
 user chooses from, and its pid is checked against the kernel's `p_comm`.
 
-1. **Kernelcache.** The `MH_FILESET` header (`0xfeedfacf`, `CPU_TYPE_ARM64`,
-   filetype 12) is in DRAM, page-aligned. Its `com.apple.kernel` entry gives
-   the kernel's `LC_UUID` and segments. iBoot loads the cache in one piece,
-   so `__TEXT` and `__DATA_CONST` sit at the header's physical address plus
-   their file offsets; SPTM moves `__TEXT_EXEC` and `__DATA` elsewhere. The
-   segment addresses in the in-memory header are the runtime ones, KASLR
-   included. Any app can write such a header into its own memory, so every
-   header whose kernel UUID has a symbol map is a candidate, lowest first
-   (see [Planted kernelcache headers](#planted-kernelcache-headers)).
-2. **Kernel page tables.** The root table (`TTBR1_EL1`) is the page of DRAM
-   through which three addresses in each of `__TEXT` and `__DATA_CONST`
-   translate to where step 1 found them. One pass over DRAM lists the pages
-   whose entry for the kernel's first address is a table descriptor into DRAM
-   (about 2,800 of 524,288 on a booted 27.2 guest); each candidate is checked
-   against that list. The tables use a 16 KB granule, three levels of 2048
-   entries at bits 36, 25 and 14, with 64 GB and 32 MB blocks.
+1. **Kernel page tables.** The root table is `TTBR1_EL1`, read from the
+   vCPUs through Virtualization's kernel debug stub (see
+   [Kernel registers](#kernel-registers)). The tables use a 16 KB granule,
+   three levels of 2048 entries at bits 36, 25 and 14, with 64 GB and 32 MB
+   blocks.
+2. **Kernelcache.** `VBAR_EL1`, the kernel's exception vectors, lies in the
+   kernelcache. Going down from it a page at a time through the kernel's
+   tables, the first page that starts with an `MH_FILESET` header
+   (`0xfeedfacf`, `CPU_TYPE_ARM64`, filetype 12) is the kernelcache's; on
+   27.2 it is 1,861 pages down, past a kext's and the kernel's own Mach-O
+   headers, and the walk takes 0.5 ms. Its `com.apple.kernel` entry's
+   `vmaddr` is the kernel's header, which gives its `LC_UUID` and segments.
+   The segment addresses in the in-memory headers are the runtime ones,
+   KASLR included. Every page read here is reached at a kernel address
+   through the kernel's tables, so nothing an app writes into its own pages
+   is looked at.
 3. **Symbols.** The kernel UUID selects a symbol map among the kernelcache
    recipes (`bases/`, `kernels/`, `donors/`), whose manifests now carry
    `kernelUUID` and `kernelSegments`, so a symbol is a segment and an offset.
    Two are needed: `_kernproc` (the `proc` of pid 0) and `_kernel_pmap`. The
-   latter is checked: its `tte` must translate to its `ttep`, which must be the
-   root from step 2.
+   latter is checked: its `tte` must translate to its `ttep`, which must be
+   `TTBR1_EL1`'s root.
 4. **Process list.** From `kernproc`, `p_list.le_prev` (offset 8, `p_list`
    being first) leads to older-to-newer processes: launchd, then the rest; the
    walk stops at an address inside the kernel image, the head `allproc`.
@@ -141,12 +148,13 @@ memory, which then sits somewhere in DRAM. None of it may crash or hang
 - A load command is used only if it holds its fields (`LC_SEGMENT_64` 72
   bytes, `LC_UUID` 24, `LC_FILESET_ENTRY` 32), lies within `sizeofcmds`, and
   that within the mapped region.
-- The device-tree search looks at no more than 4,096 matches of a name, and
-  removes duplicates with a set.
-- A header is read only with at most 4,096 load commands in 1 MB and at most
-  64 segments; the real kernelcache has 159 commands in 11 KB. Headers whose
-  kernel UUID has no symbol map are passed over without cost, and up to 16,384
-  others are checked as described below.
+- The device-tree search reads only used pages, looks at no more than 4,096
+  matches of a name, and removes duplicates with a set.
+- Only headers the kernel's tables map are read (see
+  [Kernel registers](#kernel-registers)), each with at most 4,096 load
+  commands in 1 MB and at most 64 segments; the real kernelcache has 159
+  commands in 11 KB. The walk down from the vectors stops after 65,536 pages
+  (1 GB) or at address 0.
 - A page-table walk reads each table page at most once (a table that points
   back to itself or is shared is not walked again), at most 65,536 tables,
   and refuses a process with more than 2^21 pages, or with more than twice the
@@ -164,34 +172,53 @@ memory, which then sits somewhere in DRAM. None of it may crash or hang
 `run-guest-memory-tests.sh` covers each case with malformed input behind a
 guard page, so a read past the data crashes the test.
 
-### Planted kernelcache headers
+### Kernel registers
 
-The kernel hands out memory below the kernelcache. In a physical image of a
-booted 27.2 guest (349 processes), the kernelcache was at DRAM + 58 MB, the
-lowest page any process mapped was at DRAM + 32 KB (`photoanalysisd`), and
-29,338 user mappings lay below the kernelcache. So an app can hold a copy of
-the real header, UUID included, at a lower address than the real one.
+Where the kernel is comes from two registers of the vCPUs, which the guest
+cannot set from user space, not from anything found by searching RAM:
 
-A copy cannot pass the check. Its `__TEXT` and `__DATA_CONST` addresses
-translate, through the kernel's tables, to the real kernelcache's pages and
-not to the copy's own; tables of its own that translate them to the copy
-would need the physical addresses of its pages, which an app does not know.
-What a copy can cost is time, which is bounded: candidates are checked
-lowest first against one list of possible roots, so each costs a few
-thousand table lookups, and the limit of 16,384 is more than the pages below
-the kernelcache (about 3,700), so copies there cannot use it up before the
-real header is reached. Headers above it are never looked at. With this,
-process dumps on that guest still paused it for 3.2 to 3.5 s.
+- `TTBR1_EL1`, the root of the kernel's translation tables (its base, 16 KB
+  aligned; the ASID in bits 48 and up and the CnP bit are dropped);
+- `VBAR_EL1`, the kernel's exception vectors, inside the kernelcache.
 
-`TTBR1_EL1` itself is in the Virtualization service's own memory, where the
-guest cannot write: Hypervisor.framework keeps one 16 KB state page per
-vCPU (VM tag 28, read-write, followed by a read-only page whose first word
-holds the bytes `hyp`), and on macOS 27.2 all five pages of a five-vCPU guest
-held the root found above at offset `0x3c0`, next to another root at `0x3b8`
-(probably `TTBR0_EL1`) and a `TCR`-like value at `0x3c8`. The dump does not
-use it: the layout is private, checked on one macOS release only, and the
-search above reaches the same root without it.
+`vphone-vm` reads them inside the pause through Virtualization's kernel GDB
+stub, which it configures on every VM; the port is the running stub's
+(`-[VZVirtualMachine _debugStub].port`; the configuration holds 0 when the
+system assigns it). `VPhoneGuestDebugStub` is a small gdb-remote client: no-ack
+mode, the vCPUs from the stop reply, `qRegisterInfo` until both names are
+found, then `p<n>;thread:<cpu>;` for each vCPU and `D`. Connecting halts the
+vCPUs; while Virtualization holds the guest paused they are halted already,
+and the `D` does not let them run before Virtualization resumes the guest.
+Every reply must arrive within a second and stay under 1 MB. On a booted
+27.2 guest all five vCPUs held `TTBR1_EL1` `0x76160000` (that boot) and
+`VBAR_EL1` `0xfffffe003fe1c000`. The dump refuses vCPUs that disagree, and a
+guest whose kernel has not set up its tables yet (no root, or vectors below
+the kernel's half of the address space).
 
+What this removes: until 2026-11-24 the dump searched DRAM for kernelcache
+headers and checked each against a list of possible root tables taken in a
+pass over DRAM. Both passes read every page, so the host allocated all of
+the guest's RAM (a fresh 8 GB guest's service went from 6.47 to 8.27 GB of
+`phys_footprint` after one dump), and an app could plant header copies and
+root-like pages below the kernelcache to lengthen the pause (2,048 copies:
+9.2 s and +760 MB on 1 GB of synthetic DRAM). With the registers, a dump
+reads the device tree's used pages, about 1,900 pages of the kernel's
+address space, the kernel's headers, and the process's tables and pages.
+Copies of the header in app memory are never looked at, and an error about
+the kernel names the kernel the registers point to.
+
+`dram-base` is checked against the registers too: a base is taken only if
+the root lies in DRAM under it and `VBAR_EL1` translates through the root
+into DRAM. An app that writes the property below the device tree does not
+know where the kernel's tables are, so its value fails this. If the stub
+cannot be reached, a physical image keeps the first `dram-base` found, and
+its note says why the kernel is missing; a process dump fails.
+
+`TTBR1_EL1` is also in the Virtualization service's own memory:
+Hypervisor.framework keeps one 16 KB state page per vCPU (VM tag 28, then a
+read-only page whose first word holds the bytes `hyp`), and on macOS 27.2 the
+root was at offset `0x3c0`. The dump uses the stub instead, whose interface
+is LLDB's and does not depend on that private layout.
 ## Measurements
 
 | What | 18.6 | 26.5 | 27.2 |
@@ -207,12 +234,18 @@ search above reaches the same root without it.
   were skipped, with a second VM restoring beside it; 11.4 s is the next
   boot, alone.
 - With the checks of [Guest data is untrusted](#guest-data-is-untrusted),
-  on 2026-11-23, another iOS 27.2 machine (`Avocado`), alone: launchd 17,875
+  on 2026-11-23, another iOS 27.2 machine, alone: launchd 17,875
   segments, 1.25 GB, guest paused 3.1 s; SpringBoard 19,275 segments,
   1.41 GB, 3.2 s, and LLDB lists 1,778 images; the physical image 7.91 GB
   stored, 11.6 s. A control-socket command sent every half second during a
   dump was answered within 28 ms; before, the remapping and device-tree
   search held the main actor for about 1.6 s.
+- With the [kernel registers](#kernel-registers), on 2026-11-24, the same
+  machine, alone: SpringBoard 18,578 segments, 1.32 GB, guest paused 0.8 s,
+  and LLDB lists 1,774 images. The Virtualization service's
+  `phys_footprint` was 7,833 MB before the dump and 7,834 MB after; this
+  boot had already touched most of the guest's RAM. The physical image
+  stored 7.71 of 8.6 GB, guest paused 12.1 s, and its note had the kernel.
 - After every dump the guest had the same `boot_session_uuid` and its
   uptime went on from where it was. The first `device.info` right after a
   long pause can go unanswered while vphoned reconnects.

@@ -2,15 +2,16 @@ import Foundation
 
 // MARK: - Guest Kernel
 
-/// The guest's kernel, read from guest memory alone: where its kernelcache
-/// sits, its page tables, and its process list.
+/// The guest's kernel, read from guest memory: where its kernelcache sits,
+/// its page tables, and its process list.
 ///
-/// - The kernelcache is found by its Mach-O header in DRAM. iBoot loads it in
-///   one piece, so `__TEXT` and `__DATA_CONST` sit at their file offsets;
-///   SPTM moves the executable and writable segments elsewhere.
-/// - The kernel's root translation table (TTBR1) is the one page in DRAM
-///   that maps those two segments where they were found, and it must equal
-///   the `ttep` of `kernel_pmap`.
+/// - Two registers of the vCPUs, read through Virtualization's kernel debug
+///   stub (`VPhoneGuestDebugStub.KernelRegisters`), place it: `TTBR1_EL1` is
+///   the root of its translation tables, and `VBAR_EL1`, its exception
+///   vectors, lies in the kernelcache, whose `MH_FILESET` header is the first
+///   one below them in the kernel's address space. The header's
+///   `com.apple.kernel` entry gives the kernel's UUID and segments, and
+///   `kernel_pmap`'s `ttep` must be the root.
 /// - The process list starts at `kernproc` (pid 0, last in `allproc`) and
 ///   goes back through `p_list.le_prev`. The offsets of `p_pid`, `p_comm` and
 ///   `task → map → pmap` are found by what is known about the first two
@@ -25,7 +26,6 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         let name: String
         let address: UInt64
         let size: UInt64
-        let fileOffset: UInt64
     }
 
     struct Process {
@@ -61,9 +61,9 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         var errorDescription: String? {
             switch self {
             case .noKernelcache:
-                "The guest's kernel is not in its memory. Wait until the guest has booted, then try again."
+                "The guest's kernelcache is not below its exception vectors. Wait until the guest has booted, then try again."
             case .noPageTables:
-                "The guest kernel's page tables were not found in its memory."
+                "The guest kernel's page tables (TTBR1_EL1) are not in its RAM."
             case let .unexpected(what):
                 "The guest kernel is laid out differently than expected: \(what)."
             case let .noProcess(pid):
@@ -93,123 +93,98 @@ final class VPhoneGuestKernel: @unchecked Sendable {
     static let processLimit = 20000
     private static let tableMask: UInt64 = 0x0000_FFFF_FFFF_C000
 
-    init(memory: VPhoneGuestPhysicalMemory, symbolsRoot: URL? = VPhoneKernelSymbols.recipesDirectory) throws {
+    /// The kernel that `registers` describe. Every page read here is reached
+    /// through the kernel's own tables at a kernel address, so nothing an app
+    /// writes into its pages is looked at.
+    init(
+        memory: VPhoneGuestPhysicalMemory,
+        registers: VPhoneGuestDebugStub.KernelRegisters,
+        symbolsRoot: URL? = VPhoneKernelSymbols.recipesDirectory,
+    ) throws {
         self.memory = memory
-        let (candidates, unknownUUID) = Self.findKernels(memory, symbolsRoot: symbolsRoot)
-        guard !candidates.isEmpty else {
-            if symbolsRoot == nil { throw VPhoneKernelSymbols.Failure.noRecipes }
-            if let unknownUUID { throw VPhoneKernelSymbols.Failure.unknownKernel(unknownUUID) }
-            throw Failure.noKernelcache
-        }
-
-        // Every candidate is checked against one list of possible root tables,
-        // taken in a single pass over DRAM, so a copied header costs a few
-        // thousand table lookups rather than a pass of its own.
-        var firstError: Error?
-        let checks = candidates.compactMap { kernelcache, kernel -> Candidate? in
-            do {
-                return try Candidate(kernelcache: kernelcache, kernel: kernel)
-            } catch {
-                firstError = firstError ?? error
-                return nil
-            }
-        }
-        let roots = Self.possibleRoots(memory, indexes: Set(checks.map(\.rootIndex)))
-        var found: Resolved?
-        search: for candidate in checks {
-            var rootFound = false
-            for root in roots[candidate.rootIndex] ?? [] where candidate.translates(through: root, memory) {
-                rootFound = true
-                do {
-                    found = try Self.resolve(memory, candidate, root: root, symbolsRoot: symbolsRoot)
-                    break search
-                } catch {
-                    firstError = firstError ?? error
-                }
-            }
-            if !rootFound { firstError = firstError ?? Failure.noPageTables }
-        }
-        guard let found else { throw firstError ?? Failure.noKernelcache }
-        kernelcachePhysical = found.kernelcache
-        kernelUUID = found.kernel.uuid
-        segments = found.kernel.segments
-        root = found.root
-        symbols = found.symbols
-        kernelPmap = found.pmap
+        root = registers.root
+        guard memory.contains(physical: root) else { throw Failure.noPageTables }
+        let tables = VPhoneGuestPageTables(memory: memory, root: root)
+        guard let fileset = Self.filesetHeader(tables, below: registers.vbar) else { throw Failure.noKernelcache }
+        guard let header = Self.mapped(tables, at: fileset),
+              let entry = Self.filesetEntry("com.apple.kernel", header: header.pointer, available: header.available),
+              let kernelHeader = Self.mapped(tables, at: entry),
+              let kernel = Self.image(kernelHeader.pointer, available: kernelHeader.available)
+        else { throw Failure.unexpected("the kernelcache has no readable com.apple.kernel") }
+        kernelcachePhysical = tables.translate(fileset) ?? 0
+        kernelUUID = kernel.uuid
+        segments = kernel.segments
         imageLow = segments.map(\.address).min() ?? 0
         imageHigh = segments.map { $0.address &+ $0.size }.max() ?? 0
-    }
 
-    private struct Resolved {
-        let kernelcache: UInt64
-        let kernel: KernelImage
-        let root: UInt64
-        let symbols: VPhoneKernelSymbols
-        let pmap: UInt64
-    }
-
-    /// A kernelcache header and the translations its kernel implies:
-    /// `__TEXT` and `__DATA_CONST` are where the file put them, so three
-    /// virtual addresses of each must translate to the header's physical
-    /// address plus their file offsets.
-    private struct Candidate {
-        let kernelcache: UInt64
-        let kernel: KernelImage
-        let known: [(virtual: UInt64, physical: UInt64)]
-
-        init(kernelcache: UInt64, kernel: KernelImage) throws {
-            var known: [(UInt64, UInt64)] = []
-            for name in ["__TEXT", "__DATA_CONST"] {
-                guard let segment = kernel.segments.first(where: { $0.name == name }),
-                      segment.size >= VPhoneGuestKernel.pageSize
-                else { throw Failure.unexpected("the kernel has no \(name)") }
-                let page = VPhoneGuestKernel.pageSize
-                for offset in [0, (segment.size / 2) & ~(page - 1), segment.size - page] {
-                    known.append((segment.address &+ offset, kernelcache &+ segment.fileOffset &+ offset))
-                }
-            }
-            self.kernelcache = kernelcache
-            self.kernel = kernel
-            self.known = known
+        // The symbol map and kernel_pmap must agree with the registers.
+        symbols = try VPhoneKernelSymbols.load(kernelUUID: kernel.uuid, root: symbolsRoot)
+        let (segmentName, offset) = try symbols.location(of: "_kernel_pmap")
+        guard let segment = segments.first(where: { $0.name == segmentName }) else {
+            throw Failure.unexpected("the kernel has no \(segmentName)")
         }
-
-        /// The root-table entry the first address uses.
-        var rootIndex: Int { Int((known[0].virtual >> 36) & 0x7FF) }
-
-        func translates(through root: UInt64, _ memory: VPhoneGuestPhysicalMemory) -> Bool {
-            let tables = VPhoneGuestPageTables(memory: memory, root: root)
-            return known.allSatisfy { tables.translate($0.virtual) == $0.physical }
-        }
-    }
-
-    /// Checks the rest of a candidate whose segments translate through
-    /// `root`: its symbol map and `kernel_pmap` must agree with that root.
-    private static func resolve(
-        _ memory: VPhoneGuestPhysicalMemory,
-        _ candidate: Candidate,
-        root: UInt64,
-        symbolsRoot: URL?,
-    ) throws -> Resolved {
-        let tables = VPhoneGuestPageTables(memory: memory, root: root)
         func read64(_ address: UInt64) -> UInt64? {
             tables.translate(address).flatMap { memory.read64(physical: $0) }
-        }
-        let kernel = candidate.kernel
-        let symbols = try VPhoneKernelSymbols.load(kernelUUID: kernel.uuid, root: symbolsRoot)
-        let (segmentName, offset) = try symbols.location(of: "_kernel_pmap")
-        guard let segment = kernel.segments.first(where: { $0.name == segmentName }) else {
-            throw Failure.unexpected("the kernel has no \(segmentName)")
         }
         guard let pointer = read64(segment.address &+ offset) else {
             throw Failure.unexpected("kernel_pmap is not mapped")
         }
-        let pmap = strip(pointer)
-        guard let tte = read64(pmap), let ttep = read64(pmap &+ 8),
-              ttep == root, tables.translate(strip(tte)) == ttep
-        else { throw Failure.unexpected("kernel_pmap does not hold the kernel's page tables") }
-        return Resolved(
-            kernelcache: candidate.kernelcache, kernel: kernel, root: root, symbols: symbols, pmap: pmap,
-        )
+        kernelPmap = Self.strip(pointer)
+        guard let tte = read64(kernelPmap), let ttep = read64(kernelPmap &+ 8),
+              ttep == root, tables.translate(Self.strip(tte)) == ttep
+        else { throw Failure.unexpected("kernel_pmap does not hold the page tables in TTBR1_EL1") }
+    }
+
+    /// The kernel in `memory`, placed at the `dram-base` the registers agree
+    /// with (`VPhoneGuestPhysicalMemory.placed(kernel:)`).
+    static func locate(
+        in memory: VPhoneGuestPhysicalMemory,
+        registers: VPhoneGuestDebugStub.KernelRegisters,
+        symbolsRoot: URL? = VPhoneKernelSymbols.recipesDirectory,
+    ) throws -> VPhoneGuestKernel {
+        guard let placed = memory.placed(kernel: registers) else { throw Failure.noPageTables }
+        return try VPhoneGuestKernel(memory: placed, registers: registers, symbolsRoot: symbolsRoot)
+    }
+
+    /// How far below the exception vectors the kernelcache header may be:
+    /// 1 GB of kernel address space. On 27.2 it is 1,861 pages below, past
+    /// the kexts' and the kernel's own Mach-O headers.
+    static let headerSearchLimit = 65536
+
+    /// The kernel address of the kernelcache's `MH_FILESET` header: the first
+    /// page at or below `vectors` that starts with one. Unmapped pages are
+    /// passed over; each page costs one translation.
+    static func filesetHeader(_ tables: VPhoneGuestPageTables, below vectors: UInt64) -> UInt64? {
+        var address = vectors & ~(pageSize - 1)
+        for _ in 0 ..< headerSearchLimit {
+            if let physical = tables.translate(address),
+               let header = tables.memory.pointer(physical: physical, count: 16),
+               header.loadUnaligned(as: UInt32.self) == 0xFEED_FACF,
+               header.loadUnaligned(fromByteOffset: 4, as: UInt32.self) == 0x0100_000C,
+               header.loadUnaligned(fromByteOffset: 12, as: UInt32.self) == 0xC  // MH_FILESET
+            {
+                return address
+            }
+            guard address >= pageSize else { return nil }
+            address -= pageSize
+        }
+        return nil
+    }
+
+    /// The bytes at a kernel address that are mapped contiguously in guest
+    /// RAM, up to 1 MB: enough for any header `loadCommands` reads.
+    static func mapped(_ tables: VPhoneGuestPageTables, at address: UInt64) -> (pointer: UnsafeRawPointer, available: UInt64)? {
+        guard let physical = tables.translate(address),
+              let pointer = tables.memory.pointer(physical: physical, count: 1)
+        else { return nil }
+        var available = pageSize - (address & (pageSize - 1))
+        while available < 1 << 20,
+              tables.translate(address &+ available) == physical &+ available,
+              tables.memory.pointer(physical: physical &+ available, count: Int(pageSize)) != nil
+        {
+            available += pageSize
+        }
+        return (pointer, available)
     }
 
     // MARK: - Translation
@@ -349,64 +324,30 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         return ttep
     }
 
-    /// The valid translations of a process's address space, in address order.
-    /// A process maps at most a little more than the guest has RAM (shared
-    /// pages twice); twice that is refused rather than written out.
+    /// The most a process may map: a process maps at most a little more than
+    /// the guest has RAM (shared pages twice); twice that, or 4 GB on a small
+    /// guest, is refused rather than written out.
+    static func userBytesLimit(_ memory: VPhoneGuestPhysicalMemory) -> UInt64 {
+        max(2 * memory.dram.size, 4 << 30)
+    }
+
+    /// The valid translations of a process's address space, in address
+    /// order, up to `userBytesLimit`.
     func userMappings(root: UInt64) throws -> [Mapping] {
         var limits = VPhoneGuestPageTables.Limits()
-        limits.bytes = max(2 * memory.dram.size, 4 << 30)
+        limits.bytes = Self.userBytesLimit(memory)
         return try VPhoneGuestPageTables(memory: memory, root: root).mappings(limits: limits)
     }
 
-    // MARK: - Locating
+    // MARK: - Mach-O
 
     struct KernelImage {
         let uuid: String
         let segments: [Segment]
     }
 
-    /// Kernelcache headers in DRAM whose kernel has a symbol map, lowest
-    /// first, each with the kernel inside it, and the UUID of the first header
-    /// without a map. Any process can write such a header into its own pages,
-    /// and the kernel hands out memory below the kernelcache too (see
-    /// Research/Host/process_memory_dump.md), so copies may come first. One
-    /// with an unknown UUID costs nothing here; the caller checks the others
-    /// cheaply against one list of possible root tables and takes the first
-    /// whose page tables and `kernel_pmap` agree.
-    /// More headers than fit below the kernelcache on these guests (about
-    /// 58 MB into DRAM, 3,700 pages), so copies there cannot use up the
-    /// limit before the real one is reached.
-    static let kernelCandidateLimit = 16384
     /// The kernel has about 15 segments; a header with more is not one.
     static let segmentLimit = 64
-
-    static func findKernels(
-        _ memory: VPhoneGuestPhysicalMemory,
-        symbolsRoot: URL?,
-    ) -> (candidates: [(UInt64, KernelImage)], unknownUUID: String?) {
-        let dram = memory.dram
-        var result: [(UInt64, KernelImage)] = []
-        var unknownUUID: String?
-        var offset: UInt64 = 0
-        while offset + pageSize <= dram.size, result.count < kernelCandidateLimit {
-            let header = dram.base + Int(offset)
-            if header.loadUnaligned(as: UInt32.self) == 0xFEED_FACF,
-               header.loadUnaligned(fromByteOffset: 4, as: UInt32.self) == 0x0100_000C,
-               header.loadUnaligned(fromByteOffset: 12, as: UInt32.self) == 0xC,  // MH_FILESET
-               let entry = filesetEntry("com.apple.kernel", header: header, available: dram.size - offset),
-               entry < dram.size - offset,
-               let kernel = image(header + Int(entry), available: dram.size - offset - entry)
-            {
-                if VPhoneKernelSymbols.hasMap(kernelUUID: kernel.uuid, root: symbolsRoot) {
-                    result.append((dram.guestAddress + offset, kernel))
-                } else {
-                    unknownUUID = unknownUUID ?? kernel.uuid
-                }
-            }
-            offset += pageSize
-        }
-        return (result, unknownUUID)
-    }
 
     /// The smallest valid length of the load commands that are read:
     /// `LC_SEGMENT_64`, `LC_UUID` and `LC_FILESET_ENTRY`. A shorter one is
@@ -437,7 +378,8 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         return result
     }
 
-    /// The file offset of a fileset entry (`LC_FILESET_ENTRY`).
+    /// The address of a fileset entry's Mach-O header (`LC_FILESET_ENTRY`'s
+    /// `vmaddr`), slid like the rest of the in-memory header.
     static func filesetEntry(_ name: String, header: UnsafeRawPointer, available: UInt64) -> UInt64? {
         for (command, pointer, length) in loadCommands(header, available: available) where command == 0x8000_0035 {
             let nameOffset = Int(pointer.loadUnaligned(fromByteOffset: 24, as: UInt32.self))
@@ -445,7 +387,7 @@ final class VPhoneGuestKernel: @unchecked Sendable {
             let bytes = UnsafeRawBufferPointer(start: pointer + nameOffset, count: length - nameOffset)
             let entryName = String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
             if entryName == name {
-                return pointer.loadUnaligned(fromByteOffset: 16, as: UInt64.self)
+                return pointer.loadUnaligned(fromByteOffset: 8, as: UInt64.self)
             }
         }
         return nil
@@ -463,11 +405,8 @@ final class VPhoneGuestKernel: @unchecked Sendable {
                 let name = String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
                 let address = pointer.loadUnaligned(fromByteOffset: 24, as: UInt64.self)
                 let size = pointer.loadUnaligned(fromByteOffset: 32, as: UInt64.self)
-                let fileOffset = pointer.loadUnaligned(fromByteOffset: 40, as: UInt64.self)
-                guard size > 0, !address.addingReportingOverflow(size).overflow,
-                      !fileOffset.addingReportingOverflow(size).overflow
-                else { continue }
-                segments.append(Segment(name: name, address: address, size: size, fileOffset: fileOffset))
+                guard size > 0, !address.addingReportingOverflow(size).overflow else { continue }
+                segments.append(Segment(name: name, address: address, size: size))
             } else if command == 0x1B {  // LC_UUID
                 let bytes = (0 ..< 16).map { pointer.load(fromByteOffset: 8 + $0, as: UInt8.self) }
                 uuid = UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
@@ -477,28 +416,6 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         }
         guard let uuid, !segments.isEmpty, segments.count <= segmentLimit else { return nil }
         return KernelImage(uuid: uuid, segments: segments)
-    }
-
-    /// For each root-table index in `indexes`, the DRAM pages, lowest first,
-    /// whose entry at that index is a table descriptor into DRAM: the pages
-    /// that could be the kernel's root table. One pass over DRAM; on a booted
-    /// 27.2 guest about 2,800 of its 524,288 pages for the kernel's index.
-    static func possibleRoots(_ memory: VPhoneGuestPhysicalMemory, indexes: Set<Int>) -> [Int: [UInt64]] {
-        let sorted = indexes.sorted()
-        var result: [Int: [UInt64]] = [:]
-        let dram = memory.dram
-        var offset: UInt64 = 0
-        while offset + pageSize <= dram.size {
-            let page = dram.base + Int(offset)
-            for index in sorted {
-                let entry = page.loadUnaligned(fromByteOffset: index * 8, as: UInt64.self)
-                if entry & 3 == 3, memory.contains(physical: entry & tableMask) {
-                    result[index, default: []].append(dram.guestAddress + offset)
-                }
-            }
-            offset += pageSize
-        }
-        return result
     }
 }
 

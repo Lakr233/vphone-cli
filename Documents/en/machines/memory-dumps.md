@@ -63,7 +63,7 @@ printf '%s\n' '{"t":"memory.dump","path":"/Users/me/Dumps/myphone-2","physical":
 1. Choose **Diagnostics > Processes** and select one process.
 2. Choose **Save Memory Dump…** in the toolbar or the context menu, then a folder. The new folder is named for the machine, the process and its pid, such as `myphone SpringBoard (36) Memory 2026-11-20 at 10.02.03`.
 
-vphone reads the process's memory from the Mac, without the guest's help: it finds the guest kernel in guest RAM, walks its process list to the pid, and copies every page the process's page tables map. The guest is paused for this, usually a few seconds. vphoned only supplies the process list you choose from. If the pid belongs to a different process by the time you save, the dump is refused; refresh the list and try again.
+vphone reads the process's memory from the Mac, without the guest's help: it locates the guest kernel from two of its vCPU registers, read through Virtualization's kernel debug stub, walks its process list to the pid, and copies every page the process's page tables map. The guest is paused for this, usually a few seconds. vphoned only supplies the process list you choose from. If the pid belongs to a different process by the time you save, the dump is refused; refresh the list and try again.
 
 The folder holds a Mach-O core named for the process and an `info.json`. LLDB opens the core and finds the process's images from dyld's data in it:
 
@@ -86,7 +86,7 @@ Process dumps work for guests whose kernel is one of the kernelcache recipes vph
 ## Space and time
 
 - `AP.core` is a little larger than the guest's RAM, 8.6 GB for an 8 GB guest. All-zero blocks are left out of the file, so on an APFS volume it takes only the space of its data, usually most of the guest's RAM.
-- Saving refuses, before the guest is paused, when the volume has less free space than the guest's RAM and a little more. A process dump asks for 4 GB.
+- Saving refuses, before the guest is paused, when the volume has less free space than the guest's RAM and a little more. A process dump asks for twice the guest's RAM, at least 4 GB: the most it may write.
 - While the guest is paused, macOS holds a copy of its memory. On a Mac that is short of memory the pause and the writing take longer.
 - The guest's clock stands still while it is paused. `vphone-vm` puts it back on the Mac's time as soon as the guest runs again.
 - One dump of a machine is saved at a time.

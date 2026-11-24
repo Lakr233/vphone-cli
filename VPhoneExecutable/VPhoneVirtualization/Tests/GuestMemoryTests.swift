@@ -112,18 +112,20 @@ enum GuestMemoryTests {
         property("region-id-3", at: 0x200, value: [0x7F80_0000, 0x8000])
         property("region-id-x", at: 0x300, value: [1, 2])
         let size = UInt64(64 * page)
-        expect(VPhoneGuestPhysicalMemory.deviceTreeValue("dram-base", in: ram, size: size) == 0x8000_0000, "dram-base")
-        expect(VPhoneGuestPhysicalMemory.deviceTreeValue("dram-size", in: ram, size: size) == nil, "absent property")
+        expect(VPhoneGuestPhysicalMemory.deviceTreeValues("dram-base", in: ram, size: size) == [0x8000_0000], "dram-base")
+        expect(VPhoneGuestPhysicalMemory.deviceTreeValues("dram-size", in: ram, size: size).isEmpty, "absent property")
+        expect(VPhoneGuestPhysicalMemory.deviceTreeValues("dram-base", in: ram, size: size, runs: [0 ..< UInt64(20 * page)])
+            .isEmpty, "unused pages not searched")
         let carveOuts = VPhoneGuestPhysicalMemory.deviceTreeCarveOuts(in: ram, size: size)
         expect(carveOuts.map(\.base) == [0x7F00_0000, 0x7F80_0000] && carveOuts.map(\.size) == [0x4000, 0x8000],
                "carve-outs")
 
         // Used pages become runs; unknown use means the whole region.
         let p = UInt64(page)
-        expect(VPhonePhysicalMemoryDump.usedRuns(nil, size: 5 * p) == [0 ..< 5 * p], "unknown use")
-        expect(VPhonePhysicalMemoryDump.usedRuns([false, true, true, false, true], size: 5 * p)
+        expect(VPhoneGuestPhysicalMemory.usedRuns(nil, size: 5 * p) == [0 ..< 5 * p], "unknown use")
+        expect(VPhoneGuestPhysicalMemory.usedRuns([false, true, true, false, true], size: 5 * p)
             == [p ..< 3 * p, 4 * p ..< 5 * p], "used runs")
-        expect(VPhonePhysicalMemoryDump.usedRuns([false, false], size: 2 * p).isEmpty, "nothing used")
+        expect(VPhoneGuestPhysicalMemory.usedRuns([false, false], size: 2 * p).isEmpty, "nothing used")
 
         // The physical image: the note, then guest RAM at its own offset.
         let elf = folder.appendingPathComponent("physical.elf")
@@ -152,7 +154,8 @@ enum GuestMemoryTests {
         // Malformed guest data: none of it may trap, read past its memory,
         // or grow without bound.
         malformedInput(expect)
-        try plantedHeaders(expect, recipes: recipes)
+        try kernelFromRegisters(expect, recipes: recipes)
+        try kernelRegisters(expect)
 
         // Symbol maps: every map with a kernelUUID has both required symbols.
         var maps = 0
@@ -293,21 +296,6 @@ extension GuestMemoryTests {
         expect(VPhoneGuestKernel.image(segmentHeader, available: UInt64(32 + 72 + 24)) == nil,
                "overflowing segment left out")
 
-        // No kernel in RAM full of fake fileset headers: an error, not a trap.
-        for index in 0 ..< 64 {
-            header(at: ram + index * page, commands: [(0x8000_0035, 32)])
-            (ram + index * page).storeBytes(of: UInt32(0x0100_000C), toByteOffset: 4, as: UInt32.self)
-            (ram + index * page).storeBytes(of: UInt32(0xC), toByteOffset: 12, as: UInt32.self)
-            (ram + index * page).storeBytes(of: UInt64.max, toByteOffset: 32 + 16, as: UInt64.self)
-        }
-        expect(VPhoneGuestKernel.findKernels(memory, symbolsRoot: nil).candidates.isEmpty, "fake fileset headers")
-        do {
-            _ = try VPhoneGuestKernel(memory: memory, symbolsRoot: nil)
-            expect(false, "no kernel refused")
-        } catch {
-            expect(true, "no kernel refused")
-        }
-
         // Page tables pointing at themselves: each table is walked once.
         ram.initializeMemory(as: UInt8.self, repeating: 0, count: 64 * page)
         func physical(_ pageIndex: Int) -> UInt64 { dramBase + UInt64(pageIndex * page) }
@@ -367,67 +355,311 @@ extension GuestMemoryTests {
     }
 }
 
-// MARK: - Planted Headers
+// MARK: - Kernel From Registers
 
 extension GuestMemoryTests {
-    /// A kernelcache header at `pointer`: an `MH_FILESET` whose
-    /// `com.apple.kernel` entry, one page further, has `uuid` and a `__TEXT`.
-    static func plantKernelcache(at pointer: UnsafeMutableRawPointer, uuid: UUID) {
-        pointer.initializeMemory(as: UInt8.self, repeating: 0, count: 2 * page)
-        func u32(_ value: UInt32, _ offset: Int) { pointer.storeBytes(of: value, toByteOffset: offset, as: UInt32.self) }
-        func u64(_ value: UInt64, _ offset: Int) { pointer.storeBytes(of: value, toByteOffset: offset, as: UInt64.self) }
-        u32(0xFEED_FACF, 0); u32(0x0100_000C, 4); u32(0xC, 12); u32(1, 16); u32(56, 20)
-        u32(0x8000_0035, 32); u32(56, 36); u64(UInt64(page), 48); u32(32, 56)
-        for (index, byte) in Array("com.apple.kernel".utf8).enumerated() {
-            pointer.storeBytes(of: byte, toByteOffset: 32 + 32 + index, as: UInt8.self)
-        }
-        let kernel = pointer + page
-        kernel.storeBytes(of: UInt32(0xFEED_FACF), as: UInt32.self)
-        kernel.storeBytes(of: UInt32(2), toByteOffset: 16, as: UInt32.self)
-        kernel.storeBytes(of: UInt32(72 + 24), toByteOffset: 20, as: UInt32.self)
-        kernel.storeBytes(of: UInt32(0x19), toByteOffset: 32, as: UInt32.self)
-        kernel.storeBytes(of: UInt32(72), toByteOffset: 36, as: UInt32.self)
-        for (index, byte) in Array("__TEXT".utf8).enumerated() {
-            kernel.storeBytes(of: byte, toByteOffset: 40 + index, as: UInt8.self)
-        }
-        kernel.storeBytes(of: UInt64(0xFFFF_FE00_0000_0000), toByteOffset: 32 + 24, as: UInt64.self)
-        kernel.storeBytes(of: UInt64(page), toByteOffset: 32 + 32, as: UInt64.self)
-        kernel.storeBytes(of: UInt32(0x1B), toByteOffset: 32 + 72, as: UInt32.self)
-        kernel.storeBytes(of: UInt32(24), toByteOffset: 32 + 76, as: UInt32.self)
-        withUnsafeBytes(of: uuid.uuid) { bytes in
-            for (index, byte) in bytes.enumerated() {
-                kernel.storeBytes(of: byte, toByteOffset: 32 + 80 + index, as: UInt8.self)
+    /// A Mach-O header at `pointer`: `filetype`, then `commands`, each a
+    /// command number and its bytes after the 8-byte command header.
+    static func machO(at pointer: UnsafeMutableRawPointer, filetype: UInt32, commands: [(UInt32, [UInt8])]) {
+        pointer.initializeMemory(as: UInt8.self, repeating: 0, count: page)
+        var cursor = 32
+        for (command, body) in commands {
+            let length = (8 + body.count + 7) & ~7
+            pointer.storeBytes(of: command, toByteOffset: cursor, as: UInt32.self)
+            pointer.storeBytes(of: UInt32(length), toByteOffset: cursor + 4, as: UInt32.self)
+            for (index, byte) in body.enumerated() {
+                pointer.storeBytes(of: byte, toByteOffset: cursor + 8 + index, as: UInt8.self)
             }
+            cursor += length
         }
+        pointer.storeBytes(of: UInt32(0xFEED_FACF), as: UInt32.self)
+        pointer.storeBytes(of: UInt32(0x0100_000C), toByteOffset: 4, as: UInt32.self)
+        pointer.storeBytes(of: filetype, toByteOffset: 12, as: UInt32.self)
+        pointer.storeBytes(of: UInt32(commands.count), toByteOffset: 16, as: UInt32.self)
+        pointer.storeBytes(of: UInt32(cursor - 32), toByteOffset: 20, as: UInt32.self)
     }
 
-    /// Headers whose kernel has no symbol map are passed over without
-    /// counting against the candidate limit, so many of them below the real
-    /// kernelcache do not hide it.
-    static func plantedHeaders(_ expect: (Bool, String) -> Void, recipes: URL) throws {
+    static func bytes(_ value: UInt64) -> [UInt8] { littleBytes(value) }
+
+    static func name16(_ name: String) -> [UInt8] {
+        Array(name.utf8) + [UInt8](repeating: 0, count: 16 - name.utf8.count)
+    }
+
+    /// A kernel reached only through its registers: a root table, the
+    /// kernelcache header below the vectors, the kernel's header with a
+    /// known UUID, and `kernel_pmap` holding the root. Copies of the headers
+    /// elsewhere in RAM, lower ones included, are never read.
+    static func kernelFromRegisters(_ expect: (Bool, String) -> Void, recipes: URL) throws {
         let manifest = recipes.appendingPathComponent("bases/27.2_24B119/manifest.json")
         let object = try JSONSerialization.jsonObject(with: Data(contentsOf: manifest)) as? [String: Any]
         guard let known = (object?["kernelUUID"] as? String).flatMap(UUID.init(uuidString:)) else {
             expect(false, "27.2 manifest has a kernelUUID")
             return
         }
+        let symbols = try VPhoneKernelSymbols.load(kernelUUID: known.uuidString, root: recipes)
+        let (pmapSegment, pmapOffset) = try symbols.location(of: "_kernel_pmap")
+
         let pages = 64
         let ram = guarded(pages * page)
+        ram.initializeMemory(as: UInt8.self, repeating: 0, count: pages * page)
+        func physical(_ index: Int) -> UInt64 { dramBase + UInt64(index * page) }
         let memory = VPhoneGuestPhysicalMemory(
             dram: .init(guestAddress: dramBase, size: UInt64(pages * page), base: UnsafeRawPointer(ram)),
             carveOut: nil, mappings: [],
         )
-        let planted = 20
-        for index in 0 ..< planted {
-            plantKernelcache(at: ram + index * 2 * page, uuid: UUID())
+
+        // Root (page 1) → level 2 (page 2) → level 3 (page 3), one 32 MB
+        // window of kernel addresses from K.
+        let kernelBase: UInt64 = 0xFFFF_FE00_0700_0000
+        ram.storeBytes(of: physical(2) | 3, toByteOffset: 1 * page + Int((kernelBase >> 36) & 0x7FF) * 8, as: UInt64.self)
+        ram.storeBytes(of: physical(3) | 3, toByteOffset: 2 * page + Int((kernelBase >> 25) & 0x7FF) * 8, as: UInt64.self)
+        func map(_ address: UInt64, to index: Int) {
+            expect(address >= kernelBase && address - kernelBase < 1 << 25, "test address in the window")
+            ram.storeBytes(of: physical(index) | 3, toByteOffset: 3 * page + Int((address >> 14) & 0x7FF) * 8, as: UInt64.self)
         }
-        plantKernelcache(at: ram + planted * 2 * page, uuid: known)
-        let (candidates, unknown) = VPhoneGuestKernel.findKernels(memory, symbolsRoot: recipes)
-        expect(candidates.count == 1 && candidates[0].1.uuid == known.uuidString
-            && candidates[0].0 == dramBase + UInt64(planted * 2 * page),
-            "known kernel found after \(planted) headers with unknown UUIDs")
-        expect(unknown != nil && unknown != known.uuidString, "first unknown UUID reported")
-        expect(VPhoneKernelSymbols.hasMap(kernelUUID: known.uuidString.lowercased(), root: recipes),
-               "UUID lookup ignores case")
+
+        // The kernelcache at K (page 10), the kernel's header one page up
+        // (page 11), the segment holding _kernel_pmap 4 MB up, the pointer's
+        // page (12), the pmap (13), the vectors 1 MB up (14).
+        let kernelHeader = kernelBase + 0x4000
+        let dataSegment = kernelBase + 0x40_0000
+        let pmap = kernelBase + 0x8000
+        let tte = kernelBase + 0xC000
+        let vectors = kernelBase + 0x10_0000
+        map(kernelBase, to: 10)
+        map(kernelHeader, to: 11)
+        map((dataSegment + pmapOffset) & ~0x3FFF, to: 12)
+        map(pmap, to: 13)
+        map(tte, to: 1)
+        map(vectors, to: 14)
+        func plantFileset(at index: Int, entry: UInt64) {
+            machO(at: ram + index * page, filetype: 0xC, commands: [
+                (0x8000_0035, bytes(entry) + bytes(0x4000) + [32, 0, 0, 0, 0, 0, 0, 0] + Array("com.apple.kernel".utf8) + [0]),
+            ])
+        }
+        func plantKernel(at index: Int, uuid: UUID) {
+            let uuidBytes = withUnsafeBytes(of: uuid.uuid) { Array($0) }
+            machO(at: ram + index * page, filetype: 2, commands: [
+                (0x19, name16("__TEXT") + bytes(kernelHeader) + bytes(0x4000) + [UInt8](repeating: 0, count: 40)),
+                (0x19, name16(pmapSegment) + bytes(dataSegment) + bytes((pmapOffset + 0x4000) & ~0x3FFF)
+                    + [UInt8](repeating: 0, count: 40)),
+                (0x1B, uuidBytes),
+            ])
+        }
+        plantFileset(at: 10, entry: kernelHeader)
+        plantKernel(at: 11, uuid: known)
+        // PAC bits on the pointer, as the kernel stores it.
+        let signed = (pmap & 0x0000_7FFF_FFFF_FFFF) | 0x2A5C << 48
+        ram.storeBytes(of: signed, toByteOffset: 12 * page + Int((dataSegment + pmapOffset) & 0x3FFF), as: UInt64.self)
+        ram.storeBytes(of: tte, toByteOffset: 13 * page, as: UInt64.self)
+        ram.storeBytes(of: physical(1), toByteOffset: 13 * page + 8, as: UInt64.self)
+
+        // Copies below: the real headers, and ones with other UUIDs.
+        for index in [4, 6, 8] {
+            plantFileset(at: index, entry: kernelHeader)
+            plantKernel(at: index + 1, uuid: index == 4 ? known : UUID())
+        }
+
+        let registers = VPhoneGuestDebugStub.KernelRegisters(ttbr1: 0x0001 << 48 | physical(1) | 1, vbar: vectors + 0x800)
+        expect(registers.root == physical(1), "root without the ASID and CnP")
+        let kernel = try VPhoneGuestKernel.locate(in: memory, registers: registers, symbolsRoot: recipes)
+        expect(kernel.kernelUUID == known.uuidString && kernel.kernelcachePhysical == physical(10),
+               "kernel from its registers, not the lower copies")
+        expect(kernel.root == physical(1) && kernel.kernelPmap == pmap && kernel.segments.count == 2,
+               "root, kernel_pmap without PAC, segments")
+        expect(kernel.memory === memory, "first dram-base kept")
+
+        // Decoy dram-base values first: one puts the root outside DRAM, one
+        // a page off, where the vectors do not translate.
+        let decoyed = VPhoneGuestPhysicalMemory(
+            dram: .init(guestAddress: 0x1_0000_0000, size: UInt64(pages * page), base: UnsafeRawPointer(ram)),
+            carveOut: nil, mappings: [], dramBases: [0x1_0000_0000, dramBase + 0x4000, dramBase],
+        )
+        let placed = try VPhoneGuestKernel.locate(in: decoyed, registers: registers, symbolsRoot: recipes)
+        expect(placed.memory.dram.guestAddress == dramBase && placed.kernelcachePhysical == physical(10),
+               "decoy dram-base values passed over")
+        let onlyDecoys = VPhoneGuestPhysicalMemory(
+            dram: .init(guestAddress: 0x1_0000_0000, size: UInt64(pages * page), base: UnsafeRawPointer(ram)),
+            carveOut: nil, mappings: [], dramBases: [0x1_0000_0000, dramBase + 0x4000],
+        )
+        expect(onlyDecoys.placed(kernel: registers) == nil, "no dram-base agrees")
+        func fails(_ registers: VPhoneGuestDebugStub.KernelRegisters, _ check: (Error) -> Bool) -> Bool {
+            do {
+                _ = try VPhoneGuestKernel.locate(in: memory, registers: registers, symbolsRoot: recipes)
+                return false
+            } catch {
+                return check(error)
+            }
+        }
+        expect(fails(.init(ttbr1: 0x1_0000_0000, vbar: vectors)) {
+            if case VPhoneGuestKernel.Failure.noPageTables = $0 { return true } else { return false }
+        }, "root outside guest RAM")
+
+        // Unknown kernel: named by its own UUID, not by a lower copy's.
+        let other = UUID()
+        plantKernel(at: 11, uuid: other)
+        expect(fails(registers) {
+            if case let VPhoneKernelSymbols.Failure.unknownKernel(uuid) = $0 { return uuid == other.uuidString }
+            return false
+        }, "unknown kernel named by its own UUID")
+        plantKernel(at: 11, uuid: known)
+
+        // kernel_pmap holding other tables.
+        ram.storeBytes(of: physical(2), toByteOffset: 13 * page + 8, as: UInt64.self)
+        expect(fails(registers) {
+            if case VPhoneGuestKernel.Failure.unexpected = $0 { return true } else { return false }
+        }, "kernel_pmap must hold TTBR1_EL1's tables")
+        ram.storeBytes(of: physical(1), toByteOffset: 13 * page + 8, as: UInt64.self)
+
+        // A fileset entry pointing nowhere.
+        plantFileset(at: 10, entry: .max)
+        expect(fails(registers) {
+            if case VPhoneGuestKernel.Failure.unexpected = $0 { return true } else { return false }
+        }, "kernel entry not mapped")
+
+        // No header below the vectors: the walk ends at its limit, or at
+        // address 0, quickly.
+        (ram + 10 * page).initializeMemory(as: UInt8.self, repeating: 0, count: page)
+        let started = Date()
+        expect(fails(registers) {
+            if case VPhoneGuestKernel.Failure.noKernelcache = $0 { return true } else { return false }
+        }, "no kernelcache below the vectors")
+        let tables = VPhoneGuestPageTables(memory: memory, root: physical(1))
+        expect(VPhoneGuestKernel.filesetHeader(tables, below: 0x8000) == nil, "walk stops at address 0")
+        expect(Date().timeIntervalSince(started) < 1, "walk bounded: \(Date().timeIntervalSince(started)) s")
+    }
+
+    /// TTBR1_EL1 and VBAR_EL1 through a fake stub: the same on every vCPU,
+    /// or refused.
+    static func kernelRegisters(_ expect: (Bool, String) -> Void) throws {
+        expect(VPhoneGuestDebugStub.frame("OK") == Array("$OK#9a".utf8), "packet checksum")
+        expect(VPhoneGuestDebugStub.decode(Array("0* 1".utf8)) == Array("00001".utf8), "run length")
+        expect(VPhoneGuestDebugStub.decode(Array("a}\u{03}b".utf8)) == Array("a#b".utf8), "escaped byte")
+        expect(VPhoneGuestDebugStub.little([0x78, 0x56, 0x34, 0x12]) == 0x1234_5678, "little-endian value")
+        expect(VPhoneGuestDebugStub.fields("T11thread:1;threads:1,2;")["threads"] == "1,2", "reply fields")
+
+        func read(
+            names: [String] = ["x0", "cpsr", "ttbr1_el1", "vbar_el1"],
+            _ values: [Int: [String: [UInt8]]],
+        ) -> (Result<VPhoneGuestDebugStub.KernelRegisters, Error>, [String]) {
+            var pair: [Int32] = [0, 0]
+            guard socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0 else { return (.failure(POSIXError(.EIO)), []) }
+            let stub = FakeDebugStub(descriptor: pair[1], names: names)
+            stub.values = values
+            stub.start()
+            let session = VPhoneGuestDebugStub.Session(descriptor: pair[0])
+            let result = Result { try VPhoneGuestDebugStub.kernelRegisters(session) }
+            session.detach()
+            stub.done.wait()
+            return (result, stub.packets)
+        }
+        let ttbr1: UInt64 = 0x0001 << 48 | 0x7616_0000 | 1
+        let vbar: UInt64 = 0xFFFF_FE00_3FE1_C000
+        let same = ["ttbr1_el1": littleBytes(ttbr1), "vbar_el1": littleBytes(vbar)]
+        let (agreed, packets) = read([1: same, 2: same])
+        expect((try? agreed.get()) == .init(ttbr1: ttbr1, vbar: vbar), "registers of agreeing vCPUs")
+        expect((try? agreed.get())?.root == 0x7616_0000, "root from TTBR1_EL1")
+        expect(packets.filter { $0.hasPrefix("p") }.count == 4, "two reads per vCPU")
+        expect(packets.first == "QStartNoAckMode" && packets.last == "D", "no-ack first, detach last")
+
+        var other = same
+        other["ttbr1_el1"] = littleBytes(0x7700_0000)
+        expect((try? read([1: same, 2: other]).0.get()) == nil, "disagreeing vCPUs refused")
+        let early = ["ttbr1_el1": littleBytes(0), "vbar_el1": littleBytes(0x1_0000_0800)]
+        expect((try? read([1: early]).0.get()) == nil, "a kernel without page tables yet refused")
+        expect((try? read(names: ["x0", "cpsr", "ttbr1_el1"], [1: same]).0.get()) == nil, "no vbar_el1: refused")
+
+        var pair: [Int32] = [0, 0]
+        _ = socketpair(AF_UNIX, SOCK_STREAM, 0, &pair)
+        let silent = VPhoneGuestDebugStub.Session(descriptor: pair[0])
+        let started = Date()
+        expect((try? silent.request("?")) == nil && Date().timeIntervalSince(started) < 3, "a silent stub times out")
+    }
+
+    static func littleBytes(_ value: UInt64, count: Int = 8) -> [UInt8] {
+        (0 ..< count).map { UInt8(truncatingIfNeeded: value >> (8 * UInt64($0 % 8))) }
+    }
+}
+
+// MARK: - Fake Debug Stub
+
+/// A kernel debug stub as Virtualization's answers: vCPUs as threads,
+/// `qRegisterInfo`, per-thread `p` reads, `D`. Runs on its own thread over
+/// one end of a socket pair.
+final class FakeDebugStub: @unchecked Sendable {
+    let descriptor: Int32
+    /// The register names in number order.
+    let names: [String]
+    /// Register bytes by vCPU and name; what is missing reads as an error.
+    var values: [Int: [String: [UInt8]]] = [:]
+    /// Replies sent as they are, by packet.
+    var raw: [String: String] = [:]
+    var listsThreadsInStop = true
+    private(set) var packets: [String] = []
+    let done = DispatchSemaphore(value: 0)
+    private var acknowledging = true
+
+    init(descriptor: Int32, names: [String]) {
+        self.descriptor = descriptor
+        self.names = names
+    }
+
+    func start() {
+        Thread { [self] in run() }.start()
+    }
+
+    private func run() {
+        defer { close(descriptor); done.signal() }
+        var buffer: [UInt8] = []
+        while true {
+            if let start = buffer.firstIndex(of: UInt8(ascii: "$")),
+               let end = buffer[start...].firstIndex(of: UInt8(ascii: "#")), buffer.count >= end + 3
+            {
+                let packet = String(decoding: buffer[(start + 1) ..< end], as: UTF8.self)
+                buffer.removeFirst(end + 3)
+                packets.append(packet)
+                if acknowledging { send(Array("+".utf8)) }
+                let reply = answer(packet)
+                send(VPhoneGuestDebugStub.frame(reply))
+                if packet == "QStartNoAckMode" { acknowledging = false }
+                if packet == "D" { return }
+                continue
+            }
+            var chunk = [UInt8](repeating: 0, count: 4096)
+            let count = chunk.withUnsafeMutableBytes { read(descriptor, $0.baseAddress, $0.count) }
+            guard count > 0 else { return }
+            buffer += chunk[0 ..< count]
+        }
+    }
+
+    private func send(_ bytes: [UInt8]) {
+        _ = bytes.withUnsafeBytes { write(descriptor, $0.baseAddress, $0.count) }
+    }
+
+    private func answer(_ packet: String) -> String {
+        if let reply = raw[packet] { return reply }
+        let cpus = values.keys.sorted().map { String($0, radix: 16) }.joined(separator: ",")
+        switch packet {
+        case "QStartNoAckMode", "QThreadSuffixSupported", "D": return "OK"
+        case "?": return "T11thread:1;name:CPU0;" + (listsThreadsInStop ? "threads:\(cpus);" : "")
+        case "qfThreadInfo": return "m" + cpus
+        case "qsThreadInfo": return "l"
+        default: break
+        }
+        if packet.hasPrefix("qRegisterInfo"), let number = Int(packet.dropFirst(13), radix: 16) {
+            guard number < names.count else { return "E45" }
+            let alias = names[number] == "fp" ? "alt-name:x29;" : ""
+            return "name:\(names[number]);\(alias)bitsize:64;offset:0;encoding:uint;format:hex;"
+        }
+        if packet.hasPrefix("p") {
+            let fields = VPhoneGuestDebugStub.fields(String(packet.dropFirst()))
+            let parts = packet.dropFirst().split(separator: ";")
+            guard let number = parts.first.flatMap({ Int($0, radix: 16) }), number < names.count,
+                  let cpu = fields["thread"].flatMap({ Int($0, radix: 16) }),
+                  let bytes = values[cpu]?[names[number]]
+            else { return "E01" }
+            return bytes.map { String(format: "%02x", $0) }.joined()
+        }
+        return ""
     }
 }
