@@ -111,7 +111,7 @@ final class VPhoneServicesModel {
         guard !isBusy else { return }
         activity = String(localized: "Loading services…", bundle: VPhoneLocalization.bundle)
         do {
-            try await apply(listResult: control.call("services.list"))
+            try await apply(listResult: control.callList("services.list", key: "services"))
             status = nil
         } catch {
             fail(String(localized: "Unable to load services. Check the connection, then try again.", bundle: VPhoneLocalization.bundle))

@@ -834,6 +834,20 @@ final class VPhoneGuestControl {
         }
     }
 
+    /// `call` for a paged list method: every row under `key`, read across as
+    /// many pages as vphoned needs, where a plain `call` ends at the first 200.
+    func callList(_ method: String, key: String, params: [String: Any] = [:]) async throws -> [String: Any] {
+        var list = VPhoneGuestPagedList(key: key, params: params)
+        var sent = list.firstParams
+        while true {
+            let reply = try await call(method, params: sent)
+            guard let next = try list.take(reply) else {
+                return list.result(lastReply: reply)
+            }
+            sent = next
+        }
+    }
+
     /// `call`, with vphoned's refusal kept whole as `GuestRPCFailure`: `code`,
     /// `message` and whatever the command adds (`results`, `reason`, `errno`,
     /// `retryable` …).
@@ -878,7 +892,7 @@ final class VPhoneGuestControl {
     }
 
     func listFiles(path: String) async throws -> [[String: Any]] {
-        let (value, _) = try await sendRequest(["t": "file_list", "path": path])
+        let value = try await callList("files.list", key: "entries", params: ["path": path])
         guard let entries = value["entries"] as? [[String: Any]] else {
             throw ControlError.protocolError("missing file entries")
         }

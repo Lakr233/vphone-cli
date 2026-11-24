@@ -102,7 +102,7 @@ final class VPhoneProcessesModel {
             }
         }
         do {
-            try await apply(processesResult: control.call("processes.list"))
+            try await apply(processesResult: control.callList("processes.list", key: "processes"))
             // The memory summary is optional; the list stands without it.
             if let jetsam = try? await control.call("memory.pressure") {
                 apply(jetsamResult: jetsam)
