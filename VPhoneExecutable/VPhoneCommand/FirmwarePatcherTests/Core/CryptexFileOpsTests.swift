@@ -337,11 +337,32 @@ struct CryptexFileOpsTests {
         #expect(try makePatcher(scratch).parseRootTime(mtree: mtree) == "1792721395000000000")
     }
 
-    @Test func `restores from iOS 27 on take the fast mtree path`() {
-        #expect(!CryptexFilesystemPatcher.usesFastMtree(productVersion: "26.5"))
-        #expect(!CryptexFilesystemPatcher.usesFastMtree(productVersion: "18.6"))
-        #expect(CryptexFilesystemPatcher.usesFastMtree(productVersion: "27.2"))
-        #expect(CryptexFilesystemPatcher.usesFastMtree(productVersion: "27.2.1"))
+    @Test func `restores from a cloudOS 27 ramdisk on take the fast mtree path`() {
+        // iOS 27.2 on cloudOS 26.4 (23E5207q), 2026-11-24: "Fast mtree path
+        // not enabled", then "Invalid root hash" against a seal made with the
+        // root's time. The cloudOS decides, not the iOS being merged.
+        #expect(!CryptexFilesystemPatcher.usesFastMtree(cloudOSVersion: "26.4"))
+        #expect(!CryptexFilesystemPatcher.usesFastMtree(cloudOSVersion: "18.6"))
+        #expect(!CryptexFilesystemPatcher.usesFastMtree(cloudOSVersion: nil))
+        #expect(CryptexFilesystemPatcher.usesFastMtree(cloudOSVersion: "27.2"))
+        #expect(CryptexFilesystemPatcher.usesFastMtree(cloudOSVersion: "27.2.1"))
+    }
+
+    @Test func `the seal reads the cloudOS version from the hybrid manifest`() throws {
+        // The hybrid BuildManifest carries the cloudOS version, which picks the
+        // restore ramdisk; iPhone-BuildManifest carries the iOS one.
+        let scratch = try makeScratch()
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        for (name, version) in [("BuildManifest.plist", "26.4"), ("iPhone-BuildManifest.plist", "27.2")] {
+            let data = try PropertyListSerialization.data(
+                fromPropertyList: ["ProductVersion": version],
+                format: .xml,
+                options: 0,
+            )
+            try data.write(to: scratch.appending(path: name))
+        }
+        #expect(FirmwarePipeline.readCloudOSProductVersion(scratch) == "26.4")
+        #expect(try makePatcher(scratch).getProductVersion() == "27.2")
     }
 
     @Test func `the max size comes back as the string diskutil wants back`() throws {

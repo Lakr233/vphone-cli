@@ -4892,6 +4892,95 @@ it was not ("Invalid root hash", `apfs_sealvolume` exit 65 in
 - `createDigestAndHash` mounted the image writable only to unmount it again
   for `apfs_sealvolume`, which needs the device; the mount changed the volume
   after the mtree described it. It attaches the image with `-noMount` now.
+- The cloudOS restore ramdisk, not the iOS version, decides whether the
+  restore runs `mtree -m` at all (2026-11-24). Its `restored_external` reads
+  the restore option `SealedVolumeUseFastMtree` (`seal_system_volume`, the
+  caller of the routine that logs "Fast mtree path enabled."). When it is
+  set, restored skips `mtree -m` and writes `MODIFICATION` from the root
+  entry's time, cut to whole seconds. Otherwise `mtree -m` runs as above.
+  The option's default is in the binary: `mov w2, #0x0` in cloudOS 26.4
+  (23E5207q), `mov w2, #0x1` in cloudOS 27.2 (24B115). The two seal options
+  next to it default to `APFSShouldSealSystemVolume()`. Neither ramdisk has
+  the `/usr/local/share/restore/options*.plist` that restored reads
+  defaults from. The host cannot set the option either: restored copies only
+  its allow-list of host restore options, which does not include it, and the
+  logged "Restore options:" never show it. The merge chose the fast-path
+  time for every iOS 27 image (00e9b5e7, verified on cloudOS 27.2). So
+  iPhone17,3 27.2 (24B119) `minimal` on the recommended cloudOS 26.4 sealed
+  with the root's `1792721395000000000`. The restore logged "Fast mtree path
+  not enabled", its `mtree -m` took the first edited entry
+  (`1795503051267718103`), and `apfs_sealvolume` failed with "Invalid root
+  hash" (exit 65). The same restore on iOS 26.5, and `standard` 27.2, which
+  restores Apple's own image and root hash, were unaffected. The choice
+  follows the cloudOS version in the hybrid `BuildManifest.plist` now:
+  `usesFastMtree(cloudOSVersion:)`, from 27 on. Setting `ReleaseType
+  Internal` only makes ramrod pass `-a` (allow a root-hash mismatch). The
+  seal then succeeds, but the volume's hash is not the manifest's, and the
+  first boot panics: "APFSX: could not validate root hash Authentication
+  error (80)".
+
+  Checked the same day on a fresh `minimal` iPhone17,3 27.2 / cloudOS 26.4
+  VM: the restore logged "Fast mtree path not enabled" and "Timestamp set by
+  B+I is 1795507764620263876", equal to the host's `Modification time`. The
+  seal passed, and the first boot logged "successfully validated on-disk
+  root hash". That boot still panics, for a separate and known reason:
+  "initproc failed to start … Library not loaded: /usr/lib/libSystem.B.dylib"
+  after "syscall to map cache into shared region failed" (`check_np` errno
+  12). The iOS 27 cache plus its 512 MiB `maxSlide` does not fit the 26.4
+  kernel's 6 GiB shared region (rows JB-20b and 10 below). `standard` fixes
+  that with `kernel-boot-shared_region_size` and `dyld-boot-maxslide`, but
+  `minimal` selects no kernel patch and its `cfw install` writes nothing. A
+  `minimal` iOS 27 guest therefore boots only on a cloudOS 27 kernel (#931).
+
+  Zeroing `maxSlide` in the merge before the seal was tried the same day and
+  dropped, because it does not make the pairing boot:
+
+  - iPhone17,3 27.2's merged cache spans `0x18FC94000`. That is more than the
+    region's `0x180000000` even at slide 0, so only a wider region helps:
+    `kernel-boot-shared_region_size` (`0x1C0000000`, `standard`) or a
+    cloudOS 27 kernel.
+  - iPad16,1 27.0.1 (24A446) fits at slide 0 (span `0x17D088000`). With
+    `maxSlide` zeroed in the merge, the restore sealed, the first boot
+    validated the root hash and logged "dyld cache mapped system-wide", and
+    launchd ran its early boot tasks. Right after `init-exclavekit` it
+    aborted: "initproc exited -- exit reason namespace 2 subcode 0x6"
+    (SIGABRT). A `standard` 27.2 guest on the same cloudOS logs "Early boot
+    complete" at that point. The panic has row 16's signature: iOS 27's
+    libSystem crashes when the 26.4 kernel has no
+    `security.mac.lockdown_mode_state_public` sysctl, and `standard` patches
+    it with `dyld-boot-lockdown_mode`. The abort message itself was not read
+    on this guest.
+
+  So `fw prepare` and `fw patch` refuse a restore image (`minimal`) for an
+  iPhone or iPad iOS 27 base on a cloudOS 26 kernel
+  (`FirmwareRestoreImagePatchSet.cloudOSRefusal`). The refusal names the
+  release's own research board cloudOS and its URL when the catalog has one
+  (27.2 → cloudOS 27.2, 24B115), or else `standard`. Launchpad still
+  recommends cloudOS 26.4 for iOS 27.2, which `standard` needs, so a
+  `minimal` 27.2 machine has to be given cloudOS 27.2 explicitly.
+
+  Checked on main ed3abee9 plus this change, 2026-11-24: a fresh `minimal`
+  iPhone17,3 27.2 (24B119) on cloudOS 27.2 (24B115), 4096 MB. The host sealed
+  with the root's `1792721395000000000`, the restore logged "Fast mtree path
+  enabled" and the same timestamp, and the first boot validated the root
+  hash. launchd logged "Early boot complete", and Setup Assistant came up with
+  vphoned answering. Developer Mode was armed during Setup Assistant, and a
+  restart showed PreBoard's "Ready to Enable Developer Mode". Tapping Enable
+  turned it on (`developer_mode.status` enabled). After `setup.skip`, the
+  Home Screen was up. A cold stop and start logged "AMFI: Developer Mode Is
+  On", with no panic and the Home Screen back. PreBoard draws in a secure
+  window: `screen.screenshot` and the host automation screenshot return
+  black for it, while the VM window shows it. vphoned's
+  `developer_mode.enable` only arms. Called again at PreBoard, it re-arms
+  for the next boot and does not confirm.
+
+  With that refusal, the seal fix above changes no catalog pairing on an
+  iPhone or iPad: an iOS 27 base meets a cloudOS 27 ramdisk, which takes the
+  fast path either way, and an older base meets a 26.x one, which takes
+  neither. It matters wherever the two versions disagree: a restore image on
+  a guest the refusal does not cover (a watch base of 27 on a cloudOS 26
+  ramdisk), any base older than 27 on a cloudOS 27 ramdisk, and the cloudOS
+  26 pairing should a future change lift the refusal.
 
 On macOS 26.6.2 two more steps failed (2026-10-23, Mac mini M4):
 
@@ -8020,7 +8109,12 @@ iOS 27.2 needs cloudOS 27.2 here. On the cloudOS 26.4 beta a `minimal` iOS
 `apfs_sealvolume` fails with error 65 during the restore; with
 `filesystem-exp-internal_release_type`, ramrod seals with `-a`, the seal
 succeeds, and the first boot panics on "APFSX: could not validate root hash
-Authentication error (80)" (reported in review, not reproduced here).
+Authentication error (80)" (reported in review, not reproduced here). Both
+came from the merge sealing with the fast-mtree time, which only a cloudOS 27
+ramdisk uses. With that fixed, the 26.4 kernel's shared region and the
+lockdown-mode sysctl still stop the first boot, so `fw prepare` now refuses
+the pairing. See "The cloudOS restore ramdisk, not the iOS version, decides"
+in the `minimal` notes.
 
 **Side effects: what now survives a restart.** The stock keep list holds none of
 `boot-command`, `recovery-boot-mode`, `upgrade-retry`, `auto-boot-once` or
@@ -8087,7 +8181,10 @@ them, the first boot panics on `APFSX: could not validate root hash` (a
 root_hash mismatch). With `llb-exp-nvram_scrub_bypass`,
 `devicetree-exp-syscfg_placeholders` and `filesystem-exp-internal_release_type`
 all blocked, restore already stops at "failed to seal system volume". So the
-failure is not caused by these patches.
+failure is not caused by these patches. It is the iOS 27 seal-time mismatch,
+and past it the 26.4 kernel, described in the `minimal` notes ("The cloudOS
+restore ramdisk, not the iOS version, decides"). `fw prepare` now refuses that
+pairing, and there is no cloudOS 27.0 to name instead.
 
 ## Answers for vphone600's syscfg placeholders (2026-11-14)
 

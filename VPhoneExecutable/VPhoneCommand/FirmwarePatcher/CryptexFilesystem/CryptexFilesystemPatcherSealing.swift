@@ -82,10 +82,10 @@ extension CryptexFilesystemPatcher {
         let mtreeRemapPath = tmpDir.appending(path: "mtree_remap.xml")
         let sealLogPath = tmpDir.appending(path: "seal.log")
 
-        // The modification time the restore will derive from the mtree. From
-        // iOS 27 on, restored takes the "fast mtree path" and always remaps,
-        // with the root's time.
-        let fastMtree = try Self.usesFastMtree(productVersion: getProductVersion())
+        // The modification time the restore will derive from the mtree. A
+        // cloudOS 27 restore ramdisk takes the "fast mtree path" and always
+        // remaps, with the root's time.
+        let fastMtree = Self.usesFastMtree(cloudOSVersion: FirmwarePipeline.readCloudOSProductVersion(restoreDir))
         let remap = remap || fastMtree
         let modificationTime = try !remap ? "" : fastMtree ? parseRootTime(mtree: mtree) : parseEditTime(mtree: mtree, since: editedSince)
         let remapContent = """
@@ -123,16 +123,24 @@ extension CryptexFilesystemPatcher {
         return (digestDbPath, rootHashPath)
     }
 
-    /// Whether the restore of `productVersion` seals with restored's "fast
-    /// mtree path": it skips `mtree -m` and writes MODIFICATION from the
-    /// time of the first entry of the mtree it was given (the root's), cut to
-    /// whole seconds ("Found remapper time of: 1792721395", then
-    /// apfs_sealvolume's "Timestamp set by B+I is 1792721395000000000",
-    /// which on 26.x equals the MODIFICATION sent). Every 26.x restore
-    /// logged "Fast mtree path not enabled", 27.2's "enabled"; restored
-    /// decides on its own, as the host sends no option for it.
-    static func usesFastMtree(productVersion: String) -> Bool {
-        (Int(productVersion.split(separator: ".").first ?? "") ?? 0) >= 27
+    /// Whether a restore from the ramdisk of cloudOS `cloudOSVersion` seals
+    /// with restored's "fast mtree path": it skips `mtree -m` and writes
+    /// MODIFICATION from the time of the first entry of the mtree it was
+    /// given (the root's), cut to whole seconds ("Found remapper time of:
+    /// 1792721395", then apfs_sealvolume's "Timestamp set by B+I is
+    /// 1792721395000000000").
+    ///
+    /// The restore option `SealedVolumeUseFastMtree` decides, and the
+    /// restore ramdisk's `restored_external` supplies its default: false in
+    /// cloudOS 26.4 (23E5207q), true in cloudOS 27.2 (24B115). Neither ramdisk
+    /// has a `/usr/local/share/restore/options*.plist` to override it, and
+    /// the host cannot: the option is not on restored's allow-list of host
+    /// restore options. The iOS version being merged plays no part, so iOS 27
+    /// on the cloudOS 26.4 ramdisk still goes through `mtree -m` ("Fast mtree
+    /// path not enabled"), and sealing it with the root's time gives an
+    /// "Invalid root hash". An unknown version counts as 26.x.
+    static func usesFastMtree(cloudOSVersion: String?) -> Bool {
+        (Int(cloudOSVersion?.split(separator: ".").first ?? "") ?? 0) >= 27
     }
 
     /// The time of the mtree's first entry (the root), cut to whole seconds and
