@@ -21,7 +21,7 @@ After the VM starts, `vphone-vm` prints the address and a token:
 - Without `--api-listen` there is no host listener.
 - Port `0` asks macOS for a free port; the actual address is printed after the VM starts.
 - `--api-listen` is unavailable with `--dfu`.
-- With `vm launch --detach`, these lines go to `~/Library/Logs/vphone-launchpad/<name>.log` (`<name>-<digest>.log` for a non-default library); the command exits 0 once vphoned answers and 1 if the VM exits, panics or times out (a panic or timeout leaves it running; stop it with `vphone-cli vm stop <name>`).
+- With `vm launch --detach`, these lines go to `~/Library/Logs/vphone-launchpad/<name>.log` (a machine in a library chosen in Host Setup, not the default `~/.vphone/machines` or `VPHONE_LIBRARY_ROOT`, gets `<name>-<digest>.log`, and an older `<name>.log` for that machine is moved to the new name automatically the first time Launchpad needs it); the command exits 0 once vphoned answers and 1 if the VM exits, panics or times out (a panic or timeout leaves it running; stop it with `vphone-cli vm stop <name>`).
 
 > [!WARNING]
 > vphoned runs as root, and the API can read and write any guest file, list the keychain and load launch daemons. For local-only use, listen on `127.0.0.1` or `[::1]`. Any other address prints a warning: every machine that can reach it needs only the token, which travels in clear text over plain HTTP, so use it only on a trusted network.

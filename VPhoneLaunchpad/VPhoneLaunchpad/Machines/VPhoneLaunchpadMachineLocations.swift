@@ -5,7 +5,8 @@ import VPhoneCoreKit
 /// The folders machines live in. The default library (`VPHONE_LIBRARY_ROOT`,
 /// else the folder chosen in Host Setup, else ~/.vphone/machines) is always
 /// one; New Machine can add others. Each is passed to vphone-cli as
-/// `--library-root`.
+/// `--library-root`. Console-log naming uses a narrower default that ignores
+/// Host Setup (see `VPhoneLaunchpadConsoleLog`).
 ///
 /// Roots are canonical: the helper refuses a library path with a symbolic
 /// link in it, and comparing canonical paths keeps one folder from being

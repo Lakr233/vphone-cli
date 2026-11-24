@@ -438,7 +438,13 @@ final class VPhoneLaunchpadMachineLibrary {
     /// The naming itself lives in `VPhoneLaunchpadConsoleLog`, where it can be
     /// tested without this `@MainActor` library.
     static func consoleLog(_ machine: Path, suffix: String = "") -> URL {
-        VPhoneLaunchpadConsoleLog.url(libraryRoot: machine.libraryRoot, name: machine.name, suffix: suffix)
+        VPhoneLaunchpadConsoleLog.migrateLegacy(
+            libraryRoot: machine.libraryRoot,
+            name: machine.name,
+            suffix: suffix,
+            legacyDefaultRoot: VPhoneLaunchpadMachineLocations.defaultRoot,
+        )
+        return VPhoneLaunchpadConsoleLog.url(libraryRoot: machine.libraryRoot, name: machine.name, suffix: suffix)
     }
 
     /// Adds a line of Launchpad's own to the console log, after the process

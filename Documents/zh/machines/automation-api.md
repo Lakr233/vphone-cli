@@ -21,7 +21,7 @@ vphone-cli vm launch myphone --api-listen 127.0.0.1:8765
 - 不加 `--api-listen` 时，宿主机上不会有监听器。
 - 端口设为 `0` 时由 macOS 分配一个空闲端口；实际地址会在虚拟机启动后打印出来。
 - `--api-listen` 不能与 `--dfu` 一起使用。
-- 使用 `vm launch --detach` 时，这些行会写入 `~/Library/Logs/vphone-launchpad/<name>.log`（非默认库使用 `<name>-<digest>.log`）；命令在 vphoned 响应后以 0 退出，若虚拟机退出、panic 或超时则以 1 退出（panic 或超时会让它继续运行；请用 `vphone-cli vm stop <name>` 停止它）。
+- 使用 `vm launch --detach` 时，这些行会写入 `~/Library/Logs/vphone-launchpad/<name>.log`（位于 Host Setup 中所选库（而非默认的 `~/.vphone/machines` 或 `VPHONE_LIBRARY_ROOT`）的虚拟机使用 `<name>-<digest>.log`，该虚拟机较早的 `<name>.log` 会在 Launchpad 首次需要它时自动移到新名称）；命令在 vphoned 响应后以 0 退出，若虚拟机退出、panic 或超时则以 1 退出（panic 或超时会让它继续运行；请用 `vphone-cli vm stop <name>` 停止它）。
 
 > [!WARNING]
 > vphoned 以 root 身份运行，API 可以读写客户机中的任何文件、列出钥匙串内容并载入启动守护进程。仅在本机使用时，请监听 `127.0.0.1` 或 `[::1]`。监听其他地址时会打印警告：任何能访问该地址的机器只需要 token 即可控制虚拟机，而 token 在普通 HTTP 上以明文传输，因此只应在可信网络中使用。

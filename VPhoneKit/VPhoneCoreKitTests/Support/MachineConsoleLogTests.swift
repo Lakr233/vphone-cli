@@ -46,16 +46,16 @@ struct MachineConsoleLogTests {
         #expect(VPhoneMachineConsoleLog.url(libraryRoot: resolved, name: "m1", defaultRoot: resolved).lastPathComponent == "m1.log")
     }
 
-    @Test func `console-log path is independent of GUI chosen root`() {
+    @Test func `chosen library is the default when the variable is unset or empty`() {
         let previous = getenv("VPHONE_LIBRARY_ROOT").map { String(cString: $0) }
-        unsetenv("VPHONE_LIBRARY_ROOT")
         defer {
             if let previous { setenv("VPHONE_LIBRARY_ROOT", previous, 1) } else { unsetenv("VPHONE_LIBRARY_ROOT") }
         }
-        let defaultRoot = VPhoneMachineConsoleLog.defaultRoot()
-        #expect(defaultRoot.hasSuffix(".vphone/machines"))
-        let lib = "/Volumes/Chosen/machines"
-        #expect(lib != defaultRoot)
-        #expect(VPhoneMachineConsoleLog.url(libraryRoot: lib, name: "m1", defaultRoot: defaultRoot).lastPathComponent == "m1-\(VPhoneMachineConsoleLog.digest(lib)).log")
+        let chosen = URL(fileURLWithPath: "/Volumes/Chosen/machines")
+        unsetenv("VPHONE_LIBRARY_ROOT")
+        #expect(VPhoneMachineConsoleLog.defaultRoot().hasSuffix(".vphone/machines"))
+        #expect(VPhoneMachineConsoleLog.defaultRoot(chosen: chosen) == VPhoneMachineConsoleLog.canonical(chosen))
+        setenv("VPHONE_LIBRARY_ROOT", "", 1)
+        #expect(VPhoneMachineConsoleLog.defaultRoot(chosen: chosen) == VPhoneMachineConsoleLog.canonical(chosen))
     }
 }
