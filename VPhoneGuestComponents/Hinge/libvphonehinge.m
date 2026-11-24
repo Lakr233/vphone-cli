@@ -160,9 +160,10 @@ static NSString *VPhoneHingeAcceptClientDispatches(void) {
                               period, NSEC_PER_MSEC);
     // The status is republished every two seconds only while samples flow, as
     // with the accelerometer: cfprefsd need not carry a rewrite for the
-    // guest's whole life, and vphoned judges the provider by its pid.
+    // guest's whole life, and vphoned judges an idle provider
+    // (report_interval_us == 0) by its pid and enumerated flag alone.
     if (self.heartbeat) {
-        BOOL flowing = period != DISPATCH_TIME_FOREVER;
+        BOOL flowing = self.enumerated && self.interval > 0;
         dispatch_source_set_timer(self.heartbeat,
                                   flowing ? dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC) : DISPATCH_TIME_FOREVER,
                                   2 * NSEC_PER_SEC, 100 * NSEC_PER_MSEC);
@@ -426,6 +427,7 @@ static double VPhoneHingeMillisecondsPerTick(void) {
     if ([key isEqualToString:@"ReportInterval"]) {
         self.interval = VPhoneHingeInterval(value);
         self.properties[key] = @(self.interval);
+        [self updateTimer];
         [self publishStatus];
         return YES;
     }

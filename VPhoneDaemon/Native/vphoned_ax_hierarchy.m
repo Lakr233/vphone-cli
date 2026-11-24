@@ -16,7 +16,8 @@ static double milliseconds(void) {
  VPAxFunctions f;
  int maxElements,maxDepth,maxQueries,timeoutMS,queries,verified,mismatch,unavailable;
  double start;
- NSMutableArray *seen;
+ CFMutableDictionaryRef seenMap;
+ NSUInteger seenCount;
  NSMutableSet *active,*reasons;
  BOOL incomplete,switchesEnabled,retryAttempted,retryResolved;
  double readinessWait;
@@ -25,6 +26,9 @@ static double milliseconds(void) {
 - (NSDictionary *)node:(CFTypeRef)element parent:(CFTypeRef)parent depth:(int)depth;
 @end
 @implementation VPAxWalker
+- (void)dealloc {
+ if(seenMap) { CFRelease(seenMap); seenMap=NULL; }
+}
 - (BOOL)budget {
  if(queries>=maxQueries) {[reasons addObject:@"max_queries"];return NO;}
  if(milliseconds()-start>=timeoutMS) {[reasons addObject:@"timeout"];return NO;}
@@ -90,18 +94,20 @@ static double milliseconds(void) {
 }
 - (NSDictionary *)node:(CFTypeRef)element parent:(CFTypeRef)parent depth:(int)depth {
  if(![self budget]) return nil;
- NSUInteger existing=NSNotFound;
- for(NSUInteger index=0;index<seen.count;++index) if(CFEqual(element,(__bridge CFTypeRef)seen[index])) {existing=index;break;}
- if(existing!=NSNotFound) {
+ const void *existingValue=NULL;
+ if(CFDictionaryGetValueIfPresent(seenMap,element,&existingValue)) {
+  NSUInteger existing=(NSUInteger)(uintptr_t)existingValue;
   NSMutableArray *errors=[NSMutableArray array];
   id proof=[self parentProof:element parent:parent errors:errors];
   NSString *reference=[NSString stringWithFormat:@"ax-%lu",(unsigned long)existing];
   BOOL cycle=[active containsObject:reference]; if(cycle) incomplete=YES;
   return @{@"ref":reference,@"cycle":@(cycle),@"parent_verified":proof,@"query_errors":errors.copy};
  }
- if(seen.count>=(NSUInteger)maxElements) {[reasons addObject:@"max_elements"];return nil;}
- NSString *identity=[NSString stringWithFormat:@"ax-%lu",(unsigned long)seen.count];
- [seen addObject:(__bridge id)element];[active addObject:identity];
+ if(seenCount>=(NSUInteger)maxElements) {[reasons addObject:@"max_elements"];return nil;}
+ NSUInteger index=seenCount++;
+ NSString *identity=[NSString stringWithFormat:@"ax-%lu",(unsigned long)index];
+ CFDictionarySetValue(seenMap,element,(const void *)(uintptr_t)index);
+ [active addObject:identity];
  NSMutableArray *errors=[NSMutableArray array];
  id proof=[self parentProof:element parent:parent errors:errors];
  NSString *label=[self text:depth==0?[self rootLabel:element errors:errors]:[self attribute:2001 element:element errors:errors]];
@@ -142,12 +148,13 @@ NSDictionary *vp_ax_walk_with_readiness(VPAxFunctions functions, CFTypeRef root,
  VPAxWalker *walker=[VPAxWalker new];walker->f=functions;walker->switchesEnabled=switchesEnabled;
  walker->maxElements=MAX(1,MIN(elements,2000));walker->maxDepth=MAX(0,MIN(depth,32));
  walker->timeoutMS=MAX(100,MIN(duration,10000));walker->maxQueries=walker->maxElements*8;
- walker->seen=[NSMutableArray array];walker->active=[NSMutableSet set];walker->reasons=[NSMutableSet set];walker->start=milliseconds();
- NSDictionary *node=root && functions.copy && functions.elementTypeID?[walker node:root parent:NULL depth:0]:nil;
+ walker->seenMap=CFDictionaryCreateMutable(kCFAllocatorDefault,0,&kCFTypeDictionaryKeyCallBacks,NULL);
+ walker->seenCount=0;walker->active=[NSMutableSet set];walker->reasons=[NSMutableSet set];walker->start=milliseconds();
+ NSDictionary *node=root && functions.copy && functions.elementTypeID && walker->seenMap?[walker node:root parent:NULL depth:0]:nil;
  BOOL truncated=walker->reasons.count>0;
  NSString *status=!node?@"unavailable":truncated || walker->incomplete?@"partial":@"complete";
  return @{@"source":@"ax",@"format":@"nested",@"relationship_source":@"AXUIElementCopyAttributeValue:5001",
-  @"pid":@(pid),@"roots":node?@[node]:@[],@"count":@(walker->seen.count),@"status":status,
+  @"pid":@(pid),@"roots":node?@[node]:@[],@"count":@(walker->seenCount),@"status":status,
   @"truncated":@(truncated),@"truncation_reasons":[walker->reasons.allObjects sortedArrayUsingSelector:@selector(compare:)],
   @"limits":@{@"max_elements":@(walker->maxElements),@"max_depth":@(walker->maxDepth),@"max_queries":@(walker->maxQueries),@"timeout_ms":@(walker->timeoutMS)},
   @"queries":@(walker->queries),@"elapsed_ms":@(milliseconds()-walker->start),

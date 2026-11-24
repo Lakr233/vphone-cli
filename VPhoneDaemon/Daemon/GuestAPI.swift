@@ -50,98 +50,123 @@ enum GuestAPI {
         return nic ?? ipv4.first { $0.hasPrefix("192.") } ?? ipv4.first ?? ipv6.first
     }
 
+    private static let cachedOSName: String =
+        GuestRuntimePlatform.isVisionOS ? "visionOS" : GuestRuntimePlatform.productName
+
+    private static let cachedIOSVersion: String = {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+    }()
+
+    private static let cachedMachine: String = GuestVirtualAudioProduct.machine()
+
+    private static let cachedVisionOSCapabilities: [String] =
+        GuestRuntimePlatform.visionOSCapabilities + scriptCapabilities() + visionOSImmersionCapabilities
+
+    private static let cachedIOSPrefixCapabilities: [String] = [
+        "touch",
+        "touch2",
+        "touch_edge",
+        "hid",
+        "apps",
+        "ota_system_apps",
+        "url",
+        "files",
+        "clipboard",
+        "location",
+        "keychain",
+        "keychain_edit",
+        "ipa_install",
+        "bootstrap_install",
+        "bootstrap_packages",
+        "bootstrap_uninstall",
+        "port_forward",
+        "camera",
+        "screenshot",
+        "device_info",
+        "display",
+        "display_layout",
+        "display_capture_active",
+        "display_orientation",
+        "display_auto_lock",
+        "device_pose",
+        "screen_unlock",
+        "audio",
+        "input_gestures",
+        "ui_inspection",
+        "processes",
+        "services",
+        "service_profile",
+        "service_kickstart",
+        "logs",
+        "network_capture",
+        "app_details",
+        "system_app_removal",
+        "system_control",
+        "system_shutdown",
+        "file_tools",
+        "apfs_snapshots",
+        "files_app_drop",
+        "packages",
+        "environment_update",
+        "udid_override",
+        "setup_skip",
+        "setup_settle",
+        "network_ipv4",
+        "network_hostname",
+        "device_name",
+        "network_static_names",
+        "network_resolve",
+        "timezone",
+        "clock",
+        "audio_host_latency",
+        "motion_gyroscope",
+        "motion_gyroscope_toggle",
+        "motion_attitude",
+        "methods",
+    ]
+
+    private static let cachedIOSSuffixCapabilities: [String] =
+        scriptCapabilities() + GuestHomePodDisplay.capabilities
+            + GuestHomePodDebug.capabilities + GuestHomeViewDistance.capabilities + GuestCryptex.capabilities
+
+    private static let cachedIOSCapabilitiesWithoutPointer: [String] =
+        cachedIOSPrefixCapabilities + cachedIOSSuffixCapabilities
+
+    private static let cachedIOSCapabilitiesWithPointer: [String] =
+        cachedIOSPrefixCapabilities + ["pointer_scroll", "pointer_buttons"] + cachedIOSSuffixCapabilities
+
     static func health() -> [String: Any] {
         let ip = preferredAddress(networkInfo()["addresses"] as? [String] ?? [])
-        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let capabilities = GuestRuntimePlatform.isVisionOS
+            ? cachedVisionOSCapabilities
+            : (hasPointerCapabilities() ? cachedIOSCapabilitiesWithPointer : cachedIOSCapabilitiesWithoutPointer)
         return [
             "name": "vphoned",
             "api_version": 1,
             "status": "ok",
-            "os": GuestRuntimePlatform.isVisionOS ? "visionOS" : GuestRuntimePlatform.productName,
+            "os": cachedOSName,
             "binary_hash": binaryHash,
             "instance": instance,
-            "ios": "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)",
+            "ios": cachedIOSVersion,
             "ip": ip ?? "",
             "setup_pending": GuestRuntimePlatform.isVisionOS ? false : setupAssistantPending(),
             "mobilegestalt_restart_pending": GuestMobileGestaltCache.restartPending(),
-            "capabilities": GuestRuntimePlatform.isVisionOS ? (GuestRuntimePlatform.visionOSCapabilities + scriptCapabilities() + visionOSImmersionCapabilities) : [
-                "touch",
-                "touch2",
-                "touch_edge",
-                "hid",
-                "apps",
-                "ota_system_apps",
-                "url",
-                "files",
-                "clipboard",
-                "location",
-                "keychain",
-                "keychain_edit",
-                "ipa_install",
-                "bootstrap_install",
-                "bootstrap_packages",
-                "bootstrap_uninstall",
-                "port_forward",
-                "camera",
-                "screenshot",
-                "device_info",
-                "display",
-                "display_layout",
-                "display_capture_active",
-                "display_orientation",
-                "display_auto_lock",
-                "device_pose",
-                "screen_unlock",
-                "audio",
-                "input_gestures",
-                "ui_inspection",
-                "processes",
-                "services",
-                "service_profile",
-                "service_kickstart",
-                "logs",
-                "network_capture",
-                "app_details",
-                "system_app_removal",
-                "system_control",
-                "system_shutdown",
-                "file_tools",
-                "apfs_snapshots",
-                "files_app_drop",
-                "packages",
-                "environment_update",
-                "udid_override",
-                "setup_skip",
-                "setup_settle",
-                "network_ipv4",
-                "network_hostname",
-                "device_name",
-                "network_static_names",
-                "network_resolve",
-                "timezone",
-                "clock",
-                "audio_host_latency",
-                "motion_gyroscope",
-                "motion_gyroscope_toggle",
-                "motion_attitude",
-                "methods",
-            ] + pointerCapabilities() + scriptCapabilities() + GuestHomePodDisplay.capabilities
-                + GuestHomePodDebug.capabilities + GuestHomeViewDistance.capabilities + GuestCryptex.capabilities,
+            "capabilities": capabilities,
         ]
     }
 
     /// iPadOS accepts a pointing device directly. iPhones normally need
     /// AssistiveTouch, but may explicitly opt in to host pointer forwarding.
     /// Advertising the transport does not promise that iOS consumes it.
-    private static func pointerCapabilities() -> [String] {
-        let machine = GuestVirtualAudioProduct.machine()
-        if machine.hasPrefix("iPad") { return ["pointer_scroll", "pointer_buttons"] }
-        guard machine.hasPrefix("iPhone"),
+    private static func hasPointerCapabilities() -> Bool {
+        if cachedMachine.hasPrefix("iPad") { return true }
+        guard cachedMachine.hasPrefix("iPhone"),
               let preference = try? readPreference(domain: "com.vphone.vphoned", key: "iPhonePointerEnabled"),
               preference["type"] as? String == "bool",
               preference["value"] as? Bool == true
-        else { return [] }
-        return ["pointer_scroll", "pointer_buttons"]
+        else { return false }
+        return true
     }
 
     static func execute(method: String, params: [String: Any]) throws -> [String: Any] {
