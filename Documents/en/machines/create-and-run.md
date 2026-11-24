@@ -92,6 +92,23 @@ printf '%s\n' '{"t":"rpc","method":"device.info","params":{}}' | nc -U ~/.vphone
 
 For example, `input.key` with `{"name":"cmd+v"}` pastes, and `input.type` types text. This workflow installs no SSH or VNC endpoint. For HTTP and WebSocket access, see [Automation API](automation-api.md). To save the guest's memory, send `memory.dump`; see [Memory Dumps](memory-dumps.md).
 
+## Pause and resume
+
+Pausing stops the guest where it is: its apps, its clock and its network connections wait until you resume it, and the Mac's processors are free meanwhile. The guest keeps its memory, but only for as long as the VM runs; a pause is not saved.
+
+- In the VM window, choose **Device > Pause Guest**, and **Device > Resume Guest** to carry on.
+- In Terminal: `vphone-cli vm pause myphone` and `vphone-cli vm resume myphone`.
+- On the [control socket](#control-socket): `{"t":"pause"}` and `{"t":"resume"}`.
+
+While the guest is paused:
+
+- Its display is dimmed and the window's subtitle says Paused. Taps, keys and the pointer are not passed on, so nothing arrives late when it resumes.
+- Requests that need vphoned, such as `rpc`, `screenshot` or `push`, fail and say that the guest is paused.
+- A request already under way when you pause, such as a file `push`, waits for the guest. If the pause lasts longer than two minutes, it fails; send it again after resuming.
+- A [memory dump](memory-dumps.md) still works. The guest stays paused, and the dump holds it as it stood.
+
+When the guest resumes, its clock is set to the Mac's again. Stopping a paused VM in any of the ways above resumes it first, so the guest still shuts down cleanly. A long pause can outlast the timeouts of servers the guest was connected to, as a long sleep of an iPhone would.
+
 ## Run each stage by hand
 
 Use these when you investigate or repeat one phase. Keep a DFU boot running while `restore` talks to it:

@@ -49,6 +49,11 @@ import VPhoneCoreKit
 ///                                                 directory. The file replaces `local` only once complete
 ///   {"t":"network"}                             → the NIC's state, in `"result"`
 ///   {"t":"network","link":"down"}               → unplug (`up` replugs); not saved
+///   {"t":"pause"}                               → stops the guest where it is (see `VPhoneVirtualMachine.pause()`);
+///                                                 requests that need the guest fail until `{"t":"resume"}`.
+///                                                 Both do nothing when the guest is already so, and send no
+///                                                 screen image. `"result"` has `paused`, and `paused_seconds`
+///                                                 while paused
 ///   {"t":"memory.dump","path":"/abs/new/folder"}
 ///                                               → saves the guest's memory cores (see `VPhoneMemoryDump`)
 ///                                                 into a new folder; the guest pauses while they are
@@ -199,6 +204,12 @@ class VPhoneHostAutomationServer {
         // Delay before screenshot (ms) — lets animations settle
         let screenDelay = json["delay"] as? Int ?? 500
 
+        // A paused guest gets the input together at the resume, where a swipe
+        // arrives as a tap. Requests through vphoned are refused by `control`.
+        if ["tap", "swipe", "key", "hostkey"].contains(type), virtualMachine?.isPaused == true {
+            return Self.reply(ok: false, error: VPhoneGuestControl.ControlError.guestPaused.description)
+        }
+
         do {
             switch type {
             case "ping":
@@ -336,6 +347,17 @@ class VPhoneHostAutomationServer {
                     try virtualMachine.setNetworkLink(up: link == "up")
                 }
                 return Self.reply(ok: true, result: virtualMachine.networkStatus)
+
+            case "pause", "resume":
+                guard let virtualMachine else {
+                    return Self.reply(ok: false, error: "the VM is not running")
+                }
+                if type == "pause" {
+                    try await virtualMachine.pause()
+                } else {
+                    try await virtualMachine.resume()
+                }
+                return Self.reply(ok: true, result: virtualMachine.pauseStatus)
 
             case "memory.dump":
                 guard let virtualMachine else {

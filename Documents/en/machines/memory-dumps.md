@@ -8,6 +8,10 @@ A memory dump saves a running guest's memory and processor state to files on you
 2. Choose a folder. A new folder named for the machine and the time, such as `myphone Memory 2026-11-19 at 15.20.11`, is created inside it.
 3. Wait for the alert that says where the dump was saved. The guest is paused only for the first part, usually 10 to 20 seconds. It runs again while the files are written, which can take another minute.
 
+A guest you have [paused](create-and-run.md#pause-and-resume) can be dumped too. It stays paused, and the dump holds it as it stood at the pause.
+
+Stopping the VM while a dump is being saved waits until the files are written, then shuts the guest down. `vphone-cli vm stop` gives up after 20 seconds and turns the guest off, which ends the dump too; give it a longer `--timeout`, such as `--timeout 300`.
+
 From Terminal, send `memory.dump` to the machine's [control socket](create-and-run.md#control-socket) with the folder to create. The folder must not exist yet; its parent must.
 
 ```sh

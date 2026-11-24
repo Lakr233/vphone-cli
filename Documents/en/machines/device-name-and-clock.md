@@ -26,7 +26,7 @@ For the implementation, see [`Research/Guest/device_name_pinning.md`](../../../R
 
 The guest follows the Mac's time zone and clock. You do not need to set anything.
 
-`vphone-vm` sends the Mac's time zone each time it connects to vphoned, and the Mac's time then and every minute after. A guest that was off for a day, or sat under a sleeping Mac, is back on the Mac's time within a minute without reaching an NTP server. A guest within a second of the Mac is left alone.
+`vphone-vm` sends the Mac's time zone each time it connects to vphoned, and the Mac's time then and every minute after. A guest that was off for a day, or sat under a sleeping Mac, is back on the Mac's time within a minute without reaching an NTP server. A guest within a second of the Mac is left alone. A guest that was [paused](create-and-run.md#pause-and-resume) is put back on the Mac's time as soon as it resumes.
 
 To give the guest a different date or time:
 

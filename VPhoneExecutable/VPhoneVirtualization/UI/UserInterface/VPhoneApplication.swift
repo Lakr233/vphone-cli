@@ -65,9 +65,19 @@ final class VPhoneApplication: NSApplication {
     /// it goes on to the virtual keyboard, which `VPhoneHostKeyEvents` then
     /// delivers to the view itself.
     func takeKeyEvent(_ event: NSEvent, view: VPhoneVirtualMachineView) -> Bool {
-        if !view.hardwareKeyboardEnabled {
+        if view.isGuestPaused, view.hardwareKeyboardEnabled, event.type == .flagsChanged
+            || (event.type == .keyUp && !menuKeyCodes.contains(event.keyCode)) {
+            // A key or modifier pressed before the pause is let go in the
+            // virtual keyboard, which hands the release over at the resume;
+            // dropped, it would stay held. Keys held through vphoned were let
+            // go before the pause (`releaseHeldGuestKeys()`).
+            return false
+        }
+        if !view.hardwareKeyboardEnabled || view.isGuestPaused {
             // Keep host menu shortcuts available, including the keyboard toggle.
             // Do not synthesize dropped keys through vphoned while disconnected.
+            // A paused guest takes no new key: Virtualization would hold them
+            // and hand them over together at the resume.
             if event.type == .keyDown, mainMenu?.performKeyEquivalent(with: event) == true {
                 menuKeyCodes.insert(event.keyCode)
             } else if event.type == .keyUp {
@@ -121,6 +131,16 @@ final class VPhoneApplication: NSApplication {
     }
 
     // MARK: - Keys the Virtual Keyboard Drops
+
+    /// Before a pause: lets go of 🌐 and every key held through vphoned, as
+    /// leaving the window does, so their releases are not refused while paused.
+    func releaseHeldGuestKeys() {
+        releaseGlobe(leavingWindow: true)
+        for (keyCode, key) in forwardedKeys {
+            key.control.sendHIDUp(page: key.usage.page, usage: key.usage.usage)
+            forwardedKeys[keyCode] = nil
+        }
+    }
 
     /// A rebuilt VM must not inherit keys or a guest connection from the old one.
     func resetGuestKeyState() {

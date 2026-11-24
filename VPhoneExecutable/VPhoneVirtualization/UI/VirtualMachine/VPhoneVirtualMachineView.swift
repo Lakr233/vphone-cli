@@ -16,6 +16,19 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     /// mouse only while the mouse is captured.
     var isPadGuest = false
     var hardwareKeyboardEnabled = true
+    /// While `VPhoneVirtualMachine.pause()` holds the guest, Virtualization
+    /// keeps the input it is given and hands it over all at once at the
+    /// resume, where a swipe arrives as a tap. The view takes no mouse input
+    /// then (keys: `VPhoneApplication.takeKeyEvent`), gives up a captured
+    /// mouse, and its display dims.
+    var isGuestPaused = false {
+        didSet {
+            alphaValue = isGuestPaused ? 0.5 : 1
+            if isGuestPaused {
+                setMouseCaptured(false)
+            }
+        }
+    }
     /// Guest pixels per interface point, to turn trackpad travel into the
     /// guest's points for a native scroll.
     var screenScale: CGFloat = 3
@@ -29,7 +42,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     func setMouseCaptured(_ captured: Bool) {
         guard captured != isMouseCaptured else { return }
         if captured {
-            guard window?.isKeyWindow == true, control?.supportsPointerScroll == true else { return }
+            guard !isGuestPaused, window?.isKeyWindow == true, control?.supportsPointerScroll == true else { return }
             finishScrollTouch()
             releaseSecondaryPress()
             endNativeScroll()
@@ -235,6 +248,10 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
         true
     }
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        isGuestPaused ? nil : super.hitTest(point)
+    }
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         // Ensure keyboard events route to VM view right after window attach.
@@ -260,6 +277,7 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     /// it follows the mouse, so the guest sees hover as an iPad with a
     /// trackpad does.
     override func mouseMoved(with event: NSEvent) {
+        guard !isGuestPaused else { return }
         guard guestPointerFollowsMouse, let control else {
             super.mouseMoved(with: event)
             // The guest went away under a following pointer: the Mac's cursor

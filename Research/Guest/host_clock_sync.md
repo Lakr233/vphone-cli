@@ -1,8 +1,9 @@
 # Host clock sync
 
 `vphone-vm` keeps a guest's wall clock on the Mac's. It sends the Mac's time
-after every connect to vphoned, every minute, when the Mac wakes and when the
-Mac's own clock is set; vphoned offers it to timed as an NTP result, and timed
+after every connect to vphoned, every minute, when the Mac wakes, when the
+Mac's own clock is set and when the guest runs again after a pause or a
+memory dump; vphoned offers it to timed as an NTP result, and timed
 sets the clock.
 
 Static analysis of `/usr/libexec/timed` (CoreTime-334.0.16.3) from an iOS
@@ -116,8 +117,10 @@ there turns automatic time off too, and timed then leaves the clock alone.
   `TMSetAutomaticTimeEnabled`; with `time` it is applied first.
 
 `VPhoneClockSync` in `vphone-vm` sends the Mac's time when the guest reports
-`clock`, then every 60 s, on `NSWorkspace.didWakeNotification` and on
-`NSSystemClockDidChange`. It logs a move (`[clock] guest was 302.4 s behind,
+`clock`, then every 60 s, on `NSWorkspace.didWakeNotification`, on
+`NSSystemClockDidChange` and on `VPhoneMemoryDump.guestResumedNotification`
+(see [pause_resume.md](../Host/pause_resume.md)); the minute's timer skips a
+paused guest. It logs a move (`[clock] guest was 302.4 s behind,
 set to the Mac's time`) every time and any other outcome once.
 
 An NTP result of the guest's own is still used. It is averaged in when it is

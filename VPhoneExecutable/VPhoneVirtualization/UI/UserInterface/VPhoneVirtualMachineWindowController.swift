@@ -20,6 +20,14 @@ class VPhoneVirtualMachineWindowController: NSObject, NSWindowDelegate {
         didSet { applyHomeButtonHold() }
     }
     private var subtitleLabel: NSTextField?
+    /// Set while `VPhoneVirtualMachine.pause()` holds the guest: the VM view
+    /// takes no input and dims, and the subtitle says so first.
+    var isGuestPaused = false {
+        didSet {
+            captureView?.isGuestPaused = isGuestPaused
+            refreshSubtitle()
+        }
+    }
     private var timers: [Timer] = []
     /// A foldable guest persists its selected posture; the
     /// machine directory beside config.plist, from `sceneIdentifier`.
@@ -514,11 +522,14 @@ class VPhoneVirtualMachineWindowController: NSObject, NSWindowDelegate {
 
     /// OS version and address from vphoned's health report, which picks
     /// the IPv4 address first and falls back to IPv6; hidden until it connects.
-    /// A captured mouse comes first, with the keys that release it: the Mac's
-    /// cursor is hidden and held in the window until then.
+    /// A paused guest comes first, then a captured mouse with the keys that
+    /// release it: the Mac's cursor is hidden and held in the window until then.
     private func updateSubtitle(control: VPhoneGuestControl) {
         guard let window = windowController?.window else { return }
         var parts: [String] = []
+        if isGuestPaused {
+            parts.append(VPhoneLocalization.text("Paused"))
+        }
         if captureView?.isMouseCaptured == true {
             parts.append(VPhoneLocalization.text("Mouse captured: Control–Option–M releases it"))
         }

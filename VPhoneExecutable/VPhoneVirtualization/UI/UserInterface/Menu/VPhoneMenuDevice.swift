@@ -187,6 +187,7 @@ extension VPhoneMenuController {
         )
         unlockAtStartupItem = unlockItem
         menu.addItem(unlockItem)
+        menu.addItem(buildPauseItem())
         let restart = makeItem("Restart Guest…", action: #selector(restartGuest), symbol: "arrow.clockwise")
         restart.isEnabled = false
         restartGuestItem = restart
@@ -495,6 +496,7 @@ extension VPhoneMenuController {
             guard response == .alertFirstButtonReturn else { return }
             Task {
                 do {
+                    try await self.resumeIfPaused()
                     try await self.control.restartGuest()
                 } catch let VPhoneGuestControl.ControlError.guestError(message) {
                     print("[restart] guest refused: \(message)")
@@ -527,6 +529,7 @@ extension VPhoneMenuController {
             guard response == .alertFirstButtonReturn else { return }
             Task {
                 do {
+                    try await self.resumeIfPaused()
                     try await self.control.shutDownGuest()
                 } catch let VPhoneGuestControl.ControlError.guestError(message) {
                     print("[shutdown] guest refused: \(message)")

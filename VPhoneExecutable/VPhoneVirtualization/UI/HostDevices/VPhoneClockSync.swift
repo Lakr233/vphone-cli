@@ -10,9 +10,9 @@ import Foundation
 ///
 /// Call `start()` when the guest reports the "clock" capability, on every
 /// connect: it sends the Mac's time, then again every minute, when the Mac
-/// wakes, when the Mac's own clock is set and when a memory dump has paused
-/// the guest. vphoned leaves a clock within a second of the Mac's alone, and
-/// one set by hand in the guest's Settings.
+/// wakes, when the Mac's own clock is set and when the guest runs again after
+/// a pause or a memory dump. vphoned leaves a clock within a second of the
+/// Mac's alone, and one set by hand in the guest's Settings.
 ///
 /// See Research/Guest/host_clock_sync.md.
 @MainActor
@@ -25,6 +25,9 @@ class VPhoneClockSync {
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
     private var ticking: Task<Void, Never>?
     private var sending: Task<Void, Never>?
+    /// The guest ran again while `sending` was out, so that send carries a
+    /// time from before the pause; a new one follows once it is answered.
+    private var resendsAfterSending = false
     /// What the last send came to, so a minute's repeat of it is not logged.
     private var lastOutcome: String?
 
@@ -40,8 +43,9 @@ class VPhoneClockSync {
                 (.default, VPhoneMemoryDump.guestResumedNotification),
             ]
             observers = sources.map { center, name in
+                let resumed = name == VPhoneMemoryDump.guestResumedNotification
                 let observer = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
-                    Task { @MainActor in self?.send() }
+                    Task { @MainActor in self?.send(afterPause: resumed) }
                 }
                 return (center, observer)
             }
@@ -65,11 +69,22 @@ class VPhoneClockSync {
         ticking = nil
         sending?.cancel()
         sending = nil
+        resendsAfterSending = false
     }
 
-    private func send() {
-        // A send still out carries a time as good as a new one would.
-        guard sending == nil else { return }
+    /// `afterPause`: the guest has just run again after a pause or a memory
+    /// dump. A send out since before then is answered after the resume with
+    /// the Mac's time from before the pause, which the guest's clock, stopped
+    /// as long, matches; so another follows it. It follows rather than runs
+    /// beside it, so the old time can never be the last one the guest takes.
+    private func send(afterPause: Bool = false) {
+        // A paused guest is set when it resumes (`guestResumedNotification`).
+        guard !control.isGuestPaused else { return }
+        // Otherwise a send still out carries a time as good as a new one would.
+        guard sending == nil else {
+            if afterPause { resendsAfterSending = true }
+            return
+        }
         sending = Task { [weak self, control] in
             let outcome: String
             var moved = false
@@ -93,6 +108,10 @@ class VPhoneClockSync {
                 print("[clock] \(outcome)")
             }
             lastOutcome = outcome
+            if resendsAfterSending {
+                resendsAfterSending = false
+                send()
+            }
         }
     }
 }

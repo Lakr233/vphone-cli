@@ -84,14 +84,21 @@ struct VPhoneMemoryDump {
 
     // MARK: - Capture
 
-    /// Posted once Virtualization has let the guest run again. The guest's
-    /// clock stood still while it was paused, so it is behind the Mac's by
-    /// about the capture time; `VPhoneClockSync` sets it again at once.
+    /// Posted once the guest runs again after a dump's pause or
+    /// `VPhoneVirtualMachine.resume()`. The guest's clock stood still while it
+    /// was paused, so it is behind the Mac's by as long as the pause lasted;
+    /// `VPhoneClockSync` sets it again at once.
     static let guestResumedNotification = Notification.Name("VPhoneMemoryDumpGuestResumed")
 
     private static let createCores = NSSelectorFromString("_createCoresWithCompletionHandler:")
     private static let canCreateCore = NSSelectorFromString("_canCreateCore")
     @MainActor private static var savingMachines: Set<ObjectIdentifier> = []
+
+    /// A dump of this VM is being taken; it is paused or about to be.
+    @MainActor
+    static func isSaving(_ virtualMachine: VZVirtualMachine) -> Bool {
+        savingMachines.contains(ObjectIdentifier(virtualMachine))
+    }
 
     /// Whether this macOS has the core writer at all. The guest must still be
     /// running or paused for a dump to start.
@@ -127,7 +134,10 @@ struct VPhoneMemoryDump {
             print("[memdump] Saving the guest's memory to \(folder.path)")
             let cores = try await captureCores(virtualMachine)
             let captureSeconds = Date().timeIntervalSince(started)
-            NotificationCenter.default.post(name: guestResumedNotification, object: nil)
+            // A guest paused with `VPhoneVirtualMachine.pause()` stays paused.
+            if virtualMachine.state == .running {
+                NotificationCenter.default.post(name: guestResumedNotification, object: nil)
+            }
             print("[memdump] Virtualization returned \(cores.map(\.name).joined(separator: ", ")) "
                 + String(format: "in %.1f s", captureSeconds))
 
