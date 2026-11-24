@@ -103,14 +103,18 @@ A recipe comes from research, not from this repository:
    and the extraction links. For example, BinDiff put `_get_task_map` on the
    wrong address in twelve maps and missed it in six. In the macOS KDKs
    (15.7.3 for iOS 18, 26.5.1 for 26 and later) `_get_task_map` loads
-   `task->map` (`ldr x16, [x0, #0x28]`), authenticates it with discriminator
-   `0x5ef8` and returns it (`mov x0, x16; ret`). `_get_task_pmap` loads and
-   authenticates it the same way, then loads `map->pmap` (at `+0x40` in iOS 18,
-   `+0x58` from 26), authenticates that with `0x250c` and returns it. Other
-   functions begin with the same load but go on to call or load more; each of
-   the 16 kernels the maps describe has exactly one function of either shape,
-   and the maps now name those (`ipsw macho disass <kc> --fileset-entry com.apple.kernel
-   --vaddr <address>`).
+   `task->map` (`ldr x16, [x0, #0x28]`; from 26.4 with writeback,
+   `ldr x16, [x0, #0x28]!`), returns 0 if it is NULL, otherwise authenticates
+   it with discriminator `0x5ef8` and returns it (`mov x0, x16; ret`).
+   `_get_task_pmap` loads and authenticates `task->map` the same way, then
+   loads `map->pmap` (at `+0x40` up to 26.1, including the vphone600 26.1
+   donor; at `+0x58` from 26.4), authenticates that with `0x250c` and returns
+   it. Other functions begin with the same load but go on to call or load
+   more; each of the 16 kernels the maps describe has exactly one function of
+   either shape, and the maps now name those (`ipsw macho disass <kc>
+   --fileset-entry com.apple.kernel --vaddr <address>`). Kexts that call
+   `_get_task_map` (IOSurface, IOGPUFamily) import it under its `_kc.`
+   placeholder, which stays the first name at that address (step 4).
 3. Check the base: its extraction, linked again with Apple's bundle list, must be
    byte-identical to the shipped kernelcache.
 4. For a stripped donor, put the import names of the donor extraction the maps
