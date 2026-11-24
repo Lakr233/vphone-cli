@@ -143,6 +143,9 @@
 			<string>preboot-cfw-devicetree_microphone_array</string>
 			<string>preboot-cfw-devicetree_virtual_usb_driverkit</string>
 			<string>preboot-exp-devicetree_identity</string>
+			<string>devicetree-exp-syscfg_placeholders</string>
+			<string>devicetree-exp-board_target_type</string>
+			<string>llb-exp-nvram_scrub_bypass</string>
 			<string>preboot-exp-ios16_ephemeral_storage</string>
 			<string>preboot-exp-visionos_virtual_product</string>
 			<string>preboot-homepod-exp-audio_product</string>

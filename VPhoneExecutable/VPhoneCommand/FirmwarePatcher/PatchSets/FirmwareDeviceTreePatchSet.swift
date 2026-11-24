@@ -22,6 +22,10 @@ import VPhonePatchKit
 public enum FirmwareDeviceTreePatchSet {
     public static let identifier = "com.vphone.patchset.devicetree"
 
+    /// The XS Max's board target type in its installed tree. `fw prepare`
+    /// splits that tree off only when this is selected.
+    public static let boardTargetType = "devicetree-exp-board_target_type"
+
     private static func property(
         _ identifier: String,
         _ title: String,
@@ -238,6 +242,16 @@ public enum FirmwareDeviceTreePatchSet {
                 "devicetree-cfw-watch_companion",
                 "Watch companion",
                 "Sets /product/watch-companion to 1 on an iPhone guest. vphone600 takes it from syscfg, which has no waco on a VM, so the phone would pair with no watch and the Watch app would stay hidden.",
+            ),
+            property(
+                "devicetree-exp-syscfg_placeholders",
+                "Syscfg placeholder values",
+                "Answers the syscfg placeholders a VM's syscfg cannot, on an iPhone or iPad guest's booted tree. The jetsam product type and the per-process memory limits come from the guest's own board (its jetsam-properties-product-type or target-type, and its /defaults), or from the board name when its tree is not at hand; the other keys come from vphone600's gestalt variant, only on the iPhone17,3 it describes. Without the jetsam product type launchd loads no jetsam properties, and the Developer disk image's daemons kill init (\"jetsam property category (Daemon) is not initialized\"). On in minimal and experimental; standard patches launchd instead.",
+            ),
+            property(
+                boardTargetType,
+                "Board target type",
+                "Gives an iPhone XS Max guest the root target-type of its own board (D331p) in the tree it boots, where vphone600 says VPHONE600. iOS 18's launchd names its jetsam properties file after the target type and ships none for VPHONE600, so the Developer disk image's daemons kill init (\"jetsam property category (Daemon) is not initialized\"). Every other guest already takes its board's. The restore tree keeps VPHONE600, which restore checks, so the guest boots a separate installed tree: selected at fw prepare, it takes effect from the next restore. On in minimal and experimental; standard patches launchd instead.",
             ),
             property(
                 "devicetree-cfw-virtual_usb_driverkit",

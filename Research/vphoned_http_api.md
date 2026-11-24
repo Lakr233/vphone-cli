@@ -1417,9 +1417,20 @@ were missing because `ReportSystemMemory` itself crashed writing them
 failure). `memory.jetsam` shows both processes: before this change the proxy
 read `priority 40, limit_mb 18` and the worker `priority 180, limit_mb -1`.
 
-The proxy never initializes NIO, IcliKit, or the camera server under its
-per-process Jetsam limit (6 MB on the first guests measured, 18 MB on that
-iPadOS 27.0.1 guest). A successful `agent.apply_update` worker exit
+Right after that the proxy lifts its own memory limit with
+`MEMORYSTATUS_CMD_SET_MEMLIMIT_PROPERTIES`, active and inactive both `-1`,
+which XNU turns into the default task limit (`memstat_set_memlimits_locked`),
+the limit the worker already has. A failure is logged and the proxy carries
+on. `vphoned.plist` has no `JetsamProperties`, so once a guest loads its
+jetsam properties file (`devicetree-exp-syscfg_placeholders` gives
+vphone600 guests D47's) launchd gives the proxy the generic daemon limit:
+6 MB on a `minimal` iOS 26.5 guest, while the worker had 3376 MB. The proxy
+runs near 1.5 MB, but a kill at that limit would take the guest's API with
+it until launchd restarts it.
+
+The proxy never initializes NIO, IcliKit, or the camera server, so it stays
+small even where its limit could not be lifted (6 MB on the first guests
+measured, 18 MB on that iPadOS 27.0.1 guest). A successful `agent.apply_update` worker exit
 makes the proxy exit so launchd can restart the updated cached binary. If a
 cached worker fails before binding, the bundled-binary fallback remains in
 effect. Before it execs `/var/root/Library/Caches/vphoned`, the proxy

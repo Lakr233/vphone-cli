@@ -285,18 +285,21 @@ struct FirmwarePatchSetCatalogTests {
         let allBootChain = Set(FirmwareBootChainPatchSet.manifest.patches.map(\.identifier))
         #expect(FirmwarePatchSetCatalog.minimalBootChainPatches.isSubset(of: allBootChain))
         #expect(plan.skippedByVersion.contains(sptm))
+        // minimal and the watch add LLB keeping NVRAM to the shared boot chain.
+        let nvram = FirmwarePatchSetCatalog.keptNVRAMPatches
+        #expect(nvram.isSubset(of: allBootChain))
         let cloudOS18 = try VPhonePatchPlan.resolve(
             preset: FirmwarePatchSetCatalog.minimalPreset,
             patchSets: FirmwarePatchSetCatalog.bundled,
             iOSBase: VPhoneVersion("18.5"),
             cloudOS: VPhoneVersion("18.5"),
         )
-        #expect(cloudOS18.enabled.intersection(allBootChain) == FirmwarePatchSetCatalog.minimalBootChainPatches)
+        #expect(cloudOS18.enabled.intersection(allBootChain) == FirmwarePatchSetCatalog.minimalBootChainPatches.union(nvram))
         #expect(plan.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader])
-            .union(FirmwarePatchSetCatalog.minimalDeviceTreePatches).union(bootChain).union(researchBoard))
+            .union(FirmwarePatchSetCatalog.minimalDeviceTreePatches).union(bootChain).union(nvram).union(researchBoard))
         // A stock LLB does not reach the kernel on an OpenAVB machine: iBEC and
         // LLB stay patched, AVPBooter and iBSS stay stock.
-        #expect(plan.enabled.intersection(allBootChain) == bootChain)
+        #expect(plan.enabled.intersection(allBootChain) == bootChain.union(nvram))
         #expect(plan.droppedBootEssentials.allSatisfy { !$0.hasPrefix("ibec-") && !$0.hasPrefix("llb-") })
 
         let watch = try VPhonePatchPlan.resolve(
@@ -306,9 +309,12 @@ struct FirmwarePatchSetCatalogTests {
             cloudOS: VPhoneVersion("26.4"),
         )
         #expect(!watch.isEnabled(FirmwareRestoreImagePatchSet.launchdCacheLoader))
-        #expect(watch.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader])
-            .union(FirmwarePatchSetCatalog.watchOSDeviceTreePatches).union(bootChain).union(researchBoard))
-        #expect(watch.enabled.intersection(allBootChain) == bootChain)
+        // The cryptex filesystem patcher never applies it to a watch.
+        #expect(!watch.isEnabled(FirmwareRestoreImagePatchSet.internalReleaseType))
+        #expect(watch.enabled == restoreImage.subtracting([FirmwareRestoreImagePatchSet.launchdCacheLoader,
+                                                           FirmwareRestoreImagePatchSet.internalReleaseType])
+            .union(FirmwarePatchSetCatalog.watchOSDeviceTreePatches).union(bootChain).union(nvram).union(researchBoard))
+        #expect(watch.enabled.intersection(allBootChain) == bootChain.union(nvram))
     }
 
     @Test
@@ -474,6 +480,7 @@ struct FirmwarePatchSetCatalogTests {
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodCryptexStaging
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodCryptexClass
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodAdHocInstall
+                    && $0.identifier != "llb-exp-nvram_scrub_bypass"
                     && $0.applicability.matches(iOSBase: version, cloudOS: cloud)
             }.map(\.identifier))
             #expect(experimental.enabled.subtracting(standard.enabled) == applicableManual)

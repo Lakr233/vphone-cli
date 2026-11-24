@@ -44,6 +44,11 @@ public enum FirmwareRestoreImagePatchSet {
     /// research identity carries; `/osenvironments/trusted-darwinos` in the
     /// device tree is its overlay.
     public static let trustedDarwinOSEnvironment = 6
+    /// SystemVersion.plist says ReleaseType Internal, so libmis lets a free
+    /// personal team's app run without the online authorization an
+    /// offline-activated guest cannot get (CustomFirmwareInternalReleaseType).
+    /// On in `minimal` for iPhone and iPad guests; a watch is left alone.
+    public static let internalReleaseType = "filesystem-exp-internal_release_type"
     public static let digestRehash = "manifest-boot-digest_rehash"
 
     /// Patches a machine asks for by name (`--allow`, or a preset that lists them);
@@ -123,13 +128,19 @@ public enum FirmwareRestoreImagePatchSet {
             VPhonePatchDeclaration(
                 identifier: launchdJetsam,
                 title: "launchd jetsam panic guard",
-                summary: "Patches launchd, before the reseal, so a daemon without jetsam properties does not panic the guest. Off by default. With developer mode on, MobileStorageMounter mounts the Developer disk image, and launchd's guard against its daemons kills init (\"jetsam property category (Daemon) is not initialized\"). The same change cfw install makes with system-launchd-boot-jetsam_panic_guard_bypass.",
+                summary: "Patches launchd, before the reseal, so a daemon without jetsam properties does not panic the guest. Off by default. With developer mode on, MobileStorageMounter mounts the Developer disk image, and launchd's guard against its daemons kills init (\"jetsam property category (Daemon) is not initialized\"). The cause is the jetsam product type the VM's syscfg cannot supply, which devicetree-exp-syscfg_placeholders restores without touching launchd. The same change cfw install makes with system-launchd-boot-jetsam_panic_guard_bypass.",
                 target: .firmware(.filesystem),
             ),
             VPhonePatchDeclaration(
                 identifier: trustedDarwinOS,
                 title: "Trusted darwinOS environment",
-                summary: "Restores the guest in the trusted darwinOS environment (Ap,OSEnvironment 6, as cloudOS runs) and installs cloudOS's cryptexctl, so cryptexes can be personalized and installed while the guest runs instead of restoring again. Off by default, and an iPhone or iPad guest only. The environment comes from the restore's ticket, so changing this box needs a new restore. In it AMFI enforces Restricted Execution Mode, so the rebuilt trust cache allows every binary in both phases, and AMFI turns Developer Mode on only in its research build: on a research-board guest, whose kernel mix takes AMFI from the release kernel, it cannot be turned on (\"Developer Mode can not be enabled on trusted darwinOS\"), which leaves out Xcode, the Developer disk image and Userspace debugging.",
+                summary: "Restores the guest in the trusted darwinOS environment (Ap,OSEnvironment 6, as cloudOS runs) and installs cloudOS's cryptexctl, so cryptexes can be personalized and installed while the guest runs instead of restoring again. Off by default, and an iPhone or iPad guest only. The environment comes from the restore's ticket, so changing this box needs a new restore. In it AMFI enforces Restricted Execution Mode, so the rebuilt trust cache allows every binary in both phases. Developer Mode does not work there: TXM runs only platform code in trusted darwinOS, so apps built with Xcode do not launch. Leave it off for app development.",
+                target: .firmware(.filesystem),
+            ),
+            VPhonePatchDeclaration(
+                identifier: internalReleaseType,
+                title: "Offline app authorization",
+                summary: "Sets ReleaseType Internal in SystemVersion.plist, before the reseal, so libmis on a virtual device skips the online authorization of a free personal team's app. A guest activated without Apple's servers has no activation record to sign that request with, so without this such an app never launches and Verify App fails. On in minimal for iPhone and iPad guests. Adds /usr/share/misc/os_variant_override, which keeps os_variant's internal content, diagnostics, UI and security checks off, as on a customer build; code that reads ReleaseType itself still sees Internal.",
                 target: .firmware(.filesystem),
             ),
             VPhonePatchDeclaration(

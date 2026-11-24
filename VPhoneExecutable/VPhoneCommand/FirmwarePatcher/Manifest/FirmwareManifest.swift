@@ -52,11 +52,15 @@ public enum FirmwareManifest {
     /// - Parameters:
     ///   - iPhoneDir: Path to the extracted iPhone IPSW directory.
     ///   - cloudOSDir: Path to the extracted cloudOS IPSW directory.
+    ///   - boardTargetType: Give an iPhone XS Max guest an installed device
+    ///     tree of its own, as a board-presenting guest has, so `fw patch` can
+    ///     give it the board's `target-type` (`devicetree-exp-board_target_type`).
     ///   - verbose: Print progress messages.
     public static func generate(
         iPhoneDir: URL,
         cloudOSDir: URL,
         device chosen: VPhoneGuestDevice? = nil,
+        boardTargetType: Bool = false,
         verbose: Bool = true,
     ) throws {
         // Load source plists.
@@ -106,6 +110,7 @@ public enum FirmwareManifest {
             for: device,
             identity: buildIdentity,
             restoreDir: iPhoneDir,
+            boardTargetType: boardTargetType,
             verbose: verbose,
         )
 
@@ -227,6 +232,21 @@ public enum FirmwareManifest {
     /// the vphone600 one that restore boots with.
     public static let guestDeviceTreePath = "Firmware/all_flash/DeviceTree.vphone600ap.guest.im4p"
 
+    /// Whether the restore directory's BuildManifest installs the split-off
+    /// guest tree, or nil without a BuildManifest. `fw patch` patches the two
+    /// trees apart only then: a split file the manifest does not name is not
+    /// what restore installs.
+    public static func installsGuestDeviceTree(restoreDir: URL) -> Bool? {
+        guard let manifest = NSDictionary(contentsOf: restoreDir.appendingPathComponent("BuildManifest.plist")) as? PlistDict else {
+            return nil
+        }
+        let identities = manifest["BuildIdentities"] as? [PlistDict] ?? []
+        return identities.contains { identity in
+            let deviceTree = (identity["Manifest"] as? PlistDict)?["DeviceTree"] as? PlistDict
+            return (deviceTree?["Info"] as? PlistDict)?["Path"] as? String == guestDeviceTreePath
+        }
+    }
+
     /// Points the installed `DeviceTree` of a guest that presents its board
     /// (an iPad, or an iPhone other than the XS Max) at a copy of the
     /// vphone600 tree, so `fw patch` can give that copy the board's identity.
@@ -237,14 +257,26 @@ public enum FirmwareManifest {
     /// installed `DeviceTree` is a separate manifest entry that restore only
     /// personalizes and writes to Preboot, so giving it its own file lets the
     /// board identity ride through restore without a root-only rewrite on the
-    /// host. An XS Max identity is returned unchanged.
+    /// host. An XS Max identity is returned unchanged unless `boardTargetType`
+    /// asks for its board's target type, which only the installed tree can
+    /// carry for the same reason.
     static func separateGuestDeviceTree(
         for device: VPhoneGuestDevice,
         identity: PlistDict,
         restoreDir: URL,
+        boardTargetType: Bool = false,
         verbose: Bool,
     ) throws -> PlistDict {
-        guard device.presentsBoard else { return identity }
+        let fm = FileManager.default
+        let destination = restoreDir.appending(path: guestDeviceTreePath)
+        guard device.presentsBoard || (boardTargetType && device.family == .iPhone) else {
+            // A split left by an earlier prepare would otherwise still be
+            // patched as the installed tree.
+            if fm.fileExists(atPath: destination.path) {
+                try fm.removeItem(at: destination)
+            }
+            return identity
+        }
         guard var manifest = identity["Manifest"] as? PlistDict,
               var deviceTree = manifest["DeviceTree"] as? PlistDict,
               var info = deviceTree["Info"] as? PlistDict,
@@ -252,9 +284,7 @@ public enum FirmwareManifest {
         else {
             throw ManifestError.missingKey("DeviceTree in the hybrid build identity")
         }
-        let fm = FileManager.default
         let source = restoreDir.appending(path: path)
-        let destination = restoreDir.appending(path: guestDeviceTreePath)
         guard fm.fileExists(atPath: source.path) else {
             throw ManifestError.fileNotFound(source.path)
         }

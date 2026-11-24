@@ -2282,10 +2282,7 @@ struct VPhoneCustomFirmwareInstaller {
         //    or SPOOF_BUILD). Backed up only when it was not already applied.
         let buildVersion = plan?.parameters[FirmwareGuestSystemPatchSet.buildVersionParameter] ?? spoofBuild
         let buildID = "system-systemversion-cfw-build_version"
-        let buildPaths = [
-            "System/Library/CoreServices/SystemVersion.plist",
-            "System/Cryptexes/OS/System/Library/CoreServices/SystemVersion.plist",
-        ]
+        let buildPaths = CustomFirmwareBuildVersion.systemVersionPaths
         isolate([buildID]) {
             if let build = buildVersion, !build.isEmpty, on(buildID) {
                 var applied = false

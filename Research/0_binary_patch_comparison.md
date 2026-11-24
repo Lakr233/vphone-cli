@@ -7354,6 +7354,10 @@ earlier `minimal-ctf` machine's log). `standard` avoids it with
 sealed system, so `filesystem-exp-launchd_jetsam_panic_guard` applies the same
 `CustomFirmwareJetsamPatcher` change in the merge. With it, the same
 `devicectl` call mounts the DDI, `dtappserviced` starts, and the guest stays up.
+The cause turned out to be the device tree, not launchd: see "Answers for
+vphone600's syscfg placeholders" below, whose
+`devicetree-exp-syscfg_placeholders` is on in `minimal`. The guard stays a
+part of Userspace debugging, where it costs nothing.
 On HomePod, launchd is patched for the persona adapter, which returned before
 the jetsam verb; `cfw install` now applies both to the one copy.
 
@@ -7787,7 +7791,8 @@ image, whose trust cache is rebuilt anyway. The temporary cloudOS restore that
 recovers the GPU driver now also sends cloudOS's own `Ap,OSEnvironment`.
 In environment 6 AMFI enables Developer Mode only in its research build; the
 research-board kernel mix takes AMFI from the release kernel, so a research-board
-guest has none (the note has the disassembly).
+guest has none (the note has the disassembly). Giving it back was tried and
+dropped: TXM runs only platform code there (the note, "Developer Mode").
 
 iOS 27.0.1 with cloudOS 26.4 panicked in environment 6 (dyld mounted no OS
 cryptex, launchd found no libSystem; 2026-11-12), and the box was refused for
@@ -7889,3 +7894,367 @@ starts the kernel, so `IM4PHandler` keeps them. Not known: whether a host before
 macOS 27.2 stops the same way. cloudOS 18.5 (22F76) and 18.6 (22G86) each
 match one site, 26.1 (23B85) and 26.4 (23E5207q) none; the other 18.x SPTMs
 were not read.
+
+## Free personal-team apps offline: ReleaseType Internal (2026-11-18)
+
+**Symptom.** An app Xcode signs with a free Apple Account installs on a
+`minimal` guest but does not launch, and Settings' Verify App fails. The guest
+log shows `online-auth-agent: Failed to copy activation record`
+(MobileActivation -1), then "Could not perform authorization attempt" and
+`MDMProvisioningProfileTrust … error 4`. A free team's profile needs an online
+authorization signed with the activation record's identity; a guest activated
+without Apple's servers has none, and only Apple can sign one. A paid team's
+profile does not ask.
+
+| Patch | Component | Change |
+| --- | --- | --- |
+| `filesystem-exp-internal_release_type` | SystemVersion.plist, before the reseal | No byte change. Sets `ReleaseType = Internal` in `/System/Library/CoreServices/SystemVersion.plist` and the merged OS cryptex's copy, and adds `/usr/share/misc/os_variant_override` = `content,diagnostics,ui,security`. libmis's `MISValidateSignatureAndCopyInfoWithProgress` clears `RespectUppTrustAndAuthorization` and `OnlineAuthorization` when `MGGetBoolAnswer("IsVirtualDevice")` and `MGCopyAnswer("ReleaseType") isEqualToString:@"Internal"` (26.5 `0x1BBFB8CB0`; 27.2 `0x22601D4C0`, both answers cached once per process). MobileGestalt's `ReleaseType` is the SystemVersion.plist key, falling back to an os_variant check only when the key is missing (26.5 `0x1B1BEDDA4`). A free personal team's profile otherwise needs an online authorization signed with the activation record's identity, which a guest activated without Apple's servers lacks (`online-auth-agent: Failed to copy activation record`). The free-team fix of row 17 without touching libmis; the override keeps os_variant on customer behaviour. On in `minimal` for iPhone and iPad guests; a watch is left alone. |
+
+Stock iOS 27.2 has no `ReleaseType` key and no override file. What still sees
+"Internal" is anything that asks MobileGestalt for `ReleaseType` or reads
+SystemVersion.plist itself. Checked on iOS 27.2 (24B119) with cloudOS 27.2,
+normal environment, Developer Mode on: a free team's app built with Xcode ran
+without the online authorization.
+
+**Who else reads it.** 95 images in the iOS 27.2 (24B119) shared cache hold the
+string `ReleaseType`. Besides libmis, libMobileGestalt and CoreFoundation, they
+include:
+- software update and assets: MobileSoftwareUpdate, SoftwareUpdateCore,
+  SoftwareUpdateServices, SoftwareUpdateController, MobileAssetDaemon;
+- diagnostics and crash reporting: OSAnalytics, DiagnosticRequestService,
+  AutoBugCaptureCore, SymptomDiagnosticReporter, CoreCaptureDaemon, PowerlogCore;
+- activation, backup and installation: MobileActivation, MobileBackup,
+  InstalledContentLibrary, ContainerManagerCommon;
+- Security, UIKitCore and BaseBoard;
+- `libsystem_darwin`, whose os_variant checks the override above keeps on
+  customer behaviour.
+
+Most of the rest are accessories, media and analytics frameworks. Only libmis's
+check has been followed in code. The others may still see "Internal" when they
+ask MobileGestalt or read the plist themselves. On the guests tested with it
+(18.6, 26.5, 27.2), SpringBoard, Settings, pairing, the Developer disk image and
+app installation worked, and on 27.2 so did a sysdiagnose. These were not
+compared side by side with an unpatched guest. Software Update, MobileAsset
+downloads and crash report submission need Apple's servers and were not
+exercised.
+
+## Developer Mode and NVRAM: LLB skips the PCC scrub (2026-11-19)
+
+**Symptom.** Settings › Privacy & Security › Developer Mode › Restart on a
+`minimal` guest: AMFI logs `AMFI: armed security boot mode: 2` and the kernel
+writes `security-mode-change-enable=2` to NVRAM, but the guest comes back with
+Developer Mode off and no PreBoard prompt (`AMFI: finished: 0 1`). Guest RAM
+after boot holds `/chosen/security-mode-change-enable = 0`, and the variable is
+gone from `nvram.bin`. Other variables iOS writes for itself are lost the same
+way.
+
+**Cause.** The vresearch101 LLB has iBoot's handler (27.2 RELEASE `0x2572C`:
+getenv, unsetenv, save NVRAM, set the `/chosen` property), but it runs after a
+PCC NVRAM scrub in the LLB's init (`0x56FC`, called at `0x36A0`). Unless
+`boot-command` is `upgrade`, the scrub reads 21 keep-list names (22 in
+RESEARCH_RELEASE: auto-boot, boot-volume, boot-breadcrumbs,
+one-time-boot-command, stress-rack, the `krn.*` and obliteration state,
+darwin-init, ...), clears every variable that came from NVRAM (IPC message 13,
+`0x5C020`), sets the kept ones again and saves NVRAM (`0x5E7C`). The request is
+not kept, so the handler's getenv returns its default 0. Found by static
+reading of the LLB; the scrub is the same in RELEASE and RESEARCH_RELEASE.
+
+**Only PCC boot loaders scrub.** The scrub is in every Private Cloud Compute
+boot loader read so far and in no iPhone one. All images are plain LZFSE, no
+KBAG, so they were read directly (`ipsw img4 im4p extract`, Xcode
+`llvm-objdump`):
+
+| Image | Keep list |
+| --- | --- |
+| vresearch101 RELEASE 26.4β, 26.4, 26.5, 27.2 | 21 names |
+| vresearch101 RESEARCH_RELEASE 26.5, 27.2 | 22 (adds boot-args, epdm-skip-nvram) |
+| j226c and j236c (PCC servers) RELEASE 27.2 | 21, the same as vresearch101 |
+| j226c and j236c RELEASE 26.5 | 14 (no darwin-init or obliteration state) |
+| vresearch101 RELEASE 18.6 | 11 |
+| j236c RELEASE 18.6 | 5 |
+| iPhone17,3 (d47) LLB and iBoot 26.5, 27.2, RELEASE and RESEARCH_RELEASE; iPhone11,x 18.6 | no scrub |
+
+In the iPhone17,3 27.2 LLB the init step that calls the scrub on vresearch101
+(the same breadcrumb tags around it, `0x4080` → `0x62C4`) only loads NVRAM and
+runs the Developer Mode handler. None of `boop-storage-nonces`, `darwin-init`,
+`oblit*` or `epdm-skip-nvram` occurs in an iPhone image.
+
+**What the scrub costs a guest.** Watching `nvram.bin` on the host through a
+restart of a `minimal` 27.2 guest: with the stock LLB the store drops from 46
+to 24 entries when LLB saves, losing `fm-activation-locked`, `fm-locktype`,
+`fm-spstatus`, `StartupMute`, `SetupCountryOverride`,
+`lca_wifi_country_override`, `user_language_enum` and
+`com.apple.System.rtc-offset`; iOS writes some of them again later in the boot,
+the Find My ones not within 150 seconds. With the patch nothing is dropped.
+
+**What stays the same.** iBoot reads only the names in its own NVRAM table
+(vresearch101 RELEASE `0xABB60`, 44 entries; the lookup at `0x3508` marks any
+other variable from NVRAM with flag 4, and getenv returns NULL for it at
+`0x5B354`). `boot-args` is in the table only in RESEARCH_RELEASE, so a guest's
+`boot-args` still does not reach a RELEASE kernel (`0x1BF70`). The names LLB
+does read and the scrub used to clear (`boot-command`, `recovery-boot-mode`,
+`upgrade-retry`, the panicmedic counters, `backlight-level`, the boot nonce)
+now persist as on an iPhone, so a guest can leave itself in recovery as a
+device can. The scrub could already be skipped without a patch by setting
+`boot-command=upgrade`.
+
+| Patch | Component | Change |
+| --- | --- | --- |
+| `llb-exp-nvram_scrub_bypass` | LLB | The scrub's first test, `cbz x0, scrub` after the `bl` that looks up `"boot-command"` (its `x0`), becomes `b done`, the target of the `cbz w0, done` that follows the `bl` comparing it with `"upgrade"`; that path skips the scrub and its save. Matched within 0x800 bytes after each reference to the keep list's `stress-rack` entry (the same test also occurs outside the scrub): the lookup must be a `bl` whose `x0` is `adrp/add "boot-command"`, the first `cbz` must test `x0`, the compare must be a `bl` whose `w0` the second `cbz` tests, and the first `cbz` must land right after the second. Exactly one such site must exist; when the preset selects the patch, a miss or a second site fails `fw patch` instead of booting a guest whose Developer Mode never latches. Sites (`cbz` → `b`): 27.2 24B115 RELEASE `0x5BFC` → `0x5E80`, RESEARCH_RELEASE `0x5F00` → `0x6188`; 26.4 23E5207q, 26.4 23E244 and 26.5 23F75 RELEASE `0x55C0` → `0x5824`, RESEARCH_RELEASE `0x5878` → `0x5AE0`; 22G86 (iOS 18.6's cloudOS) RELEASE `0x5314` → `0x53E8`, RESEARCH_RELEASE `0x5628` → `0x56FC`; j236c RELEASE 27.2 `0x60B8` → `0x633C`. On in `minimal` and `watchos`; every other preset, `experimental` included, blocks it. |
+
+**Checked** on a new `minimal` iPhone17,3 iOS 27.2 (24B119) guest with cloudOS
+27.2 (24B115), normal environment, stock kernel and TXM: a restart keeps every
+variable in `nvram.bin` (`fm-*`, `StartupMute`, `SetupCountryOverride`,
+`user_language_enum`). Arming Developer Mode gives `AMFI: delaying developer
+mode latching...` on the next boot and PreBoard's "Ready to Enable Developer
+Mode"; Enable turns it on (`developer_mode.status` enabled), the LLB's handler
+deletes the request from `nvram.bin`, and the next boot reaches Setup Assistant
+with `AMFI: Developer Mode Is On` and no prompt. The control, the same guest
+with the stock `cbz` word, lost the variables at LLB's save. The match finds exactly one
+site in every vresearch101 LLB from cloudOS 18.6 (22G86) to 27.2, RELEASE and
+RESEARCH_RELEASE; a selected patch that finds none, or more than one, fails
+`fw patch`. Not checked: which variables guest userland may write.
+
+iOS 27.2 needs cloudOS 27.2 here. On the cloudOS 26.4 beta a `minimal` iOS
+27.2 guest does not come up with or without this work: without it,
+`apfs_sealvolume` fails with error 65 during the restore; with
+`filesystem-exp-internal_release_type`, ramrod seals with `-a`, the seal
+succeeds, and the first boot panics on "APFSX: could not validate root hash
+Authentication error (80)" (reported in review, not reproduced here).
+
+**Side effects: what now survives a restart.** The stock keep list holds none of
+`boot-command`, `recovery-boot-mode`, `upgrade-retry`, `auto-boot-once` or
+`panicmedic-*`, while iBoot's own NVRAM table reads all of them (27.2 RELEASE).
+With the patch they survive as on an iPhone, so a guest could in principle keep
+restarting into recovery or count panics towards panicmedic. Checked on a
+`minimal` iPhone17,3 iOS 26.5 (23F77) guest on the recommended cloudOS 26.4
+beta (23E5207q) with 4096 MB:
+- The guest was panicked four times in a row, each time by writing `udf #0`
+  at a halted vCPU's PC through the kernel gdb stub ("Undefined kernel
+  instruction"), then stopped and started again.
+- Every boot came back normally, with Developer Mode still on.
+- Afterwards `nvram.bin` held the variables iOS writes for itself (`fm-*`,
+  `StartupMute`, `SetupCountryOverride`, `boot-breadcrumbs`, `auto-boot=true`)
+  but no `panicmedic-*` value, no panic info and no `recovery-boot-mode`. A
+  panicked guest halts in the debugger and is restarted by the host, and the
+  kernel writes no panic record to NVRAM there, so panicmedic has nothing to
+  count.
+
+Not reproduced: a guest that stops in recovery mode because of a kept variable.
+vphoned cannot run `nvram`, and the guest's NVRAM can only be changed from
+inside it, so there is no host-side way to clear one variable. Two ways back:
+- A machine snapshot holds `nvram.bin` with the disk image and `SEPStorage`, so
+  `vphone-cli vm snapshot revert <vm> <name>` on the stopped machine also
+  returns NVRAM to that moment.
+- With no snapshot, take the patch out and restore (not tried here):
+  `vphone-cli fw set-patches <vm> --block llb-exp-nvram_scrub_bypass`, then
+  `vphone-cli fw patch <vm>`, `vphone-cli vm launch <vm> --dfu` and
+  `vphone-cli restore <vm>`. The LLB then runs the stock scrub again.
+  (`vphone-cli vm create` has no `--block`; Launchpad's `vm create` has one.)
+
+**Watch.** A `watchos` Apple Watch Series 11 (Watch7,18) guest with watchOS
+26.4 (23T240) on cloudOS 26.4 (23E244), 4096 MB, with the patch:
+- After the first restart the Developer Mode request was still there:
+  `AMFI: armed security boot mode: 2`, then `AMFI: delaying developer mode
+  latching...` on the next boot.
+- The variables watchOS writes for itself (`SetupCountryOverride`,
+  `lca_wifi_country_override`) were kept across both restarts, the second a
+  cold stop and start, and both boots came up with no panic.
+- Unpaired, the watch boots into its pairing screen (setup cannot be skipped
+  there), and no PreBoard confirmation appeared. The second boot's AMFI
+  consumed the request (`AMFI: finished: 0 1`), so Developer Mode stayed off.
+- Paired with a virtual iPhone (iOS 27.2), Settings › Privacy & Security ›
+  Developer Mode › Restart armed the request (`AMFI: armed security boot mode:
+  2`), the next boot delayed latching (`AMFI: delaying developer mode
+  latching...`), and confirming turned Developer Mode on. It was still on after
+  a cold stop and start (`AMFI: finished: 1 1`), with no panic.
+- A paired watch built without the patch lost the request at the restart: AMFI
+  armed it, and the next boot went straight to `AMFI: finished: 0 1`.
+
+**iPad.** A `minimal` iPad mini (A17 Pro, iPad16,1) with iPadOS 26.6.2 (23G90)
+on the cloudOS 26.4 beta, 6144 MB, went through the same steps:
+- the Developer Mode request survived the restart (`AMFI: delaying developer
+  mode latching...`);
+- PreBoard asked, and Enable turned Developer Mode on;
+- `devicectl manage pair` worked, the Developer disk image was usable, and
+  `device process launch com.apple.Preferences` launched Settings;
+- Developer Mode was still on after another restart, with no panic.
+
+PreBoard draws its text in a narrow column on the iPad; it still works.
+iPadOS 27.0.1 (24A446), the catalog's default for that iPad, does not get
+through a `minimal` restore here, with or without this work's patches. With
+them, the first boot panics on `APFSX: could not validate root hash` (a
+root_hash mismatch). With `llb-exp-nvram_scrub_bypass`,
+`devicetree-exp-syscfg_placeholders` and `filesystem-exp-internal_release_type`
+all blocked, restore already stops at "failed to seal system volume". So the
+failure is not caused by these patches.
+
+## Answers for vphone600's syscfg placeholders (2026-11-14)
+
+**Symptom.** A `minimal` guest with Developer Mode pairs with Xcode, and a second
+later panics: CoreDevice mounts the personalized Developer disk image
+(`Xcode_iOS_Cryptex_DDI`), cryptexd loads its trust cache, and launchd kills init
+with `jetsam property category (Daemon) is not initialized`. Every reconnect of
+the paired host repeats it.
+
+**Cause.** launchd names its jetsam properties file after the
+`hw.jetsam_properties_product_type` sysctl:
+`/System/Library/LaunchDaemons/com.apple.jetsamproperties.<type><suffix>.plist`,
+with suffix `.darwin` when `os_variant_is_darwinos()`. With the sysctl unset it
+loads no file (`sysctl hw.jetsam_properties_product_type was not set`), no
+category is created, and the first overlay that names one, the DDI's
+`/Library/JetsamProperties/com.apple.jetsamproperties.DDI.plist` with its
+`Daemon` overrides for `dtappserviced` and the rest, hits the guard.
+
+The kernel takes the sysctl from `/product/jetsam-properties-product-type`.
+Apple's vphone600 tree (cloudOS 26.1 to the 26.4 beta) has it as the
+placeholder `syscfg/jppt`, like 64 other properties, and keeps the answers for
+its one variant in `/product/vphone600-gestalt-variants/d47vm2025vre-variant`
+(`compatible = gestalt-variant-list`): `tag-jppt = "D47"`, `tag-kmtp = 3376`,
+`tag-ketp = 6144`, `tag-prde = "iPhone 16 Research Device"` and so on. The
+research board conversion reproduces both. A VM's syscfg has none of those keys,
+so the boot chain drops every placeholder: a guest RAM image of a 27.2 guest
+(dm-272) shows the flat tree the kernel booted with, whose `/product` has no
+`jetsam-properties-product-type` and whose `/defaults` has no
+`kern.max_task_pmem` or `kern.entitled_max_task_pmem`, while the variant beside
+them still holds every tag. MobileGestalt answers from the tags (which is why
+the guest still reports iPhone17,3), the kernel does not. With the type set to
+`D47`, launchd loads the iPhone image's own
+`com.apple.jetsamproperties.D47.plist`, which defines `Daemon` and the eleven
+other categories.
+
+The cloudOS 26.4 beta also ships `com.apple.jetsamproperties.VPHONE600.darwin.plist`
+(cloudOS 26.5 and 27.2 do not): VRESEARCH101's file plus 290 iOS services and a
+few raised limits. It is what a darwinOS userland on that board reads; an iOS
+userland on Apple's variant reads D47's.
+
+**Patch.** `devicetree-exp-syscfg_placeholders`
+(`DeviceTreePatcher.resolveSyscfgPlaceholders`) runs after every other device
+tree edit, on an iPhone or iPad guest, on the tree it boots: the installed
+`DeviceTree.vphone600ap.guest.im4p` of a guest that presents its board (and of
+an XS Max prepared with `devicetree-exp-board_target_type`, below), or the
+shared tree of one that does not. The restore tree keeps its
+placeholders. Every property still flagged as a placeholder (0x8000) whose
+`syscfg/<key>` has an answer takes it, with flags 0. Two sources:
+
+- `jppt`, `kmtp` and `ketp` describe the guest's own board, whose OS has to
+  ship the jetsam file the type names. They come from the board's tree
+  (`DeviceTree.<board>.im4p`): its `jetsam-properties-product-type` if it has
+  one, else its `target-type`, and its `/defaults` limits. Real boards carry no
+  `jetsam-properties-product-type` (D47AP 27.2 and D331pAP 18.6 checked; launchd
+  then uses the target type), and D47AP's limits (3376 and 6144) are the
+  variant's. Without the board's tree (an XS Max with a shared tree),
+  `jppt` is the target type `deviceClass` names (`d331pap` -> `D331p`) and the
+  limits stay placeholders.
+- Every other key takes the variant's `tag-<key>`, found by the list's
+  `compatible` (the `d47-gestalt-variants` rename does not hide it), exactly one
+  variant, and only when its `tag-tprt` is the guest's product type. Those are
+  Apple's answers for a virtual D47; another iPhone or an iPad has its own,
+  which the board edits copy.
+
+On the converted 27.2 tree that is 42 properties for an iPhone17,3: 39 under
+`/product` and `/product/maps`, `/buttons/home-button-type` and the two
+`/defaults` memory limits. Left for the boot chain: placeholders without a tag
+(serial, model and regulatory numbers, the enclosure colours under `/chosen`,
+`BMac`, `gsrp`) and `function-button_ringeren`, whose `tag-rgen` is empty.
+
+On in `minimal`. In `manualOnlyPatches`, so `standard`, which patches launchd's
+guard instead, keeps the tree it had, and `experimental`, which takes every
+manual patch, gets it. `DeviceTreeResearchBoardTests` checks the fixture tree
+(the iPhone17,3, an iPhone XS Max without its board tree, an SE 3 board tree, a
+board with its own jetsam type, restore trees and watches) and, when an IPSW in
+`ipsws/` carries Apple's vphone600 tree, that exactly the 23 untagged syscfg
+keys stay, that the other 42 properties hold their tag's bytes and nothing else
+changes.
+
+**iOS 18 reads the target type.** iOS 18.6's launchd names the file after
+`hw.targettype` ("sysctl hw.targettype was not set", in `/sbin/launchd` of
+22G86), not the jetsam product type. The kernel takes `hw.targettype` from the
+root `target-type`. An iPhone XS Max guest boots vphone600's tree, whose root
+`target-type` is `VPHONE600`, and 18.6 ships no
+`com.apple.jetsamproperties.VPHONE600.plist` (only D321, D331 and D331p). So on
+18.6 `jppt = D331p` alone does not help: launchd still kills init when the DDI
+mounts. A guest that presents its board already takes the board's
+`target-type` (`copiedRootProperties`).
+
+**Patch: `devicetree-exp-board_target_type`** gives the XS Max the same:
+`DeviceTreePatcher.presentBoardTargetType` sets the root `target-type` of its
+installed tree to its board's (`D331p` from `DeviceTree.d331pap.im4p`, or the
+board name without it). Only that tree can carry it: `restored_external` and
+iBoot's restore mode check the restore tree's root `target-type` against the
+manifest, which is why an earlier attempt to change it at `fw patch` broke
+restore (`CustomFirmwarePostRestoreDeviceTree`). So `fw prepare`
+(`FirmwareManifest.generate(boardTargetType:)`) splits off
+`DeviceTree.vphone600ap.guest.im4p` for the XS Max too when the patch is
+selected, as it always does for a board-presenting guest. Restore only
+personalizes that tree and writes it to Preboot, and `fw patch` patches it with
+the `.installed` role. A board-presenting guest, the restore tree, and a tree
+whose `target-type` is no longer `VPHONE600` are left alone. The last case keeps
+`preboot-exp-devicetree_identity`'s D47 rewrite. With the board tree at hand in
+`fw patch`, the syscfg patch above also takes D331p's `/defaults` limits (2098
+and 2348).
+
+Like the syscfg patch, it is on in `minimal` and `experimental` and off in
+`standard`, which patches launchd's guard and keeps one tree for the XS Max.
+Selecting it on a VM already prepared without it changes nothing until the next
+`fw prepare`: there is no installed tree to patch.
+`DeviceTreeResearchBoardTests` checks the installed tree with and without the
+board's tree, and that shared and restore trees, board-presenting guests, a D47
+identity and a closed gate keep their type. `FirmwareManifestSelectionTests`
+checks that the split happens only with the flag and leaves `RestoreDeviceTree`
+on vphone600's file.
+
+**Validation (2026-11-14, iPhone17,3 27.2 on cloudOS 27.2, `minimal`).** Each
+guest was paired with `devicectl manage pair`, which mounts the DDI at once.
+
+| Guest | Jetsam guard | This patch | Result |
+| --- | --- | --- | --- |
+| Developer Mode box (trusted darwinOS) | off | off | launchd kills init on every reconnect |
+| Developer Mode box (trusted darwinOS) | off | on | stays up; D47 limits enforced (a JetsamEvent killed `iconservicesagent` at its per-process limit); DDI daemons refused under Restricted Execution Mode |
+| Userspace debugging, no trusted darwinOS | off | on | stays up; `dtappserviced` and `dtdeviceinfod` run; `devicectl device info details` reports Developer Mode enabled, `device info processes` lists 495 processes, `device process launch com.apple.Preferences` launches it |
+
+No `panic(` in any of the patched guests' boot logs. The Developer Mode box
+was a trusted darwinOS experiment, since dropped (`Firmware/trusted_darwinos_cryptexes.md`,
+"Developer Mode"); the jetsam result does not depend on the environment.
+
+Again with the reworked patch (bundle 2.17.1-local.bd93556f, `devicectl manage
+pair`, then `device info details`, `device info processes` and `device process
+launch com.apple.Preferences`; launchd's jetsam guard off throughout):
+
+| Guest | Boxes | Patch writes | Result |
+| --- | --- | --- | --- |
+| iPhone17,3 26.5 (23F77) / cloudOS 26.5 (23F75), research board converted | Userspace debugging | `jppt` D47, `kmtp` 3376, `ketp` 6144 from D47's tree | DDI mounted, no panic; `dtappserviced` runs; processes listed; Settings launched |
+| iPhone17,3 26.5 (23F77) / cloudOS 26.4 beta (23E5207q), Apple's vphone600 tree | Userspace debugging | the same | DDI mounted, no panic; 359 processes listed; Settings launched |
+| iPhone17,3 26.5 (23F77) / cloudOS 26.5 (23F75) | Developer Mode | the same | Developer Mode on; CoreDevice: "The developer disk image could not be mounted on this device", nothing mounted |
+| iPhone11,6 18.6 (22G86) / cloudOS 18.6 (22G86) | Developer Mode | `jppt` D331p from the board name | Developer Mode on; the same mount error |
+| iPhone11,6 18.6 (22G86) / cloudOS 18.6 (22G86) | Userspace debugging | `jppt` D331p from the board name | DDI mounted, then the guest stopped answering: launchd's "jetsam property category (Daemon) is not initialized" in a RAM image, vCPUs halted in the debugger cross-call, no panic text (see "iOS 18 reads the target type") |
+
+The Developer Mode box's mount error on 26.5 and 18.6 comes before any jetsam
+step; on 27.2 the same box mounts the DDI. In trusted darwinOS, MobileStorageMounter
+on iOS 18 and 26 refuses to load the DDI's trust cache, because that invalidates
+the system's attestation, unless the boot-args set
+`allow_msm_to_invalidate_attestations=1`.
+
+With `devicetree-exp-board_target_type` (bundle 2.17.1-local.227b6d94,
+iPhone11,6 18.6 (22G86) / cloudOS 18.6 (22G86), `minimal` with Userspace
+debugging, launchd's jetsam guard off): `fw prepare` logged
+`iPhone11,6: installed DeviceTree -> Firmware/all_flash/DeviceTree.vphone600ap.guest.im4p`,
+`fw patch` logged `/target-type VPHONE600 → D331p from iPhone11,6's device
+tree`, and restore and the first boot went through. After `devicectl manage
+pair`, CoreDevice reported the cryptex DDI usable, `dtdeviceinfod` and
+`dtappserviced` ran, `device info processes` listed 433 processes, and the boot
+log has no `panic(`. `device process launch com.apple.Preferences` was refused
+with "Device setup is not yet complete", since the guest was still in Setup
+Assistant.
+
+**Side effect: jetsam limits.** With `devicetree-exp-syscfg_placeholders` the
+board's jetsam properties load, and their per-process limits apply. On a
+`minimal` iPhone17,3 iOS 26.5 (23F77) guest on cloudOS 26.4 beta (23E5207q)
+with 4096 MB, 492 of 494 processes had a limit:
+- vphoned's main process 3376 MB, and its second, small process 6 MB (using
+  1.5 MB); SpringBoard 550 MB; small daemons 4–6 MB, each using about half.
+- Twelve apps were opened one after another (Safari, Maps, Photos, Camera,
+  Notes, App Store, Weather, News, Calendar, Music, Settings, Health). No
+  `JetsamEvent` report was written, and vphoned kept the same two processes.
+- Only one process was above 80% of its limit: SystemVoiceAssistant, at
+  4.9 of 6 MB.

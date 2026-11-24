@@ -107,6 +107,9 @@
 			<string>devicetree-exp-arm_io_device_type</string>
 			<string>devicetree-exp-arm_io_soc_generation</string>
 			<string>preboot-exp-devicetree_identity</string>
+			<string>devicetree-exp-syscfg_placeholders</string>
+			<string>devicetree-exp-board_target_type</string>
+			<string>llb-exp-nvram_scrub_bypass</string>
 			<string>dyld-exp-mis_trust_auth</string>
 			<string>system-preferences-exp-root_rows</string>
 			<string>dyld-exp-settings_software_update_row</string>
