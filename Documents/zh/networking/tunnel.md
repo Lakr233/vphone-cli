@@ -46,6 +46,42 @@ vphone-cli vm config <name> --network tunnel
 
 在代理 App 中，客户机会显示为一个独立的客户端，以虚拟机的名称命名，App 的规则会像对其他 App 一样应用于它。
 
+## 让客户机 TCP 经过 SOCKS5 代理
+
+`tunnel` 模式还可以把客户机的 TCP 经过 SOCKS5 代理发送，这样 Mac 上的工具就能观察或过滤客户机的连接。先停止虚拟机，然后执行：
+
+```sh
+vphone-cli vm config <name> --intercept socks5://host:1080
+```
+
+该设置仅在 `tunnel` 模式下生效，并在下次启动时应用。客户机的每个 TCP 连接都会通过代理打开，并用 SOCKS5 CONNECT 连到其原始目的地。发往网关的流量仍然直接连接到 Mac 的回环地址（`127.0.0.1`），不经过代理。
+
+QUIC 运行在代理不承载的 UDP 之上，因此 QUIC App 会绕过代理。加上 `--intercept-block-quic` 可丢弃客户机发往 443 端口的 UDP，促使这些 App 回退到代理可以承载的 TCP：
+
+```sh
+vphone-cli vm config <name> --intercept socks5://host:1080 --intercept-block-quic
+```
+
+`vphone-cli vm info <name>` 会显示当前生效的代理（密码会被隐去）以及是否开启了 QUIC 拦截。
+
+### 凭据
+
+需要用户名和密码的代理会从 URL 中获取它们。不要把明文密码直接写在命令行上：它对 `ps` 可见、会留在 shell 历史中，并会以明文存入磁盘上的虚拟机清单。请改用由 `vphone-cli` 在每次启动虚拟机时解析的、用单引号括起的 `${env:NAME}` 占位符，从环境变量中读取：
+
+```sh
+vphone-cli vm config <name> --intercept 'socks5://user:${env:PROXY_PASS}@host:1080'
+```
+
+`vm config` 只保存该占位符。变量是从启动虚拟机的进程的环境中读取的，因此请把它设在 `vm launch` 上，而不是 `vm config` 上。请从钥匙串取值，不要直接输入密码，否则它会留在 shell 历史中：
+
+```sh
+PROXY_PASS="$(security find-generic-password -s <item> -w)" vphone-cli vm launch <name>
+```
+
+单引号可阻止 shell 展开该占位符，使密码既不出现在命令行中，也不出现在清单里。
+
+从 Launchpad 启动的虚拟机会继承 Launchpad 的环境，其中没有该变量。此时占位符未定义，拦截会失败关闭（fail closed），客户机 TCP 会被重置，直到你从带有该变量的进程重新启动虚拟机。
+
 ## 限制
 
 - **仅支持 IPv4。** 客户机不会获得 IPv6 地址，IPv6 流量会被丢弃。

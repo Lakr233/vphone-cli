@@ -112,7 +112,7 @@ public struct VPhoneInterceptEndpoint: Sendable, Equatable {
     public var host: String
     public var port: UInt16
     /// The raw userinfo fields, still carrying any `${…}` token. Substitution
-    /// happens once at `VPhoneUserspaceNetwork.start()` (REQ-001), not here. A
+    /// happens once at `VPhoneUserspaceNetwork.start()`, not here. A
     /// nil `user` means no credentials (no-auth only); `password` is nil when
     /// the userinfo has no `:`.
     public var user: String?
@@ -157,7 +157,7 @@ public struct VPhoneUserspaceNetworkConfiguration: Sendable, Equatable {
     public var mtu: Int
     /// An explicitly-specified SOCKS5 upstream to redirect guest TCP through, or
     /// nil for direct connect. Resolved once at `VPhoneUserspaceNetwork.start()`.
-    /// Never sourced from the Mac's system proxy setting (NFR-004).
+    /// Never sourced from the Mac's system proxy setting.
     public var intercept: VPhoneInterceptEndpoint?
     /// Drop guest UDP to port 443 so QUIC apps fall back to interceptable TCP.
     public var blockQUIC: Bool

@@ -46,6 +46,42 @@ In Launchpad, pick `tunnel` in the Network section of the machine's Settings….
 
 In a proxy app the guest shows up as its own client, named after the machine, and the app's rules apply to it as to any other app.
 
+## Intercept guest TCP through a SOCKS5 proxy
+
+Tunnel mode can also send the guest's TCP through a SOCKS5 proxy, so a tool on the Mac can observe or filter the guest's connections. Stop the machine, then:
+
+```sh
+vphone-cli vm config <name> --intercept socks5://host:1080
+```
+
+This applies only in `tunnel` mode and takes effect at the next start. Each guest TCP connection is opened through the proxy with a SOCKS5 CONNECT to its original destination. Traffic to the gateway still connects directly to the Mac's loopback (`127.0.0.1`) and never goes through the proxy.
+
+QUIC rides UDP, which the proxy does not carry, so a QUIC app would bypass the proxy. Add `--intercept-block-quic` to drop guest UDP to port 443, which makes those apps fall back to TCP the proxy can carry:
+
+```sh
+vphone-cli vm config <name> --intercept socks5://host:1080 --intercept-block-quic
+```
+
+`vphone-cli vm info <name>` shows the active proxy (with its password redacted) and whether QUIC blocking is on.
+
+### Credentials
+
+A proxy that needs a username and password takes them in the URL. Do not put a literal password on the command line: it is visible to `ps` and saved in your shell history, and it is stored in plaintext in the VM manifest on disk. Read it from the environment instead, with a single-quoted `${env:NAME}` token that `vphone-cli` resolves at each VM start:
+
+```sh
+vphone-cli vm config <name> --intercept 'socks5://user:${env:PROXY_PASS}@host:1080'
+```
+
+`vm config` only stores the token. The variable is read from the environment of the process that starts the VM, so set it on `vm launch`, not on `vm config`. Fill it from the keychain rather than typing the password, which would put it in your shell history:
+
+```sh
+PROXY_PASS="$(security find-generic-password -s <item> -w)" vphone-cli vm launch <name>
+```
+
+The single quotes keep the shell from expanding the token, so the password stays out of the command line and out of the manifest.
+
+A VM started from Launchpad gets Launchpad's environment, which does not have the variable. The token is then undefined, the intercept fails closed, and guest TCP is reset until you start the VM from a process that has the variable.
+
 ## Limits
 
 - **IPv4 only.** The guest gets no IPv6 address, and IPv6 traffic is dropped.

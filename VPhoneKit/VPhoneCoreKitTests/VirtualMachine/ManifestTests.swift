@@ -241,7 +241,7 @@ struct ManifestTests {
         #expect(VPhoneVirtualMachineManifest.fileKind(at: url) == .regularFile)
     }
 
-    // MARK: - TASK-001: intercept / interceptBlockQUIC (REQ-001)
+    // MARK: - intercept / interceptBlockQUIC
 
     /// Encode `sampleManifest()`, overlay the given `networkConfig` entries,
     /// and return the plist data so a decode can be asserted.
@@ -280,7 +280,7 @@ struct ManifestTests {
     }
 
     /// Decode keeps the raw string verbatim; grammar validation is at
-    /// config/plan time, not manifest decode (REQ-001).
+    /// config/plan time, not manifest decode.
     @Test func `intercept decodes verbatim without grammar validation`() throws {
         let loaded = try decodeManifest(networkConfig: ["intercept": "not a valid endpoint"])
         #expect(loaded.networkConfig.intercept == "not a valid endpoint")

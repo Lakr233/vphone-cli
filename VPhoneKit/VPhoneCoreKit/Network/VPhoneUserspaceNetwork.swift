@@ -103,7 +103,7 @@ public final class VPhoneUserspaceNetwork: @unchecked Sendable {
     /// Injected so tests can supply a never-returning, delayed, or multi-address
     /// stub without a real DNS lookup. Default is the production resolver.
     private let resolveProxy: @Sendable (String) -> [VPhoneIPv4Address]
-    /// Deadline for that resolution. Production is 5 s (REQ-004); tests scale it
+    /// Deadline for that resolution. Production is 5 s; tests scale it
     /// so a never-returning resolver does not cost a real 5 s wait.
     private let resolveDeadline: TimeInterval
     /// Sink for the single resolution-failure log line. Default writes through
@@ -313,7 +313,7 @@ public final class VPhoneUserspaceNetwork: @unchecked Sendable {
         return .failed
     }
 
-    /// Resolve the three REQ-001 tokens (`${env:NAME}`, `${vm.name}`, `${vm.id}`)
+    /// Resolve the three tokens (`${env:NAME}`, `${vm.name}`, `${vm.id}`)
     /// in a userinfo field. Returns nil when a token is undefined — an unset
     /// environment variable, or `${vm.id}` on a VM with no predicted UDID — which
     /// fails the upstream closed. The grammar was already validated at parse

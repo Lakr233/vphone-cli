@@ -268,7 +268,7 @@ public struct VPhoneNetworkEdit: Equatable, Sendable {
     /// Let the guest reach the other machines on the shared network, or not.
     public var reachesPeers: Bool?
     /// `.some(nil)` clears interception; `.some("host:port")` sets it. The
-    /// string's grammar is the CLI's to validate (REQ-001).
+    /// string's grammar is the CLI's to validate.
     public var intercept: String??
     /// Turn QUIC blocking on or off; nil leaves it.
     public var interceptBlockQUIC: Bool?
@@ -602,7 +602,7 @@ public enum VPhoneNetworking {
             forwards.append(forward)
         }
 
-        // Interception's edit-path rules (REQ-002/REQ-003) live in one place,
+        // Interception's edit-path rules live in one place,
         // shared with `vm config`: a malformed `--intercept` is rejected
         // (redacted), setting it outside tunnel mode is rejected, and leaving
         // tunnel mode auto-clears a prior setting rather than failing validate.
@@ -654,7 +654,7 @@ public enum VPhoneNetworking {
         }
     }
 
-    /// The REQ-001 Secret-policy warning `vm config` prints on stderr when
+    /// The Secret-policy warning `vm config` prints on stderr when
     /// `--intercept` carries a literal password: it names both exposures (the
     /// command line, and the manifest on disk) and the safer `${env:NAME}` form.
     public static let plaintextInterceptPasswordWarning =
@@ -663,12 +663,12 @@ public enum VPhoneNetworking {
             + "Use a single-quoted '${env:NAME}' password so it is read from the environment at VM start instead."
 
     /// Resolve an edit's interception fields against the current config and the
-    /// resulting network mode — the single owner of REQ-002/REQ-003's edit-path
+    /// resulting network mode — the single owner of the edit-path
     /// rules, shared by `merge` and `vm config` so both agree. A nil
     /// `edit.intercept`/`edit.interceptBlockQUIC` leaves that field as it is.
     ///
     /// Throws the already-redacted `InterceptParseError` when a freshly-set
-    /// `--intercept` fails REQ-001's grammar (the same guard `plan()` uses), and
+    /// `--intercept` fails the grammar (the same guard `plan()` uses), and
     /// `interceptRequiresTunnel` when interception is actively set outside
     /// tunnel mode. Leaving tunnel mode while a prior intercept/QUIC setting is
     /// in place (with none being set now) clears both and signals
@@ -937,7 +937,7 @@ public enum VPhoneNetworking {
                 )
             } ?? .default
             // A set intercept MUST parse: on any reject plan() throws the
-            // already-redacted parse error (REQ-002) rather than failing open.
+            // already-redacted parse error rather than failing open.
             // A nil upstream means "intercept absent" only — a set-but-
             // unparseable value never yields a nil upstream / direct connect.
             if let raw = cfg.intercept {

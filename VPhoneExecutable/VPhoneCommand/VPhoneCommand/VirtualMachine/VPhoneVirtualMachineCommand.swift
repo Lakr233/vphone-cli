@@ -313,7 +313,7 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
     var rom: String?
     @Option(name: .long, help: VPhoneSEPROMOption.help)
     var seprom: String?
-    @Option(name: .long, help: "Redirect tunnel-mode guest TCP through a SOCKS5 proxy: host:port")
+    @Option(name: .long, help: "Redirect tunnel-mode guest TCP through a SOCKS5 proxy: socks5://user:pass@host:port")
     var intercept: String?
     @Flag(name: .long, help: "Stop redirecting guest TCP through a proxy")
     var noIntercept = false
@@ -509,6 +509,12 @@ func describeNetwork(_ net: VPhoneVirtualMachineManifest.NetworkConfig) -> Strin
     }
     if net.mode == .nat, !VPhoneNetworking.reachesPeers(net) {
         parts.append("nat-peers off")
+    }
+    if let intercept = net.intercept {
+        parts.append("intercept \(VPhoneVirtualMachineManifest.NetworkConfig.redactIntercept(intercept))")
+        if net.blockQUIC {
+            parts.append("block-quic")
+        }
     }
     return parts.joined(separator: ", ")
 }
