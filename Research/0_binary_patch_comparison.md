@@ -5367,6 +5367,11 @@ all 130 bundles from the mix extraction (0 unresolved of 35,520 imports), and
 corecrypto. The kernel patch finders miss `apfs_seal_broken` in the watch's
 APFS. The `watchos` preset applies no kernel patch.
 
+From Launchpad's CLI (2026-11-24), the `watchos` preset linked the mix,
+restored, installed the CFW and booted to a vphoned ping. watchOS 27.2 ships
+the watch speaker graph as `graph_configurations.plist` instead of
+`graph_configurations_halspp.plist` (see `Research/Guest/watch_audio.md`).
+
 ### Device tree
 
 The installed tree presents N227b through the board copy iPad and Apple TV
