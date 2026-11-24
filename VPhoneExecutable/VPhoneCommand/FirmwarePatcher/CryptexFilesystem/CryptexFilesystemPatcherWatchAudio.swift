@@ -102,8 +102,13 @@ extension CryptexFilesystemPatcher {
 
         var patched = 0
         for name in try tunings.entries().sorted() where name.hasPrefix("AID") {
-            let relative = "Library/Audio/Tunings/\(name)/VAD/graph_configurations_halspp.plist"
-            guard try target.exists(relative) else {
+            // watchOS 26 ships the speaker graph as graph_configurations_halspp.plist,
+            // watchOS 27 as graph_configurations.plist with the same speaker entries.
+            let directory = "Library/Audio/Tunings/\(name)/VAD"
+            guard let relative = try Self.watchAudioGraphFiles
+                .map({ "\(directory)/\($0)" })
+                .first(where: { try target.exists($0) })
+            else {
                 continue
             }
 
@@ -116,10 +121,14 @@ extension CryptexFilesystemPatcher {
 
         guard patched > 0 else {
             throw VPhonePatchKit.PatcherError.patchVerificationFailed(
-                "Watch audio requires a HALSPP graph configuration in the image",
+                "Watch audio requires a speaker graph configuration in the image",
             )
         }
     }
+
+    /// The speaker graph of an acoustic ID's VAD tunings, in order of preference:
+    /// the HALSPP graph watchOS 26 routes through, then the one watchOS 27 ships.
+    static let watchAudioGraphFiles = ["graph_configurations_halspp.plist", "graph_configurations.plist"]
 
     func patchWatchAudioBudget(targetMount: String) throws {
         let version = try getProductVersion()

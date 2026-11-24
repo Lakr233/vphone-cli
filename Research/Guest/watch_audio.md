@@ -144,7 +144,10 @@ native product 4017 alone does not make physical speaker protection usable.
 
 The restore-image installer now reuses the existing graph patch helper on
 HALSPP configuration files through confined file operations before sealing.
-A missing HALSPP configuration fails the selected install. All broader
+watchOS 27.2 (24S116) no longer ships `graph_configurations_halspp.plist`.
+Its `AID4017/VAD/graph_configurations.plist` carries the same eight
+`speaker_*` entries on `clhs`, so the installer rewrites that file when the
+HALSPP one is absent. An image with neither fails the selected install. All broader
 VirtualAudio instruction patches and the raw-speaker tuning rewrite remain off.
 Graph-only runtime validation on 2026-10-28: WatchAudioGraphTest was restored.
 All eight live speaker entries are `dflt` and ProductIDOverride is 4017. A
