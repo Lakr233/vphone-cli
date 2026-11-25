@@ -53,6 +53,9 @@ struct FirmwarePatchSummaryTests {
         let neither = row(record("a"))
         #expect(neither.count == 2)
         #expect(text(neither) == "     ~ Title")
+        // A data patch whose disassembly starts alike on both sides.
+        let same = row(record("a", before: ".byte 0x09, 0x09", after: ".byte 0x09, 0x09"))
+        #expect(text(same) == "     ~ Title")
     }
 
     @Test func `values are read from disassembly then bytes`() {

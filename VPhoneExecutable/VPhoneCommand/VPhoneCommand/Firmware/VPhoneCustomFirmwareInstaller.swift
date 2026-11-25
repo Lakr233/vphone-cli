@@ -5126,7 +5126,9 @@ struct VPhoneCustomFirmwareInstaller {
                 VPhoneConsole.shared.line(result.stdout, terminator: "")
             }
             if !result.stderr.isEmpty {
-                VPhoneConsole.shared.line(result.stderr, to: .error, terminator: "")
+                // A tool that succeeded only chats on stderr (codesign's "replacing existing
+                // signature"); as a plain line the screen would keep it as a warning.
+                VPhoneConsole.shared.line(result.stderr, result.succeeded ? .note : .plain, to: .error, terminator: "")
             }
         }
         guard result.succeeded else {

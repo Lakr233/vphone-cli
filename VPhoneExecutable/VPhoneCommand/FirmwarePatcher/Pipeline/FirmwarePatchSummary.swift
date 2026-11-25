@@ -53,10 +53,14 @@ enum FirmwarePatchSummary {
             shown = String(shown.dropFirst(component.count + 1))
             shown = shown.prefix(1).uppercased() + shown.dropFirst()
         }
+        let before = value(first.beforeDisasm, first.originalBytes)
+        let after = value(first.afterDisasm, first.patchedBytes)
+        // A data patch whose records start with the same bytes reads "x → x": show the title only.
+        let differs = before != after
         return Cell(
             title: fit(shown, 30),
-            before: value(first.beforeDisasm, first.originalBytes).map { fit($0, 28) },
-            after: value(first.afterDisasm, first.patchedBytes),
+            before: differs ? before.map { fit($0, 28) } : nil,
+            after: differs ? after : nil,
             more: records.count - 1,
         )
     }

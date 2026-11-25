@@ -645,7 +645,8 @@ public struct VPhoneVirtualMachineCreator {
         trace("DFU managed-process outcome: \(dfuOutcome)", v)
         switch dfuOutcome {
         case .matched:
-            VPhoneConsole.shared.line("[+] Panic marker observed; stopping DFU now.", .done)
+            // A note: as the stage's result it would read as a failure beside the check mark.
+            VPhoneConsole.shared.line("[+] Panic marker observed; stopping DFU now.", .note)
         case .exited:
             VPhoneConsole.shared.line("[*] DFU process exited during post-restore reboot window.", .step)
         case .timedOut:
