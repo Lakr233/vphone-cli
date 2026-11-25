@@ -4,7 +4,8 @@ import Foundation
 // MARK: - Kernel Debug Stub
 
 /// The guest's vCPU registers, read through Virtualization's kernel GDB stub
-/// while Virtualization holds the guest paused.
+/// while Virtualization holds the guest paused: where the kernel is, and
+/// the live registers of the threads running user code.
 ///
 /// vphone configures the stub on every VM (`VPhoneVirtualMachine`); it
 /// listens on a loopback port and speaks LLDB's dialect of gdb-remote:
@@ -32,6 +33,22 @@ enum VPhoneGuestDebugStub {
         var root: UInt64 { ttbr1 & 0x0000_FFFF_FFFF_C000 }
     }
 
+    /// One vCPU: what identifies the code it was running, and, for the vCPUs
+    /// asked for, its registers.
+    struct VCPU: Sendable, Equatable {
+        /// The stub's thread ID for the vCPU.
+        let cpu: Int
+        let cpsr: UInt32
+        /// The user page table base, with the ASID in bits 48 and up.
+        let ttbr0: UInt64
+        /// The kernel's current thread (`TPIDR_EL1`).
+        let thread: UInt64
+        /// x0–x28, fp, lr, sp, pc.
+        var registers: [UInt64]?
+        /// `ARM_NEON_STATE64`, as `VPhoneGuestThreads.Thread.neon`.
+        var neon: [UInt64]?
+    }
+
     enum Failure: LocalizedError, CustomStringConvertible {
         case unavailable(String)
         case malformed(String)
@@ -57,6 +74,9 @@ enum VPhoneGuestDebugStub {
     static let threadListReplyLimit = 64
 
     static let kernelNames = ["ttbr1_el1", "vbar_el1"]
+    static let generalNames = (0 ... 28).map { "x\($0)" } + ["fp", "lr", "sp", "pc"]
+    static let neonNames = (0 ... 31).map { "v\($0)" } + ["fpsr", "fpcr"]
+    static let identityNames = ["cpsr", "ttbr0_el1", "tpidr_el1"]
 
     /// The port Virtualization's AP stub listens on: the running VM's
     /// `_VZGDBDebugStub` (private). Its configuration holds only the port
@@ -73,6 +93,15 @@ enum VPhoneGuestDebugStub {
         return port
     }
 
+    /// What one session read: where the kernel is, and the vCPUs.
+    struct Reading: Sendable {
+        let kernel: KernelRegisters
+        /// Every vCPU's identity, with the registers of those `wanted`
+        /// picked; the error if they could not be read. Only the kernel's
+        /// registers are needed to find the kernel.
+        let vcpus: Result<[VCPU], Error>
+    }
+
     /// The kernel's registers, read from the stub at `port`.
     static func kernelRegisters(port: Int) throws -> KernelRegisters {
         let session = try Session.connect(port: port)
@@ -80,11 +109,30 @@ enum VPhoneGuestDebugStub {
         return try kernelRegisters(session)
     }
 
-    /// Every vCPU must hold the same `TTBR1_EL1` and `VBAR_EL1`; a guest
-    /// whose kernel has not set them up yet has none to give.
     static func kernelRegisters(_ session: Session) throws -> KernelRegisters {
         let cpus = try session.start()
-        let numbers = try session.registerNumbers(Set(kernelNames))
+        return try kernelRegisters(session, cpus: cpus, numbers: session.registerNumbers(Set(kernelNames)))
+    }
+
+    /// The kernel's registers and the vCPUs `wanted` picks, read in one
+    /// session from the stub at `port`: one connection, one register
+    /// enumeration, one detach per dump.
+    static func registers(port: Int, wanted: (VCPU) -> Bool) throws -> Reading {
+        let session = try Session.connect(port: port)
+        defer { session.detach() }
+        return try registers(session, wanted: wanted)
+    }
+
+    static func registers(_ session: Session, wanted: (VCPU) -> Bool) throws -> Reading {
+        let cpus = try session.start()
+        let numbers = try session.registerNumbers(Set(kernelNames + identityNames + generalNames + neonNames))
+        let kernel = try kernelRegisters(session, cpus: cpus, numbers: numbers)
+        return Reading(kernel: kernel, vcpus: Result { try vcpus(session, cpus: cpus, numbers: numbers, wanted: wanted) })
+    }
+
+    /// Every vCPU must hold the same `TTBR1_EL1` and `VBAR_EL1`; a guest
+    /// whose kernel has not set them up yet has none to give.
+    static func kernelRegisters(_ session: Session, cpus: [Int], numbers: [String: Int]) throws -> KernelRegisters {
         guard let ttbr1 = numbers["ttbr1_el1"], let vbar = numbers["vbar_el1"] else {
             throw Failure.malformed("no register " + kernelNames.filter { numbers[$0] == nil }.joined(separator: ", "))
         }
@@ -111,6 +159,44 @@ enum VPhoneGuestDebugStub {
             guard let id = hex(text) else { throw Failure.malformed("thread ID \(text.prefix(16))") }
             return id
         }
+    }
+
+    /// Every vCPU's identity; the full registers of those `wanted` picks.
+    static func vcpus(_ session: Session, cpus: [Int], numbers: [String: Int], wanted: (VCPU) -> Bool) throws -> [VCPU] {
+        for name in identityNames + generalNames where numbers[name] == nil {
+            throw Failure.malformed("no register \(name)")
+        }
+        var result: [VCPU] = []
+        for cpu in cpus {
+            func read(_ name: String) throws -> [UInt8] {
+                guard let number = numbers[name] else { throw Failure.malformed("no register \(name)") }
+                return try session.register(number, cpu: cpu)
+            }
+            var vcpu = try VCPU(
+                cpu: cpu, cpsr: UInt32(truncatingIfNeeded: little(read("cpsr"))),
+                ttbr0: little(read("ttbr0_el1")), thread: little(read("tpidr_el1")),
+            )
+            if wanted(vcpu) {
+                vcpu.registers = try generalNames.map { try little(read($0)) }
+                // Without its vector registers the vCPU's general ones are
+                // still worth having: `neon` stays nil.
+                if neonNames.allSatisfy({ numbers[$0] != nil }) {
+                    vcpu.neon = try? {
+                        var words: [UInt64] = []
+                        for index in 0 ..< 32 {
+                            let bytes = try read("v\(index)")
+                            guard bytes.count == 16 else { throw Failure.malformed("v\(index) is \(bytes.count) bytes") }
+                            words += [little(Array(bytes[0 ..< 8])), little(Array(bytes[8 ..< 16]))]
+                        }
+                        let fpsr = try little(read("fpsr")) & 0xFFFF_FFFF
+                        let fpcr = try little(read("fpcr")) & 0xFFFF_FFFF
+                        return words + [fpsr | fpcr << 32, 0]
+                    }()
+                }
+            }
+            result.append(vcpu)
+        }
+        return result
     }
 
     /// `key:value;` pairs of a reply.

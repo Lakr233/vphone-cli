@@ -121,12 +121,144 @@ user chooses from, and its pid is checked against the kernel's `p_comm`.
 6. **Address space.** The process's pmap `ttep` is the root of its user
    tables (`TTBR0_EL1`). Every valid entry below 2^47 becomes a mapping, and
    adjacent mappings with one protection become one `LC_SEGMENT_64` of a
-   Mach-O `MH_CORE` (`CPU_TYPE_ARM64`, `CPU_SUBTYPE_ARM64E`), without thread
-   commands. Protection is read, plus write when `AP[7:6]` is 01, plus
-   execute when `UXN` is clear.
+   Mach-O `MH_CORE` (`CPU_TYPE_ARM64`, `CPU_SUBTYPE_ARM64E`). Protection is
+   read, plus write when `AP[7:6]` is 01, plus execute when `UXN` is clear.
+7. **Threads.** Each of the process's threads becomes an `LC_THREAD` with the
+   registers the kernel saved for it, or, for a thread a vCPU was running,
+   that vCPU's; see [Threads](#threads).
+
 
 The guest is paused from before step 1 to the last byte written, so the list,
 the tables and the pages are one state.
+
+### Threads
+
+The task follows the proc in one allocation, and its `threads` queue holds the
+process's threads. XNU links them with its classic `queue_enter` macros: the
+head and each thread's `task_threads` link point to the next *thread* (its
+start, not its link field), and the last link points back to the head. Each
+user thread points to the registers the kernel saved on its last entry into
+the kernel (`machine.contextData`, the same record as `machine.upcb`), an
+`arm_saved_state` headed by `ARM_SAVED_STATE64` (21) and a count of 74 words,
+and to its vector registers (`machine.uNeon`), headed by
+`ARM_NEON_SAVED_STATE64` (23) and 132 words.
+
+Those four offsets are found on the running guest. Within 0x100 before and
+0x300 after the proc's map pointer, and 0x1000 into a thread, the first head
+and link under which the queues of eight processes all close, at least half
+of them have threads, and (all but one in ten of) their threads point to a
+saved user state with an EL0 `cpsr` are the ones; the register pointers are
+the first offsets at which the threads point to records with those headers.
+On 27.2 one combination qualifies; the queue lengths equal the task's
+`thread_count` (47 for SpringBoard).
+
+Wrong offsets lead into whatever the kernel's memory holds, and the guest
+stays paused meanwhile. A guest whose pages each point to the next would make
+every one of the 128 x 512 combinations walk 8,192 threads, about a minute
+of reads. So discovery reads at most 4,000,000 words (`info.json` records the
+count under `kernel.thread_discovery_reads`) and fails beyond that; only the
+first 16 threads of each sampled queue are checked for register pointers,
+and an offset is dropped at the first thread too many that lacks one. With
+fake memory built that way (a debug build), discovery gives up after
+0.4 s; with closed queues of threads without saved state it needs 69,000
+reads.
+
+The saved state has `x0`–`x28`, `fp`, `lr`, `sp` and `pc` from 8 bytes in,
+then `cpsr` (+0x110), `far` (+0x118) and `esr` (+0x120); the NEON record has
+`v0`–`v31` from 16 bytes in, then `fpsr` and `fpcr`. Thread ID, TSD pointer
+(`TPIDRRO_EL0`, what `thread_dispatchqaddr` starts from) and name are read
+where the kernel's `thread_tid`, `thread_dispatchqaddr` and
+`thread_has_thread_name` read them: the offset of their first
+`ldr xN, [x0, #imm]` before any branch. All 16 symbol maps have the three.
+Each is dropped when the sampled threads disagree: IDs zero or repeated, a
+TSD pointer outside user space or zero for most threads, a name that is not
+terminated text.
+
+| Field, as found | 27.2 |
+| --- | --- |
+| proc to `task->threads` | 0x7b8 |
+| `thread->task_threads` | 0x3f0 |
+| `machine.contextData` / `upcb` | 0xf8 / 0x100 |
+| `machine.uNeon` | 0x108 |
+| `thread_id` (`thread_tid`) | 0x4c8 |
+| TSD (`thread_dispatchqaddr`) | 0x130 |
+| name (`thread_has_thread_name`) | 0x758 |
+
+The core gets what XNU's and LLDB's own cores carry, read the way LLDB's
+`RegisterContextDarwin_arm64_Mach` reads it:
+
+- one `LC_THREAD` per thread, in queue order, with `ARM_THREAD_STATE64` (6, 68
+  words: `x0`–`x28`, `fp`, `lr`, `sp`, `pc`, `cpsr`, 0),
+  `ARM_EXCEPTION_STATE64` (7, 4 words: `far`, `esr`, 0) and
+  `ARM_NEON_STATE64` (17, 132 words);
+- an `LC_NOTE` "addrable bits" (version 4): the fewest bits from 39 up that
+  cover every mapping, so LLDB strips pointer authentication codes from
+  return addresses (39 on 27.2);
+- an `LC_NOTE` "process metadata" with `{"threads":[{"thread_id":…}]}`, one
+  entry per `LC_THREAD`, when every thread's ID is known.
+
+`info.json` lists the threads in the same order with ID, name, TSD, `pc`,
+`lr`, `sp`, `esr` and `far`, and records the offsets under `kernel`. If the
+threads cannot be read, the memory is saved anyway and `threads_error` says
+why.
+
+#### Live registers
+
+Every thread that was not running entered the kernel to stop (system call,
+fault, interrupt, preemption), so its saved registers are exact. A thread
+that was executing user code on a vCPU when the guest was paused (at most
+one per vCPU) has its registers in that vCPU instead; in memory are those of
+its last entry into the kernel. Memory alone cannot even say which threads
+these are: each thread points to the per-CPU data of its last CPU (0x288 on
+27.2), which points to the active thread (+0x8), but each CPU's idle thread
+points to its CPU and back in the same way (+0x10).
+
+The vCPUs can say, through the kernel debug stub that already places the
+kernel (see [Kernel registers](#kernel-registers)). Its `qRegisterInfo<n>`
+names 226 registers (the general ones, `v0`–`v31`, `fpsr`, `fpcr`, AMX and
+SME state, and system registers including `TPIDR_EL1`, `TTBR0_EL1`, `SP_EL0`, `ESR_EL1`, `FAR_EL1`
+and the pointer authentication keys), and after `QThreadSuffixSupported`
+`p<n>;thread:<cpu>;` reads one register of one vCPU. Two things about it
+were checked on a 27.2 guest before relying on it:
+
+- It answers while Virtualization holds the guest paused, and the `D` that
+  ends a session does not let the guest run: two sessions in one pause read
+  all 170 general registers of the five vCPUs identically, where two sessions
+  a second apart outside a pause differed in 17.
+- A pause stops vCPUs wherever they are, user code included. With a
+  JavaScript loop spinning in a vphoned script session, a dump of that
+  process found one vCPU at EL0 whose `TTBR0_EL1` held the process's page
+  table root and whose `TPIDR_EL1` was the first thread in the dump (thread
+  ID and TSD pointer at the offsets above matched); its `pc` was in the loop,
+  where the saved one was at the thread's last system call.
+
+So the stub session that places the kernel at the start of the pause also
+reads each vCPU's `cpsr`, `TTBR0_EL1` and `TPIDR_EL1` (the kernel's current
+thread): one connection, one `qRegisterInfo` enumeration for all the names,
+one `D` per dump. For each vCPU at EL0 in AArch64 (`cpsr` M[4:0] = 0) it
+also reads `x0`–`x28`, `fp`, `lr`, `sp`, `pc`, `v0`–`v31`, `fpsr` and
+`fpcr`; the threads are not known before the kernel is placed, so this is
+read for every vCPU in user code, a few hundred replies of microseconds
+each at most. Once the threads are walked, a vCPU was running one of the
+process's threads if, besides being at EL0, its `TTBR0_EL1` without the
+ASID (bits 48 and up) and CnP (bit 0) is the process's page table root and
+its `TPIDR_EL1` is one of the walked threads; that thread's `LC_THREAD`
+gets the vCPU's registers. A running thread has no pending exception, so its `far` and `esr`
+are zero: the saved ones are from its last entry into the kernel, and LLDB
+would show them as the stop reason (a data abort long handled, for
+example). If the vector registers cannot be read, the thread gets none
+rather than saved ones. `info.json` marks the thread `"live": true` and
+keeps the saved `pc`, `lr`, `sp`, `esr` and `far` under `"saved"`;
+`live_threads` counts them. The pointer authentication keys and other
+system registers are not read.
+
+Without the stub there is no process dump (the kernel is not placed). If
+the kernel's registers are read but a vCPU's are not (a register the stub
+does not name, or a reply that fails), the dump is saved anyway and
+`live_registers_error` says why; a running thread then has its saved
+registers. At EL0 `TPIDR_EL0` holds the CPU number on iOS, not the TSD
+pointer, which is in `TPIDRRO_EL0`; the stub does not offer that register,
+and the match does not need it.
 
 ### Symbol maps
 
@@ -166,6 +298,19 @@ memory, which then sits somewhere in DRAM. None of it may crash or hang
   commands in 1 MB and at most 64 segments; the real kernelcache has 159
   commands in 11 KB. The walk down from the vectors stops after 65,536 pages
   (1 GB) or at address 0.
+- A thread queue is followed only while it holds distinct kernel pointers,
+  for at most 8,192 threads, and must return to its head; register records
+  must be 16-byte aligned with the expected flavor and a word count that
+  covers what is read, and the saved `cpsr` must be EL0 AArch64. A thread
+  failing that is skipped (`skipped_threads`). Finding the offsets stops
+  after 4,000,000 reads.
+- The debug stub is Virtualization's, but what it reports comes from the
+  guest. Every reply must arrive within a second and be under 1 MB, register
+  enumeration stops after 1,024 entries, a register value must be even-length
+  hex, and a vCPU's registers are used only for a thread the walk already
+  found, at most once per thread, and only when all 33 general registers
+  were read; a vector register that cannot be read leaves out the NEON
+  state, not the general registers.
 - A page-table walk reads each table page at most once (a table that points
   back to itself or is shared is not walked again), at most 65,536 tables,
   and refuses a process with more than 2^21 pages, or with more than twice the
@@ -286,14 +431,38 @@ is LLDB's and does not depend on that private layout.
   SpringBoard, not launchd."), and a pid that does not exist gives "No
   process with pid 99999 runs in the guest."; six of each in a row on
   `mp-265`.
-- LLDB opens the cores without threads; `image list` rebuilds the process's
-  images from dyld's all-image info in the dump, and `memory read` works at
-  their addresses.
+- LLDB rebuilds the process's images from dyld's all-image info in the
+  dump (`image list`), and `memory read` works at their addresses.
+- Threads, offline from a 27.2 physical image (2026-11-23):
+  the layout was found in 0.03 s, and the 1,941 threads of all 283 user
+  processes were read in 0.009 s, none skipped; 60 had names. In the
+  SpringBoard core LLDB lists the 47 threads with the kernel's thread IDs,
+  gives the main thread's stop reason as `ESR_EC_IABORT_EL0` at its `pc`
+  (the code page was being paged in), symbolicates backtraces through the
+  shared cache (UIKitCore, libobjc `_objc_rootDealloc`), and strips the
+  authentication code from signed registers. LLDB 2103 shows `fpsr` and
+  `fpcr` from the NEON record but reports `v0`–`v31` as unavailable;
+  `otool -l` prints the record's words. Apple's `gcore` writes no NEON
+  record at all, only the general and exception registers.
+- Live, on that guest right after a boot: SpringBoard 12 threads, 18,684
+  segments, 1.36 GB, guest paused 3.1 s; launchd 8 threads, 17,377
+  segments, 1.19 GB, 2.7 s, as without threads. The offsets matched the
+  offline image, every thread had an ID and a TSD pointer, and none was
+  skipped.
+- Live registers, on that guest: an idle SpringBoard (12 threads) had no
+  thread on a vCPU, guest paused 2.7 s. Three dumps of a vphoned script
+  session spinning a JavaScript loop each marked its thread live (pause
+  2.7 to 3.3 s, as without the stub). LLDB shows that thread at its live
+  `pc` in `libsystem_kernel`, under libsystem_c and JavaScriptCore frames
+  (the clock read behind `Date.now`); the saved `pc` was elsewhere in
+  `libsystem_kernel`. Under swipes alone, about one stub sample in fifteen
+  found any vCPU at EL0; the guest is mostly idle.
 
 ## Not kept
 
-- Threads and registers: a process's threads are not saved, and vCPU state
-  is in the kernel cores only.
+- System registers other than `TTBR1_EL1` and `VBAR_EL1`, which place the
+  kernel, and the three that identify a vCPU's thread; the pointer
+  authentication keys. The debug stub offers all of them.
 - Pages that are not resident: never touched, compressed by the guest, or
   swapped by it. Their bytes are not in guest RAM.
 - Kernels without a symbol map. The two symbols could be found from code

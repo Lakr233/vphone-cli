@@ -87,7 +87,7 @@ enum GuestMemoryTests {
         let file = try Data(contentsOf: core)
         func u32(_ offset: Int) -> UInt32 { file.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset, as: UInt32.self) } }
         func u64(_ offset: Int) -> UInt64 { file.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset, as: UInt64.self) } }
-        expect(u32(0) == 0xFEED_FACF && u32(12) == 4 && u32(16) == 3, "Mach-O core header")
+        expect(u32(0) == 0xFEED_FACF && u32(12) == 4 && u32(16) == 4, "Mach-O core header: 3 segments and a note")
         let first = 32
         expect(u32(first) == 0x19 && u64(first + 24) == address && u64(first + 32) == 0x4000, "first segment")
         let data = Int(u64(first + 40))
@@ -156,6 +156,9 @@ enum GuestMemoryTests {
         malformedInput(expect)
         try kernelFromRegisters(expect, recipes: recipes)
         try kernelRegisters(expect)
+        try threadWalk(expect)
+        try threadCore(expect, folder: folder, memory: memory, mappings: mappings)
+        try liveRegisters(expect)
 
         // Symbol maps: every map with a kernelUUID has both required symbols.
         var maps = 0
@@ -171,6 +174,9 @@ enum GuestMemoryTests {
                 for symbol in VPhoneKernelSymbols.required {
                     let location = try symbols.location(of: symbol)
                     expect(!location.segment.isEmpty, "\(entry): \(symbol)")
+                }
+                for symbol in VPhoneKernelSymbols.optional {
+                    expect((try? symbols.location(of: symbol)) != nil, "\(entry): \(symbol)")
                 }
                 maps += 1
             }
@@ -780,5 +786,454 @@ final class FakeDebugStub: @unchecked Sendable {
             return bytes.map { String(format: "%02x", $0) }.joined()
         }
         return ""
+    }
+}
+
+// MARK: - Threads
+
+/// Kernel memory as 8-byte words by kernel virtual address; every kernel
+/// address reads, as zero unless written, and nothing else does.
+final class FakeKernelMemory: VPhoneKernelMemory {
+    var words: [UInt64: UInt64] = [:]
+
+    func read64(virtual address: UInt64) -> UInt64? {
+        address & 7 == 0 && VPhoneGuestThreads.isKernelPointer(address) ? words[address] ?? 0 : nil
+    }
+
+    func read32(virtual address: UInt64) -> UInt32? {
+        guard address & 3 == 0, let word = read64(virtual: address & ~7) else { return nil }
+        return UInt32(truncatingIfNeeded: address & 4 == 0 ? word : word >> 32)
+    }
+
+    subscript(address: UInt64) -> UInt64 {
+        get { words[address] ?? 0 }
+        set { words[address] = newValue }
+    }
+}
+
+/// Counts reads. Alone, every aligned word of a kernel page points to the
+/// next page, so any walk finds a new kernel pointer at every step; around
+/// other memory, it reads that.
+final class CountingKernelMemory: VPhoneKernelMemory {
+    let wrapped: FakeKernelMemory?
+    private(set) var reads = 0
+
+    init(wrapping wrapped: FakeKernelMemory? = nil) { self.wrapped = wrapped }
+
+    func read64(virtual address: UInt64) -> UInt64? {
+        reads += 1
+        if let wrapped { return wrapped.read64(virtual: address) }
+        return VPhoneGuestThreads.isKernelPointer(address) ? (address & ~0x3FFF) &+ 0x4000 : nil
+    }
+
+    func read32(virtual address: UInt64) -> UInt32? {
+        reads += 1
+        if let wrapped { return wrapped.read32(virtual: address) }
+        return VPhoneGuestThreads.isKernelPointer(address) ? 0 : nil
+    }
+}
+
+extension GuestMemoryTests {
+    // The 27.2 layout: the queue head 0x28 past the map pointer.
+    static let procMap: UInt64 = 0x790
+    static let list: UInt64 = 0x7B8
+    static let link: UInt64 = 0x3F0
+    static let userState: UInt64 = 0xF8
+    static let neonState: UInt64 = 0x108
+    static let idOffset: UInt64 = 0x4C8
+    static let tsdOffset: UInt64 = 0x130
+    static let nameOffset: UInt64 = 0x758
+
+    /// A thread at `thread` with saved registers whose x0 is `seed` and xN
+    /// `seed + N`, pc `seed << 4`, and NEON words `seed << 32 | seed`.
+    static func plantThread(_ memory: FakeKernelMemory, thread: UInt64, seed: UInt64, id: UInt64) {
+        let state = thread + 0x10000  // 16-byte aligned
+        memory[thread + userState] = state
+        memory[state] = UInt64(74) << 32 | 21
+        for index in 0 ..< 29 { memory[state + 8 + UInt64(index * 8)] = seed + UInt64(index) }
+        memory[state + 0xF0] = 0x16F0_0000 + seed  // fp
+        memory[state + 0xF8] = 0x0012_3400_1A0D_62C0 | seed  // lr, signed
+        memory[state + 0x100] = 0x16F0_0000 + seed - 0x10  // sp
+        memory[state + 0x108] = seed << 4  // pc
+        memory[state + 0x110] = 0x6000_0000  // cpsr: EL0t, Z and C
+        memory[state + 0x118] = 0xDEAD_0000 + seed  // far
+        memory[state + 0x120] = 0x5600_0080  // esr: svc #0x80
+        let neon = thread + 0x20000
+        memory[thread + neonState] = neon
+        memory[neon] = UInt64(132) << 32 | 23
+        for index in 0 ..< 64 { memory[neon + 16 + UInt64(index * 8)] = seed << 32 | seed }
+        memory[neon + 0x210] = UInt64(0x0300_0000) << 32 | 0x10  // fpcr, fpsr
+        memory[thread + idOffset] = id
+        memory[thread + tsdOffset] = 0x1_0000_70E0 + seed * 0x10_0000
+    }
+
+    /// Procs with their threads queued; returns the procs.
+    static func plantProcesses(_ memory: FakeKernelMemory, threadCounts: [Int]) -> [UInt64] {
+        var procs: [UInt64] = []
+        var nextThread: UInt64 = 0xFFFF_FE10_0000_0000
+        var seed: UInt64 = 0x100
+        for (index, count) in threadCounts.enumerated() {
+            let proc = 0xFFFF_FE20_0000_0000 + UInt64(index) * 0x10_0000
+            procs.append(proc)
+            memory[proc + procMap] = 0xFFFF_FE30_0000_0000  // the map, a kernel pointer
+            let head = proc + list
+            var previous = head
+            for _ in 0 ..< count {
+                let thread = nextThread
+                nextThread += 0x10_0000
+                plantThread(memory, thread: thread, seed: seed, id: seed)
+                seed += 1
+                // The head's and each link's next pointer is the thread itself.
+                memory[previous == head ? head : previous + link] = thread
+                previous = thread
+            }
+            memory[previous == head ? head : previous + link] = head
+        }
+        return procs
+    }
+
+    static func threadWalk(_ expect: (Bool, String) -> Void) throws {
+        let memory = FakeKernelMemory()
+        let procs = plantProcesses(memory, threadCounts: [3, 1, 0, 2])
+        var layout = try VPhoneGuestThreads.discover(memory, sample: procs, map: procMap)
+        expect(layout.list == list && layout.link == link, "thread queue: head and link")
+        expect(layout.userState == userState && layout.neonState == neonState, "saved register pointers")
+
+        let (threads, skipped) = try VPhoneGuestThreads.threads(memory, process: procs[0], layout: layout)
+        expect(threads.count == 3 && skipped == 0, "three threads")
+        let first = threads[0].registers
+        expect(first.x[0] == 0x100 && first.x[28] == 0x100 + 28 && first.pc == 0x1000, "x0–x28 and pc")
+        expect(first.lr == 0x0012_3400_1A0D_63C0 && first.sp == 0x16F0_00F0, "lr kept signed, sp")
+        expect(first.cpsr == 0x6000_0000 && first.esr == 0x5600_0080 && first.far == 0xDEAD_0100, "cpsr, esr, far")
+        expect(threads[0].neon?.count == 66 && threads[0].neon?[0] == 0x100_0000_0100, "NEON v0")
+        expect(threads[0].neon?[64] == UInt64(0x0300_0000) << 32 | 0x10 && threads[0].neon?[65] == 0, "fpsr, fpcr, pad")
+        expect(threads[0].id == nil, "no ID offset without the accessor")
+        expect(try VPhoneGuestThreads.threads(memory, process: procs[2], layout: layout).threads.isEmpty, "no threads")
+
+        // The accessors: the first `ldr xN, [x0, #imm]` before a branch.
+        let tid: [UInt32] = [0xB400_0040, 0xF942_6400, 0xD65F_03C0]  // cbz x0; ldr x0, [x0, #0x4c8]; ret
+        expect(VPhoneGuestThreads.accessorOffset(tid) == 0x4C8, "thread_tid's ldr")
+        expect(VPhoneGuestThreads.accessorOffset([0xD65F_03C0, 0xF942_6400]) == nil, "nothing after ret")
+        expect(VPhoneGuestThreads.accessorOffset([0x9400_0010, 0xF942_6400]) == nil, "nothing after bl")
+        expect(VPhoneGuestThreads.accessorOffset([0xF942_6420]) == nil, "base other than x0")
+        layout.id = idOffset
+        layout.tsd = tsdOffset
+        layout.name = nameOffset
+        let all = procs.flatMap { VPhoneGuestThreads.queue(memory, head: $0 + list, link: link) ?? [] }
+        let checked = VPhoneGuestThreads.checkAccessors(memory, layout, threads: all)
+        expect(checked.id == idOffset && checked.tsd == tsdOffset && checked.name == nameOffset, "accessors kept")
+        let named = try VPhoneGuestThreads.threads(memory, process: procs[0], layout: checked).threads
+        expect(named[1].id == 0x101 && named[1].tsd == 0x1_0000_70E0 + 0x101 * 0x10_0000 && named[1].name == nil,
+               "ID and TSD read, no name")
+
+        // A name buffer, and one that is not a name.
+        let nameBuffer: UInt64 = 0xFFFF_FE40_0000_0000
+        memory[all[0] + nameOffset] = nameBuffer
+        memory[nameBuffer] = UInt64(littleEndian: 0x0064_7261_6F62_7473)  // "stboard"
+        expect(try VPhoneGuestThreads.threads(memory, process: procs[0], layout: checked).threads[0].name == "stboard",
+               "thread name")
+        memory[nameBuffer] = 0x0101_0101_0101_0101
+        expect(VPhoneGuestThreads.checkAccessors(memory, layout, threads: all).name == nil, "unterminated name refused")
+        memory[nameBuffer] = 0x000A_0D41  // "A\r\n"
+        expect(VPhoneGuestThreads.checkAccessors(memory, layout, threads: all).name == nil, "control characters refused")
+        memory[all[0] + nameOffset] = 0
+        memory[all[1] + idOffset] = memory[all[0] + idOffset]
+        expect(VPhoneGuestThreads.checkAccessors(memory, layout, threads: all).id == nil, "repeated thread IDs refused")
+        memory[all[1] + idOffset] = 0x101
+        memory[all[2] + tsdOffset] = 0xFFFF_FE00_0000_0000
+        expect(VPhoneGuestThreads.checkAccessors(memory, layout, threads: all).tsd == nil, "kernel TSD refused")
+
+        try threadMalformed(expect)
+    }
+
+    static func threadMalformed(_ expect: (Bool, String) -> Void) throws {
+        // A queue that loops without coming back to its head, or points back
+        // to a thread it already passed, ends without hanging.
+        let memory = FakeKernelMemory()
+        let procs = plantProcesses(memory, threadCounts: [3, 2])
+        let threads = VPhoneGuestThreads.queue(memory, head: procs[0] + list, link: link)!
+        memory[threads[2] + link] = threads[0]
+        expect(VPhoneGuestThreads.queue(memory, head: procs[0] + list, link: link) == nil, "looping queue refused")
+        memory[threads[2] + link] = threads[2]
+        expect(VPhoneGuestThreads.queue(memory, head: procs[0] + list, link: link) == nil, "self-linked thread refused")
+        memory[threads[2] + link] = 0x1234
+        expect(VPhoneGuestThreads.queue(memory, head: procs[0] + list, link: link) == nil, "user pointer refused")
+        expect((try? VPhoneGuestThreads.threads(memory, process: procs[0], layout: .init(
+            list: list, link: link, userState: userState, neonState: nil,
+        ))) == nil, "broken queue throws")
+
+        // A queue longer than the limit is refused.
+        let long = FakeKernelMemory()
+        let head: UInt64 = 0xFFFF_FE50_0000_0000
+        var previous = head
+        for index in 0 ... VPhoneGuestThreads.threadLimit {
+            let thread = 0xFFFF_FE60_0000_0000 + UInt64(index) * 0x1000
+            long[previous == head ? head : previous + 8] = thread
+            previous = thread
+        }
+        long[previous + 8] = head
+        expect(VPhoneGuestThreads.queue(long, head: head, link: 8) == nil, "queue beyond the thread limit refused")
+
+        // A thread whose record is not a user state is skipped, and
+        // discovery tolerates one in ten such threads.
+        let bad = FakeKernelMemory()
+        let sample = plantProcesses(bad, threadCounts: [6, 5])
+        let victim = VPhoneGuestThreads.queue(bad, head: sample[0] + list, link: link)![1]
+        let state = bad[victim + userState]
+        bad[state + 0x110] = 0x3C5  // cpsr: EL1h
+        let layout = try VPhoneGuestThreads.discover(bad, sample: sample, map: procMap)
+        expect(layout.userState == userState, "one odd thread in eleven tolerated")
+        let (kept, skipped) = try VPhoneGuestThreads.threads(bad, process: sample[0], layout: layout)
+        expect(kept.count == 5 && skipped == 1, "kernel-mode state skipped")
+        bad[state] = UInt64(74) << 32 | 22
+        bad[state + 4] = 0
+        expect(VPhoneGuestThreads.record(bad, thread: victim, at: userState, flavor: 21, words: 72 ... 256) == nil,
+               "wrong flavor refused")
+        bad[state] = UInt64(8) << 32 | 21
+        expect(VPhoneGuestThreads.record(bad, thread: victim, at: userState, flavor: 21, words: 72 ... 256) == nil,
+               "short record refused")
+        bad[victim + userState] = state + 8
+        expect(VPhoneGuestThreads.record(bad, thread: victim, at: userState, flavor: 21, words: 72 ... 256) == nil,
+               "unaligned record refused")
+
+        // No saved registers anywhere: no layout.
+        let empty = FakeKernelMemory()
+        let bare = plantProcesses(empty, threadCounts: [2])
+        for thread in VPhoneGuestThreads.queue(empty, head: bare[0] + list, link: link)! {
+            empty[thread + userState] = 0
+            empty[thread + neonState] = 0
+        }
+        expect((try? VPhoneGuestThreads.discover(empty, sample: bare, map: procMap)) == nil, "no saved state, no layout")
+        expect((try? VPhoneGuestThreads.discover(empty, sample: [], map: procMap)) == nil, "empty sample refused")
+
+        // Memory whose every page points to the next makes every walk run to
+        // the thread limit; discovery gives up at its read budget.
+        let chain = CountingKernelMemory()
+        let started = Date()
+        expect((try? VPhoneGuestThreads.discover(chain, sample: [0xFFFF_FE20_0000_0000], map: procMap)) == nil,
+               "chained pages: no layout")
+        expect(chain.reads <= VPhoneGuestThreads.discoveryReadLimit,
+               "chained pages: \(chain.reads) reads, within the budget")
+        expect(Date().timeIntervalSince(started) < 10, "chained pages: \(Date().timeIntervalSince(started)) s")
+
+        // Rings that close but carry no saved state: each offset stops at
+        // the second failing thread of the sampled ones.
+        var tested = 0
+        expect(!VPhoneGuestThreads.mostly(Array(0 ..< 100)) { _ in tested += 1; return false } && tested == 11,
+               "mostly stops once it cannot pass (\(tested) tests)")
+        expect(VPhoneGuestThreads.mostly(Array(0 ..< 10)) { $0 != 3 }, "one in ten may fail")
+        expect(!VPhoneGuestThreads.mostly([]) { _ in true }, "nothing to test does not pass")
+        let wide = FakeKernelMemory()
+        let crowded = plantProcesses(wide, threadCounts: [40, 40])
+        for thread in crowded.flatMap({ VPhoneGuestThreads.queue(wide, head: $0 + list, link: link)! }) {
+            wide[thread + userState] = 0
+        }
+        let counted = CountingKernelMemory(wrapping: wide)
+        expect((try? VPhoneGuestThreads.discover(counted, sample: crowded, map: procMap)) == nil, "no saved state, no layout")
+        expect(counted.reads < 2_000_000, "threads without saved state: \(counted.reads) reads")
+    }
+
+    /// LC_THREADs and LC_NOTEs as LLDB reads them.
+    static func threadCore(
+        _ expect: (Bool, String) -> Void, folder: URL, memory: VPhoneGuestPhysicalMemory,
+        mappings: [VPhoneGuestKernel.Mapping],
+    ) throws {
+        let kernel = FakeKernelMemory()
+        let procs = plantProcesses(kernel, threadCounts: [2])
+        var layout = try VPhoneGuestThreads.discover(kernel, sample: procs, map: procMap)
+        layout.id = idOffset
+        let threads = try VPhoneGuestThreads.threads(kernel, process: procs[0], layout: layout).threads
+        let core = folder.appendingPathComponent("threads.core")
+        _ = try VPhoneProcessMemoryDump.writeCore(mappings: mappings, threads: threads, memory: memory, to: core)
+        let file = try Data(contentsOf: core)
+        func u32(_ offset: Int) -> UInt32 { file.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset, as: UInt32.self) } }
+        func u64(_ offset: Int) -> UInt64 { file.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: offset, as: UInt64.self) } }
+        expect(u32(16) == 3 + 2 + 2, "3 segments, 2 threads, 2 notes")
+        expect(Int(u32(20)) == 3 * 72 + 2 * 848 + 2 * 40, "sizeofcmds")
+        var offset = 32 + 3 * 72
+        expect(u32(offset) == 4 && u32(offset + 4) == 848, "LC_THREAD")
+        expect(u32(offset + 8) == 6 && u32(offset + 12) == 68, "ARM_THREAD_STATE64")
+        expect(u64(offset + 16) == 0x100 && u64(offset + 16 + 32 * 8) == 0x1000, "x0 and pc")
+        expect(u32(offset + 16 + 33 * 8) == 0x6000_0000, "cpsr")
+        let exception = offset + 16 + 272
+        expect(u32(exception) == 7 && u32(exception + 4) == 4 && u64(exception + 8) == 0xDEAD_0100
+            && u32(exception + 16) == 0x5600_0080, "ARM_EXCEPTION_STATE64")
+        let neon = exception + 24
+        expect(u32(neon) == 17 && u32(neon + 4) == 132 && u64(neon + 8) == 0x100_0000_0100,
+               "ARM_NEON_STATE64")
+        expect(u32(neon + 8 + 512) == 0x10 && u32(neon + 8 + 516) == 0x0300_0000, "fpsr and fpcr")
+        offset += 2 * 848
+        expect(u32(offset) == 0x31 && u32(offset + 4) == 40, "LC_NOTE")
+        let name = String(decoding: file[offset + 8 ..< offset + 24].prefix { $0 != 0 }, as: UTF8.self)
+        expect(name == "addrable bits", "addrable bits note")
+        let bits = Int(u64(offset + 24))
+        expect(u32(bits) == 4 && u32(bits + 4) == 39 && u32(bits + 8) == 39, "39 address bits, version 4")
+        let metadataNote = offset + 40
+        let metadataName = String(decoding: file[metadataNote + 8 ..< metadataNote + 24].prefix { $0 != 0 }, as: UTF8.self)
+        let payload = file[Int(u64(metadataNote + 24)) ..< Int(u64(metadataNote + 24) + u64(metadataNote + 32))]
+        let json = try JSONSerialization.jsonObject(with: Data(payload)) as? [String: Any]
+        let ids = (json?["threads"] as? [[String: Any]])?.compactMap { ($0["thread_id"] as? NSNumber)?.uint64Value }
+        expect(metadataName == "process metadata" && ids == [0x100, 0x101], "thread IDs in order")
+        let segment = Int(u64(32 + 40))
+        expect(segment % page == 0 && segment >= Int(u64(metadataNote + 24) + u64(metadataNote + 32)),
+               "memory after the notes")
+
+        // Without every thread's ID there is no metadata note.
+        let unnamed = threads.map { VPhoneGuestThreads.Thread(
+            address: $0.address, registers: $0.registers, neon: nil, id: nil, tsd: nil, name: nil,
+        ) }
+        let notes = VPhoneProcessMemoryDump.notes(threads: unnamed, addressBits: 39).map(\.0)
+        expect(notes == ["addrable bits"], "no metadata without IDs")
+        expect(VPhoneProcessMemoryDump.threadCommand(unnamed[0]).count == 8 + 280 + 24, "thread without NEON")
+
+        // Address bits cover the highest mapping.
+        func mapping(_ end: UInt64) -> VPhoneGuestKernel.Mapping {
+            .init(virtual: end - 0x4000, physical: 0, size: 0x4000, entry: 0)
+        }
+        expect(VPhoneProcessMemoryDump.addressBits([mapping(1 << 39)]) == 39, "39 bits")
+        expect(VPhoneProcessMemoryDump.addressBits([mapping(1 << 39 + 0x4000)]) == 40, "40 bits")
+        expect(VPhoneProcessMemoryDump.addressBits([mapping(1 << 47)]) == 47, "47 bits")
+        expect(VPhoneProcessMemoryDump.addressBits([]) == 39, "no mappings")
+    }
+}
+
+// MARK: - Live Registers
+
+extension GuestMemoryTests {
+    static func liveRegisters(_ expect: (Bool, String) -> Void) throws {
+        // Which vCPU runs which thread.
+        let root: UInt64 = 0x1_3302_0000
+        let ours: Set<UInt64> = [0xFFFF_FE25_248E_3CC8]
+        let ttbr0 = 0x07D6 << 48 | root
+        func running(_ cpsr: UInt32, _ ttbr0: UInt64, _ thread: UInt64) -> Bool {
+            VPhoneGuestThreads.isRunning(cpsr: cpsr, ttbr0: ttbr0, thread: thread, root: root, threads: ours)
+        }
+        expect(running(0x8000_0000, ttbr0, 0xFFFF_FE25_248E_3CC8), "EL0 on the process's tables, its thread")
+        expect(running(0x8000_0000, ttbr0 | 1, 0xFFFF_FE25_248E_3CC8), "CnP bit ignored")
+        expect(!running(0x6240_03C4, ttbr0, 0xFFFF_FE25_248E_3CC8), "EL1 is not user code")
+        expect(!running(0x8000_0010, ttbr0, 0xFFFF_FE25_248E_3CC8), "AArch32 is not ours")
+        expect(!running(0x8000_0000, 0x07D6 << 48 | 0x9F04_8000, 0xFFFF_FE25_248E_3CC8), "other page tables")
+        expect(!running(0x8000_0000, ttbr0, 0xFFFF_FE25_2211_9770), "another thread")
+
+        // The session, against a fake stub.
+        let kernel = FakeKernelMemory()
+        let procs = plantProcesses(kernel, threadCounts: [3])
+        let layout = try VPhoneGuestThreads.discover(kernel, sample: procs, map: procMap)
+        let threads = try VPhoneGuestThreads.threads(kernel, process: procs[0], layout: layout).threads
+        var names = VPhoneGuestDebugStub.generalNames + ["cpsr"] + VPhoneGuestDebugStub.neonNames
+        names += ["amx.x0", "esr_el1", "ttbr0_el1", "tpidr_el1", "vbar_el1", "ttbr1_el1"]
+        let kernelRegisters: [String: [UInt8]] = [
+            "ttbr1_el1": littleBytes(0x7616_0000 | 1), "vbar_el1": littleBytes(0xFFFF_FE00_3FE1_C000),
+        ]
+        var pair: [Int32] = [0, 0]
+        expect(socketpair(AF_UNIX, SOCK_STREAM, 0, &pair) == 0, "socket pair")
+        let stub = FakeDebugStub(descriptor: pair[1], names: names)
+        // vCPU 1 idles in the kernel; vCPU 2 runs the second thread at EL0.
+        stub.values[1] = [
+            "cpsr": littleBytes(0x6240_03C4, count: 4), "ttbr0_el1": littleBytes(0x7616_C000),
+            "tpidr_el1": littleBytes(0xFFFF_FE25_2211_9770),
+        ].merging(kernelRegisters) { $1 }
+        var busy: [String: [UInt8]] = [
+            "cpsr": littleBytes(0x8000_0000, count: 4), "ttbr0_el1": littleBytes(ttbr0 | 1),
+            "tpidr_el1": littleBytes(threads[1].address), "fpsr": littleBytes(0x10), "fpcr": littleBytes(0x0300_0000),
+        ]
+        for (index, name) in VPhoneGuestDebugStub.generalNames.enumerated() {
+            busy[name] = littleBytes(0x2_0000_A000 + UInt64(index))
+        }
+        for index in 0 ..< 32 {
+            busy["v\(index)"] = littleBytes(UInt64(index)) + littleBytes(UInt64(index) << 8)
+        }
+        busy.merge(kernelRegisters) { $1 }
+        stub.values[2] = busy
+        stub.listsThreadsInStop = false
+        stub.start()
+        let session = VPhoneGuestDebugStub.Session(descriptor: pair[0])
+        let reading = try VPhoneGuestDebugStub.registers(session) {
+            VPhoneGuestThreads.isRunning(
+                cpsr: $0.cpsr, ttbr0: $0.ttbr0, thread: $0.thread, root: root, threads: Set(threads.map(\.address)),
+            )
+        }
+        session.detach()
+        stub.done.wait()
+        let vcpus = try reading.vcpus.get()
+        expect(reading.kernel == .init(ttbr1: 0x7616_0000 | 1, vbar: 0xFFFF_FE00_3FE1_C000), "kernel registers, same session")
+        expect(stub.packets.filter { $0 == "QStartNoAckMode" || $0 == "D" }.count == 2, "one session for both")
+        expect(stub.packets.filter { $0 == "qRegisterInfo0" }.count == 1, "one register enumeration for both")
+        expect(vcpus.map(\.cpu) == [1, 2], "vCPUs from the thread list")
+        expect(vcpus[0].cpsr == 0x6240_03C4 && vcpus[0].registers == nil && vcpus[0].neon == nil, "idle vCPU: identity only")
+        expect(vcpus[1].thread == threads[1].address && vcpus[1].ttbr0 == ttbr0 | 1, "busy vCPU: thread and tables")
+        expect(vcpus[1].registers?.count == 33 && vcpus[1].registers?[32] == 0x2_0000_A020, "busy vCPU: x0–pc")
+        expect(vcpus[1].neon?.count == 66 && vcpus[1].neon?[2] == 1 && vcpus[1].neon?[3] == 0x100, "busy vCPU: v1")
+        expect(vcpus[1].neon?[64] == UInt64(0x0300_0000) << 32 | 0x10 && vcpus[1].neon?[65] == 0, "busy vCPU: fpsr, fpcr")
+        let reads = stub.packets.filter { $0.hasPrefix("p") }
+        expect(reads.filter { $0.hasSuffix("thread:1;") }.count == 5, "five reads for an idle vCPU")
+        expect(!stub.packets.contains("qRegisterInfo" + String(names.count, radix: 16)), "enumeration stops when all are named")
+        expect(stub.packets.first == "QStartNoAckMode" && stub.packets.last == "D", "no-ack first, detach last")
+
+        // The core gets the live registers; info.json keeps the saved ones.
+        let merged = VPhoneGuestThreads.withLiveRegisters(threads, vcpus: vcpus)
+        expect(merged[1].registers.pc == 0x2_0000_A020 && merged[1].registers.cpsr == 0x8000_0000, "live pc and cpsr")
+        expect(merged[1].registers.far == 0 && merged[1].registers.esr == 0, "no pending exception on a live thread")
+        expect(merged[1].saved == threads[1].registers && merged[1].neon == vcpus[1].neon, "saved kept, NEON live")
+        expect(merged[0].saved == nil && merged[0].registers == threads[0].registers, "other threads unchanged")
+        let info = VPhoneProcessMemoryDump.threadDescription(merged[1]).json
+        let saved = info["saved"] as? [String: String]
+        expect(info["live"] as? Bool == true && saved?["pc"] == hex(threads[1].registers.pc), "info.json: live, with the saved pc")
+        expect(saved?["esr"] == hex(UInt64(0x5600_0080)) && info["esr"] as? String == hex(0), "info.json: the saved esr")
+        expect(VPhoneProcessMemoryDump.threadDescription(merged[0]).json["live"] == nil, "info.json: saved thread")
+        let command = VPhoneProcessMemoryDump.threadCommand(merged[1])
+        expect(command.withUnsafeBytes { $0.loadUnaligned(fromByteOffset: 16 + 32 * 8, as: UInt64.self) } == 0x2_0000_A020,
+               "LC_THREAD has the live pc")
+
+        // No double claims, no partial registers, no saved NEON with live registers.
+        var twice = vcpus[1]
+        twice.registers = Array(repeating: 7, count: 33)
+        let doubled = VPhoneGuestThreads.withLiveRegisters(threads, vcpus: [vcpus[1], twice])
+        expect(doubled[1].registers.pc == 0x2_0000_A020, "a second vCPU on the same thread ignored")
+        var partial = vcpus[1]
+        partial.registers = Array(repeating: 7, count: 12)
+        expect(VPhoneGuestThreads.withLiveRegisters(threads, vcpus: [partial])[1].saved == nil, "partial registers ignored")
+        var noNeon = vcpus[1]
+        noNeon.neon = nil
+        expect(VPhoneGuestThreads.withLiveRegisters(threads, vcpus: [noNeon])[1].neon == nil, "saved NEON dropped")
+
+        // A vector register the stub will not read leaves NEON out, not the
+        // general registers.
+        var pair3: [Int32] = [0, 0]
+        _ = socketpair(AF_UNIX, SOCK_STREAM, 0, &pair3)
+        let patchy = FakeDebugStub(descriptor: pair3[1], names: names)
+        var unreadable = busy
+        unreadable["v7"] = nil
+        patchy.values[2] = unreadable
+        patchy.start()
+        let patchySession = VPhoneGuestDebugStub.Session(descriptor: pair3[0])
+        let partly = try? VPhoneGuestDebugStub.registers(patchySession) { _ in true }.vcpus.get()
+        patchySession.detach()
+        patchy.done.wait()
+        expect(partly?.first?.registers?.count == 33 && partly?.first?.neon == nil, "unreadable v7: general registers kept")
+
+        // A stub without the registers that identify a thread still places
+        // the kernel; one without the kernel's registers places nothing;
+        // and none at all.
+        var pair2: [Int32] = [0, 0]
+        _ = socketpair(AF_UNIX, SOCK_STREAM, 0, &pair2)
+        let bare = FakeDebugStub(descriptor: pair2[1], names: VPhoneGuestDebugStub.generalNames + ["cpsr", "ttbr1_el1", "vbar_el1"])
+        bare.values[1] = kernelRegisters
+        bare.start()
+        let bareSession = VPhoneGuestDebugStub.Session(descriptor: pair2[0])
+        let bareReading = try? VPhoneGuestDebugStub.registers(bareSession) { _ in true }
+        expect(bareReading != nil && (try? bareReading?.vcpus.get()) == nil, "no tpidr_el1: kernel placed, vCPUs refused")
+        bareSession.detach()
+        bare.done.wait()
+        var pair4: [Int32] = [0, 0]
+        _ = socketpair(AF_UNIX, SOCK_STREAM, 0, &pair4)
+        let kernelless = FakeDebugStub(descriptor: pair4[1], names: names.filter { $0 != "vbar_el1" })
+        kernelless.values[2] = busy
+        kernelless.start()
+        let kernellessSession = VPhoneGuestDebugStub.Session(descriptor: pair4[0])
+        expect((try? VPhoneGuestDebugStub.registers(kernellessSession) { _ in true }) == nil, "no vbar_el1: refused")
+        kernellessSession.detach()
+        kernelless.done.wait()
+        expect((try? VPhoneGuestDebugStub.registers(port: 1) { _ in true }) == nil, "no stub listening")
     }
 }

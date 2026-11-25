@@ -79,14 +79,23 @@ func vphoneFindGuestKernel(
     _ memory: VPhoneGuestPhysicalMemory,
     stubPort: Int?,
 ) -> (memory: VPhoneGuestPhysicalMemory, kernel: Result<VPhoneGuestKernel, Error>) {
-    let kernel = Result { () throws -> VPhoneGuestKernel in
-        guard let stubPort else {
-            throw VPhoneGuestDebugStub.Failure.unavailable("Virtualization did not report its port")
-        }
-        let registers = try VPhoneGuestDebugStub.kernelRegisters(port: stubPort)
-        return try VPhoneGuestKernel.locate(in: memory, registers: registers)
-    }
+    vphoneFindGuestKernel(memory, registers: Result {
+        try VPhoneGuestDebugStub.kernelRegisters(port: vphoneDebugStubPort(stubPort))
+    })
+}
+
+/// The guest's kernel, placed by `registers` already read from the stub.
+func vphoneFindGuestKernel(
+    _ memory: VPhoneGuestPhysicalMemory,
+    registers: Result<VPhoneGuestDebugStub.KernelRegisters, Error>,
+) -> (memory: VPhoneGuestPhysicalMemory, kernel: Result<VPhoneGuestKernel, Error>) {
+    let kernel = Result { try VPhoneGuestKernel.locate(in: memory, registers: registers.get()) }
     return ((try? kernel.get())?.memory ?? memory, kernel)
+}
+
+func vphoneDebugStubPort(_ port: Int?) throws -> Int {
+    guard let port else { throw VPhoneGuestDebugStub.Failure.unavailable("Virtualization did not report its port") }
+    return port
 }
 
 // MARK: - Physical Memory
@@ -323,6 +332,14 @@ struct VPhoneProcessMemoryDump {
     let resumeFailure: String?
     let kernelUUID: String
     let symbolMap: String
+    /// The threads in the core, each an `LC_THREAD`.
+    let threads: Int
+    /// Why the core has no threads, when it has none for a reason.
+    let threadsError: String?
+    /// The threads whose registers are the live ones of the vCPU running them.
+    let liveThreads: Int
+    /// Why the vCPUs' live registers could not be read.
+    let liveError: String?
 
     enum Failure: LocalizedError, CustomStringConvertible {
         case renamed(Int32, expected: String, found: String)
@@ -374,10 +391,13 @@ struct VPhoneProcessMemoryDump {
                 bytes: dump.bytes, unreadableBytes: dump.unreadable, pausedSeconds: seconds,
                 resumeFailure: resumeFailure,
                 kernelUUID: dump.kernelUUID, symbolMap: dump.symbolMap,
+                threads: dump.threads.count, threadsError: dump.threadsError,
+                liveThreads: dump.threads.count(where: { $0.live }), liveError: dump.liveError,
             )
-            try result.writeInfo(machineName: machineName, pageTableRoot: dump.root, kernelDetails: dump.kernelDetails)
+            try result.writeInfo(machineName: machineName, pageTableRoot: dump.root, captured: dump)
             print("[memdump] Saved \(dump.file.lastPathComponent): \(dump.segments) segments, "
-                + VPhoneMemoryDump.Failure.gigabytes(dump.bytes) + String(format: "; guest paused %.1f s", seconds))
+                + VPhoneMemoryDump.Failure.gigabytes(dump.bytes) + ", \(dump.threads.count) threads"
+                + String(format: "; guest paused %.1f s", seconds))
             return result
         } catch {
             try? FileManager.default.removeItem(at: folder)
@@ -397,6 +417,11 @@ struct VPhoneProcessMemoryDump {
         let symbolMap: String
         /// Where the process is, and the offsets the kernel walk found.
         let kernelDetails: [String: String]
+        let threads: [ThreadInfo]
+        let skippedThreads: Int
+        let threadsError: String?
+        let liveError: String?
+        let addressBits: Int
     }
 
     private static func capture(
@@ -406,10 +431,20 @@ struct VPhoneProcessMemoryDump {
         folder: URL,
         stubPort: Int?,
     ) throws -> Captured {
-        let kernel = try vphoneFindGuestKernel(memory, stubPort: stubPort).kernel.get()
+        // One stub session reads where the kernel is and every vCPU's
+        // identity, with the registers of each one running user code (EL0):
+        // the threads are not known yet, so which of those it ran is decided
+        // below.
+        let reading = Result {
+            try VPhoneGuestDebugStub.registers(port: vphoneDebugStubPort(stubPort)) { $0.cpsr & 0x1F == 0 }
+        }
+        let kernel = try vphoneFindGuestKernel(memory, registers: reading.map(\.kernel)).kernel.get()
         // DRAM where the kernel's registers place it.
         let memory = kernel.memory
-        let process = try kernel.process(pid: pid)
+        let processes = try kernel.processes()
+        guard let process = processes.first(where: { $0.pid == pid }) else {
+            throw VPhoneGuestKernel.Failure.noProcess(pid)
+        }
         // vphoned's name is p_comm, cut at 16 characters.
         if let expectedName, !expectedName.isEmpty, !process.name.isEmpty,
            !expectedName.hasPrefix(process.name), !process.name.hasPrefix(expectedName)
@@ -419,19 +454,104 @@ struct VPhoneProcessMemoryDump {
         guard let root = process.pageTableRoot else { throw Failure.noAddressSpace(pid, process.name) }
         let mappings = try kernel.userMappings(root: root)
         try VPhoneMemoryDump.checkSpace(at: folder, needed: spaceNeeded(mappings))
+        // The memory is worth saving without the threads.
+        var threads: [VPhoneGuestThreads.Thread] = []
+        var skipped = 0
+        var threadLayout: VPhoneGuestThreads.Layout?
+        var threadsError: String?
+        do {
+            let layout = try kernel.threadLayout(processes)
+            (threads, skipped) = try VPhoneGuestThreads.threads(kernel, process: process.address, layout: layout)
+            threadLayout = layout
+        } catch {
+            threadsError = error.localizedDescription
+        }
+        // A thread running user code on a vCPU has its registers there, not
+        // in memory; the stub session that placed the kernel read them. If
+        // it could not, such a thread keeps the registers of its last entry
+        // into the kernel.
+        var liveError: String?
+        if !threads.isEmpty {
+            let addresses = Set(threads.map(\.address))
+            do {
+                let vcpus = try reading.get().vcpus.get().filter {
+                    VPhoneGuestThreads.isRunning(
+                        cpsr: $0.cpsr, ttbr0: $0.ttbr0, thread: $0.thread, root: root, threads: addresses,
+                    )
+                }
+                threads = VPhoneGuestThreads.withLiveRegisters(threads, vcpus: vcpus)
+            } catch {
+                liveError = error.localizedDescription
+            }
+        }
         let file = folder.appendingPathComponent(VPhoneMemoryDump.fileName(forCore: process.name.isEmpty ? "process" : process.name))
-        let (segments, bytes, unreadable) = try writeCore(mappings: mappings, memory: memory, to: file)
+        let (segments, bytes, unreadable) = try writeCore(mappings: mappings, threads: threads, memory: memory, to: file)
+        var kernelDetails = [
+            "proc": hex(process.address),
+            "proc_p_pid": kernel.layout.map { hex($0.pid) } ?? "",
+            "proc_p_comm": kernel.layout.map { hex($0.name) } ?? "",
+            "proc_task_map": kernel.layout.map { hex($0.map) } ?? "",
+            "map_pmap": kernel.layout.map { hex($0.pmap) } ?? "",
+        ]
+        if let threadLayout {
+            kernelDetails["proc_task_threads"] = hex(threadLayout.list)
+            kernelDetails["thread_task_threads"] = hex(threadLayout.link)
+            kernelDetails["thread_user_state"] = hex(threadLayout.userState)
+            kernelDetails["thread_neon_state"] = threadLayout.neonState.map(hex) ?? ""
+            kernelDetails["thread_id"] = threadLayout.id.map(hex) ?? ""
+            kernelDetails["thread_tsd"] = threadLayout.tsd.map(hex) ?? ""
+            kernelDetails["thread_name"] = threadLayout.name.map(hex) ?? ""
+            kernelDetails["thread_discovery_reads"] = String(threadLayout.reads)
+        }
         return Captured(
             file: file, name: process.name, segments: segments, bytes: bytes, unreadable: unreadable,
             root: root, kernelUUID: kernel.kernelUUID, symbolMap: kernel.symbols.id,
-            kernelDetails: [
-                "proc": hex(process.address),
-                "proc_p_pid": kernel.layout.map { hex($0.pid) } ?? "",
-                "proc_p_comm": kernel.layout.map { hex($0.name) } ?? "",
-                "proc_task_map": kernel.layout.map { hex($0.map) } ?? "",
-                "map_pmap": kernel.layout.map { hex($0.pmap) } ?? "",
-            ],
+            kernelDetails: kernelDetails,
+            threads: threads.map(Self.threadDescription), skippedThreads: skipped, threadsError: threadsError,
+            liveError: liveError, addressBits: addressBits(mappings),
         )
+    }
+
+    /// What info.json says about a thread; the registers are in the core.
+    static func threadDescription(_ thread: VPhoneGuestThreads.Thread) -> ThreadInfo {
+        ThreadInfo(
+            id: thread.id, name: thread.name, tsd: thread.tsd,
+            pc: thread.registers.pc, lr: thread.registers.lr, sp: thread.registers.sp,
+            esr: thread.registers.esr, far: thread.registers.far,
+            saved: thread.saved,
+        )
+    }
+
+    struct ThreadInfo: Sendable {
+        let id: UInt64?
+        let name: String?
+        let tsd: UInt64?
+        let pc: UInt64
+        let lr: UInt64
+        let sp: UInt64
+        let esr: UInt32
+        let far: UInt64
+        /// Set when the registers are a vCPU's: the ones the kernel had saved.
+        var saved: VPhoneGuestThreads.Registers? = nil
+
+        var live: Bool { saved != nil }
+
+        var json: [String: Any] {
+            var json: [String: Any] = [
+                "pc": hex(pc), "lr": hex(lr), "sp": hex(sp), "esr": hex(UInt64(esr)), "far": hex(far),
+            ]
+            if let id { json["thread_id"] = id }
+            if let name { json["name"] = name }
+            if let tsd { json["tsd"] = hex(tsd) }
+            if let saved {
+                json["live"] = true
+                json["saved"] = [
+                    "pc": hex(saved.pc), "lr": hex(saved.lr), "sp": hex(saved.sp),
+                    "esr": hex(UInt64(saved.esr)), "far": hex(saved.far),
+                ]
+            }
+            return json
+        }
     }
 
     /// The protection of a page from its descriptor: EL0 read/write from
@@ -444,9 +564,82 @@ struct VPhoneProcessMemoryDump {
         return protection
     }
 
+    /// How many low address bits a user pointer of this process uses: the
+    /// fewest, from 39 up, that cover every mapping. LLDB strips the bits
+    /// above (pointer authentication codes) from return addresses and
+    /// pointers; no mapped address needs them.
+    static func addressBits(_ mappings: [VPhoneGuestKernel.Mapping]) -> Int {
+        guard let end = mappings.map({ $0.virtual &+ $0.size }).max(), end > 1 else { return 39 }
+        return max(39, 64 - (end - 1).leadingZeroBitCount)
+    }
+
+    /// One `LC_THREAD` the way XNU's and LLDB's cores write one: the user
+    /// registers (`ARM_THREAD_STATE64`), the fault registers
+    /// (`ARM_EXCEPTION_STATE64`) and, when known, the vector registers
+    /// (`ARM_NEON_STATE64`).
+    static func threadCommand(_ thread: VPhoneGuestThreads.Thread) -> Data {
+        var state = Data()
+        let registers = thread.registers
+        state.appendLittle(UInt32(6))  // ARM_THREAD_STATE64
+        state.appendLittle(UInt32(68))
+        for value in registers.x + [registers.fp, registers.lr, registers.sp, registers.pc] {
+            state.appendLittle(value)
+        }
+        state.appendLittle(registers.cpsr)
+        state.appendLittle(UInt32(0))  // flags: the pointers are as the thread had them
+        state.appendLittle(UInt32(7))  // ARM_EXCEPTION_STATE64
+        state.appendLittle(UInt32(4))
+        state.appendLittle(registers.far)
+        state.appendLittle(registers.esr)
+        state.appendLittle(UInt32(0))  // exception
+        if let neon = thread.neon, neon.count == 66 {
+            state.appendLittle(UInt32(17))  // ARM_NEON_STATE64
+            state.appendLittle(UInt32(132))
+            for word in neon { state.appendLittle(word) }
+        }
+        var command = Data()
+        command.appendLittle(UInt32(4))  // LC_THREAD
+        command.appendLittle(UInt32(8 + state.count))
+        return command + state
+    }
+
+    /// An `LC_NOTE` naming `payload` at `offset` in the file.
+    static func noteCommand(_ name: String, offset: UInt64, size: Int) -> Data {
+        var command = Data()
+        command.appendLittle(UInt32(0x31))  // LC_NOTE
+        command.appendLittle(UInt32(40))
+        let bytes = Array(name.utf8.prefix(16))
+        command.append(contentsOf: bytes + [UInt8](repeating: 0, count: 16 - bytes.count))
+        command.appendLittle(offset)
+        command.appendLittle(UInt64(size))
+        return command
+    }
+
+    /// The `LC_NOTE`s LLDB reads from a user process core: "addrable bits"
+    /// (version 4: the bits for low and high addresses) and, when every
+    /// thread's ID is known, "process metadata", whose `threads` list gives
+    /// the `LC_THREAD`s their IDs in order.
+    static func notes(threads: [VPhoneGuestThreads.Thread], addressBits: Int) -> [(String, Data)] {
+        var bits = Data()
+        bits.appendLittle(UInt32(4))
+        bits.appendLittle(UInt32(addressBits))
+        bits.appendLittle(UInt32(addressBits))
+        bits.appendLittle(UInt32(0))
+        var notes = [("addrable bits", bits)]
+        let ids = threads.compactMap(\.id)
+        if !threads.isEmpty, ids.count == threads.count {
+            let metadata: [String: Any] = ["threads": ids.map { ["thread_id": $0] }]
+            if let json = try? JSONSerialization.data(withJSONObject: metadata, options: [.sortedKeys]) {
+                notes.append(("process metadata", json))
+            }
+        }
+        return notes
+    }
+
     /// Writes the Mach-O core; returns (segments, bytes, bytes outside guest RAM).
     static func writeCore(
         mappings: [VPhoneGuestKernel.Mapping],
+        threads: [VPhoneGuestThreads.Thread] = [],
         memory: VPhoneGuestPhysicalMemory,
         to url: URL,
     ) throws -> (Int, UInt64, UInt64) {
@@ -461,19 +654,32 @@ struct VPhoneProcessMemoryDump {
                 runs.append((mapping.virtual, mapping.size, protection, index, 1))
             }
         }
-        // The mappings are bounded (`VPhoneGuestPageTables.Limits`), so this
-        // holds; a header beyond it would not fit its 32-bit fields.
-        guard runs.count <= Int(UInt32.max) / 72 else {
-            throw VPhoneMemoryDump.Failure.writeFailed(url.path, "too many segments (\(runs.count))")
+        // Segments, then the threads, then the notes, whose payloads follow
+        // the load commands; the memory starts at the next 16 KB.
+        let threadCommands = threads.map(threadCommand)
+        let notes = notes(threads: threads, addressBits: addressBits(mappings))
+        let commandCount = runs.count + threadCommands.count + notes.count
+        let commandsSize = runs.count * 72 + threadCommands.reduce(0) { $0 + $1.count } + notes.count * 40
+        // The mappings (`VPhoneGuestPageTables.Limits`) and threads
+        // (`VPhoneGuestThreads.threadLimit`) are bounded, so this holds; a
+        // header beyond it would not fit its 32-bit fields.
+        guard commandsSize <= Int(UInt32.max) / 2 else {
+            throw VPhoneMemoryDump.Failure.writeFailed(url.path, "too many load commands (\(commandCount))")
         }
-        let commandsSize = runs.count * 72
-        var fileOffset = (UInt64(32 + commandsSize) + 0x3FFF) & ~0x3FFF
+        var notePayloads = Data()
+        var noteCommands = Data()
+        for (name, payload) in notes {
+            noteCommands += noteCommand(name, offset: UInt64(32 + commandsSize + notePayloads.count), size: payload.count)
+            notePayloads += payload
+            notePayloads.append(contentsOf: [UInt8](repeating: 0, count: (16 - payload.count % 16) % 16))
+        }
+        var fileOffset = (UInt64(32 + commandsSize + notePayloads.count) + 0x3FFF) & ~0x3FFF
         var head = Data()
         head.appendLittle(UInt32(0xFEED_FACF))
         head.appendLittle(UInt32(0x0100_000C))  // CPU_TYPE_ARM64
         head.appendLittle(UInt32(2))  // CPU_SUBTYPE_ARM64E
         head.appendLittle(UInt32(4))  // MH_CORE
-        head.appendLittle(UInt32(runs.count))
+        head.appendLittle(UInt32(commandCount))
         head.appendLittle(UInt32(commandsSize))
         head.appendLittle(UInt32(0))
         head.appendLittle(UInt32(0))
@@ -493,6 +699,8 @@ struct VPhoneProcessMemoryDump {
             placements.append(fileOffset)
             fileOffset += run.size
         }
+        for command in threadCommands { head += command }
+        head += noteCommands + notePayloads
 
         let fd = open(url.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0o666)
         guard fd >= 0 else { throw VPhoneMemoryDump.Failure.writeFailed(url.path, String(cString: strerror(errno))) }
@@ -525,9 +733,9 @@ struct VPhoneProcessMemoryDump {
         return (runs.count, runs.reduce(0) { $0 + $1.size }, unreadable)
     }
 
-    private func writeInfo(machineName: String, pageTableRoot: UInt64, kernelDetails: [String: String]) throws {
-        let info: [String: Any] = [
-            "kernel": kernelDetails,
+    private func writeInfo(machineName: String, pageTableRoot: UInt64, captured: Captured) throws {
+        var info: [String: Any] = [
+            "kernel": captured.kernelDetails,
             "format": "vphone-process-memory/1",
             "machine": machineName,
             "created": ISO8601DateFormatter().string(from: Date()),
@@ -541,11 +749,24 @@ struct VPhoneProcessMemoryDump {
             "kernel_uuid": kernelUUID,
             "symbol_map": symbolMap,
             "paused_seconds": VPhoneMemoryDump.tenths(pausedSeconds),
+            "address_bits": captured.addressBits,
+            "threads": captured.threads.map(\.json),
             "notes": "Mach-O core of the process's resident pages, read through its page tables in guest "
                 + "RAM without the guest's help. Pages the process never touched, and pages the guest "
-                + "compressed, are not included; neither are its threads. Permissions come from the page "
-                + "table entries and are approximate.",
+                + "compressed, are not included. Permissions come from the page table entries and are "
+                + "approximate. Each thread is an LC_THREAD with the user registers the kernel saved when "
+                + "the thread last entered it (general, exception and NEON registers), in queue order; "
+                + "\"threads\" lists them in the same order. A thread that was running user code on a vCPU "
+                + "when the guest was paused (at most one per vCPU) has that vCPU's registers instead, read "
+                + "through Virtualization's kernel debug stub, and is marked \"live\", with the saved pc, lr, "
+                + "sp, esr and far under \"saved\"; its own esr and far are zero, as no exception is pending. "
+                + "If the vCPUs' registers could not be read, \"live_registers_error\" says why, "
+                + "and such a thread has its registers from its last entry into the kernel.",
         ]
+        info["live_threads"] = liveThreads
+        if captured.skippedThreads > 0 { info["skipped_threads"] = captured.skippedThreads }
+        if let error = captured.threadsError { info["threads_error"] = error }
+        if let error = captured.liveError { info["live_registers_error"] = error }
         try VPhoneMemoryDump.writeJSON(info, to: folder.appendingPathComponent("info.json"))
         try VPhoneHostFilePermissions.makeAccessible(at: folder)
         try VPhoneHostFilePermissions.makeAccessible(at: file)
