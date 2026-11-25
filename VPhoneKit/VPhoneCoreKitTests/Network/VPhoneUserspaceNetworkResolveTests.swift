@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import VPhoneCoreKit
 
-/// Resolve-at-start wiring for the SOCKS upstream (TASK-003).
+/// Resolve-at-start wiring for the SOCKS upstream.
 ///
 /// These build a real `VPhoneUserspaceNetwork` over a socket pair — no VM — and
 /// inject a stub resolver so the no-IPv4, multi-address, and blocking cases run

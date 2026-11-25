@@ -231,7 +231,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         /// An explicit host SOCKS5 endpoint `host:port` that tunnel-mode guest
         /// TCP is transparently redirected through. Nil disables interception.
         /// Never sourced from the Mac's system proxy. Valid only in `tunnel`
-        /// mode (`VPhoneNetworking.plan`); grammar and reject rules are REQ-001.
+        /// mode (`VPhoneNetworking.plan`); the CLI validates grammar and reject rules.
         public let intercept: String?
         /// When true, tunnel-mode guest UDP to port 443 is dropped, forcing
         /// QUIC apps onto interceptable TCP. Absent or null means false.
@@ -307,7 +307,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             )
         }
 
-        /// A rejected `intercept` value, carrying the REQ-001 message with the
+        /// A rejected `intercept` value, carrying the validation message with the
         /// raw value already redacted so a literal password never leaks.
         public struct InterceptParseError: Error, CustomStringConvertible {
             public let reason: String
@@ -329,7 +329,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
             return "\(raw[..<raw.index(after: colon)])***\(raw[at...])"
         }
 
-        /// Parse a SOCKS5 proxy spec and validate REQ-001's grammar and `${…}`
+        /// Parse a SOCKS5 proxy spec and validate its grammar and `${…}`
         /// token set. Accepts a bare `host:port` (equivalent to
         /// `socks5://host:port`, no credentials) or
         /// `socks5://[user[:password]@]host:port`. The scheme, if present, must
@@ -367,7 +367,7 @@ public struct VPhoneVirtualMachineManifest: Codable, Sendable {
         }
 
         /// Whether a percent-decoded userinfo field contains only the three
-        /// REQ-001 tokens (`${env:NAME}`, `${vm.name}`, `${vm.id}`) wherever
+        /// supported tokens (`${env:NAME}`, `${vm.name}`, `${vm.id}`) wherever
         /// `${` appears. A `${` that closes to anything else, or never closes,
         /// is rejected. Values are validated, never resolved, here.
         private static func hasOnlyInterceptTokens(_ field: String) -> Bool {

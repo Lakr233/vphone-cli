@@ -322,7 +322,7 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
     private let upstream: VPhoneSOCKSUpstream?
 
     /// One deadline covering TCP connect + greeting + auth + CONNECT reply for a
-    /// proxied flow. Production is 10 s (REQ-004); tests scale it.
+    /// proxied flow. Production is 10 s; tests scale it.
     private let handshakeTimeout: TimeInterval
     /// Sink for the per-flow SOCKS failure log line (one per failure). Default
     /// writes through the forwarder's own logger; tests inject a collector.
@@ -454,18 +454,26 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
             return
         }
 
-        // Interception: a configured upstream reroutes every flow through the
-        // proxy and never connects directly. A failed upstream fails closed —
-        // the guest is reset rather than silently bypassing the proxy.
+        // A gateway flow stands for the Mac's own loopback, which the proxy
+        // cannot reach, so it connects directly for every upstream state — the
+        // gateway check runs before the fail-closed reset. Every other flow
+        // follows the upstream: a configured one reroutes through the proxy and
+        // never connects directly, and a failed one fails closed — the guest is
+        // reset rather than silently bypassing the proxy.
+        let isGatewayFlow = flow.destinationAddress == gatewayAddress
         let proxy: (address: VPhoneIPv4Address, port: UInt16)?
-        switch upstream {
-        case nil:
+        if isGatewayFlow {
             proxy = nil
-        case let .resolved(host, port, _):
-            proxy = (host, port)
-        case .failed:
-            sendReset(for: flow, inReplyTo: segment)
-            return
+        } else {
+            switch upstream {
+            case nil:
+                proxy = nil
+            case let .resolved(host, port, _):
+                proxy = (host, port)
+            case .failed:
+                sendReset(for: flow, inReplyTo: segment)
+                return
+            }
         }
 
         let descriptor = socket(AF_INET, SOCK_STREAM, 0)
@@ -474,8 +482,8 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
             return
         }
 
-        // Without a proxy, connect to the original destination (the gateway
-        // stands for the Mac's loopback). With one, connect to the proxy; the
+        // Without a proxy, connect to the original destination; a gateway flow's
+        // destination is the Mac's loopback. With one, connect to the proxy; the
         // original destination travels in the SOCKS CONNECT request instead.
         let connectAddress: VPhoneIPv4Address
         let connectPort: UInt16
@@ -483,7 +491,7 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
             connectAddress = proxy.address
             connectPort = proxy.port
         } else {
-            connectAddress = flow.destinationAddress == gatewayAddress ? VPhoneIPv4Address(127, 0, 0, 1) : flow.destinationAddress
+            connectAddress = isGatewayFlow ? VPhoneIPv4Address(127, 0, 0, 1) : flow.destinationAddress
             connectPort = flow.destinationPort
         }
 
@@ -747,12 +755,11 @@ final class VPhoneTCPForwarder: @unchecked Sendable {
         return socksSend(frame, connection, reason: "auth write")
     }
 
-    /// CONNECT to the flow's original destination (IPv4, since the stack is),
-    /// with the gateway→127.0.0.1 remap applied to the address sent to the proxy.
+    /// CONNECT to the flow's original destination (IPv4, since the stack is).
+    /// Gateway flows connect directly and never reach the SOCKS handshake, so
+    /// the destination here is always the flow's own address.
     private func sendSOCKSConnect(_ connection: Connection) -> Bool {
-        let destination = connection.flow.destinationAddress == gatewayAddress
-            ? VPhoneIPv4Address(127, 0, 0, 1)
-            : connection.flow.destinationAddress
+        let destination = connection.flow.destinationAddress
         let octets = destination.bytes
         let port = connection.flow.destinationPort
         let request: [UInt8] = [

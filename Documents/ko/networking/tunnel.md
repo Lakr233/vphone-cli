@@ -46,6 +46,42 @@ Launchpad에서는 머신의 Settings…에 있는 Network 섹션에서 `tunnel`
 
 프록시 앱에서 게스트는 머신 이름을 딴 별도의 클라이언트로 표시되며, 앱의 규칙은 다른 앱과 마찬가지로 게스트에도 적용됩니다.
 
+## 게스트 TCP를 SOCKS5 프록시로 가로채기
+
+`tunnel` 모드에서는 게스트의 TCP를 SOCKS5 프록시로 보낼 수도 있어, Mac의 도구로 게스트의 연결을 관찰하거나 필터링할 수 있습니다. 머신을 정지한 다음 실행하세요.
+
+```sh
+vphone-cli vm config <name> --intercept socks5://host:1080
+```
+
+이 설정은 `tunnel` 모드에서만 적용되며 다음 시작 시 반영됩니다. 게스트의 각 TCP 연결은 원래 목적지에 대한 SOCKS5 CONNECT로 프록시를 통해 열립니다. 게이트웨이로 향하는 트래픽은 여전히 Mac의 루프백(`127.0.0.1`)으로 직접 연결되며 프록시를 거치지 않습니다.
+
+QUIC는 프록시가 전달하지 않는 UDP 위에서 동작하므로 QUIC 앱은 프록시를 우회합니다. `--intercept-block-quic`를 추가하면 게스트의 443 포트 UDP를 버려, 그런 앱이 프록시가 전달할 수 있는 TCP로 폴백하게 만듭니다.
+
+```sh
+vphone-cli vm config <name> --intercept socks5://host:1080 --intercept-block-quic
+```
+
+`vphone-cli vm info <name>`는 활성 프록시(비밀번호는 가려집니다)와 QUIC 차단 여부를 보여 줍니다.
+
+### 자격 증명
+
+사용자 이름과 비밀번호가 필요한 프록시는 이를 URL로 받습니다. 비밀번호를 명령줄에 그대로 넣지 마세요. `ps`에 보이고 셸 기록에 남으며, 디스크의 VM 매니페스트에도 평문으로 저장됩니다. 대신 `vphone-cli`가 VM을 시작할 때마다 해석하는, 작은따옴표로 감싼 `${env:NAME}` 토큰으로 환경에서 읽으세요.
+
+```sh
+vphone-cli vm config <name> --intercept 'socks5://user:${env:PROXY_PASS}@host:1080'
+```
+
+`vm config`는 토큰만 저장합니다. 변수는 VM을 시작하는 프로세스의 환경에서 읽히므로 `vm config`가 아니라 `vm launch`에 설정하세요. 비밀번호를 직접 입력하면 셸 기록에 남으므로 키체인에서 가져옵니다.
+
+```sh
+PROXY_PASS="$(security find-generic-password -s <item> -w)" vphone-cli vm launch <name>
+```
+
+작은따옴표는 셸이 토큰을 확장하지 못하게 하므로 비밀번호가 명령줄에도 매니페스트에도 남지 않습니다.
+
+Launchpad에서 시작한 VM은 Launchpad의 환경을 받으며, 여기에는 이 변수가 없습니다. 그러면 토큰이 정의되지 않아 가로채기가 fail-closed로 동작하고, 변수가 있는 프로세스에서 VM을 다시 시작할 때까지 게스트 TCP가 리셋됩니다.
+
 ## 제한 사항
 
 - **IPv4만 지원합니다.** 게스트는 IPv6 주소를 받지 않으며, IPv6 트래픽은 버려집니다.

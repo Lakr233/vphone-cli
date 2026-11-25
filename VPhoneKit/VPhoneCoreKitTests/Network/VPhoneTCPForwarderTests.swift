@@ -51,6 +51,8 @@ struct VPhoneTCPForwarderTests {
             guestPort: UInt16,
             destinationPort: UInt16,
             mss: Int = 1460,
+            gatewayAddress: VPhoneIPv4Address? = nil,
+            destinationAddress: VPhoneIPv4Address = VPhoneIPv4Address(127, 0, 0, 1),
             upstream: VPhoneSOCKSUpstream? = nil,
             handshakeTimeout: TimeInterval = 10,
             socksLog: (@Sendable (String) -> Void)? = nil,
@@ -62,7 +64,7 @@ struct VPhoneTCPForwarderTests {
             let flow = VPhoneTCPFlow(
                 sourceAddress: VPhoneUserspaceNetworkConfiguration.default.guestAddress,
                 sourcePort: guestPort,
-                destinationAddress: VPhoneIPv4Address(127, 0, 0, 1),
+                destinationAddress: destinationAddress,
                 destinationPort: destinationPort,
                 guestHardware: VPhoneMACAddress([0x02, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE]),
             )
@@ -74,6 +76,7 @@ struct VPhoneTCPForwarderTests {
             let box = Box<VPhoneTCPForwarder?>(nil)
             forwarder = VPhoneTCPForwarder(
                 queue: queue,
+                gatewayAddress: gatewayAddress,
                 upstream: upstream,
                 handshakeTimeout: handshakeTimeout,
                 socksLog: socksLog,
@@ -660,7 +663,7 @@ struct VPhoneTCPForwarderTests {
         )
     }
 
-    // MARK: - SOCKS upstream routing (TASK-003)
+    // MARK: - SOCKS upstream routing
 
     /// A failed resolution fails closed, and stays that way until a later
     /// VM start re-resolves. Distinct from nil (disabled), which connects direct.
@@ -720,7 +723,109 @@ struct VPhoneTCPForwarderTests {
         #expect(!destinationConnected.withLock { $0 })
     }
 
-    // MARK: - SOCKS5 handshake (TASK-004)
+    // MARK: - Gateway-direct bypass
+
+    /// The tunnel gateway; a flow aimed here is a gateway flow.
+    private static let gateway = VPhoneIPv4Address(192, 168, 127, 1)
+    /// A non-gateway destination (TEST-NET-3), for the non-gateway-flow checks.
+    private static let nonGateway = VPhoneIPv4Address(203, 0, 113, 9)
+
+    /// A gateway flow connects directly to the Mac's loopback whatever the
+    /// upstream state: it skips the proxy and the SOCKS handshake, and server
+    /// data flushes straight back to the guest. With a resolved upstream this
+    /// proves the gateway bypass; with a failed one it proves the gateway check
+    /// precedes the fail-closed reset, so the Mac's loopback is never blocked by
+    /// a down proxy.
+    @Test(arguments: [false, true])
+    func `a gateway flow connects direct and flushes server data`(upstreamFailed: Bool) async throws {
+        let proxyConnected = Box(false)
+        let proxy = try LoopbackServer { _, _ in proxyConnected.withLock { $0 = true } }
+        defer { proxy.stop() }
+
+        let payload: [UInt8] = Array("gateway-direct".utf8)
+        let server = try LoopbackServer { client, server in
+            var buffer = [UInt8](repeating: 0, count: 64)
+            _ = recv(client, &buffer, buffer.count, 0)
+            _ = payload.withUnsafeBytes { send(client, $0.baseAddress, $0.count, 0) }
+            server.drain(client)
+        }
+        defer { server.stop() }
+
+        let upstream: VPhoneSOCKSUpstream = upstreamFailed
+            ? .failed
+            : .resolved(VPhoneIPv4Address(127, 0, 0, 1), proxy.port, nil)
+        let harness = Harness(
+            guestPort: upstreamFailed ? 51202 : 51201,
+            destinationPort: server.port,
+            gatewayAddress: Self.gateway,
+            destinationAddress: Self.gateway,
+            upstream: upstream,
+        )
+        harness.acknowledgeImmediately()
+        harness.start()
+        defer { harness.stop() }
+
+        let isn = try handshake(harness)
+        request(harness, acknowledged: isn &+ 1)
+
+        #expect(harness.waitUntil("the server payload") { harness.deliveredPayload == payload })
+        usleep(100000)
+        #expect(!proxyConnected.withLock { $0 }, "a gateway flow must not touch the proxy")
+    }
+
+    /// The gateway bypass is for gateway flows only: with a gateway configured, a
+    /// non-gateway flow against a failed upstream still fails closed.
+    @Test func `a non-gateway flow fails closed when a gateway is set`() async throws {
+        let harness = Harness(
+            guestPort: 51203,
+            destinationPort: 443,
+            gatewayAddress: Self.gateway,
+            destinationAddress: Self.nonGateway,
+            upstream: .failed,
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        harness.feed(VPhoneTCPSegment(
+            sourcePort: harness.guestPort,
+            destinationPort: harness.flow.destinationPort,
+            sequenceNumber: 1000,
+            acknowledgmentNumber: 0,
+            flags: VPhoneTCPFlags.syn,
+            windowSize: 65535,
+        ))
+
+        #expect(harness.waitUntil("a reset") { harness.sent.contains { $0.hasRST } })
+        #expect(harness.connectionCount == 0)
+    }
+
+    /// With a gateway configured, a non-gateway flow against a resolved upstream
+    /// still routes through the proxy, and the CONNECT names the flow's own
+    /// destination rather than the gateway remap the old code applied.
+    @Test func `a non-gateway flow routes through the proxy when a gateway is set`() async throws {
+        let payload: [UInt8] = [0xDE, 0xAD, 0xBE, 0xEF]
+        let proxy = try SOCKSStub(.ipv4(trailing: payload))
+        defer { proxy.stop() }
+
+        let harness = Harness(
+            guestPort: 51204,
+            destinationPort: 443,
+            gatewayAddress: Self.gateway,
+            destinationAddress: Self.nonGateway,
+            upstream: .resolved(VPhoneIPv4Address(127, 0, 0, 1), proxy.port, nil),
+        )
+        harness.start()
+        defer { harness.stop() }
+
+        try handshake(harness)
+        #expect(harness.waitUntil("the relayed payload") { harness.deliveredPayload == payload })
+
+        // CONNECT: VER CMD RSV ATYP + 203.0.113.9 + port 443.
+        let expected: [UInt8] = [0x05, 0x01, 0x00, 0x01, 0xCB, 0x00, 0x71, 0x09, 0x01, 0xBB]
+        #expect(proxy.connectRequest == expected)
+    }
+
+    // MARK: - SOCKS5 handshake
 
     /// A scriptable multi-connection SOCKS5 proxy for the handshake tests.
     ///

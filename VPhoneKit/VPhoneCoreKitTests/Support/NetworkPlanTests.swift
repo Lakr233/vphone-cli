@@ -458,7 +458,7 @@ struct NetworkPlanTests {
         #expect(try PropertyListDecoder().decode(NetworkConfig.self, from: written) == full)
     }
 
-    // MARK: - TASK-002: intercept is tunnel-only (REQ-002)
+    // MARK: - intercept is tunnel-only
 
     @Test func `intercept outside tunnel mode is rejected`() throws {
         for mode in [NetworkConfig.NetworkMode.nat, .bridged, .off] {
@@ -512,7 +512,7 @@ struct NetworkPlanTests {
         }
     }
 
-    // MARK: - interception edits (TASK-006)
+    // MARK: - interception edits
 
     /// `--intercept host:port` sets the endpoint, `--no-intercept` clears it,
     /// and an edit that touches neither leaves it as it was.
@@ -553,7 +553,7 @@ struct NetworkPlanTests {
         }
     }
 
-    // MARK: - TASK-006: edit-path validation, redaction, tunnel-exit, secret warning
+    // MARK: - edit-path validation, redaction, tunnel-exit, secret warning
 
     /// The edit path validates `--intercept` with the same guard `plan()` uses:
     /// a `socks5://` URL with credentials is accepted; a non-socks5 scheme and
@@ -576,7 +576,7 @@ struct NetworkPlanTests {
 
     /// The edit path builds its own usage error, and it is redacted: a literal
     /// password never reaches the message (asserted here independently of the
-    /// TASK-001 parse test).
+    /// standalone parse test).
     @Test func `the edit path redacts the password in its usage error`() throws {
         for bad in ["socks5://u:s3cret@h:abc", "socks5://u:s3cret@:1080"] {
             do {

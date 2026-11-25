@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import VPhoneCoreKit
 
-/// QUIC blocking in the UDP forwarder (TASK-005).
+/// QUIC blocking in the UDP forwarder.
 ///
 /// `blockQUIC` drops guest UDP to port 443 so a QUIC app falls back to the
 /// interceptable TCP path; everything else is forwarded untouched. A dropped
