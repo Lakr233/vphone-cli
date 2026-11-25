@@ -29,7 +29,7 @@ Creation runs these stages: prepare, firmware patch, online DFU restore, host-mo
 - CFW installation needs root. The bundle has no authorization dialog or privilege helper, so you provide root yourself.
 - The default virtual disk is 64 GB.
 
-Success ends with `[+] First boot: vphoned ping succeeded.` and `CFW VM created; vphoned connected. Guest user environment is untouched.` The VM is then stopped: the ping proves that vphoned answered during that boot, and no running VM is left behind.
+Success ends with `[+] First boot: vphoned ping succeeded.` and `CFW VM created; vphoned connected. Guest user environment is untouched.` On a terminal the [progress screen](#progress-and-log) takes the place of these two lines: its First boot check row reads `First boot: vphoned ping succeeded.` and its last row is `Done in` with the total time. The VM is then stopped: the ping proves that vphoned answered during that boot, and no running VM is left behind.
 
 ### Options
 
@@ -47,8 +47,33 @@ Success ends with `[+] First boot: vphoned ping succeeded.` and `CFW VM created;
 | `--skip-first-boot` | Leave out the final boot, for a caller that boots the VM itself. |
 | `--bootstrap roothide` | Install a package environment during the first boot. See [Package Environment](package-environment.md). |
 | `--keep-artifacts` | Keep the large prepared restore tree. Leave it out when disk space matters. |
+| `--log <file>` | Also write the plain output to a file. See [Progress and log](#progress-and-log). |
 
 `--cpu`, `--memory`, `--network` and `--unlock-at-startup` set the same `vm config` settings on the new VM.
+
+### Progress and log
+
+On a terminal, `vm create` draws a progress screen instead of printing each line:
+
+- **Stages:** one row for each stage with its elapsed time, marked `○` before it starts, `✓` when it has finished and `✗` if it failed. A finished stage keeps its result on the same row.
+- **The running stage:** its last three steps, the current step, and a bar with a percentage (downloads and the restore) or a count (patches).
+- **Patches:** when a firmware component has been patched, its patches stay above the progress area: the name of each patch, the value before and after it, and `+N` if it changed N more places. `~` marks a changed value, `+` an added one and `-` a removed one.
+- **Warnings and errors:** the last three warnings stay at the bottom. If creation fails, the last 15 lines of the plain output follow the screen.
+
+`vm create` prints the plain output, one line per message, instead of the screen when:
+
+- its output is not a terminal, such as a pipe or a file;
+- you pass `-v`, `-vv` or `-vvv` for more detail;
+- `vm create-bulk` runs it.
+
+`--log <file>` also writes the plain output and every patch record to a file, with the screen or without it. An existing file is appended to. A new file can be read only by you. Because creation may run as root, a symbolic link, a file with more than one hard link and a file that belongs to another user are refused.
+
+```sh
+vphone-cli vm create myphone \
+  --iphone-source /path/to/iPhone17,3_Restore.ipsw \
+  --cloudos-source /path/to/cloudOS.ipsw \
+  --log myphone-create.log
+```
 
 ### Templates
 

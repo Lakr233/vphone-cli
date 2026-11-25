@@ -29,7 +29,7 @@ vphone-cli vm create myphone \
 - 安装 CFW 需要 root 权限。bundle 不带授权对话框或提权辅助程序，因此需要你自己提供 root 权限。
 - 默认虚拟磁盘为 64 GB。
 
-成功时会以 `[+] First boot: vphoned ping succeeded.` 和 `CFW VM created; vphoned connected. Guest user environment is untouched.` 结束。之后虚拟机会停止：这次 ping 证明 vphoned 在该次启动中作出了响应，同时不会留下运行中的虚拟机。
+成功时会以 `[+] First boot: vphoned ping succeeded.` 和 `CFW VM created; vphoned connected. Guest user environment is untouched.` 结束。在终端中，这两行由[进度界面](#进度界面与日志)代替：First boot check 一行显示 `First boot: vphoned ping succeeded.`，最后一行是 `Done in` 和总用时。之后虚拟机会停止：这次 ping 证明 vphoned 在该次启动中作出了响应，同时不会留下运行中的虚拟机。
 
 ### 选项
 
@@ -47,8 +47,33 @@ vphone-cli vm create myphone \
 | `--skip-first-boot` | 跳过最后的启动，适用于由调用方自行启动虚拟机的情况。 |
 | `--bootstrap roothide` | 在首次启动时安装软件包环境。见[软件包环境](package-environment.md)。 |
 | `--keep-artifacts` | 保留体积很大的已准备恢复目录。磁盘空间紧张时不要加。 |
+| `--log <file>` | 同时把普通输出写入文件。见[进度界面与日志](#进度界面与日志)。 |
 
 `--cpu`、`--memory`、`--network` 和 `--unlock-at-startup` 会为新虚拟机设置与 `vm config` 相同的配置项。
+
+### 进度界面与日志
+
+在终端中，`vm create` 会绘制进度界面，而不是逐行输出：
+
+- **阶段**：每个阶段占一行，并显示已用时间。开始前标记为 `○`，完成后为 `✓`，失败时为 `✗`。已完成的阶段会在同一行保留结果。
+- **正在运行的阶段**：显示最近三个步骤、当前步骤和进度条。下载和恢复时进度条显示百分比，打补丁时显示数量。
+- **补丁**：一个固件组件打完补丁后，它的补丁列表会保留在进度区域上方：每个补丁的名称和修改前后的值；如果还修改了另外 N 处，会加上 `+N`。`~` 表示修改的值，`+` 表示新增的值，`-` 表示删除的值。
+- **警告与错误**：最近三条警告保留在底部。创建失败时，普通输出的最后 15 行会接在界面之后。
+
+在以下情况中，`vm create` 不显示界面，而是打印普通输出，每条消息一行：
+
+- 输出不是终端，例如管道或文件；
+- 传入 `-v`、`-vv` 或 `-vvv` 以获得更多细节；
+- 由 `vm create-bulk` 运行。
+
+`--log <file>` 会把普通输出和所有补丁记录同时写入文件，无论是否显示界面。文件已存在时在末尾追加。新建的文件只有你自己可以读取。由于创建可能以 root 运行，符号链接、硬链接数大于一的文件以及属于其他用户的文件会被拒绝。
+
+```sh
+vphone-cli vm create myphone \
+  --iphone-source /path/to/iPhone17,3_Restore.ipsw \
+  --cloudos-source /path/to/cloudOS.ipsw \
+  --log myphone-create.log
+```
 
 ### 模板
 

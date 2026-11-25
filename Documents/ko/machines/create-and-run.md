@@ -29,7 +29,7 @@ vphone-cli vm create myphone \
 - CFW 설치에는 root 권한이 필요합니다. 번들에는 인증 대화상자나 권한 도우미가 없으므로 root 권한은 사용자가 직접 제공해야 합니다.
 - 기본 가상 디스크 크기는 64 GB입니다.
 
-성공하면 `[+] First boot: vphoned ping succeeded.`와 `CFW VM created; vphoned connected. Guest user environment is untouched.`가 출력되며 끝납니다. 그런 다음 가상 머신은 중지됩니다. ping은 그 부팅 중에 vphoned가 응답했다는 것을 확인하며, 실행 중인 가상 머신은 남지 않습니다.
+성공하면 `[+] First boot: vphoned ping succeeded.`와 `CFW VM created; vphoned connected. Guest user environment is untouched.`가 출력되며 끝납니다. 터미널에서는 [진행 화면](#진행-화면과-로그)이 이 두 줄을 대신합니다. First boot check 줄에 `First boot: vphoned ping succeeded.`가 표시되고, 마지막 줄은 `Done in`과 전체 소요 시간입니다. 그런 다음 가상 머신은 중지됩니다. ping은 그 부팅 중에 vphoned가 응답했다는 것을 확인하며, 실행 중인 가상 머신은 남지 않습니다.
 
 ### 옵션
 
@@ -47,8 +47,33 @@ vphone-cli vm create myphone \
 | `--skip-first-boot` | 마지막 부팅을 생략합니다. 호출하는 쪽에서 가상 머신을 직접 부팅할 때 사용합니다. |
 | `--bootstrap roothide` | 첫 부팅 중에 패키지 환경을 설치합니다. [패키지 환경](package-environment.md)을 참고하세요. |
 | `--keep-artifacts` | 준비 과정에서 만든 큰 복원 트리를 보존합니다. 디스크 공간이 중요하면 생략하세요. |
+| `--log <file>` | 일반 출력을 파일에도 씁니다. [진행 화면과 로그](#진행-화면과-로그)를 참고하세요. |
 
 `--cpu`, `--memory`, `--network`, `--unlock-at-startup`은 새 가상 머신에 같은 이름의 `vm config` 설정을 지정합니다.
+
+### 진행 화면과 로그
+
+터미널에서 `vm create`는 줄을 하나씩 출력하는 대신 진행 화면을 그립니다.
+
+- **단계:** 단계마다 한 줄에 경과 시간을 표시합니다. 시작 전에는 `○`, 끝나면 `✓`, 실패하면 `✗`가 붙습니다. 끝난 단계는 같은 줄에 결과를 남깁니다.
+- **실행 중인 단계:** 최근 작업 세 개, 현재 작업, 진행 막대를 표시합니다. 막대는 다운로드와 복원에서는 백분율을, 패치에서는 개수를 보여 줍니다.
+- **패치:** 펌웨어 구성 요소 하나의 패치가 끝나면 그 패치 목록이 진행 영역 위에 남습니다. 패치마다 이름과 변경 전후의 값을 표시하고, N곳을 더 바꿨다면 `+N`을 붙입니다. `~`는 바뀐 값, `+`는 추가된 값, `-`는 제거된 값입니다.
+- **경고와 오류:** 최근 경고 세 개가 아래쪽에 남습니다. 생성이 실패하면 일반 출력의 마지막 15줄이 화면 뒤에 이어집니다.
+
+다음 경우에는 `vm create`가 화면 대신 메시지마다 한 줄씩 일반 출력을 냅니다.
+
+- 출력이 파이프나 파일처럼 터미널이 아닐 때
+- 더 자세한 내용을 보려고 `-v`, `-vv`, `-vvv`를 지정했을 때
+- `vm create-bulk`가 실행할 때
+
+`--log <file>`은 화면 표시 여부와 관계없이 일반 출력과 모든 패치 기록을 파일에도 씁니다. 파일이 이미 있으면 끝에 이어 씁니다. 새로 만든 파일은 본인만 읽을 수 있습니다. 생성은 root로 실행될 수 있으므로 심볼릭 링크, 하드 링크가 둘 이상인 파일, 다른 사용자의 파일은 거부합니다.
+
+```sh
+vphone-cli vm create myphone \
+  --iphone-source /path/to/iPhone17,3_Restore.ipsw \
+  --cloudos-source /path/to/cloudOS.ipsw \
+  --log myphone-create.log
+```
 
 ### 템플릿
 
