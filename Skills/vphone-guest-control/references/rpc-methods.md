@@ -248,7 +248,8 @@ are the usual way to hit the reply size problem.
 
 `security.ca_install {pem, admin?}` adds a PEM-encoded CA certificate as a trust
 anchor in the guest TrustStore (user domain by default; `admin:true` for the
-admin domain) and replies `{sha256, subject}`. `security.ca_remove {sha256}`
+admin domain) and replies `{sha256, subject, domain}` (`domain` is `"user"` or
+`"admin"`, the trust domain the anchor landed in). `security.ca_remove {sha256}`
 removes the anchor with that digest. `security.ca_list` replies
 `{anchors:[{sha256, subject}]}`. `ca_install` and `ca_remove` are force methods
 (`"force":true`). Install, remove and list are also available from the host with

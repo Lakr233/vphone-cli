@@ -26,7 +26,7 @@ enum VPhoneHostAutomationProbe {
         }
         // The VM answered for the guest: not connected yet, or the request
         // to vphoned failed on the way.
-        throw VPhoneGuestCallError(kind: .transport, message: message)
+        throw VPhoneGuestCallError(kind: .notConnected, message: message)
     }
 
     /// One request, one reply line. Nil when the socket is not there or the

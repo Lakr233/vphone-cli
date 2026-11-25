@@ -52,6 +52,7 @@ vphone이 처음이라면 [개요](get-started/overview.md)를 읽은 뒤 [빠�
 | [터널 모드](networking/tunnel.md) | VPN이나 프록시 앱을 사용하는 Mac |
 | [MAC 및 IP 주소](networking/addresses.md) | 저장된 MAC, 이전 임대, 고정 주소 |
 | [포트 포워딩](networking/port-forwarding.md) | Mac의 포트를 게스트로 전달하기 |
+| [사용자 지정 CA 인증서](networking/custom-ca.md) | `vm ca`로 게스트가 루트 CA를 신뢰하도록 하기 |
 | [네트워크상의 이름](networking/names.md) | 게스트의 `.local` 이름과 게스트에서의 Mac 이름 |
 | [머신 간 연결](networking/peers.md) | 하나의 공유 네트워크에 있는 `nat` 머신 |
 

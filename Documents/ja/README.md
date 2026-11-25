@@ -52,6 +52,7 @@ vphone を初めて使う場合は、[概要](get-started/overview.md)を読ん�
 | [トンネルモード](networking/tunnel.md) | VPN やプロキシアプリを使っている Mac |
 | [MAC アドレスと IP アドレス](networking/addresses.md) | 保存された MAC、古いリース、固定アドレス |
 | [ポート転送](networking/port-forwarding.md) | Mac のポートをゲストに転送する |
+| [カスタム CA 証明書](networking/custom-ca.md) | `vm ca` でゲストにルート CA を信頼させる |
 | [ネットワーク上の名前](networking/names.md) | ゲストの `.local` 名と、ゲスト内での Mac の名前 |
 | [マシン同士の通信](networking/peers.md) | 1 つの共有ネットワーク上の `nat` マシン |
 

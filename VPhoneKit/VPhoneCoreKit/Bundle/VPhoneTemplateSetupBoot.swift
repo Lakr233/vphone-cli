@@ -6,8 +6,13 @@ import Foundation
 public struct VPhoneGuestCallError: Error, CustomStringConvertible, Sendable {
     public enum Kind: Sendable {
         /// The request did not reach vphoned or its answer did not come back:
-        /// no control socket, the guest not connected, a timeout.
+        /// no control socket, a timeout.
         case transport
+        /// The VM answered with an error that carries no guest error: the guest
+        /// was not connected (nothing was sent), or the request failed in
+        /// transit (it may have been applied). The guest may connect later, so
+        /// it is worth retrying like `.transport`.
+        case notConnected
         /// vphoned answered with an error object.
         case refused
     }
@@ -36,7 +41,7 @@ public struct VPhoneGuestCallError: Error, CustomStringConvertible, Sendable {
     /// operation may succeed later (`retryable`, `reason: busy`).
     public var isRetryable: Bool {
         switch kind {
-        case .transport:
+        case .transport, .notConnected:
             return true
         case .refused:
             let detail = detail
@@ -967,8 +972,12 @@ public final class VPhoneTemplateSetupBoot {
         let before = try bootMarker(deadline: end)
         do {
             _ = try machine.call("system.reboot", params: ["force": true], timeout: 30)
-        } catch let error as VPhoneGuestCallError where error.kind == .transport {
-            // The guest can go down before it answers.
+        } catch let error as VPhoneGuestCallError
+            where error.kind == .transport || error.kind == .notConnected
+        {
+            // The guest can go down before it answers (transport), or answer
+            // via the VM with no guest connected (notConnected); either way the
+            // reboot is in flight, so poll for the next boot marker.
         }
 
         // A guest that powers off instead of restarting stops the virtual

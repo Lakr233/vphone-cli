@@ -43,13 +43,39 @@ public enum VPhoneGuestCA {
         public init(_ description: String) { self.description = description }
     }
 
+    /// The validated outcome of a successful `install`: the host-normalized
+    /// anchor identity (lowercase-hex `sha256`, control-char-sanitized
+    /// `subject`, `domain` of `user` or `admin`) that `install` returns so the
+    /// command layer can render it. `rendered(json:)` is the only output seam.
+    public struct InstallResult {
+        public let sha256: String
+        public let subject: String
+        public let domain: String
+
+        /// Serialize for stdout. Default: the one `sha256<TAB>subject\n` line,
+        /// identical in shape to a `vm ca list` row. JSON: a pretty, sorted
+        /// object `{domain, sha256, subject}` with a trailing newline.
+        public func rendered(json: Bool) throws -> Data {
+            if json {
+                let object = ["sha256": sha256, "subject": subject, "domain": domain]
+                var data = try JSONSerialization.data(
+                    withJSONObject: object, options: [.prettyPrinted, .sortedKeys],
+                )
+                data.append(0x0A)
+                return data
+            }
+            return Data("\(sha256)\t\(subject)\n".utf8)
+        }
+    }
+
     // MARK: - Public operations
 
-    /// `vm ca install <vmname> <pem-file> [--admin]`: read + validate the PEM
+    /// `vm ca install <pem-file> <vmname> [--admin]`: read + validate the PEM
     /// host-side, extract only the single CERTIFICATE block, then
     /// `security.ca_install {pem, force: true[, admin: true]}` — user trust
-    /// domain by default, admin when `admin` is set. Validates the reply. Writes
-    /// nothing on success.
+    /// domain by default, admin when `admin` is set. Validates the reply and
+    /// returns the host-normalized `InstallResult` (lowercase-hex sha256,
+    /// sanitized subject) for the command layer to render.
     public static func install(
         vmName: String,
         library: VPhoneLibrary,
@@ -57,7 +83,7 @@ public enum VPhoneGuestCA {
         admin: Bool = false,
         timeout: Int = timeoutSeconds,
         rpc: RPC,
-    ) throws {
+    ) throws -> InstallResult {
         let socketPath = try socketPath(vmName: vmName, library: library)
         let pem = try loadInstallPEM(path: pemPath)
         var params: [String: Any] = ["pem": pem, "force": true]
@@ -68,10 +94,15 @@ public enum VPhoneGuestCA {
             socketPath: socketPath, vmName: vmName, timeout: timeout, rpc: rpc,
             timeoutTail: "",
         )
-        try validateInstallReply(reply)
+        let fields = try validateInstallReply(reply)
+        return InstallResult(
+            sha256: fields.sha256.lowercased(),
+            subject: sanitize(fields.subject),
+            domain: fields.domain,
+        )
     }
 
-    /// `vm ca remove <vmname> <sha256>`: validate + lowercase the sha256
+    /// `vm ca remove <sha256> <vmname>`: validate + lowercase the sha256
     /// host-side, then `security.ca_remove {sha256, force: true}`. Validates the
     /// reply. Writes nothing on success.
     public static func remove(
@@ -164,15 +195,18 @@ public enum VPhoneGuestCA {
     /// Validate a `security.ca_install` reply: 64-hex `sha256`, string
     /// `subject`, and a `domain` of `user` or `admin` (the domain the anchor
     /// landed in). Any violation is a malformed-reply error (exit 1).
-    static func validateInstallReply(_ reply: [String: Any]) throws {
+    static func validateInstallReply(
+        _ reply: [String: Any],
+    ) throws -> (sha256: String, subject: String, domain: String) {
         guard let sha256 = reply["sha256"] as? String, isSHA256Hex(sha256),
-              reply["subject"] is String,
+              let subject = reply["subject"] as? String,
               let domain = reply["domain"] as? String, domain == "user" || domain == "admin"
         else {
             throw RuntimeError(
                 "malformed security.ca_install reply: expected {sha256: 64-hex, subject: string, domain: user|admin}",
             )
         }
+        return (sha256, subject, domain)
     }
 
     /// Validate a `security.ca_remove` reply: `removed` exactly `true`, 64-hex
@@ -263,6 +297,19 @@ public enum VPhoneGuestCA {
                     "\(method) timed out after \(timeout)s; the guest outcome is unknown. "
                         + "Check with vm ca list \(vmName).\(timeoutTail)",
                 )
+            case .notConnected:
+                // The VM answered but no guest was connected (or the request
+                // failed in transit): surface the real guest message first. A
+                // plain not-connected reply sent nothing, but an in-transit
+                // failure may have applied the change, so the mutating RPCs get
+                // a neutral check-with-list tail that claims nothing about the
+                // outcome; the read-only list surfaces the real message alone
+                // (a list recovery hint would be circular).
+                let mutating = method == "security.ca_install" || method == "security.ca_remove"
+                let tail = mutating
+                    ? "; if unsure whether the change took effect, check with vm ca list \(vmName)."
+                    : ""
+                throw RuntimeError(error.message + tail)
             case .refused:
                 throw RuntimeError(error.message)
             }

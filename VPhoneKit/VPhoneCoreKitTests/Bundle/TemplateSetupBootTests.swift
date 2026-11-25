@@ -55,6 +55,10 @@ private final class FakeGuest: VPhoneTemplateSetupMachine {
     /// the `processes.list` that follows down with it, unanswered.
     var dyingVphonedTakesAList = false
     private var dyingVphoned = false
+    /// `system.reboot` is answered via the VM with no guest connected
+    /// (`.notConnected`) rather than dropping the connection (`.transport`):
+    /// the reboot is still in flight and the step must tolerate it.
+    var rebootAnswersNotConnected = false
     /// `system.reboot` powers the virtual machine off, so vphone-vm exits
     /// with status 0 and the guest comes back only through another start.
     var rebootPowersOff = false
@@ -323,6 +327,9 @@ private final class FakeGuest: VPhoneTemplateSetupMachine {
             poweredOff = rebootPowersOff
             if !servicesKeepRunning {
                 running = []
+            }
+            if rebootAnswersNotConnected {
+                throw VPhoneGuestCallError(kind: .notConnected, message: "guest not connected")
             }
             throw VPhoneGuestCallError(kind: .transport, message: "no answer from vphone.sock")
         case "setup.status":
@@ -940,6 +947,18 @@ struct TemplateSetupBootTests {
         #expect(guest.killed)
     }
 
+    @Test func `a reboot answered notConnected is tolerated like a dropped connection`() throws {
+        // The reboot request is answered via the VM with no guest connected
+        // (`.notConnected`). restartGuest must treat it like `.transport` — the
+        // reboot is in flight — and poll for the next boot rather than fail.
+        let guest = FakeGuest(clock: FakeClock())
+        guest.rebootAnswersNotConnected = true
+        let outcome = try run(guest).get()
+        #expect(outcome.isComplete)
+        #expect(guest.calls.count(where: { $0 == "system.reboot" }) == 1)
+        #expect(!guest.killed)
+    }
+
     @Test func `a reboot that powers the virtual machine off starts it again once`() throws {
         let guest = FakeGuest(clock: FakeClock())
         guest.rebootPowersOff = true
@@ -994,6 +1013,7 @@ struct TemplateSetupBootTests {
 
     @Test func `retryable means unreachable, busy or marked so`() {
         #expect(VPhoneGuestCallError(kind: .transport, message: "x").isRetryable)
+        #expect(VPhoneGuestCallError(kind: .notConnected, message: "x").isRetryable)
         #expect(VPhoneGuestCallError(kind: .refused, message: "x", detail: ["retryable": true]).isRetryable)
         #expect(VPhoneGuestCallError(kind: .refused, message: "x", detail: ["reason": "busy"]).isRetryable)
         #expect(!VPhoneGuestCallError(kind: .refused, message: "x", detail: ["code": "invalid_operation"]).isRetryable)
