@@ -4,13 +4,14 @@
 
 ## 릴리스에 포함된 파일
 
-각 [릴리스](https://github.com/Lakr233/vphone-cli/releases)에는 최대 세 개의 파일이 있습니다.
+각 [릴리스](https://github.com/Lakr233/vphone-cli/releases)에는 최대 네 개의 파일이 있습니다.
 
 | 파일 | 내용 |
 | --- | --- |
 | `vphone-launchpad-<version>-notarized.zip` | Apple의 서명과 공증을 거친 Launchpad입니다. 있으면 이 파일을 내려받으세요. |
 | `vphone-launchpad-<version>.zip` | 공증되지 않은 Launchpad입니다. 처음 열 때 macOS가 차단합니다. |
 | `VPhone-<version>.zip` | `VPhone.bundle`입니다. Launchpad가 대신 내려받아 설치하므로 이 파일은 필요하지 않습니다. |
+| `vphone-skills-<version>.zip` | `vphone-guest-control` 에이전트 스킬입니다. Claude Code나 Codex 같은 코딩 에이전트가 vphone을 다룰 수 있게 합니다. 이 파일이 추가되기 전의 릴리스에는 없습니다. |
 
 공증되지 않은 버전을 열려면 한 번 연 뒤 **시스템 설정 > 개인정보 보호 및 보안**으로 이동하여 **그래도 열기**를 클릭합니다.
 

@@ -4,13 +4,14 @@ Pick the Launchpad version to download and the `VPhone.bundle` that goes with it
 
 ## What each release contains
 
-Each [release](https://github.com/Lakr233/vphone-cli/releases) has up to three files:
+Each [release](https://github.com/Lakr233/vphone-cli/releases) has up to four files:
 
 | File | Contents |
 | --- | --- |
 | `vphone-launchpad-<version>-notarized.zip` | Launchpad, signed and notarized by Apple. Download this one when it is available. |
 | `vphone-launchpad-<version>.zip` | Launchpad, not notarized. macOS blocks it the first time you open it. |
 | `VPhone-<version>.zip` | `VPhone.bundle`. Launchpad downloads and installs it for you, so you do not need this file. |
+| `vphone-skills-<version>.zip` | The `vphone-guest-control` agent skill, which lets a coding agent such as Claude Code or Codex drive vphone. Releases made before this file was added do not have it. |
 
 To open a version that is not notarized, open it once, then go to **System Settings > Privacy & Security** and click **Open Anyway**.
 

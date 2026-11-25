@@ -1,0 +1,67 @@
+name: tap-sync
+
+# Opt-in: publishes the Homebrew casks to the tap repository named by the
+# TAP_REPO variable. It picks the newest of the recent releases that has both
+# the notarized Launchpad zip and the skills zip, so a newer release that is
+# not signed yet does not hold back an older signed one. The notarized zip is
+# attached by hand after the release workflow has finished. The script never
+# moves the tap to an older version and changes nothing when the casks are
+# already current. Run it by hand from the Actions tab to publish sooner or to
+# publish one tag.
+
+on:
+  schedule:
+    - cron: "17 6,18 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish (default is the newest signed release)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tap
+  cancel-in-progress: false
+
+jobs:
+  tap:
+    if: vars.TAP_REPO != ''
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout tap
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.TAP_REPO }}
+          token: ${{ secrets.TAP_TOKEN }}
+          path: tap
+
+      - name: Publish casks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+          TAP_REPO: ${{ vars.TAP_REPO }}
+          VPHONE_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          rc=0
+          if [ -n "${INPUT_TAG:-}" ]; then
+            zsh scripts/brew-cask.zsh "$INPUT_TAG" --push tap || rc=$?
+          else
+            all=$(gh release list --repo "$GITHUB_REPOSITORY" --limit 30 \
+              --exclude-drafts --exclude-pre-releases --json tagName --jq '.[].tagName')
+            tags=$(printf '%s\n' "$all" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true)
+            [ -n "$tags" ] || { echo "::notice::No release to publish."; exit 0; }
+            zsh scripts/brew-cask.zsh $tags --push tap || rc=$?
+          fi
+          if [ "$rc" -eq 3 ]; then
+            echo "::notice::No release has both the notarized Launchpad zip and the skills zip yet; nothing published."
+            exit 0
+          fi
+          exit "$rc"
