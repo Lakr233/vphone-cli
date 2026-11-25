@@ -1,4 +1,5 @@
 import Foundation
+import VPhoneCoreKit
 
 /// Runs `vphone-launchpad-cli` requests against the same model the window
 /// shows. Every command goes through the methods the UI calls, so what the
@@ -331,7 +332,7 @@ struct VPhoneLaunchpadControlCommands {
     /// name that two libraries share needs `--root`.
     private func machine(_ request: VPhoneLaunchpadControlRequest) async throws -> VPhoneLaunchpadMachinePath {
         let name = request.arguments[0]
-        let root = request.option("root").map { VPhoneLaunchpadMachineLocations.canonical(URL(fileURLWithPath: $0, isDirectory: true)) }
+        let root = request.option("root").map { VPhoneMachineConsoleLog.canonical(URL(fileURLWithPath: $0, isDirectory: true)) }
         func matches() -> [VPhoneLaunchpadMachinePath] {
             library.machines.map(\.path).filter { $0.name == name && (root == nil || $0.libraryRoot == root) }
         }
@@ -423,25 +424,30 @@ struct VPhoneLaunchpadControlCommands {
     private func waitReady(_ machine: VPhoneLaunchpadMachinePath, timeout: Int, emit: Emit) async throws {
         let socket = Self.controlSocket(machine)
         emit("waiting up to \(timeout)s for vphoned")
-        let started = Date()
-        while Date().timeIntervalSince(started) < Double(timeout) {
-            try Task.checkCancellation()
-            if library.panicked.contains(machine) {
-                throw VPhoneLaunchpadError("\(machine.name) had a kernel panic.", detail: VPhoneLaunchpadMachineLibrary.consoleLog(machine).path)
-            }
-            if let child = library.launchedProcess(machine), !child.isRunning {
-                throw VPhoneLaunchpadError("\(machine.name) stopped before vphoned answered.")
-            }
-            if await Task.detached(operation: { VPhoneLaunchpadCreationPipeline.ping(socketPath: socket) }).value {
-                emit("vphoned answered after \(Int(Date().timeIntervalSince(started)))s")
-                return
-            }
-            try await Task.sleep(for: .seconds(1))
-        }
-        throw VPhoneLaunchpadError(
-            "vphoned did not answer within \(timeout)s.",
-            detail: "Bundles up to 2.0.9 serve vphone.sock only for machines launched with a window.",
+        let library = library
+        let child = library.launchedProcess(machine)
+        let outcome = await VPhoneLaunchpadCreationPipeline.waitForGuest(
+            socketPath: socket,
+            budget: .seconds(timeout),
+            pollInterval: 1,
+            panicked: { DispatchQueue.main.sync { MainActor.assumeIsolated { library.panicked.contains(machine) } } },
+            exited: { child.map { !$0.isRunning } ?? false },
         )
+        switch outcome {
+        case let .answered(seconds):
+            emit("vphoned answered after \(seconds)s")
+        case .cancelled:
+            throw CancellationError()
+        case .panicked:
+            throw VPhoneLaunchpadError("\(machine.name) had a kernel panic.", detail: VPhoneLaunchpadMachineLibrary.consoleLog(machine).path)
+        case .exited:
+            throw VPhoneLaunchpadError("\(machine.name) stopped before vphoned answered.")
+        case .timedOut:
+            throw VPhoneLaunchpadError(
+                "vphoned did not answer within \(timeout)s.",
+                detail: "Bundles up to 2.0.9 serve vphone.sock only for machines launched with a window.",
+            )
+        }
     }
 
     private func log(_ request: VPhoneLaunchpadControlRequest) async throws -> Any {
@@ -488,7 +494,7 @@ struct VPhoneLaunchpadControlCommands {
 
     private func create(_ request: VPhoneLaunchpadControlRequest, emit: @escaping Emit) async throws -> Any {
         let name = request.arguments[0]
-        let root = VPhoneLaunchpadMachineLocations.canonical(URL(
+        let root = VPhoneMachineConsoleLog.canonical(URL(
             fileURLWithPath: request.option("root") ?? library.libraryRoot,
             isDirectory: true,
         ))

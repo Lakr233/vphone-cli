@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import UniformTypeIdentifiers
+import VPhoneCoreKit
 
 /// The third stage: the VM library, driven entirely through `vphone-cli vm`.
 ///
@@ -431,14 +432,19 @@ final class VPhoneLaunchpadMachineLibrary {
 
     /// Machines in the default library keep their log names. Elsewhere the
     /// name gains a digest of the library, since two libraries may each hold
-    /// a machine with the same name.
+    /// a machine with the same name. The "default library" for log naming is
+    /// `VPHONE_LIBRARY_ROOT`, else `~/.vphone/machines`, independent of Host
+    /// Setup — matching the CLI's detached launch, so both name the same log.
+    /// The naming itself lives in `VPhoneLaunchpadConsoleLog`, where it can be
+    /// tested without this `@MainActor` library.
     static func consoleLog(_ machine: Path, suffix: String = "") -> URL {
-        let stem = machine.libraryRoot == VPhoneLaunchpadMachineLocations.defaultRoot
-            ? machine.name
-            : "\(machine.name)-\(VPhoneLaunchpadMachineLocations.digest(machine.libraryRoot))"
-        return FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/vphone-launchpad", isDirectory: true)
-            .appendingPathComponent("\(stem)\(suffix).log")
+        VPhoneLaunchpadConsoleLog.migrateLegacy(
+            libraryRoot: machine.libraryRoot,
+            name: machine.name,
+            suffix: suffix,
+            legacyDefaultRoot: VPhoneLaunchpadMachineLocations.defaultRoot,
+        )
+        return VPhoneLaunchpadConsoleLog.url(libraryRoot: machine.libraryRoot, name: machine.name, suffix: suffix)
     }
 
     /// Adds a line of Launchpad's own to the console log, after the process

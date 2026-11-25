@@ -49,7 +49,7 @@ private enum VPhoneVirtualMachinePauseRequest {
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: library)
         let bundle = try library.bundle(named: name)
         let socketPath = bundle.url.appendingPathComponent("vphone.sock").path
-        guard let reply = VPhoneHostAutomationProbe.send(["t": type], socketPath: socketPath, timeout: 30) else {
+        guard let reply = VPhoneControlSocket.send(["t": type], socketPath: socketPath, timeout: 30) else {
             throw ValidationError("\(name) is not running, or its control socket does not answer. Start it with vm launch.")
         }
         guard reply["ok"] as? Bool == true, let status = reply["result"] as? [String: Any] else {

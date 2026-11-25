@@ -25,6 +25,8 @@ PV=3 게스트는 중첩할 수 없습니다. 다른 macOS 가상 머신 안이 
 vphone-cli vm launch <name>
 ```
 
+`--detach`를 붙이면 vphoned가 응답하는 즉시 터미널을 되돌려받습니다. 가상 머신의 출력은 `~/Library/Logs/vphone-launchpad/<name>.log`(기본값인 `~/.vphone/machines`나 `VPHONE_LIBRARY_ROOT`가 아니라 Host Setup에서 선택한 라이브러리에 있는 가상 머신은 `<name>-<digest>.log`를 사용하며, 그 가상 머신의 이전 `<name>.log`는 Launchpad가 처음 필요로 할 때 새 이름으로 자동 이동됩니다)로 기록됩니다. 가상 머신이 종료되거나 패닉하거나 `--timeout` 안에 응답하지 않으면 명령은 1로 종료합니다. 패닉하거나 시간이 초과된 가상 머신은 `vphone-cli vm stop <name>`을 실행할 때까지 계속 실행됩니다.
+
 ## "Press home to continue"에서 멈춤
 
 가상 머신 창의 제목 막대에 있는 홈 버튼을 클릭하세요. 현재 JB 작업 흐름은 VNC 서버를 설치하지 않습니다.

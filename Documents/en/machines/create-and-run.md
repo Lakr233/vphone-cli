@@ -64,10 +64,13 @@ Before patching, creation prepares the firmware: a temporary cloudOS restore sup
 
 ```sh
 vphone-cli vm launch myphone  # start the VM window and keep it running
+vphone-cli vm launch myphone --detach  # start it in its own session and return once vphoned answers
 vphone-cli vm stop myphone    # run from another terminal to stop it
 ```
 
-`vm launch` starts the guest without waiting for vphoned; the daemon connects during boot. The VM window and menu provide Home and power keys, app installation and file browsing. `vm launch --headless` boots without a VM window or menu bar.
+Plain `vm launch` starts the guest without waiting for vphoned; the daemon connects during boot. The VM window and menu provide Home and power keys, app installation and file browsing. `vm launch --headless` boots without a VM window or menu bar.
+
+`vm launch --detach [--timeout <seconds>]` starts the VM in its own session, so closing the terminal does not stop it, and waits for vphoned. It prints `pid <n>` and `log <path>`, appends the VM's output to `~/Library/Logs/vphone-launchpad/<name>.log` (`<name>-<digest>.log` for a non-default library; truncated at each launch, the file `vphone-launchpad-cli vm log <name>` reads), then `vphoned answered after <n>s` and exits 0. It exits 1 if the VM exits first, or if the log shows a kernel panic or `--timeout` (default 300) passes before vphoned answers. A panic or timeout leaves the VM running; stop it with `vphone-cli vm stop <name>`. A machine already in use is refused with exit 1, and `--detach` is unavailable with `--dfu`.
 
 These all shut the guest down cleanly (vphoned `system.shutdown`):
 

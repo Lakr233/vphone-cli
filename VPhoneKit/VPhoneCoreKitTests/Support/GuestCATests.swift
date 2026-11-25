@@ -8,7 +8,7 @@ import Testing
 /// Exercises `VPhoneGuestCA` without the non-linkable command binary: host-side
 /// rejects open no socket and raise `UsageError`; a tiny in-test Unix-socket
 /// stub (the one-line request / one-line JSON reply protocol
-/// `VPhoneHostAutomationProbe.send` speaks) drives the install/remove/list
+/// `VPhoneControlSocket.send` speaks) drives the install/remove/list
 /// transport, reply validation, and stdout formatting. The trust domain is
 /// operator-selectable (user by default, `admin: true` for admin): the install
 /// reply carries a required `domain` (`user`|`admin`), remove/list carry no
@@ -604,7 +604,7 @@ struct GuestCATests {
 // MARK: - Stub control socket
 
 /// Listens on a Unix socket, serving one canned JSON reply line per request
-/// line — the protocol `VPhoneHostAutomationProbe.send` speaks. It loop-accepts
+/// line — the protocol `VPhoneControlSocket.send` speaks. It loop-accepts
 /// so it tolerates the core's reachability pre-check (a connection that is
 /// opened and immediately closed with no request). `reply: nil` accepts the
 /// request but never answers, to drive the client timeout.

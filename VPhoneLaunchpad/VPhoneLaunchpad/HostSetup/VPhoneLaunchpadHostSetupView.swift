@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import VPhoneCoreKit
 
 struct VPhoneLaunchpadHostSetupView: View {
     @Environment(VPhoneLaunchpadModel.self) private var model
@@ -147,8 +148,8 @@ struct VPhoneLaunchpadHostSetupView: View {
         panel.allowsMultipleSelection = false
         panel.directoryURL = current
         panel.present { url in
-            let root = VPhoneLaunchpadMachineLocations.canonical(url)
-            guard root != VPhoneLaunchpadMachineLocations.canonical(current) else {
+            let root = VPhoneMachineConsoleLog.canonical(url)
+            guard root != VPhoneMachineConsoleLog.canonical(current) else {
                 return
             }
             let failure = String(localized: "Unable to Use \(VPhoneLaunchpadHostSetup.abbreviated(url))")

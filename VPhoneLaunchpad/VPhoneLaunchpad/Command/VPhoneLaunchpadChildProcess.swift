@@ -1,4 +1,5 @@
 import Foundation
+import VPhoneCoreKit
 
 /// A started child process whose merged stdout and stderr arrive line by line
 /// on a background thread.
@@ -175,8 +176,6 @@ final nonisolated class VPhoneLaunchpadChildProcess: @unchecked Sendable {
         return (launcher, [executable.path] + arguments)
     }
 
-    private typealias SetDisclaim = @convention(c) (UnsafeMutablePointer<posix_spawnattr_t?>, Int32) -> Int32
-
     /// Starts `executable` in a new session, responsible for itself, with
     /// stdin on /dev/null and stdout and stderr appended to `logFile`. No other
     /// descriptor of Launchpad's is inherited.
@@ -186,38 +185,13 @@ final nonisolated class VPhoneLaunchpadChildProcess: @unchecked Sendable {
         currentDirectory: URL?,
         logFile: URL,
     ) throws -> pid_t {
-        var attributes: posix_spawnattr_t?
-        posix_spawnattr_init(&attributes)
-        defer { posix_spawnattr_destroy(&attributes) }
-        posix_spawnattr_setflags(&attributes, Int16(POSIX_SPAWN_SETSID | POSIX_SPAWN_CLOEXEC_DEFAULT))
-        // Private libSystem call that Chromium and LLDB use for the same
-        // reason. Without it the child still runs, just attributed to us.
-        if let symbol = dlsym(dlopen(nil, RTLD_NOW), "responsibility_spawnattrs_setdisclaim") {
-            _ = unsafeBitCast(symbol, to: SetDisclaim.self)(&attributes, 1)
-        }
-
-        var actions: posix_spawn_file_actions_t?
-        posix_spawn_file_actions_init(&actions)
-        defer { posix_spawn_file_actions_destroy(&actions) }
-        posix_spawn_file_actions_addopen(&actions, 0, "/dev/null", O_RDONLY, 0)
-        posix_spawn_file_actions_addopen(&actions, 1, logFile.path, O_WRONLY | O_APPEND, 0)
-        posix_spawn_file_actions_adddup2(&actions, 1, 2)
-        if let currentDirectory {
-            if #available(macOS 26, *) {
-                posix_spawn_file_actions_addchdir(&actions, currentDirectory.path)
-            } else {
-                posix_spawn_file_actions_addchdir_np(&actions, currentDirectory.path)
-            }
-        }
-
-        let argv = ([executable.path] + arguments).map { strdup($0) } + [nil]
-        defer { argv.forEach { free($0) } }
-        var pid: pid_t = 0
-        let result = posix_spawn(&pid, executable.path, &actions, &attributes, argv, environ)
-        guard result == 0 else {
-            throw POSIXError(POSIXErrorCode(rawValue: result) ?? .EINVAL)
-        }
-        return pid
+        try VPhoneDetachedProcess.spawn(
+            executable: executable,
+            arguments: arguments,
+            cwd: currentDirectory,
+            logFile: logFile,
+            disclaim: true,
+        )
     }
 
     /// The same number `Process.terminationStatus` reports: the exit code, or
