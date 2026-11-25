@@ -196,7 +196,7 @@ extension CryptexFilesystemPatcher {
                 // The edit keeps the file's own mode and owner.
                 try target.writeFile(relative, contents: data, mode: original.st_mode & 0o7777, owner: (original.st_uid, original.st_gid))
             }
-            print("  [+] /\(relative): \(CustomFirmwareInternalReleaseType.key) \(CustomFirmwareInternalReleaseType.value)")
+            VPhoneConsole.shared.line("  [+] /\(relative): \(CustomFirmwareInternalReleaseType.key) \(CustomFirmwareInternalReleaseType.value)", .note)
             edited += 1
         }
         guard edited > 0 else {
@@ -205,7 +205,7 @@ extension CryptexFilesystemPatcher {
         let overridePath = CustomFirmwareInternalReleaseType.osVariantOverridePath
         let misc = try target.directory((overridePath as NSString).deletingLastPathComponent, create: true)
         try misc.writeFile((overridePath as NSString).lastPathComponent, contents: CustomFirmwareInternalReleaseType.osVariantOverride, mode: 0o644, owner: (0, 0))
-        print("  [+] /\(overridePath)")
+        VPhoneConsole.shared.line("  [+] /\(overridePath)", .note)
     }
 
     func addGpuDriver(targetMount: String) throws {

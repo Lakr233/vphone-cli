@@ -1004,7 +1004,7 @@ extension DeviceTreePatcher {
             description: "Set /device-tree/target-type from \(source)",
         ))
         if verbose {
-            print("  =prop  : /target-type \(String(decoding: change.before.prefix { $0 != 0 }, as: UTF8.self)) → \(String(decoding: change.after.prefix { $0 != 0 }, as: UTF8.self)) from \(source)  [\(Self.boardTargetTypePatch)]")
+            VPhoneConsole.shared.line("  =prop  : /target-type \(String(decoding: change.before.prefix { $0 != 0 }, as: UTF8.self)) → \(String(decoding: change.after.prefix { $0 != 0 }, as: UTF8.self)) from \(source)  [\(Self.boardTargetTypePatch)]")
         }
     }
 
@@ -1150,7 +1150,7 @@ extension DeviceTreePatcher {
                 description: "Set /device-tree\(change.path)/\(change.property) from \(change.source)",
             ))
             if verbose {
-                print("  =prop  : \(change.path)/\(change.property) \(String(decoding: change.before.prefix { $0 != 0 }, as: UTF8.self)) → \(change.after.hex) from \(change.source)  [\(Self.syscfgPlaceholdersPatch)]")
+                VPhoneConsole.shared.line("  =prop  : \(change.path)/\(change.property) \(String(decoding: change.before.prefix { $0 != 0 }, as: UTF8.self)) → \(change.after.hex) from \(change.source)  [\(Self.syscfgPlaceholdersPatch)]")
             }
         }
     }

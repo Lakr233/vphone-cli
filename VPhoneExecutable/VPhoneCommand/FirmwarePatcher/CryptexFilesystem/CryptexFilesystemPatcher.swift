@@ -253,7 +253,7 @@ public final class CryptexFilesystemPatcher: BufferedPatcher {
                 try addCryptexctl(targetMount: targetMount)
             }
             if gate.isEnabled(FirmwareRestoreImagePatchSet.internalReleaseType), applies(FirmwareRestoreImagePatchSet.internalReleaseType) {
-                print("- Marking the release Internal for offline app authorization…")
+                VPhoneConsole.shared.line("- Marking the release Internal for offline app authorization…", .step)
                 try markInternalReleaseType(targetMount: targetMount)
             }
             try removeHostEventLog(mount: targetMount)
