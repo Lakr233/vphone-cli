@@ -242,6 +242,16 @@ nonisolated struct VPhoneLaunchpadFirmwareCatalog: Decodable, Sendable {
         /// The files the firmware needs in the IPSW cache, relative to it, from
         /// a bundle that lists them: an OTA and the IPSW it is restored over.
         var files: [String]?
+
+        /// The build in parentheses at the end of the name
+        /// (`cloudOS 26.5 (23F75)`), or nil.
+        var buildInName: String? {
+            guard name.hasSuffix(")"), let open = name.lastIndex(of: "(") else {
+                return nil
+            }
+            let build = name[name.index(after: open) ..< name.index(before: name.endIndex)]
+            return build.isEmpty ? nil : String(build)
+        }
     }
 
     struct Pairing: Decodable, Hashable, Identifiable, Sendable {
@@ -253,6 +263,12 @@ nonisolated struct VPhoneLaunchpadFirmwareCatalog: Decodable, Sendable {
 
         var id: String {
             ios.url
+        }
+
+        /// Every cloudOS the pairing names: the recommended one, then the
+        /// release's own.
+        var cloudOSImages: [Image] {
+            [recommendedCloudOS] + (matchingCloudOS.map { [$0] } ?? [])
         }
 
         /// The build the bundle gives, else the one from an IPSW name such as

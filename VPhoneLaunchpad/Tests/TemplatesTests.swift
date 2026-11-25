@@ -493,6 +493,31 @@ struct TemplatesTests {
         precondition(second.key.osName == "iPadOS" && second.key.slimming.serviceGroups.isEmpty, "Format 1 slimming has no groups")
         precondition(!second.key.slimming.isSlimmed && second.sources == nil && second.bootChainBundleVersion == nil, "Plain template")
         precondition(list.building[0].id == "0e44975ff833" && !list.building[0].active, "Unfinished build")
+
+        // A template is offered only for the cloudOS it was built on.
+        typealias Image = VPhoneLaunchpadFirmwareCatalog.Image
+        let beta = Image(name: "cloudOS 26.4", url: "https://example.invalid/cloudos")
+        let own264 = Image(name: "cloudOS 26.4 (23E244)", url: "https://example.invalid/own264")
+        precondition(first.isBuilt(on: beta) && !first.isBuilt(on: own264), "Recorded source decides")
+        precondition(second.isBuilt(on: Image(name: "cloudOS 26.4", url: "https://example.invalid/other")), "Version without a build")
+        precondition(!second.isBuilt(on: own264), "Build in the name decides")
+        precondition(second.isBuilt(on: Image(name: "cloudOS 26.4 (23E5207q)", url: "https://example.invalid/other")), "Matching build")
+        // The same templates built on cloudOS 26.4 (23E244), the first from a
+        // local cloudOS file.
+        let own264JSON = String(decoding: data, as: UTF8.self)
+            .replacingOccurrences(of: "23E5207q", with: "23E244")
+            .replacingOccurrences(of: #""https:\/\/example.invalid\/cloudos""#, with: #""\/Users\/me\/cloudos.ipsw""#)
+        let onOwn264 = try VPhoneLaunchpadTemplateList.decode(Data(own264JSON.utf8), libraryRoot: "/Users/me/.vphone/machines").templates
+        let (local, adopted) = (onOwn264[0], onOwn264[1])
+        precondition(local.sources?.cloudOS == "/Users/me/cloudos.ipsw" && adopted.sources == nil, "Variants")
+        // An adopted template on 23E244 is not one on the 26.4 beta, which the
+        // catalog names without a build.
+        precondition(!adopted.isBuilt(on: beta, notOn: [beta, own264]), "Own 26.4 is not the beta")
+        precondition(adopted.isBuilt(on: own264, notOn: [beta, own264]), "Own 26.4 by build")
+        precondition(second.isBuilt(on: beta, notOn: [beta, own264]), "The beta is still the beta")
+        // A local cloudOS file says nothing; the build decides.
+        precondition(local.isBuilt(on: own264, notOn: [beta, own264]), "Local file by build")
+        precondition(!local.isBuilt(on: beta, notOn: [beta, own264]), "Local file, other build")
         print("Template list decoding tests passed")
     }
 

@@ -187,13 +187,17 @@ struct VPhoneLaunchpadNewMachineView: View {
         return nil
     }
 
-    /// Whether a current template was built from the chosen device and
-    /// release; nil for custom IPSWs and until the template list is read.
+    /// Whether a current template was built from the chosen device, release
+    /// and cloudOS; nil for custom IPSWs and until the template list is read.
     private var templateAvailable: Bool? {
         guard !usesCustomSources, let guest, let pairing = selectedPairing, let templates = model.machines.templates else {
             return nil
         }
-        return templates.contains { !$0.stale && $0.key.device == guest && $0.key.iOSBuild == pairing.build }
+        let cloudOS = ownCloudOS ?? pairing.recommendedCloudOS
+        let others = catalog?.guests.flatMap(\.pairings).flatMap(\.cloudOSImages) ?? []
+        return templates.contains {
+            !$0.stale && $0.key.device == guest && $0.key.iOSBuild == pairing.build && $0.isBuilt(on: cloudOS, notOn: others)
+        }
     }
 
     private var canCreate: Bool {
