@@ -18,7 +18,7 @@ To open a version that is not notarized, open it once, then go to **System Setti
 
 | Series | Notarized | Not Notarized |
 | --- | --- | --- |
-| 2.17 | 2.17.0 | — |
+| 2.17 | 2.17.0, 2.17.1, 2.17.2 | — |
 | 2.16 | — | 2.16.0, 2.16.1 |
 | 2.15 | 2.15.0 | 2.15.1, 2.15.2 |
 | 2.14 | 2.14.0 | 2.14.1, 2.14.2 |
