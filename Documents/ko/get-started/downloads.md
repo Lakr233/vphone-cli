@@ -1,6 +1,6 @@
 # 다운로드
 
-내려받을 Launchpad 버전과 그에 맞는 `VPhone.bundle`을 고릅니다. 최신 릴리스에 공증된 Launchpad가 없거나 버전을 직접 맞춰야 할 때 이 페이지를 사용하세요.
+내려받을 Launchpad 버전과 그에 맞는 `VPhone.bundle`을 고릅니다. 최신 릴리스에 공증된 Launchpad가 없거나 버전을 직접 맞춰야 할 때 이 페이지를 사용하세요. Homebrew로 설치하려면 [Homebrew로 설치하기](#homebrew로-설치하기)를 참고하세요.
 
 ## 릴리스에 포함된 파일
 
@@ -14,6 +14,24 @@
 | `vphone-skills-<version>.zip` | `vphone-guest-control` 에이전트 스킬입니다. Claude Code나 Codex 같은 코딩 에이전트가 vphone을 다룰 수 있게 합니다. 이 파일이 추가되기 전의 릴리스에는 없습니다. |
 
 공증되지 않은 버전을 열려면 한 번 연 뒤 **시스템 설정 > 개인정보 보호 및 보안**으로 이동하여 **그래도 열기**를 클릭합니다.
+
+## Homebrew로 설치하기
+
+직접 내려받는 대신 [Homebrew](https://brew.sh)로 Launchpad를 설치하려면 다음을 실행하세요.
+
+```sh
+brew install --cask lakr233/tap/vphone-launchpad
+```
+
+이 명령은 [Lakr233/homebrew-tap](https://github.com/Lakr233/homebrew-tap) tap을 추가하고, `-notarized.zip`과 같은 공증된 Launchpad를 설치하며, `vphone-launchpad-cli`를 `PATH`에 추가합니다. `VPhone.bundle`은 여전히 Launchpad가 내려받아 관리합니다. tap이 신뢰되지 않는다는 이유로 Homebrew가 설치를 거부하면 `brew trust lakr233/tap`을 실행한 뒤 다시 시도하세요.
+
+선택 사항인 `vphone-skills` cask는 `vphone-guest-control` 에이전트 스킬만 `~/.claude/skills`와 `~/.codex/skills`에 설치합니다.
+
+```sh
+brew install --cask lakr233/tap/vphone-skills
+```
+
+Launchpad를 업데이트하려면 `brew upgrade --cask vphone-launchpad`를 실행하세요. 제거하려면 `brew uninstall --cask vphone-launchpad`를 실행하세요. 머신과 설치된 번들은 남습니다.
 
 ## 공증된 Launchpad 버전
 

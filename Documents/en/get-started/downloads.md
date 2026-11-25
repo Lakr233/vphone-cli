@@ -1,6 +1,6 @@
 # Downloads
 
-Pick the Launchpad version to download and the `VPhone.bundle` that goes with it. Use this page when the latest release has no notarized Launchpad, or when you need to match versions by hand.
+Pick the Launchpad version to download and the `VPhone.bundle` that goes with it. Use this page when the latest release has no notarized Launchpad, or when you need to match versions by hand. To install Launchpad with Homebrew instead, see [Install with Homebrew](#install-with-homebrew).
 
 ## What each release contains
 
@@ -14,6 +14,24 @@ Each [release](https://github.com/Lakr233/vphone-cli/releases) has up to four fi
 | `vphone-skills-<version>.zip` | The `vphone-guest-control` agent skill, which lets a coding agent such as Claude Code or Codex drive vphone. Releases made before this file was added do not have it. |
 
 To open a version that is not notarized, open it once, then go to **System Settings > Privacy & Security** and click **Open Anyway**.
+
+## Install with Homebrew
+
+To install Launchpad with [Homebrew](https://brew.sh) instead of downloading it, run:
+
+```sh
+brew install --cask lakr233/tap/vphone-launchpad
+```
+
+This adds the [Lakr233/homebrew-tap](https://github.com/Lakr233/homebrew-tap) tap and installs the same notarized Launchpad as the `-notarized.zip`, with `vphone-launchpad-cli` on your `PATH`. Launchpad still downloads and manages `VPhone.bundle`. If Homebrew refuses the cask because the tap is untrusted, run `brew trust lakr233/tap` and try again.
+
+The optional `vphone-skills` cask installs only the `vphone-guest-control` agent skill, into `~/.claude/skills` and `~/.codex/skills`:
+
+```sh
+brew install --cask lakr233/tap/vphone-skills
+```
+
+To update Launchpad, run `brew upgrade --cask vphone-launchpad`. To remove it, run `brew uninstall --cask vphone-launchpad`; your machines and installed bundles stay.
 
 ## Notarized Launchpad versions
 

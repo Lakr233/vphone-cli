@@ -4,7 +4,7 @@ Launchpad で vphone をセットアップし、最初の仮想 iPhone を起動
 
 ## Launchpad でセットアップする
 
-1. [最新のリリース](https://github.com/Lakr233/vphone-cli/releases/latest)から `vphone-launchpad-<version>-notarized.zip` をダウンロードし、展開して開きます。すべてのリリースが公証済みとは限りません。最新のリリースに `-notarized` ファイルがない場合は、[ダウンロード](downloads.md)から公証済みのバージョンを選んでください。
+1. [最新のリリース](https://github.com/Lakr233/vphone-cli/releases/latest)から `vphone-launchpad-<version>-notarized.zip` をダウンロードし、展開して開きます。すべてのリリースが公証済みとは限りません。最新のリリースに `-notarized` ファイルがない場合は、[ダウンロード](downloads.md)から公証済みのバージョンを選んでください。または `brew install --cask lakr233/tap/vphone-launchpad` を実行すると、同じ公証済みの Launchpad がインストールされるので、Launchpad を開きます([Homebrew でインストールする](downloads.md#homebrew-でインストールする)を参照)。
 2. **Host Setup**（ホストの設定）でデベロッパツールへのアクセスを許可し、ヘルパーをインストールします。
 3. **Core Bundle** で **Download and Install**（ダウンロードしてインストール）をクリックします。
 4. **Machines**（マシン）で **New Machine**（新規マシン）をクリックし、ファームウェアの組み合わせを選んで **Create**（作成）をクリックします。

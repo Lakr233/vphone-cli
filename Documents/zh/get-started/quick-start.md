@@ -4,7 +4,7 @@
 
 ## 用 Launchpad 设置
 
-1. 从[最新版本](https://github.com/Lakr233/vphone-cli/releases/latest)下载 `vphone-launchpad-<version>-notarized.zip`，解压并打开。并非每个版本都经过公证。如果最新版本没有 `-notarized` 文件，请在[下载](downloads.md)中选择一个已公证的版本。
+1. 从[最新版本](https://github.com/Lakr233/vphone-cli/releases/latest)下载 `vphone-launchpad-<version>-notarized.zip`，解压并打开。并非每个版本都经过公证。如果最新版本没有 `-notarized` 文件，请在[下载](downloads.md)中选择一个已公证的版本。也可以运行 `brew install --cask lakr233/tap/vphone-launchpad` 安装同一个已公证的 Launchpad，然后打开 Launchpad；请参阅[用 Homebrew 安装](downloads.md#用-homebrew-安装)。
 2. 在 **Host Setup**（宿主机设置）中授予开发者工具权限，并安装辅助程序。
 3. 在 **Core Bundle** 中点击 **Download and Install**（下载并安装）。
 4. 在 **Machines**（虚拟机）中点击 **New Machine**（新建虚拟机），选择固件组合，然后点击 **Create**（创建）。

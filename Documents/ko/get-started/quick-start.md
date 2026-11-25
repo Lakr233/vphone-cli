@@ -4,7 +4,7 @@ Launchpad로 vphone을 설정하고 첫 가상 iPhone을 부팅합니다. Mac이
 
 ## Launchpad로 설정하기
 
-1. [최신 릴리스](https://github.com/Lakr233/vphone-cli/releases/latest)에서 `vphone-launchpad-<version>-notarized.zip`을 내려받아 압축을 풀고 엽니다. 모든 릴리스가 공증된 것은 아닙니다. 최신 릴리스에 `-notarized` 파일이 없으면 [다운로드](downloads.md)에서 공증된 버전을 선택하세요.
+1. [최신 릴리스](https://github.com/Lakr233/vphone-cli/releases/latest)에서 `vphone-launchpad-<version>-notarized.zip`을 내려받아 압축을 풀고 엽니다. 모든 릴리스가 공증된 것은 아닙니다. 최신 릴리스에 `-notarized` 파일이 없으면 [다운로드](downloads.md)에서 공증된 버전을 선택하세요. 또는 `brew install --cask lakr233/tap/vphone-launchpad`를 실행하면 같은 공증된 Launchpad가 설치되며, 그다음 Launchpad를 엽니다([Homebrew로 설치하기](downloads.md#homebrew로-설치하기) 참고).
 2. **Host Setup**(호스트 설정)에서 개발자 도구 접근 권한을 부여하고 도우미를 설치합니다.
 3. **Core Bundle**(코어 번들)에서 **Download and Install**(다운로드 및 설치)을 클릭합니다.
 4. **Machines**(머신)에서 **New Machine**(새 머신)을 클릭하고 펌웨어 조합을 선택한 뒤 **Create**(생성)를 클릭합니다.

@@ -1,6 +1,6 @@
 # ダウンロード
 
-ダウンロードする Launchpad のバージョンと、それに対応する `VPhone.bundle` を選びます。最新のリリースに公証済みの Launchpad がない場合や、バージョンを手動で合わせる必要がある場合にこのページを使います。
+ダウンロードする Launchpad のバージョンと、それに対応する `VPhone.bundle` を選びます。最新のリリースに公証済みの Launchpad がない場合や、バージョンを手動で合わせる必要がある場合にこのページを使います。Homebrew でインストールする場合は、[Homebrew でインストールする](#homebrew-でインストールする)をご覧ください。
 
 ## 各リリースの内容
 
@@ -14,6 +14,24 @@
 | `vphone-skills-<version>.zip` | `vphone-guest-control` エージェントスキルです。Claude Code や Codex などのコーディングエージェントが vphone を操作できるようにします。このファイルが追加される前のリリースにはありません。 |
 
 公証されていないバージョンを開くには、一度開いてから **システム設定 > プライバシーとセキュリティ** に移動し、**このまま開く** をクリックします。
+
+## Homebrew でインストールする
+
+ダウンロードする代わりに [Homebrew](https://brew.sh) で Launchpad をインストールするには、次を実行します。
+
+```sh
+brew install --cask lakr233/tap/vphone-launchpad
+```
+
+これで [Lakr233/homebrew-tap](https://github.com/Lakr233/homebrew-tap) の tap が追加され、`-notarized.zip` と同じ公証済みの Launchpad がインストールされ、`vphone-launchpad-cli` が `PATH` に入ります。`VPhone.bundle` は引き続き Launchpad がダウンロードして管理します。tap が信頼されていないという理由で Homebrew がインストールを拒否した場合は、`brew trust lakr233/tap` を実行してからやり直してください。
+
+任意の `vphone-skills` cask は、`vphone-guest-control` エージェントスキルのみを `~/.claude/skills` と `~/.codex/skills` にインストールします。
+
+```sh
+brew install --cask lakr233/tap/vphone-skills
+```
+
+Launchpad を更新するには `brew upgrade --cask vphone-launchpad` を実行します。削除するには `brew uninstall --cask vphone-launchpad` を実行します。マシンとインストール済みのバンドルは残ります。
 
 ## 公証済みの Launchpad バージョン
 
