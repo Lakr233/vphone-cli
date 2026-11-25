@@ -18,6 +18,7 @@ To open a version that is not notarized, open it once, then go to **System Setti
 
 | Series | Notarized | Not Notarized |
 | --- | --- | --- |
+| 2.18 | 2.18.0 | — |
 | 2.17 | 2.17.0, 2.17.1, 2.17.2 | — |
 | 2.16 | — | 2.16.0, 2.16.1 |
 | 2.15 | 2.15.0 | 2.15.1, 2.15.2 |
@@ -45,6 +46,7 @@ Use a `VPhone.bundle` from the same series as Launchpad. The series is the first
 
 | Launchpad | VPhone.bundle |
 | --- | --- |
+| 2.18.x | 2.18.x |
 | 2.17.x | 2.17.x |
 | 2.16.x | 2.16.x |
 | 2.15.x | 2.15.x |
