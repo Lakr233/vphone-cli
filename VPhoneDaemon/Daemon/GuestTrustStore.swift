@@ -210,7 +210,7 @@ enum GuestTrustStore {
     // MARK: - Install
 
     /// Install an anchor into the selected trust domain (`admin` ? admin : user),
-    /// all-or-none (REQ-007):
+    /// all-or-none:
     /// (0) a NULL store returns the SPI error before any other call;
     /// (1) pre-check `SecTrustStoreCopyAll` for pre-presence (a failed/malformed
     ///     pre-check errors before any write; an empty store enumerates as

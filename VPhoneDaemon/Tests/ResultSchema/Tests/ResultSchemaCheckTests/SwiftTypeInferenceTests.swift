@@ -2,7 +2,7 @@ import Foundation
 import XCTest
 @testable import ResultSchemaKit
 
-/// REQ-RPC-007: a key whose source expression has a determinable type gets that type; `any` is kept otherwise.
+/// A key whose source expression has a determinable type gets that type; `any` is kept otherwise.
 final class SwiftTypeInferenceTests: XCTestCase {
     static let fixtures = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

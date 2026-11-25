@@ -9,10 +9,10 @@ import CryptoKit
 /// `GuestTrustStore.SPI` fakes (no live trustd), covering the all-or-none
 /// install flow and its rollback, the SPI-failure / malformed-CopyAll /
 /// SPI-unavailable / NULL-store paths, the serial-queue serialization, the
-/// REQ-006 input rejects, and the `SecCertificateCopySubjectSummary` subject
+/// input-validation rejects, and the `SecCertificateCopySubjectSummary` subject
 /// rendering with its control-char sanitization. `run-trust-store-tests.sh`
 /// builds this file with GuestTrustStore.swift and passes a fixture CA DER as
-/// argv[1]. The live-guest uid-501 trust chain stays VM-gated (TASK-007).
+/// argv[1]. The live-guest uid-501 trust chain needs a running guest.
 nonisolated(unsafe) var failures = 0
 nonisolated(unsafe) var checks = 0
 
@@ -164,7 +164,7 @@ enum TrustStoreTests {
         exit(failures == 0 ? 0 : 1)
     }
 
-    // MARK: REQ-006 input validation (unchanged logic)
+    // MARK: Input validation (unchanged logic)
 
     static func certificateCountReject() {
         let block = "-----BEGIN CERTIFICATE-----\nQQ==\n-----END CERTIFICATE-----\n"
@@ -215,7 +215,7 @@ enum TrustStoreTests {
         caDispatchFlow(der: der, sha256: sha256)
     }
 
-    // MARK: RPC dispatch (REQ-006) — GuestSecurityCADispatch param keys + reply shape
+    // MARK: RPC dispatch — GuestSecurityCADispatch param keys + reply shape
 
     /// The `security.ca_*` dispatch arms as `executeDevice` calls them: the RPC
     /// param keys (`pem`/`sha256`) and the exact reply fields, driven through the
@@ -309,7 +309,7 @@ enum TrustStoreTests {
         }
     }
 
-    // MARK: Admin-domain SPI flow (REQ-007)
+    // MARK: Admin-domain SPI flow
 
     static func spiFlow(der: Data, sha256: Data) {
         let certPEM = pem(fromDER: der)
@@ -354,7 +354,7 @@ enum TrustStoreTests {
             expect(fake.store.isEmpty, "(a) rollback leaves nothing installed")
         }
 
-        // (a-admin) admin-domain post-write verify failure + rollback (V2-r1-3):
+        // (a-admin) admin-domain post-write verify failure + rollback:
         // install with admin:true where the post-write CopyAll omits the just-
         // written cert ⇒ install throws, the error names the ADMIN trust store
         // (not user), and the compensating SecTrustStoreRemoveCertificate runs
@@ -572,7 +572,7 @@ enum TrustStoreTests {
         spiFailureCoverage(der: der, certPEM: certPEM, hex: hex)
     }
 
-    // MARK: install reject coverage (REQ-006)
+    // MARK: install reject coverage
 
     static func installRejects(der: Data, certPEM: String) {
         let limit = GuestTrustStore.maxPEMBytes
@@ -608,7 +608,7 @@ enum TrustStoreTests {
         }
     }
 
-    // MARK: remove reject coverage (REQ-006)
+    // MARK: remove reject coverage
 
     static func removeRejects() {
         let cases: [(label: String, value: String)] = [
@@ -627,7 +627,7 @@ enum TrustStoreTests {
         }
     }
 
-    // MARK: SPI-failure coverage (REQ-007)
+    // MARK: SPI-failure coverage
 
     static func spiFailureCoverage(der: Data, certPEM: String, hex: String) {
         // NULL admin store for remove and list: the NULL error, no copyAll/remove.

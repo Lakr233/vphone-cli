@@ -173,7 +173,7 @@ final class NativeExtractorTests: XCTestCase {
         }
     }
 
-    /// REQ-RPC-007: each table row, and a swapped expectation must not match.
+    /// Each table row, and a swapped expectation must not match.
     func testTypeInferenceTable() throws {
         let text = """
         NSDictionary *f(int n, NSNumber *w) {

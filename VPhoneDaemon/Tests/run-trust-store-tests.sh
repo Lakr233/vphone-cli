@@ -5,7 +5,7 @@ set -euo pipefail
 # for the Mac and runs them: the admin-domain install/remove/list flow driven
 # through injected GuestTrustStore.SPI fakes (the all-or-none install flow and
 # its rollback, the SPI-failure / malformed-CopyAll / SPI-unavailable /
-# NULL-store paths, and the serial-queue serialization), the REQ-006 input
+# NULL-store paths, and the serial-queue serialization), the input-validation
 # rejects, and the SecCertificateCopySubjectSummary subject rendering with its
 # control-char sanitization. No live trustd and no guest are needed. A fixture CA
 # (CN=Test CA) is generated with openssl and passed as argv[1] for the subject

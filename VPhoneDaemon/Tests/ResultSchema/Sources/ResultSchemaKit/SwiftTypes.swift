@@ -1,7 +1,7 @@
 import Foundation
 import SwiftSyntax
 
-/// Types of locals, parameters, file-level properties and expressions (REQ-RPC-007).
+/// Types of locals, parameters, file-level properties and expressions.
 struct TypeEnv {
     var local: [String: TypeRef] = [:]
     /// Bindings made inside a closure body, by closure: visible to the expressions inside that closure.
