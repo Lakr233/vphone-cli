@@ -149,15 +149,7 @@ static NSString *VPhoneHingeAcceptClientDispatches(void) {
     [self publishStatus];
 }
 
-- (void)updateTimer {
-    // locationd's relay keeps the last value it was sent and never asks for
-    // one; when locationd restarts it reseeds 0° and portrait. Stationary
-    // values are therefore sent again every few seconds, which also hands the
-    // angle to a CoreMotion client started since (on 27.2 with the relay's
-    // resend; see VPhoneHingeRelayResend.h).
-    uint64_t period = self.enumerated ? VP_HINGE_REPUSH_SECONDS * NSEC_PER_SEC : DISPATCH_TIME_FOREVER;
-    dispatch_source_set_timer(self.timer, period == DISPATCH_TIME_FOREVER ? DISPATCH_TIME_FOREVER : DISPATCH_TIME_NOW,
-                              period, NSEC_PER_MSEC);
+- (void)updateHeartbeat {
     // The status is republished every two seconds only while samples flow, as
     // with the accelerometer: cfprefsd need not carry a rewrite for the
     // guest's whole life, and vphoned judges an idle provider
@@ -168,6 +160,18 @@ static NSString *VPhoneHingeAcceptClientDispatches(void) {
                                   flowing ? dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC) : DISPATCH_TIME_FOREVER,
                                   2 * NSEC_PER_SEC, 100 * NSEC_PER_MSEC);
     }
+}
+
+- (void)updateTimer {
+    // locationd's relay keeps the last value it was sent and never asks for
+    // one; when locationd restarts it reseeds 0° and portrait. Stationary
+    // values are therefore sent again every few seconds, which also hands the
+    // angle to a CoreMotion client started since (on 27.2 with the relay's
+    // resend; see VPhoneHingeRelayResend.h).
+    uint64_t period = self.enumerated ? VP_HINGE_REPUSH_SECONDS * NSEC_PER_SEC : DISPATCH_TIME_FOREVER;
+    dispatch_source_set_timer(self.timer, period == DISPATCH_TIME_FOREVER ? DISPATCH_TIME_FOREVER : DISPATCH_TIME_NOW,
+                              period, NSEC_PER_MSEC);
+    [self updateHeartbeat];
 }
 
 // MARK: - Apple's sweep model
@@ -427,7 +431,7 @@ static double VPhoneHingeMillisecondsPerTick(void) {
     if ([key isEqualToString:@"ReportInterval"]) {
         self.interval = VPhoneHingeInterval(value);
         self.properties[key] = @(self.interval);
-        [self updateTimer];
+        [self updateHeartbeat];
         [self publishStatus];
         return YES;
     }
