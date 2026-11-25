@@ -542,6 +542,18 @@ struct NetworkPlanTests {
         #expect(untouched.blockQUIC)
     }
 
+    /// The summary shows `block-quic` whenever it is stored: `--no-intercept`
+    /// leaves it on and the forwarder still drops UDP/443 without an intercept.
+    @Test func `the summary shows block-quic with or without an intercept`() {
+        typealias Cfg = VPhoneVirtualMachineManifest.NetworkConfig
+        #expect(VPhoneNetworking.describe(Cfg(mode: .tunnel, macAddress: "", interceptBlockQUIC: true))
+            == "tunnel, block-quic")
+        #expect(VPhoneNetworking.describe(Cfg(
+            mode: .tunnel, macAddress: "", intercept: "socks5://u:p@h:1080", interceptBlockQUIC: true,
+        )) == "tunnel, intercept socks5://u:***@h:1080, block-quic")
+        #expect(VPhoneNetworking.describe(Cfg(mode: .tunnel, macAddress: "")) == "tunnel")
+    }
+
     /// The grammar the CLI validates `--intercept` against: host:port with a
     /// 1-65535 port, IPv6 in brackets; everything else is rejected.
     @Test func `the intercept grammar accepts host colon port and rejects the rest`() throws {

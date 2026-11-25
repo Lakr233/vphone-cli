@@ -773,6 +773,51 @@ struct VPhoneTCPForwarderTests {
         #expect(!proxyConnected.withLock { $0 }, "a gateway flow must not touch the proxy")
     }
 
+    /// A direct flow (no upstream) whose server speaks first, as an SSH server
+    /// sends its banner: the banner reaches the guest as soon as the handshake
+    /// completes, with no further segment from the guest to prompt it.
+    @Test func `a direct flow flushes server-first data when the handshake completes`() async throws {
+        let banner: [UInt8] = Array("SSH-2.0-test\r\n".utf8)
+        let bannerSent = Box(false)
+        let server = try LoopbackServer { client, server in
+            _ = banner.withUnsafeBytes { send(client, $0.baseAddress, $0.count, 0) }
+            bannerSent.withLock { $0 = true }
+            server.drain(client)
+        }
+        defer { server.stop() }
+
+        let harness = Harness(guestPort: 51203, destinationPort: server.port)
+        harness.start()
+        defer { harness.stop() }
+
+        harness.feed(VPhoneTCPSegment(
+            sourcePort: harness.guestPort,
+            destinationPort: harness.flow.destinationPort,
+            sequenceNumber: 1000,
+            acknowledgmentNumber: 0,
+            flags: VPhoneTCPFlags.syn,
+            windowSize: 65535,
+        ))
+        try #require(harness.waitUntil("the SYN-ACK") { harness.ourISN != nil })
+        let isn = try #require(harness.ourISN)
+        // Let the banner reach the forwarder before the handshake completes,
+        // so only the flush on reaching established can deliver it.
+        try #require(harness.waitUntil("the banner to be sent") { bannerSent.withLock { $0 } })
+        usleep(100_000)
+        #expect(harness.deliveredPayload.isEmpty)
+
+        harness.feed(VPhoneTCPSegment(
+            sourcePort: harness.guestPort,
+            destinationPort: harness.flow.destinationPort,
+            sequenceNumber: 1001,
+            acknowledgmentNumber: isn &+ 1,
+            flags: VPhoneTCPFlags.ack,
+            windowSize: 65535,
+        ))
+
+        #expect(harness.waitUntil("the banner") { harness.deliveredPayload == banner })
+    }
+
     /// The gateway bypass is for gateway flows only: with a gateway configured, a
     /// non-gateway flow against a failed upstream still fails closed.
     @Test func `a non-gateway flow fails closed when a gateway is set`() async throws {
