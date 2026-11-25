@@ -56,7 +56,8 @@ struct FirmwareCatalogReportTests {
         #expect(own["iOS 26.5"] == "cloudOS 26.5 (23F75)")
         #expect(own["iOS 26.6.2"] == "cloudOS 26.6 (23G71)")
         #expect(own["iOS 26.3.1"] == nil && own["iOS 27.0"] == nil)
-        // The recommendation stays the 26.4 beta, which needs neither root nor ipsw.
+        // The recommendation stays the 26.4 beta, which needs no kernelcache rebuild;
+        // Launchpad takes the own one only for minimal on iOS 27 and later.
         let ios266 = try #require(report.pairings.first { $0.ios.name == "iOS 26.6" })
         #expect(ios266.recommendedCloudOS.name == "cloudOS 26.4")
         // Only the iPhone has run on the research board.

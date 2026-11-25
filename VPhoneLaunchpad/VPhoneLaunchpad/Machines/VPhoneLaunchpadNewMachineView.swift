@@ -37,8 +37,10 @@ struct VPhoneLaunchpadNewMachineView: View {
     @State private var inspectedCustomSource: String?
     @State private var cloudOSSource = ""
     /// Run the release on its own cloudOS, where the research board stands in
-    /// for vphone600 and the kernelcache is mixed (`fw kernelcache`).
-    @State private var usesOwnCloudOS = false
+    /// for vphone600 and the kernelcache is mixed (`fw kernelcache`), as
+    /// picked under Firmware; nil keeps the pairing's default
+    /// (`defaultsToOwnCloudOS(restoredSystem:)`).
+    @State private var ownCloudOSChoice: Bool?
     /// The ipsw that stages a mix; vphone-cli does not ship one.
     @AppStorage("KernelcacheIPSW") private var kernelcacheIPSW = ""
     @State private var cpu = Self.defaultCPU
@@ -92,6 +94,16 @@ struct VPhoneLaunchpadNewMachineView: View {
     private var warnsAboutServiceTrimming: Bool {
         slimming.slim && slimming.trimsServices
             && VPhoneLaunchpadSlimming.warnsAboutServiceTrimming(iphoneSource: sources?.0 ?? "")
+    }
+
+    /// Whether the pairing gets its own cloudOS when none is picked: only
+    /// for the Minimal preset on iOS 27 and later.
+    private var defaultsToOwnCloudOS: Bool {
+        selectedPairing?.defaultsToOwnCloudOS(restoredSystem: patches.customisesRestoredSystem) ?? false
+    }
+
+    private var usesOwnCloudOS: Bool {
+        ownCloudOSChoice ?? defaultsToOwnCloudOS
     }
 
     /// The release's own cloudOS, when chosen and the pairing has one.
@@ -252,6 +264,12 @@ struct VPhoneLaunchpadNewMachineView: View {
             applyGuestDefaults(previousProductType: previous)
             inspectedCustomSource = source
         }
+        // A cloudOS picked under Firmware is for that release and preset;
+        // the next one starts from its own default.
+        .onChange(of: pairing) { ownCloudOSChoice = nil }
+        .onChange(of: guest) { ownCloudOSChoice = nil }
+        .onChange(of: bundleVersion) { ownCloudOSChoice = nil }
+        .onChange(of: patches.customisesRestoredSystem) { ownCloudOSChoice = nil }
         .onChange(of: usesCustomSources) { previous, _ in
             applyGuestDefaults(previousProductType: previous ? customGuestProductType : selectedGuest?.productType)
         }
@@ -455,6 +473,15 @@ struct VPhoneLaunchpadNewMachineView: View {
         } else if let own = ownCloudOS {
             Text("On its own cloudOS, \(own.name): the kernelcache is rebuilt, which asks for administrator access once.")
                 .foregroundStyle(.secondary)
+        } else if let pairing = selectedPairing, pairing.needsCloudOS27(restoredSystem: patches.customisesRestoredSystem),
+                  (pairing.recommendedCloudOS.majorVersion ?? 0) < 27 {
+            if let own = pairing.matchingCloudOS {
+                Text("\(pairing.ios.name) does not start on \(pairing.recommendedCloudOS.name) with this preset. Choose \(own.name) in Advanced Options, or the Standard preset.")
+                    .foregroundStyle(.orange)
+            } else {
+                Text("\(pairing.ios.name) does not start on \(pairing.recommendedCloudOS.name) with this preset. Choose the Standard preset.")
+                    .foregroundStyle(.orange)
+            }
         } else if rebuildsKernelcache, let cloudOS = selectedPairing?.recommendedCloudOS.name {
             Text("With \(cloudOS): the kernelcache is rebuilt with the watch's kexts, which asks for administrator access once.")
                 .foregroundStyle(.secondary)
@@ -530,6 +557,7 @@ struct VPhoneLaunchpadNewMachineView: View {
             slimming != defaultSlimming,
             chosenVersion != nil && bundleVersion != model.bundles.defaultVersion,
             usesCustomSources,
+            !usesCustomSources && selectedPairing?.matchingCloudOS != nil && usesOwnCloudOS != defaultsToOwnCloudOS,
             patches != VPhoneLaunchpadPatchSelection(),
             network != Self.defaultNetwork,
             !usesTemplate && keepArtifacts,
@@ -632,9 +660,9 @@ struct VPhoneLaunchpadNewMachineView: View {
                 sourceField("Guest IPSW", $iphoneSource)
                 sourceField("cloudOS IPSW", $cloudOSSource)
             } else if let pairing = selectedPairing, let own = pairing.matchingCloudOS {
-                Picker("cloudOS", selection: $usesOwnCloudOS) {
+                Picker("cloudOS", selection: Binding(get: { usesOwnCloudOS }, set: { ownCloudOSChoice = $0 })) {
                     Text(verbatim: pairing.recommendedCloudOS.name).tag(false)
-                    Text(verbatim: own.name).tag(true)
+                    Text("\(own.name), matching \(pairing.ios.name)").tag(true)
                 }
                 if usesOwnCloudOS {
                     sourceField("ipsw", $kernelcacheIPSW)
