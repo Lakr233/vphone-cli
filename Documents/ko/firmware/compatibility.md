@@ -22,6 +22,7 @@ vphone-cli fw catalog
 | 연구용 보드 | `17,3_26.6_23G71` | `26.6-23G71` | CLI에서 standard 및 Minimal 프리셋, Launchpad에서 standard(2026-10-20): 디바이스 트리와 SEP 변환, kernelcache 믹스, 복원, CFW, 부팅, vphoned ping |
 | 연구용 보드 | `17,3_26.5_23F77` | `26.5-23F75` | CLI에서 standard 프리셋(2026-10-20): 임시 cloudOS 복원으로 얻은 GPU 드라이버, kernelcache 믹스, 복원, CFW, 부팅, vphoned ping |
 | 연구용 보드 | `17,3_26.4_23E246` | `26.4-23E244` | CLI에서 standard 프리셋(2026-10-20): 임시 cloudOS 복원으로 얻은 GPU 드라이버, kernelcache 믹스, 복원, CFW, 부팅, vphoned ping |
+| 연구용 보드 | `Watch7,18_27.2_24S116` | `27.2-24B115` | Launchpad의 CLI에서 `watchos` 프리셋(2026-11-24): cloudOS 27.2 커널 기반 watch kernelcache 믹스, 복원, CFW, 부팅, vphoned ping |
 | 연구용 보드 | `Watch7,18_26.4_23T240` | `26.4-23E244` | CLI와 Launchpad에서 `watchos` 프리셋(2026-10-20): watch kernelcache 믹스, 복원, 부팅, vphoned ping |
 | 연구용 보드 | `11,6_18.7.2_22H124` | `18.7.2-22H43` | CLI에서 Minimal 프리셋(2026-10-21): 임시 cloudOS 복원으로 얻은 GPU 드라이버, macOS 15.6.1의 kmutil이 ssh로 링크한 iOS 18 kernelcache 믹스, 복원, 부팅, vphoned ping. 화면, 잠금 화면, 잠금 해제, 홈 스와이프 확인 |
 | 연구용 보드 | `11,6_18.1_22B83` | `18.1-22B83` | CLI에서 Minimal 프리셋(2026-10-21): 임시 cloudOS 복원으로 얻은 GPU 드라이버, macOS 15.6.1의 kmutil이 ssh로 링크한 kernelcache 믹스, 복원, 부팅, vphoned. Hello 화면, 잠금 화면, 잠금 해제, 홈 스와이프 확인 |

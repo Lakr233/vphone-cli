@@ -22,6 +22,7 @@ vphone-cli fw catalog
 | 研究主板 | `17,3_26.6_23G71` | `26.6-23G71` | 从 CLI 使用 standard 和 Minimal 预设，从 Launchpad 使用 standard 预设（2026-10-20）：转换设备树和 SEP、kernelcache 组合、恢复、CFW、启动、vphoned ping |
 | 研究主板 | `17,3_26.5_23F77` | `26.5-23F75` | 从 CLI 使用 standard 预设（2026-10-20）：GPU 驱动取自临时 cloudOS 恢复、kernelcache 组合、恢复、CFW、启动、vphoned ping |
 | 研究主板 | `17,3_26.4_23E246` | `26.4-23E244` | 从 CLI 使用 standard 预设（2026-10-20）：GPU 驱动取自临时 cloudOS 恢复、kernelcache 组合、恢复、CFW、启动、vphoned ping |
+| 研究主板 | `Watch7,18_27.2_24S116` | `27.2-24B115` | 从 Launchpad 的 CLI 使用 `watchos` 预设（2026-11-24）：基于 cloudOS 27.2 内核的手表 kernelcache 组合、恢复、CFW、启动、vphoned ping |
 | 研究主板 | `Watch7,18_26.4_23T240` | `26.4-23E244` | 从 CLI 和 Launchpad 使用 `watchos` 预设（2026-10-20）：手表 kernelcache 组合、恢复、启动、vphoned ping |
 | 研究主板 | `11,6_18.7.2_22H124` | `18.7.2-22H43` | 从 CLI 使用 Minimal 预设（2026-10-21）：GPU 驱动取自临时 cloudOS 恢复，iOS 18 kernelcache 组合通过 ssh 由 macOS 15.6.1 的 kmutil 链接、恢复、启动、vphoned ping；已检查屏幕、锁定屏幕、解锁和主屏幕手势 |
 | 研究主板 | `11,6_18.1_22B83` | `18.1-22B83` | 从 CLI 使用 Minimal 预设（2026-10-21）：GPU 驱动取自临时 cloudOS 恢复，kernelcache 组合通过 ssh 由 macOS 15.6.1 的 kmutil 链接、恢复、启动、vphoned；已检查“你好”屏幕、锁定屏幕、解锁和主屏幕手势 |

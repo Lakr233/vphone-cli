@@ -577,10 +577,11 @@ public enum VPhoneFirmwareCatalog {
 
     /// Apple Watch releases. The watch boots the research board kernel of the
     /// cloudOS its kernelcache recipe is for, rebuilt with the watchOS kexts:
-    /// 26.4 (23E244) for watchOS 26.4.
+    /// 26.4 (23E244) for watchOS 26.4, 27.2 (24B115) for watchOS 27.2.
     static let watchReleases: [(devices: [String], releases: [(version: String, url: String)])] = [
         (devices: ["Watch7,18"], releases: [
             ("26.4", "https://updates.cdn-apple.com/2026SpringFCS/fullrestores/122-09130/486B2E2B-DEDB-4DCF-80F0-7A84ED51B074/Watch7,18_26.4_23T240_Restore.ipsw"),
+            ("27.2", "https://updates.cdn-apple.com/2026FallFCS/fullrestores/122-72904/D5EBE9D5-1530-43AD-AB84-9945467E37B0/Watch7,18_27.2_24S116_Restore.ipsw"),
         ]),
     ]
 
