@@ -160,9 +160,14 @@ public enum VPhoneFirmwareCatalog {
 
     /// cloudOS releases with only the research board (vresearch101ap). A VM on one
     /// of them runs its own release's kernel, rebuilt with the vphone600 kexts
-    /// (FirmwareResearchBoardPatchSet, kernelcache_recipes), which needs root and an
-    /// ipsw with `kernel extract --kdk`. They are offered beside the 26.4 beta, which
-    /// stays the recommendation: it needs neither.
+    /// (FirmwareResearchBoardPatchSet, kernelcache_recipes), which `fw kernelcache`
+    /// downloads and links per release. They are listed beside the 26.4 beta, which
+    /// stays each pairing's `recommendedCloudOS`: it needs no kernelcache rebuild,
+    /// `standard` patches its kernel for 27.x, and `minimal` with `trusted-darwinos`
+    /// loses Developer Mode on the 26.5 and 26.6 research board kernels. Launchpad picks the release's own one only for `minimal` on iOS 27 and
+    /// later, which `fw prepare` refuses on a cloudOS 26 kernel
+    /// (`FirmwareRestoreImagePatchSet.cloudOSRefusal`); `vphone-cli vm create` keeps
+    /// the recommendation.
     public static let researchBoardCloudOS: [(version: String, option: VPhoneCloudOSOption)] = [
         ("26.4", .init(name: "cloudOS 26.4 (23E244)", url: "https://updates.cdn-apple.com/private-cloud-compute/6acb7959507f25a76753f5a08ee39f09671486eb7619367e42dc1869bd779035")),
         ("26.5", .init(name: "cloudOS 26.5 (23F75)", url: "https://updates.cdn-apple.com/private-cloud-compute/602f1132456a1323ac145ea13828c3ca72845259b50f99af1cef8329d5e25748")),

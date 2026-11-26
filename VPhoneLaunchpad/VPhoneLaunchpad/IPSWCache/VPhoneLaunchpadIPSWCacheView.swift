@@ -311,11 +311,12 @@ struct VPhoneLaunchpadIPSWCacheView: View {
 }
 
 extension VPhoneLaunchpadIPSWCatalogNames {
-    /// Every iOS, iPadOS and cloudOS image the catalog names.
+    /// Every iOS, iPadOS and cloudOS image the catalog names, the releases'
+    /// own research board cloudOS included.
     init(_ catalog: VPhoneLaunchpadFirmwareCatalog) {
         self.init(images: catalog.guests.flatMap { device in
             device.pairings.flatMap { pairing in
-                [(pairing.ios.name, pairing.ios.url), (pairing.recommendedCloudOS.name, pairing.recommendedCloudOS.url)]
+                ([pairing.ios] + pairing.cloudOSImages).map { ($0.name, $0.url) }
             }
         })
     }

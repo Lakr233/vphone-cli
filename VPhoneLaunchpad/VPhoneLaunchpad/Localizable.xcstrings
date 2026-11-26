@@ -546,6 +546,74 @@
         }
       }
     },
+    "%@ does not start on %@ with this preset. Choose %@ in Advanced Options, or the Standard preset." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ does not start on %2$@ with this preset. Choose %3$@ in Advanced Options, or the Standard preset."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプリセットでは、%1$@ は %2$@ 上で起動しません。詳細オプションで %3$@ を選ぶか、標準プリセットを選んでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 프리셋에서는 %1$@ 게스트가 %2$@ 위에서 시작되지 않습니다. 고급 옵션에서 %3$@ 또는 표준 프리셋을 선택하세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Với cấu hình sẵn này, %1$@ không khởi động trên %2$@. Chọn %3$@ trong Tùy chọn nâng cao, hoặc cấu hình sẵn Tiêu chuẩn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用此预设时，%1$@ 无法在 %2$@ 上启动。请在“高级选项”中选择 %3$@，或改用“标准”预设。"
+          }
+        }
+      }
+    },
+    "%@ does not start on %@ with this preset. Choose the Standard preset." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ does not start on %2$@ with this preset. Choose the Standard preset."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプリセットでは、%1$@ は %2$@ 上で起動しません。標準プリセットを選んでください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 프리셋에서는 %1$@ 게스트가 %2$@ 위에서 시작되지 않습니다. 표준 프리셋을 선택하세요."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Với cấu hình sẵn này, %1$@ không khởi động trên %2$@. Chọn cấu hình sẵn Tiêu chuẩn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用此预设时，%1$@ 无法在 %2$@ 上启动。请改用“标准”预设。"
+          }
+        }
+      }
+    },
     "%@ exited with status %d." : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1190,6 +1258,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 已取消。"
+          }
+        }
+      }
+    },
+    "%@, matching %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, matching %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@、%2$@ に対応"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@에 맞춤"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, khớp với %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@，与 %2$@ 匹配"
           }
         }
       }

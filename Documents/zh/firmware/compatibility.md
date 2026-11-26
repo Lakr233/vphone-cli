@@ -38,7 +38,7 @@ vphone-cli fw catalog
 - `fw patch` 把研究主板的设备树和 SEP 转换为 vphone600 的版本，并按照该 kernelcache 的配方，用 vphone600 的虚拟化 kext 重新构建它的 kernelcache。
 - KDK 提取和链接都以你的身份运行（`vphone-cli fw kernelcache`），链接使用构建该 kernelcache 时所用的 kmutil。见[kernelcache 配方](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md)和[固件准备](firmware-preparation.md)。
 - 没有配方覆盖的 cloudOS 会被 `fw prepare` 拒绝。
-- `fw catalog` 会在推荐的 cloudOS 旁列出每个 iOS 版本自己的 cloudOS，Launchpad 在 **Firmware**（固件）下提供它。
+- `fw catalog` 会在推荐的 cloudOS 旁列出每个 iOS 版本自己的 cloudOS，Launchpad 在 **Firmware**（固件）下提供它。Launchpad（New Machine 和 `vphone-launchpad-cli vm create`）默认使用推荐的 cloudOS，只有 iOS 或 iPadOS 27 及以后的 Minimal 预设例外：`fw prepare` 和 `fw patch` 会拒绝在原版 cloudOS 26 内核上使用该预设。目录中有该版本自己的 cloudOS 时（iPhone，iOS 27.2），Launchpad 会使用它；没有时，New Machine 会提示只能使用 standard 预设。`vphone-cli vm create` 仍使用推荐的 cloudOS，有该版本自己的 cloudOS 时，拒绝信息会给出它。
 
 | cloudOS | `vresearch101ap` | `vphone600ap` | kernelcache 配方 |
 | --- | --- | --- | --- |
