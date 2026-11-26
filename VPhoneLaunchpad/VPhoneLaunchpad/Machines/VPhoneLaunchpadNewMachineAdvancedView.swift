@@ -9,7 +9,10 @@ struct VPhoneLaunchpadNewMachineAdvancedView: View {
     var usesTemplate: Bool
     @Binding var network: String
     @Binding var patches: VPhoneLaunchpadPatchSelection
+    @Binding var bootstrap: VPhoneLaunchpadBootstrapChoice
     @Binding var keepArtifacts: Bool
+    /// The guest device, which decides whether Irisin has packages for it.
+    var device: String?
     let patchCatalog: VPhoneLaunchpadPatchCatalog?
     let patchCatalogError: String?
     /// New Machine owns the catalog, which is read again for each preset.
@@ -46,6 +49,7 @@ struct VPhoneLaunchpadNewMachineAdvancedView: View {
         switch page {
         case .patches:
             patchSection
+            bootstrapSection
         case .hardware:
             Section {
                 Picker("Mode", selection: $network) {
@@ -133,6 +137,43 @@ struct VPhoneLaunchpadNewMachineAdvancedView: View {
             Text("Patches")
         } footer: {
             patchNote
+        }
+    }
+
+    // MARK: - Bootstrap
+
+    /// The package environment, installed through vphoned once the machine has
+    /// booted. The same two steps as `vphone-cli vm create --bootstrap
+    /// roothide`; doing it later is the VM window's Apps > Install Bootstrap.
+    private var bootstrapSection: some View {
+        let allowsBootstrap = !patches.customisesRestoredSystem
+        let allowsPackages = VPhoneLaunchpadBootstrapChoice.allowsPackages(device: device)
+        // The boxes show what the creation installs, not what was ticked
+        // before a preset or a device ruled it out; the choice itself is kept,
+        // so changing either back brings the tick back.
+        let installs = bootstrap.resolved(presetAllows: allowsBootstrap, device: device)
+        return Section {
+            Toggle(isOn: Binding(get: { installs.bootstrap }, set: { bootstrap.wantsBootstrap = $0 })) {
+                Text("Install the bootstrap")
+                Text("Installs Irisin in the machine after its first boot.")
+            }
+            .disabled(!allowsBootstrap)
+            Toggle(isOn: Binding(get: { installs.packages }, set: { bootstrap.wantsPackages = $0 })) {
+                Text("Install the OwnGoal bootstrap package")
+                Text("owngoal-bootstrap-vphone: apt and dpkg, the shells, sudo, the core command-line tools, OpenSSH, curl, git and the OwnGoal apps.")
+            }
+            .disabled(!installs.bootstrap || !allowsPackages)
+        } header: {
+            Text("Package Environment")
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                if !allowsBootstrap {
+                    Text("The \(patchCatalog?.preset(patches.preset)?.displayTitle ?? patches.preset) preset patches no kernel and reseals the system, which Irisin cannot install into.")
+                } else if !allowsPackages {
+                    Text("Irisin's Apple TV package has no irisin-cli, so this guest takes the bootstrap without its packages.")
+                }
+            }
+            .foregroundStyle(.secondary)
         }
     }
 

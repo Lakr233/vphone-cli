@@ -28,6 +28,11 @@ nonisolated enum VPhoneLaunchpadCreationStep: Int, CaseIterable, Identifiable, C
     /// patch overrides, which a template does not carry.
     case applyGuestPatches
     case firstBoot
+    /// vphoned's `bootstrap.install`: Irisin in the booted machine.
+    case installBootstrap
+    /// vphoned's `bootstrap.packages`: `owngoal-bootstrap-vphone` through
+    /// Irisin's own irisin-cli.
+    case installBootstrapPackages
 
     var id: Int {
         rawValue
@@ -54,6 +59,8 @@ nonisolated enum VPhoneLaunchpadCreationStep: Int, CaseIterable, Identifiable, C
         case .cloneTemplate: String(localized: "Create machine from template")
         case .applyGuestPatches: String(localized: "Apply guest patches")
         case .firstBoot: String(localized: "First boot")
+        case .installBootstrap: String(localized: "Install bootstrap")
+        case .installBootstrapPackages: String(localized: "Install bootstrap packages")
         }
     }
 
@@ -66,6 +73,43 @@ nonisolated enum VPhoneLaunchpadCreationStep: Int, CaseIterable, Identifiable, C
     /// meter leaves templates alone meanwhile (`VPhoneLaunchpadDiskAccess`).
     var needsTemplatesToItself: Bool {
         self == .adoptTemplate || self == .cloneTemplate
+    }
+}
+
+// MARK: - Bootstrap
+
+/// What New Machine installs in the finished machine: Irisin, and the first
+/// packages through its irisin-cli.
+///
+/// Both toggles keep what they were set to even while a preset or a device
+/// forbids them, so changing either back restores the choice. ``resolved(…)``
+/// is what the pipeline runs.
+nonisolated struct VPhoneLaunchpadBootstrapChoice: Hashable, Sendable {
+    var wantsBootstrap = false
+    var wantsPackages = false
+
+    /// The Irisin layout vphoned installs. A visionOS guest runs the iOS agent
+    /// through the iPad compatibility environment and serves only rootless,
+    /// which it advertises as `bootstrap_rootless_only` and `bootstrap.install`
+    /// enforces; every other guest takes roothide, as `vm create --bootstrap
+    /// roothide` does.
+    static func layout(device: String?) -> String {
+        device?.hasPrefix("RealityDevice") == true ? "rootless" : "roothide"
+    }
+
+    /// Irisin's Apple TV package carries no irisin-cli, so a tvOS guest takes
+    /// the bootstrap but none of its packages (`GuestBootstrapPlatform`).
+    static func allowsPackages(device: String?) -> Bool {
+        !VPhoneLaunchpadMachine.usesTVOS(device)
+    }
+
+    /// What the creation actually installs. `presetAllows` is false for a
+    /// preset that customises the system before the restore (`minimal`,
+    /// `watchos`): it patches no kernel and reseals the system, so Irisin has
+    /// nothing to install into. Packages need the bootstrap.
+    func resolved(presetAllows: Bool, device: String?) -> (bootstrap: Bool, packages: Bool) {
+        let bootstrap = wantsBootstrap && presetAllows
+        return (bootstrap, bootstrap && wantsPackages && Self.allowsPackages(device: device))
     }
 }
 
@@ -97,6 +141,10 @@ nonisolated struct VPhoneLaunchpadCreationPlan: Hashable, Sendable {
     /// Nil until Find Template answers; then whether it found a template
     /// this creation clones from as it is.
     var foundTemplate: Bool?
+    /// Whether the booted machine gets the Irisin bootstrap, and its first
+    /// packages, as the last steps.
+    var installsBootstrap = false
+    var installsBootstrapPackages = false
 
     var usesTemplate: Bool {
         buildName != nil
@@ -112,15 +160,19 @@ nonisolated struct VPhoneLaunchpadCreationPlan: Hashable, Sendable {
     /// answered, a template-backed creation lists the build too.
     var steps: [VPhoneLaunchpadCreationStep] {
         let restore: [VPhoneLaunchpadCreationStep] = [.create, .prepare, .patch, .bootDFU, .waitDFU, .restore, .stopDFU, .installCFW]
+        // The machine is running after its first boot, which is what vphoned
+        // needs to install them.
+        let bootstrap: [VPhoneLaunchpadCreationStep] = (installsBootstrap ? [.installBootstrap] : [])
+            + (installsBootstrapPackages ? [.installBootstrapPackages] : [])
         guard usesTemplate else {
             // Slimmed on its own: the same trim and setup boot a template
             // build runs, on the machine itself, which is then not adopted.
             guard slimming.slim else {
-                return restore + [.firstBoot]
+                return restore + [.firstBoot] + bootstrap
             }
-            return restore + (slimming.trimArguments != nil ? [.trimTemplate] : []) + [.setUpTemplate, .firstBoot]
+            return restore + (slimming.trimArguments != nil ? [.trimTemplate] : []) + [.setUpTemplate, .firstBoot] + bootstrap
         }
-        let machine: [VPhoneLaunchpadCreationStep] = [.cloneTemplate] + (appliesGuestPatches ? [.applyGuestPatches] : []) + [.firstBoot]
+        let machine: [VPhoneLaunchpadCreationStep] = [.cloneTemplate] + (appliesGuestPatches ? [.applyGuestPatches] : []) + [.firstBoot] + bootstrap
         if foundTemplate == true {
             return [.findTemplate] + machine
         }
@@ -142,7 +194,8 @@ nonisolated struct VPhoneLaunchpadCreationPlan: Hashable, Sendable {
             return false
         }
         switch step {
-        case .findTemplate, .cloneTemplate, .applyGuestPatches, .firstBoot: return false
+        case .findTemplate, .cloneTemplate, .applyGuestPatches, .firstBoot,
+             .installBootstrap, .installBootstrapPackages: return false
         default: return true
         }
     }

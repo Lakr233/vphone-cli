@@ -172,6 +172,13 @@ nonisolated struct VPhoneLaunchpadMachine: Decodable, Hashable, Identifiable, Se
         return isHomeView ? "HomeView Software" : isHomePod ? "HomePod Software" : isWatch ? "watchOS" : isAppleTV ? "tvOS" : isPad ? "iPadOS" : "iOS"
     }
 
+    /// Apple TV, HomePod and HomeView guests run the tvOS build of vphoned,
+    /// as `VPhoneGuestDevice.Family.usesTVOS` groups them.
+    static func usesTVOS(_ productType: String?) -> Bool {
+        guard let productType else { return false }
+        return ["AppleTV", "AudioAccessory", "HomeAccessory"].contains { productType.hasPrefix($0) }
+    }
+
     static func requiresStandaloneRestore(for productType: String?) -> Bool {
         guard let productType else { return false }
         return ["AppleTV", "AudioAccessory", "HomeAccessory", "RealityDevice"].contains {

@@ -48,6 +48,9 @@ struct VPhoneLaunchpadNewMachineView: View {
     @State private var diskSizeGB = Self.defaultDiskSizeGB
     @State private var network = Self.defaultNetwork
     @State private var patches = VPhoneLaunchpadPatchSelection()
+    /// The Irisin bootstrap and its first packages, installed once the new
+    /// machine has booted.
+    @State private var bootstrap = VPhoneLaunchpadBootstrapChoice()
     @State private var patchCatalog: VPhoneLaunchpadPatchCatalog?
     @State private var patchCatalogError: String?
     @State private var keepArtifacts = false
@@ -559,6 +562,7 @@ struct VPhoneLaunchpadNewMachineView: View {
             usesCustomSources,
             !usesCustomSources && selectedPairing?.matchingCloudOS != nil && usesOwnCloudOS != defaultsToOwnCloudOS,
             patches != VPhoneLaunchpadPatchSelection(),
+            installsBootstrap.bootstrap,
             network != Self.defaultNetwork,
             !usesTemplate && keepArtifacts,
         ].count(where: \.self)
@@ -598,7 +602,9 @@ struct VPhoneLaunchpadNewMachineView: View {
             usesTemplate: usesTemplate,
             network: $network,
             patches: $patches,
+            bootstrap: $bootstrap,
             keepArtifacts: $keepArtifacts,
+            device: guestProductType,
             patchCatalog: patchCatalog,
             patchCatalogError: patchCatalogError,
             reloadPatches: { Task { await loadPatchCatalog() } },
@@ -890,6 +896,11 @@ struct VPhoneLaunchpadNewMachineView: View {
         }
     }
 
+    /// The bootstrap the toggles ask for, as the preset and the device allow it.
+    private var installsBootstrap: (bootstrap: Bool, packages: Bool) {
+        bootstrap.resolved(presetAllows: !patches.customisesRestoredSystem, device: guestProductType)
+    }
+
     private func create() {
         guard let (iphone, cloudOS) = sources, let bundleVersion else {
             return
@@ -913,6 +924,9 @@ struct VPhoneLaunchpadNewMachineView: View {
             usesTemplate: usesTemplate,
             slimming: slimming,
             kernelcacheIPSW: rebuildsKernelcache && hasKernelcacheIPSW ? kernelcacheIPSW : nil,
+            installsBootstrap: installsBootstrap.bootstrap,
+            installsBootstrapPackages: installsBootstrap.packages,
+            bootstrapLayout: VPhoneLaunchpadBootstrapChoice.layout(device: guestProductType),
         )
         let pipeline = model.machines.create(options)
         model.machines.selection = [pipeline.machine]
@@ -1043,7 +1057,11 @@ struct VPhoneLaunchpadCreationView: View {
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                 }
-                VPhoneLaunchpadCommandInfoButton(command: "vphone-cli \(creation.command(for: step))")
+                // A step vphoned runs through vphone.sock has no command.
+                let command = creation.command(for: step)
+                if !command.isEmpty {
+                    VPhoneLaunchpadCommandInfoButton(command: "vphone-cli \(command)")
+                }
             }
         } label: {
             Label {

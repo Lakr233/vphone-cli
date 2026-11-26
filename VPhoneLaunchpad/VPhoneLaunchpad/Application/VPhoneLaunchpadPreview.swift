@@ -169,6 +169,7 @@
                                 preset: VPhoneLaunchpadPatchSelection.minimalPreset,
                                 allowed: ["filesystem-exp-debugserver", "kernel-cfw-debugger"],
                             )),
+                            bootstrap: .constant(VPhoneLaunchpadBootstrapChoice()),
                             keepArtifacts: .constant(false),
                             patchCatalog: patchCatalog(preset: VPhoneLaunchpadPatchSelection.minimalPreset),
                             patchCatalogError: nil,

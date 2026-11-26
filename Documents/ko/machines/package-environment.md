@@ -23,6 +23,8 @@ vphone-cli vm create myphone --bootstrap roothide ...
 
 `--bootstrap roothide`는 새 머신의 첫 부팅 중에 1단계와 2단계를 수행합니다. Irisin을 설치한 뒤, Irisin이 권장하는 저장소에서 `irisin-cli`를 통해 `owngoal-bootstrap-vphone`을 Bootstrap Install로 설치합니다. 2단계에는 `irisin-cli install`이 `--repository`와 `--bootstrap-install`을 지원하는 Irisin이 필요합니다.
 
+Launchpad에서는 새 머신의 **Patches** 페이지 **Package Environment**에 같은 두 단계가 있습니다. **Install the bootstrap**과 **Install the OwnGoal bootstrap package**이며, 머신이 부팅된 뒤 vphoned를 통해 실행됩니다. 패키지 체크박스는 부트스트랩 체크박스가 켜져 있어야 합니다. 커널을 패치하지 않고 시스템을 다시 봉인하는 프리셋(**Minimal**, **Apple Watch**)은 둘 다 사용할 수 없고, Apple TV·HomePod·HomeView 게스트는 Irisin의 Apple TV 패키지에 `irisin-cli`가 없으므로 부트스트랩만 설치할 수 있습니다.
+
 ## 제거
 
 **Apps > Uninstall Bootstrap…**을 선택합니다. 제거 후 가상 머신이 재시동됩니다.
