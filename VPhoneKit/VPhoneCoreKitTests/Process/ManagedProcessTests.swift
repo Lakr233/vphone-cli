@@ -52,6 +52,7 @@ struct ManagedProcessTests {
         try p.start()
         _ = p.waitForOutput(matching: "NEVER", timeout: 0.4) // let it install the traps
         p.terminate()
+        #expect(!p.isRunning)
         #expect(p.waitUntilExit() != 0) // SIGKILL → nonzero/signal status, and it RETURNED
     }
 }

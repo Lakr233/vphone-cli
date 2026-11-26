@@ -439,13 +439,15 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
             .deletingLastPathComponent()
             .appendingPathComponent("vphone.sock").path
         let server = VPhoneHostAutomationServer(socketPath: socketPath)
-        server.start(
+        if server.start(
             captureView: windowController?.captureView,
             screenRecorder: screenRecorder,
             control: control,
             screenWidth: options.screenWidth,
             screenHeight: options.screenHeight,
-        )
+        ) {
+            vm.setControlSocketPath(socketPath)
+        }
         server.virtualMachine = vm
         hostAutomationServer = server
     }
@@ -571,6 +573,7 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
         homePodDisplayTask?.cancel()
         homePodDisplayTask = nil
         windowController?.clearHomePodDisplay()
+        vm?.setControlSocketPath(nil)
         hostAutomationServer?.stop()
         portForwarder?.stop()
         apiProxy?.stop()

@@ -579,9 +579,13 @@ public struct VPhoneVirtualMachineCreator {
         // managed process still reads it internally for panic/prompt matching.
         let (dfuExe, dfuArgs) = try requireLauncher().plan(["--config", configURL.path, "--dfu"])
         trace("spawn \(dfuExe.path) \(dfuArgs.joined(separator: " ")) (guest serial: off)", v)
+        let socketPath = bundleURL.appendingPathComponent("vphone.sock").path
         let dfu = VPhoneManagedProcess(dfuExe, dfuArgs, cwd: bundleURL, echo: false)
         try dfu.start()
-        defer { dfu.terminate() }
+        defer {
+            dfu.terminate()
+            _ = unlink(socketPath)
+        }
 
         let (udid, ecid) = try loadDeviceIdentity(bundleURL: bundleURL)
         print("[+] Device identity loaded: UDID=\(udid) ECID=0x\(ecid)")
@@ -741,11 +745,13 @@ public struct VPhoneVirtualMachineCreator {
         _ = try VPhoneLaunchLayout(resources: resources).stageVphoned(into: VPhoneBundle.load(at: bundleURL))
         let (vmExe, vmArgs) = try requireLauncher().plan(["--config", configURL.path])
         trace("spawn \(vmExe.path) \(vmArgs.joined(separator: " ")) (guest serial: off)", v)
+        let socketPath = bundleURL.appendingPathComponent("vphone.sock").path
         let vm = VPhoneManagedProcess(vmExe, vmArgs, cwd: bundleURL, echo: false)
         try vm.start()
-        defer { vm.terminate() }
-
-        let socketPath = bundleURL.appendingPathComponent("vphone.sock").path
+        defer {
+            vm.terminate()
+            _ = unlink(socketPath)
+        }
         let deadline = Date().addingTimeInterval(300)
         while Date() < deadline {
             switch vm.waitForOutput(matching: "(?i:\(VPhoneBootPatterns.panicRegex))", timeout: 0) {

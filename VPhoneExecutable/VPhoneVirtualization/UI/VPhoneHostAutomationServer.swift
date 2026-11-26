@@ -128,13 +128,14 @@ class VPhoneHostAutomationServer {
     }
 
     /// `captureView` is nil for a headless launch.
+    @discardableResult
     func start(
         captureView: VPhoneVirtualMachineView?,
         screenRecorder: VPhoneScreenRecorder,
         control: VPhoneGuestControl,
         screenWidth: Int,
         screenHeight: Int,
-    ) {
+    ) -> Bool {
         self.captureView = captureView
         self.screenRecorder = screenRecorder
         self.control = control
@@ -146,7 +147,7 @@ class VPhoneHostAutomationServer {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else {
             print("[hostctl] failed to create socket: \(String(cString: strerror(errno)))")
-            return
+            return false
         }
 
         // A machine deep in the library (a template being built) has a path
@@ -173,18 +174,18 @@ class VPhoneHostAutomationServer {
         guard let bindResult else {
             print("[hostctl] socket path too long")
             close(fd)
-            return
+            return false
         }
         guard bindResult == 0 else {
             print("[hostctl] bind failed: \(String(cString: strerror(errno)))")
             close(fd)
-            return
+            return false
         }
 
         guard listen(fd, SOMAXCONN) == 0 else {
             print("[hostctl] listen failed: \(String(cString: strerror(errno)))")
             close(fd)
-            return
+            return false
         }
 
         listenFD = fd
@@ -194,6 +195,7 @@ class VPhoneHostAutomationServer {
         acceptQueue.async { [weak self] in
             Self.acceptLoop(listenFD: capturedFD, controller: self)
         }
+        return true
     }
 
     func stop() {

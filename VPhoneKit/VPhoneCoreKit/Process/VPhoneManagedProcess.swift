@@ -185,6 +185,7 @@ public final class VPhoneManagedProcess: @unchecked Sendable {
         }
         if process.isRunning {
             kill(process.processIdentifier, SIGKILL)
+            process.waitUntilExit()
         }
     }
 }

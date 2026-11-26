@@ -127,6 +127,7 @@ final class VPhoneTemplateSetupVirtualMachine: VPhoneTemplateSetupMachine {
     /// has; it turns the guest off after 15 s and says so.
     func stop(timeout: TimeInterval) -> Bool {
         guard let process else { return true }
+        defer { _ = unlink(socketPath) }
         guard process.interrupt(waitingUpTo: timeout) else {
             process.terminate()
             return false
@@ -136,6 +137,7 @@ final class VPhoneTemplateSetupVirtualMachine: VPhoneTemplateSetupMachine {
 
     func kill() {
         process?.terminate()
+        _ = unlink(socketPath)
     }
 }
 

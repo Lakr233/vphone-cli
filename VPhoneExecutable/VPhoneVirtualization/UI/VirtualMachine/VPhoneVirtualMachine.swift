@@ -1,5 +1,6 @@
 import Dynamic
 import Foundation
+import os
 import Virtualization
 import VPhoneCoreKit
 
@@ -23,6 +24,9 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
     /// The guest's UDID as CoreDevice lists it, from the ECID; nil when that is unknown.
     let udid: String?
     private nonisolated let shaderCache: VPhoneShaderCache.Session?
+    /// Bound `vphone.sock` path to unlink before `guestDidStop` / `didStopWithError`
+    /// calls `exit(_:)`, which bypasses `applicationWillTerminate`.
+    private nonisolated let controlSocketPath = OSAllocatedUnfairLock<String?>(initialState: nil)
     /// Read handle for VM serial output.
     private var serialOutputReadHandle: FileHandle?
     private var serialInputSource: DispatchSourceRead?
@@ -648,13 +652,29 @@ class VPhoneVirtualMachine: NSObject, VZVirtualMachineDelegate {
 
     // MARK: - Delegate
 
+    nonisolated func setControlSocketPath(_ path: String?) {
+        controlSocketPath.withLock { $0 = path }
+    }
+
+    private nonisolated func unlinkControlSocket() {
+        let path = controlSocketPath.withLock { path -> String? in
+            defer { path = nil }
+            return path
+        }
+        if let path {
+            _ = unlink(path)
+        }
+    }
+
     nonisolated func guestDidStop(_: VZVirtualMachine) {
+        unlinkControlSocket()
         finishShaderCache()
         print("[vphone] Guest stopped")
         exit(EXIT_SUCCESS)
     }
 
     nonisolated func virtualMachine(_: VZVirtualMachine, didStopWithError error: Error) {
+        unlinkControlSocket()
         finishShaderCache()
         print("[vphone] Stopped with error: \(error)")
         exit(EXIT_FAILURE)
