@@ -307,7 +307,7 @@ nonisolated enum VPhoneLaunchpadZipReader {
             directorySize = record.u64(40)
             directoryOffset = record.u64(48)
         }
-        guard directorySize <= directoryLimit, directoryOffset + directorySize <= size else {
+        guard directorySize <= directoryLimit, directoryOffset <= size, directorySize <= size - directoryOffset else {
             throw Failure.malformed
         }
         return try read(handle, at: directoryOffset, count: Int(directorySize))
