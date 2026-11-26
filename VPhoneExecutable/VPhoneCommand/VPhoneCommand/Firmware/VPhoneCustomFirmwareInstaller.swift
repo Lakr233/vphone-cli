@@ -2376,7 +2376,8 @@ struct VPhoneCustomFirmwareInstaller {
                     gpuBundleReinstalled = true
                 } else {
                     print("  [·] system-extensions-boot-gpu_bundle: no restore tree; GPU bundle left as installed")
-                    if !guestDevice.usesTVOS, try refreshGPUCompilerPlugin(system: system) {
+                    let platform = guestDevice.family == .vision ? MachOBuildPlatform.visionOS : nil
+                    if !guestDevice.usesTVOS, try refreshGPUCompilerPlugin(system: system, work: work, platform: platform) {
                         print("  [+] system-extensions-boot-gpu_bundle: compiler plugin updated from this bundle")
                     }
                 }
@@ -3532,15 +3533,27 @@ struct VPhoneCustomFirmwareInstaller {
 
     /// Replace an installed guest's compiler plugin with this bundle's when
     /// they differ, and seal the GPU bundle again. True when it was replaced.
-    private func refreshGPUCompilerPlugin(system: VPhoneConfinedDirectory) throws -> Bool {
+    private func refreshGPUCompilerPlugin(
+        system: VPhoneConfinedDirectory, work: WorkDirectory, platform: UInt32?,
+    ) throws -> Bool {
         let gpu = "System/Library/Extensions/\(VPhonePCCGPUDriver.name)"
-        let plugin = "\(gpu)/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
+        let name = "libAppleParavirtCompilerPluginIOGPUFamily.dylib"
+        let plugin = "\(gpu)/\(name)"
         let source = resources.gpuCompilerPlugin
         guard try system.isRegularFile(plugin),
-              FileManager.default.fileExists(atPath: source.path),
-              try system.readData(plugin) != Data(contentsOf: source)
+              FileManager.default.fileExists(atPath: source.path)
         else { return false }
-        try system.replaceFile(plugin, fromFileAt: source, mode: 0o755, owner: Self.guestOwner)
+
+        let candidate: URL
+        if let platform {
+            candidate = work.file(name)
+            try work.directory.writeFile(name, contents: Data(contentsOf: source), mode: 0o600)
+            try retargetGuestBinary(at: candidate, to: platform)
+        } else {
+            candidate = source
+        }
+        guard try system.readData(plugin) != Data(contentsOf: candidate) else { return false }
+        try system.replaceFile(plugin, fromFileAt: candidate, mode: 0o755, owner: Self.guestOwner)
         try sealGuestBundle(system: system, bundle: gpu)
         return true
     }
@@ -3719,17 +3732,21 @@ struct VPhoneCustomFirmwareInstaller {
             let staged = work.file(name)
             try work.directory.removeItem(name)
             try system.copyFile(from: path, to: name, in: work.directory)
-            var data = try Data(contentsOf: staged)
-            try MachOBuildPlatform.set(platform, in: &data)
-            try data.write(to: staged)
-            try VPhoneSigner.sign(
-                fileAt: staged,
-                options: .init(identifier: nil, entitlements: nil, mergesExisting: true, style: .appleAdHoc),
-            )
+            try retargetGuestBinary(at: staged, to: platform)
             try system.replaceFile(path, fromFileAt: staged, mode: 0o755, owner: Self.guestOwner)
         }
         try sealGuestBundle(system: system, bundle: gpu)
         print("  [+] GPU driver retargeted to \(platform == MachOBuildPlatform.visionOS ? "visionOS" : "tvOS")")
+    }
+
+    private func retargetGuestBinary(at staged: URL, to platform: UInt32) throws {
+        var data = try Data(contentsOf: staged)
+        try MachOBuildPlatform.set(platform, in: &data)
+        try data.write(to: staged)
+        try VPhoneSigner.sign(
+            fileAt: staged,
+            options: .init(identifier: nil, entitlements: nil, mergesExisting: true, style: .appleAdHoc),
+        )
     }
 
     /// IOHIDUserDevice reserves IOClass. The shim supplies MiniDisplay's class

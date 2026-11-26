@@ -7678,6 +7678,10 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
   existing Preboot composition backup provides reversal. The selection is also
   available for visionOS 27.2 with the 26.4 donor after the 27.2.1 stock
   virtual-product boot aborted in wakeboardd's HMD product lookup.
+- An environment-only update applies the visionOS Mach-O platform to the staged
+  GPU compiler plugin, as a full install already does. Without that step the
+  update replaces the working platform tag with iOS, and `MTLCompilerService`
+  refuses to load the plugin during composite pipeline creation.
 - `system-launchdaemons-exp-visionos_nonfatal_services` journals only panic-on-crash
   policy fields for polarisd, realitycamerad, realitycoprocessorloaderd and arkitd.
   It retains the native jobs. The release gate also covers visionOS 27.2 after
