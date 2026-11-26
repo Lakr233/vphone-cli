@@ -4,13 +4,14 @@
 
 ## 各リリースの内容
 
-各[リリース](https://github.com/Lakr233/vphone-cli/releases)には最大 3 つのファイルがあります。
+各[リリース](https://github.com/Lakr233/vphone-cli/releases)には最大 4 つのファイルがあります。
 
 | ファイル | 内容 |
 | --- | --- |
 | `vphone-launchpad-<version>-notarized.zip` | Apple による署名と公証を受けた Launchpad です。ある場合はこちらをダウンロードしてください。 |
 | `vphone-launchpad-<version>.zip` | 公証されていない Launchpad です。初めて開くときに macOS にブロックされます。 |
 | `VPhone-<version>.zip` | `VPhone.bundle` です。Launchpad が自動でダウンロードしてインストールするため、このファイルは不要です。 |
+| `vphone-skills-<version>.zip` | `vphone-guest-control` エージェントスキルです。Claude Code や Codex などのコーディングエージェントが vphone を操作できるようにします。このファイルが追加される前のリリースにはありません。 |
 
 公証されていないバージョンを開くには、一度開いてから **システム設定 > プライバシーとセキュリティ** に移動し、**このまま開く** をクリックします。
 

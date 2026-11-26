@@ -4,13 +4,14 @@
 
 ## 每个版本包含的文件
 
-每个[版本](https://github.com/Lakr233/vphone-cli/releases)最多包含三个文件：
+每个[版本](https://github.com/Lakr233/vphone-cli/releases)最多包含四个文件：
 
 | 文件 | 内容 |
 | --- | --- |
 | `vphone-launchpad-<version>-notarized.zip` | Launchpad，已由 Apple 签名和公证。有这个文件时请下载它。 |
 | `vphone-launchpad-<version>.zip` | Launchpad，未经公证。首次打开时 macOS 会阻止它。 |
 | `VPhone-<version>.zip` | `VPhone.bundle`。Launchpad 会替你下载并安装，因此不需要这个文件。 |
+| `vphone-skills-<version>.zip` | `vphone-guest-control` 智能体技能，让 Claude Code、Codex 等编程智能体操作 vphone。添加此文件之前的版本没有它。 |
 
 要打开未经公证的版本，先打开一次，然后前往**系统设置 > 隐私与安全性**，点击**仍要打开**。
 
