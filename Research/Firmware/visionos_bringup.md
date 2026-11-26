@@ -11,6 +11,10 @@ cold boot. Mouse clicks opened Settings and switched through Home View to
 Safari, which loaded `apple.com`. The host window reported 60 fps when those
 views settled, with brief dips during app launches.
 
+![Native visionOS 27.2.1 Home View after cold boot](Assets/visionos-27.2.1-home.png)
+
+Automated mouse-wheel input did not move the Safari page in this check.
+
 Build and install the core bundle with these selections, then set
 `visionos_ipsw` and `cloudos_ipsw` to the two local IPSW paths. With an
 unmodified Launchpad 2.18.0, use the following command and set
