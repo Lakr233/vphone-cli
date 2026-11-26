@@ -56,6 +56,10 @@ struct MachineProductTypeTests {
         expect(machine.isAppleTV && !machine.isPad && machine.osName == "tvOS", "Apple TV guest")
         machine.guestProductType = VPhoneLaunchpadMachine.guestProductType(in: vision)
         expect(machine.osName == "visionOS", "Vision Pro guest OS label")
+        expect(VPhoneLaunchpadMachine.requiresStandaloneRestore(for: machine.guestProductType), "Vision Pro skips iOS template setup and slimming")
+        expect(!VPhoneLaunchpadMachine.requiresStandaloneRestore(for: "iPad16,1"), "iPad still supports templates")
+        let visionDevice = VPhoneLaunchpadFirmwareCatalog.Device(productType: "RealityDevice14,1", name: "Apple Vision Pro", family: "vision", pairings: [])
+        expect(visionDevice.osName == "visionOS" && visionDevice.requiresStandaloneRestore, "Vision Pro catalog family")
 
         machine.guestProductType = VPhoneLaunchpadMachine.guestProductType(in: homePod)
         expect(machine.isHomePod && !machine.isAppleTV && !machine.isPad && machine.osName == "HomePod Software", "HomePod guest")
