@@ -46,6 +46,7 @@ enum LogicTests {
         pagedFindOrder()
         spool()
         bootstrapPlatform()
+        loginShellRule()
         setupAssistantState()
         homeViewDistancePolicy()
         locationServicesOffError()
@@ -58,6 +59,53 @@ enum LogicTests {
         observeCatalog()
         print("\(checks) checks, \(failures) failures")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// The master.passwd rewrite that moves seeded accounts off `/bin/sh`.
+    /// The entries are the ones a vphone guest actually carries, copied from
+    /// the system's file by `seedAccountFile`.
+    static func loginShellRule() {
+        let seeded = """
+        ##
+        # User Database
+        ##
+        nobody:*:-2:-2::0:0:Unprivileged User:/var/empty:/usr/bin/false
+        root:/smx7MYTQIi2M:0:0::0:0:System Administrator:/var/root:/bin/sh
+        mobile:/smx7MYTQIi2M:501:501::0:0:Mobile User:/var/mobile:/bin/sh
+        _networkd:*:24:24::0:0:Network Services:/var/networkd:/usr/bin/false
+        _apt:*:1001:4294967295::0:0:User &:/var/empty:/usr/sbin/nologin
+
+        """
+        let first = GuestLoginShellRule.rewritingLoginShells(seeded)
+        expectEqual(first.changed, ["root", "mobile"], "only the two interactive accounts move")
+        expect(first.text.contains("root:/smx7MYTQIi2M:0:0::0:0:System Administrator:/var/root:/usr/bin/zsh"),
+               "root keeps every other field and takes zsh")
+        expect(first.text.contains("mobile:/smx7MYTQIi2M:501:501::0:0:Mobile User:/var/mobile:/usr/bin/zsh"),
+               "mobile keeps every other field and takes zsh")
+        expect(first.text.contains(":/usr/bin/false"), "false accounts are left alone")
+        expect(first.text.contains(":/usr/sbin/nologin"), "nologin accounts are left alone")
+        expect(first.text.hasPrefix("##\n# User Database\n##\n"), "comments survive")
+        expect(first.text.hasSuffix("\n"), "the trailing newline survives")
+        expectEqual(first.text.components(separatedBy: "\n").count,
+                    seeded.components(separatedBy: "\n").count, "no line is added or lost")
+
+        // The refresh runs on every vphoned start, so it has to settle.
+        let second = GuestLoginShellRule.rewritingLoginShells(first.text)
+        expectEqual(second.changed, [], "a second pass changes nothing")
+        expect(second.text == first.text, "a second pass returns the text unchanged")
+
+        // A shell the user chose is not ours to take back.
+        let chosen = "root:*:0:0::0:0:System Administrator:/var/root:/bin/bash\n"
+        let kept = GuestLoginShellRule.rewritingLoginShells(chosen)
+        expectEqual(kept.changed, [], "a shell the user changed is left alone")
+        expect(kept.text == chosen, "and its text is untouched")
+
+        // /etc/passwd has seven fields; pointing this at the wrong file must
+        // not rewrite it.
+        let passwdForm = "root:*:0:0:System Administrator:/var/root:/bin/sh\n"
+        let skipped = GuestLoginShellRule.rewritingLoginShells(passwdForm)
+        expectEqual(skipped.changed, [], "a seven-field passwd line is not an entry")
+        expect(skipped.text == passwdForm, "and it is returned as it came in")
     }
 
     static func settingsValue() {

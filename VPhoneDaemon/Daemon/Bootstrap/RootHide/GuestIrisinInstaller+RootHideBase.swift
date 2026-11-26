@@ -10,9 +10,12 @@ extension GuestIrisinInstaller {
     /// reads, root's home and the SSH host keys. Irisin only unpacks packages,
     /// so vphoned is that installer. Paths are physical; `root/x` is `/x`
     /// under vroot. A missing item is created and an existing one is left
-    /// alone, so a changed password, key or mode survives. A step that needs a
-    /// bootstrap tool waits for a later refresh until Irisin's Bootstrap
-    /// Install has unpacked the tool.
+    /// alone, so a changed password, key or mode survives. The one exception
+    /// is the login shell: `ensureInteractiveShells` rewrites entries still on
+    /// the seeded `/bin/sh`, because the seed copies the system's accounts
+    /// before the bootstrap's zsh exists. A step that needs a bootstrap tool
+    /// waits for a later refresh until Irisin's Bootstrap Install has unpacked
+    /// the tool.
     static func ensureRootHideBase(root: String) throws -> [String: Any] {
         guard try directoryExistsWithoutSymlink(root) else {
             throw GuestAPIError.operationFailed("RootHide bootstrap root is missing: \(root)")
@@ -44,6 +47,12 @@ extension GuestIrisinInstaller {
             if try seedAccountFile(name, root: root, mode: mode_t(mode)) {
                 created.append("/etc/" + name)
             }
+        }
+        // Before the databases, so their freshness check rebuilds from the
+        // rewritten master.passwd rather than a stale one.
+        let shells = try ensureInteractiveShells(root: root)
+        if !shells.isEmpty {
+            created.append("/etc/master.passwd login shell: " + shells.joined(separator: ", "))
         }
 
         switch try ensureAccountDatabases(root: root) {
@@ -137,6 +146,43 @@ extension GuestIrisinInstaller {
             throw GuestAPIError.operationFailed("Could not write \(destination): \(reason)")
         }
         return true
+    }
+
+    /// Points the seeded accounts at the bootstrap's shell, and returns the
+    /// names it changed. The rule itself is ``GuestLoginShellRule``.
+    ///
+    /// Waits for the shell the way the other steps wait for their tool: with
+    /// nothing to run yet this does nothing, and the refresh that follows
+    /// Irisin's Bootstrap Install applies it.
+    static func ensureInteractiveShells(root: String) throws -> [String] {
+        guard FileManager.default.isExecutableFile(atPath: root + GuestLoginShellRule.bootstrapShell) else {
+            return []
+        }
+        let path = root + "/etc/master.passwd"
+        guard let text = String(data: try Data(contentsOf: URL(fileURLWithPath: path)), encoding: .utf8) else {
+            throw GuestAPIError.operationFailed("Could not read \(path) as UTF-8")
+        }
+        let (rewritten, changed) = GuestLoginShellRule.rewritingLoginShells(text)
+        guard !changed.isEmpty else { return [] }
+
+        // master.passwd is the shadow file: create the replacement 0600 and
+        // owned by root before it takes the name, as seedAccountFile does.
+        let temporary = path + ".vphoned-" + UUID().uuidString
+        let output = open(temporary, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        guard output >= 0 else {
+            throw GuestAPIError.operationFailed("Could not create \(temporary): \(String(cString: strerror(errno)))")
+        }
+        let data = Data(rewritten.utf8)
+        let written = data.withUnsafeBytes { write(output, $0.baseAddress, $0.count) }
+        let prepared = written == data.count && fchown(output, 0, 0) == 0 && fchmod(output, 0o600) == 0
+        let failure = errno
+        close(output)
+        guard prepared, rename(temporary, path) == 0 else {
+            let reason = String(cString: strerror(prepared ? errno : failure))
+            unlink(temporary)
+            throw GuestAPIError.operationFailed("Could not write \(path): \(reason)")
+        }
+        return changed
     }
 
     /// Procursus tools look users up through libiosexec, which reads the
