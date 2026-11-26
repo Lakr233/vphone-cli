@@ -141,4 +141,56 @@ struct VPhoneSignStyleTests {
         let left = try FileManager.default.contentsOfDirectory(atPath: directory.path)
         #expect(left == ["binary"], "a temporary was left behind: \(left)")
     }
+
+    // MARK: - RootHide library ad-hoc upgrade detection
+
+    private struct FakeCMSIdentity: VPhoneSigningIdentity {
+        let commonName = "Test Signer"
+        let teamIdentifier = "TEAM123456"
+        func cms(codeDirectory _: Data, cdHashes _: [Data]) throws -> Data {
+            Data(repeating: 0x30, count: 64)
+        }
+    }
+
+    @Test
+    func `needsAdHocLibraryResign flags ldid dylibs and leaves ad-hoc, CMS and executables alone`() throws {
+        let dylib = try Data(contentsOf: VPhoneSignFixtures.url("hello-dylib"))
+        let executable = try Data(contentsOf: VPhoneSignFixtures.url("hello-arm64"))
+
+        // ldid-signed dylib (flags == 0, no CMS) needs upgrade to CS_ADHOC.
+        let ldidDylib = try VPhoneSigner.sign(dylib, options: .init(identifier: "hello-dylib", style: .ldid))
+        #expect(VPhoneSigner.needsAdHocLibraryResign(in: ldidDylib))
+
+        // After Apple ad-hoc re-sign, it no longer needs upgrade and passes codesign --verify.
+        let adHocDylib = try VPhoneSigner.sign(ldidDylib, options: .init(identifier: "hello-dylib", style: .appleAdHoc))
+        #expect(!VPhoneSigner.needsAdHocLibraryResign(in: adHocDylib))
+
+        // Real CMS-signed dylib is left untouched.
+        let cmsDylib = try VPhoneSigner.sign(
+            dylib,
+            options: .init(identifier: "hello-dylib", style: .ldid, identity: FakeCMSIdentity()),
+        )
+        #expect(!VPhoneSigner.needsAdHocLibraryResign(in: cmsDylib))
+
+        // Executables (MH_EXECUTE) are never flagged so app remap classification stays intact.
+        let ldidExecutable = try VPhoneSigner.sign(executable, options: .init(identifier: "hello-arm64", style: .ldid))
+        #expect(!VPhoneSigner.needsAdHocLibraryResign(in: ldidExecutable))
+
+        // Non-Mach-O input is ignored.
+        #expect(!VPhoneSigner.needsAdHocLibraryResign(in: Data("#!/bin/sh\n".utf8)))
+
+        // Non-zero startIndex Data slices work without rebasing copies.
+        let padded = Data(count: 13) + ldidDylib
+        #expect(VPhoneSigner.needsAdHocLibraryResign(in: padded[13...]))
+        let paddedAdHoc = Data(count: 13) + adHocDylib
+        #expect(!VPhoneSigner.needsAdHocLibraryResign(in: paddedAdHoc[13...]))
+
+        // Truncated SuperBlob (< 44 bytes) safely requests upgrade instead of trapping.
+        var truncatedSuperBlob = Data()
+        for word: UInt32 in [0xFADE_0CC0, 20, 1, 0, 20] {
+            var be = word.bigEndian
+            withUnsafeBytes(of: &be) { truncatedSuperBlob.append(contentsOf: $0) }
+        }
+        #expect(VPhoneCodeSignature.needsAdHocUpgrade(in: truncatedSuperBlob))
+    }
 }

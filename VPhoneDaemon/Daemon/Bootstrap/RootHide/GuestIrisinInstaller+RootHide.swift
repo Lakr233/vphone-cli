@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import VPhoneSign
 
 // MARK: - RootHide root
 
@@ -45,10 +46,14 @@ extension GuestIrisinInstaller {
         return roothideRoot
     }
 
-    /// Runs at install and on every vphoned start: the loader links, then the
-    /// bootstrap base. Returns the base report.
+    /// Runs at install and on every vphoned start: the loader links, dylib
+    /// ad-hoc signatures, then the bootstrap base. Returns the base report.
     static func repairRootHide(root: String) throws -> [String: Any] {
         try ensureRootHideLinks(root: root)
+        let resigned = ensureRootHideDylibSignatures(root: root)
+        if !resigned.isEmpty {
+            NSLog("vphoned: RootHide ad-hoc re-signed dylibs: %@", resigned.joined(separator: ", "))
+        }
         return try ensureRootHideBase(root: root)
     }
 }
@@ -149,16 +154,68 @@ extension GuestIrisinInstaller {
         return created
     }
 
+    /// Under `txm-cfw-executable_remap`, CMS-less ldid dylibs (`flags == 0`)
+    /// inside RootHide's `/private/var/containers/Bundle/` tree classify as
+    /// type 5 and are rejected by TXM selector 38 in higher-trust hosts.
+    /// Re-sign any such Mach-O dylib or loadable bundle to Apple ad-hoc
+    /// (`CS_ADHOC`, type 10) while preserving its identifier and entitlements.
+    static func ensureRootHideDylibSignatures(root: String) -> [String] {
+        let files = FileManager.default
+        let skipped: Set = ["usr/share", "usr/include", "Library/dpkg", "Library/Caches"]
+        var resigned: [String] = []
+        for top in ["usr", "Library"] {
+            guard (try? directoryExistsWithoutSymlink(root + "/" + top)) == true,
+                  let walk = files.enumerator(atPath: root + "/" + top)
+            else { continue }
+            while let entry = walk.nextObject() as? String {
+                let relative = top + "/" + entry
+                switch walk.fileAttributes?[.type] as? FileAttributeType {
+                case .typeDirectory?:
+                    if skipped.contains(relative) {
+                        walk.skipDescendants()
+                    }
+                    continue
+                case .typeRegular?:
+                    break
+                default:
+                    continue
+                }
+                let path = root + "/" + relative
+                guard isMachO(path) else { continue }
+                let url = URL(fileURLWithPath: path)
+                guard VPhoneSigner.needsAdHocLibraryResign(fileAt: url) else { continue }
+                let identifier = try? VPhoneSigner.identifier(ofFileAt: url)
+                let options = VPhoneSignOptions(
+                    identifier: identifier,
+                    mergesExisting: true,
+                    style: .appleAdHoc,
+                )
+                do {
+                    try VPhoneSigner.sign(fileAt: url, options: options)
+                    resigned.append("/" + relative)
+                } catch {
+                    NSLog("vphoned: could not ad-hoc re-sign %@: %@", path, String(describing: error))
+                }
+            }
+        }
+        return resigned
+    }
+
     /// After a package operation: relinks the new package's Mach-O
     /// directories right away. The spawn hooks cannot do it for a mobile
     /// shell: running sudo there cannot create a link in the root-owned
-    /// usr/libexec/sudo. The base steps that waited for pwd_mkdb or
-    /// ssh-keygen run then too, so sshd has host keys as soon as openssh is
-    /// installed.
+    /// usr/libexec/sudo. Also re-signs any CMS-less ldid dylibs/bundles to
+    /// Apple ad-hoc so TXM admits them in every host process. The base steps
+    /// that waited for pwd_mkdb or ssh-keygen run then too, so sshd has host
+    /// keys as soon as openssh is installed.
     static func repairRootHidePackages(root: String) {
         let seeded = ensureRootHideMachOLinks(root: root)
         if !seeded.isEmpty {
             NSLog("vphoned: RootHide loader links: %@", seeded.joined(separator: ", "))
+        }
+        let resigned = ensureRootHideDylibSignatures(root: root)
+        if !resigned.isEmpty {
+            NSLog("vphoned: RootHide ad-hoc re-signed dylibs: %@", resigned.joined(separator: ", "))
         }
         do {
             let base = try ensureRootHideBase(root: root)

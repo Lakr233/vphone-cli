@@ -1,5 +1,6 @@
 #include "../Shared/InjectionEnvironment.h"
 #include "../Shared/JetsamLimits.h"
+#include "../Shared/RootHideDylibSignature.h"
 #include "../Shared/RootHideLoaderLinks.h"
 #include "../Shared/VPhoneX1Spawn.h"
 #include "VPhoneX1Exception.h"
@@ -88,6 +89,8 @@ static int vpSpawnWith(VPX1SpawnFunction spawn, pid_t *restrict pid, const char 
         if (linkStatus || (path && strstr(path, "/.jbroot-")))
             vpLogInjection("loader-link", path, linkStatus);
     }
+    if (vpBootRoot[0] && (bootstrapProgram || appProgram || (path && strcmp(path, "/usr/libexec/xpcproxy") == 0)))
+        vpEnsureRootHideTweakSignatures(vpBootRoot);
     // Every process chain-loads SystemHook, including one started with tweaks
     // disabled: SystemHook itself honors DISABLE_TWEAKS and safe mode by not
     // loading ElleKit. Only launchd re-executing itself is left alone.

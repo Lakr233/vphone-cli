@@ -119,6 +119,7 @@ jobs:
           make -C VPhoneGuestComponents test-ios18-gpu
           make -C VPhoneGuestComponents test-ios16-lab-policy
           make -C VPhoneGuestComponents test-loader-links
+          make -C VPhoneGuestComponents test-roothide-dylib-signature
           make -C VPhoneGuestComponents test-vcam-dataplane
           make -C VPhoneGuestComponents test-vcam-prewarm
           make -C VPhoneGuestComponents test-vcam-drive-gate

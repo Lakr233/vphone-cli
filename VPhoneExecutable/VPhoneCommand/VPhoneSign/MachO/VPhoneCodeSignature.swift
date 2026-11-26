@@ -343,4 +343,56 @@ struct VPhoneCodeSignature {
         }
         return found
     }
+
+    /// Returns whether an embedded SuperBlob needs an Apple ad-hoc re-sign to
+    /// satisfy TXM library classification under `/private/var/containers/Bundle/`.
+    ///
+    /// A real CMS signature (a `CSSLOT_SIGNATURESLOT` wrapper carrying payload
+    /// beyond its 8-byte header) or a signature whose CodeDirectories all set
+    /// `CS_ADHOC` (`0x2`) returns `false`. A CMS-less `ldid` signature
+    /// (`flags == 0`) or a malformed SuperBlob returns `true`.
+    static func needsAdHocUpgrade(in blob: Data) -> Bool {
+        guard blob.count >= 12 else { return true }
+        let magic: UInt32 = blob.bigEndianValue(at: 0)
+        guard magic == 0xFADE_0CC0 else { return true }
+        let length = Int(blob.bigEndianValue(at: 4) as UInt32)
+        let count = Int(blob.bigEndianValue(at: 8) as UInt32)
+        guard length >= 12, length <= blob.count, count <= (length - 12) / 8 else { return true }
+
+        let indexEnd = 12 + count * 8
+        for index in 0 ..< count {
+            let entry = 12 + index * 8
+            guard blob.bigEndianValue(at: entry) as UInt32 == 0x10000 else { continue }
+            let offset = Int(blob.bigEndianValue(at: entry + 4) as UInt32)
+            guard offset >= indexEnd, offset <= length - 8 else { return true }
+            let wrapperMagic: UInt32 = blob.bigEndianValue(at: offset)
+            let wrapperLength = Int(blob.bigEndianValue(at: offset + 4) as UInt32)
+            guard wrapperMagic == 0xFADE_0B01, wrapperLength >= 8, wrapperLength <= length - offset else {
+                return true
+            }
+            if wrapperLength > 8 {
+                return false
+            }
+        }
+
+        var codeDirectories = 0
+        for index in 0 ..< count {
+            let entry = 12 + index * 8
+            let slot: UInt32 = blob.bigEndianValue(at: entry)
+            guard slot == 0 || (0x1000 ... 0x1004).contains(slot) else { continue }
+            let offset = Int(blob.bigEndianValue(at: entry + 4) as UInt32)
+            guard offset >= indexEnd, offset <= length - 44 else { return true }
+            let directoryMagic: UInt32 = blob.bigEndianValue(at: offset)
+            let directoryLength = Int(blob.bigEndianValue(at: offset + 4) as UInt32)
+            guard directoryMagic == 0xFADE_0C02, directoryLength >= 44, directoryLength <= length - offset else {
+                return true
+            }
+            let flags: UInt32 = blob.bigEndianValue(at: offset + 12)
+            if flags & 0x2 == 0 {
+                return true
+            }
+            codeDirectories += 1
+        }
+        return codeDirectories == 0
+    }
 }
