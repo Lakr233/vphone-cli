@@ -81,7 +81,7 @@ These all shut the guest down cleanly (vphoned `system.shutdown`):
 
 The VM ends once the guest has stopped, or after 15 seconds if it has not. A guest vphoned cannot answer for, such as one in DFU or still starting up, is turned off at once, as pulling the power would. A second Control-C turns it off without waiting.
 
-`vm stop` only signals the machine's own processes, `vphone-vm` and Virtualization's VM service. Another program that has the disk open, such as Launchpad measuring its size, Spotlight or a backup tool, is named and left running.
+`vm stop` only signals the machine's own processes, `vphone-vm` and Virtualization's VM service. Another program that has the disk open, such as Launchpad measuring its size, Spotlight or a backup tool, is named and left running. Whether the machine quit on SIGINT or was killed, `vm stop` then waits about 3 seconds, plus the time each lookup takes, for its processes to exit and release the machine's disk, SEP storage and nvram files and its control socket. If one of those processes or the control socket is still there, `vm stop` names it on stderr and exits 1; otherwise it prints `stopped` and exits 0.
 
 ## Control socket
 

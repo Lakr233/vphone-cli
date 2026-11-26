@@ -81,7 +81,7 @@ vphone-cli vm stop myphone    # run from another terminal to stop it
 
 가상 머신은 게스트가 멈추면 종료되며, 15초가 지나도 멈추지 않으면 그때 종료됩니다. DFU 상태이거나 아직 시작 중인 게스트처럼 vphoned가 응답할 수 없는 게스트는 전원을 뽑은 것처럼 즉시 꺼집니다. Control-C를 한 번 더 누르면 기다리지 않고 끕니다.
 
-`vm stop`은 머신 자신의 프로세스인 `vphone-vm`과 Virtualization의 가상 머신 서비스에만 신호를 보냅니다. 크기를 측정하는 Launchpad, Spotlight, 백업 도구처럼 디스크를 열고 있는 다른 프로그램은 이름만 표시하고 그대로 둡니다.
+`vm stop`은 머신 자신의 프로세스인 `vphone-vm`과 Virtualization의 가상 머신 서비스에만 신호를 보냅니다. 크기를 측정하는 Launchpad, Spotlight, 백업 도구처럼 디스크를 열고 있는 다른 프로그램은 이름만 표시하고 그대로 둡니다. 머신이 SIGINT로 종료되었든 강제로 종료되었든, `vm stop`은 그 뒤 머신의 프로세스가 종료되어 디스크, SEP 저장소, nvram 파일과 제어 소켓을 놓을 때까지 약 3초(여기에 매번 확인하는 데 걸리는 시간이 더해집니다) 기다립니다. 그런 프로세스가 아직 남아 있거나 제어 소켓이 아직 사용 중이면 `vm stop`은 표준 오류에 그것을 표시하고 1로 종료하며, 그렇지 않으면 `stopped`를 출력하고 0으로 종료합니다.
 
 ## 제어 소켓
 

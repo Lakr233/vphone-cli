@@ -45,15 +45,93 @@ public enum VPhoneBundleActivity {
     /// process holding a file, or a live control socket, refuses at once.
     /// Operations that write the files keep `requireStopped`.
     public static func requireStopped(_ bundle: VPhoneBundle, waitingForReaders wait: TimeInterval) throws {
-        let urls = stateFileNames(of: bundle).map { bundle.url.appendingPathComponent($0) }
         let socket = bundle.url.appendingPathComponent("vphone.sock")
         try requireStopped(
             name: bundle.name,
             waitingForReaders: wait,
-            holders: { processesHolding(urls).map { VPhoneProcessHolder(pid: $0) } },
+            holders: { stateFileHolders(of: bundle).map { VPhoneProcessHolder(pid: $0) } },
             socketIsLive: { controlSocketIsLive(socket) },
             sleep: { Thread.sleep(forTimeInterval: $0) },
         )
+    }
+
+    /// The PIDs of this user's processes holding any of the machine's state
+    /// files (disk image, SEP storage, nvram) open, by device and inode. The
+    /// single definition of "holds the machine's files" that both the `vm
+    /// launch` gate (`requireStopped`) and `vm stop`'s confirmation
+    /// (`confirmStopped`) use, so the two cannot drift. Best-effort by
+    /// construction: a missing or unstat-able state file contributes no holder
+    /// (it counts as released), so the confirmation is never stricter than the
+    /// gate it protects.
+    public static func stateFileHolders(of bundle: VPhoneBundle) -> [pid_t] {
+        processesHolding(stateFileNames(of: bundle).map { bundle.url.appendingPathComponent($0) })
+    }
+
+    /// `vm stop`'s confirmation, once the machine has been signalled (whether
+    /// it quit on SIGINT or was killed): wait until the launch gate would let
+    /// the machine start again, then report the outcome. A signal only
+    /// requests termination and the kernel reaps asynchronously, so the VM
+    /// service can hold the state files, or `vphone-vm` its control socket,
+    /// for a short tail after the signals, and an immediate `vm launch` would
+    /// be refused on it.
+    ///
+    /// Waits on the processes that run a machine and hold a state file,
+    /// this machine's `vphone-vm` (found by `--config`; it binds `vphone.sock`
+    /// and holds none of the files), and the control socket. Returns
+    /// `(message: "<name>: stopped", isError: false)` once all are gone, or
+    /// an error naming what is left after `maxSleeps` sleeps of `interval`.
+    public static func confirmStopped(
+        _ bundle: VPhoneBundle,
+        maxSleeps: Int,
+        interval: TimeInterval,
+    ) -> (message: String, isError: Bool) {
+        let socket = bundle.url.appendingPathComponent("vphone.sock")
+        return confirmStopped(
+            name: bundle.name,
+            maxSleeps: maxSleeps,
+            interval: interval,
+            holders: {
+                (stateFileHolders(of: bundle) + VPhoneGuestProcesses.virtualMachinePIDs(config: bundle.configURL))
+                    .map { VPhoneProcessHolder(pid: $0) }
+            },
+            socketIsLive: { controlSocketIsLive(socket) },
+            sleep: { Thread.sleep(forTimeInterval: $0) },
+        )
+    }
+
+    /// The decision behind `confirmStopped`, with the process table, the
+    /// socket probe and the clock injected. Iteration-counted (not
+    /// wall-clock): at most `maxSleeps` sleeps, so at most `maxSleeps + 1`
+    /// probes. A holder that does not run a machine (Launchpad's disk meter,
+    /// Spotlight, a backup tool) neither extends the wait nor fails the stop.
+    /// The socket is probed only once no process that runs a machine is left.
+    static func confirmStopped(
+        name: String,
+        maxSleeps: Int,
+        interval: TimeInterval,
+        holders: () -> [VPhoneProcessHolder],
+        socketIsLive: () -> Bool,
+        sleep: (TimeInterval) -> Void,
+    ) -> (message: String, isError: Bool) {
+        var sleeps = 0
+        while true {
+            // PID order; a vphone-vm found both ways is named once.
+            var seen = Set<pid_t>()
+            let machine = holders()
+                .filter(\.runsMachine)
+                .sorted { $0.pid < $1.pid }
+                .filter { seen.insert($0.pid).inserted }
+            if machine.isEmpty, !socketIsLive() {
+                return (message: "\(name): stopped", isError: false)
+            }
+            if sleeps >= maxSleeps {
+                return machine.isEmpty
+                    ? (message: "\(name): could not stop; its control socket is still live", isError: true)
+                    : (message: "\(name): could not stop; still held by \(VPhoneProcessHolder.describe(machine))", isError: true)
+            }
+            sleep(interval)
+            sleeps += 1
+        }
     }
 
     /// The decision behind `requireStopped`, with the process table, the

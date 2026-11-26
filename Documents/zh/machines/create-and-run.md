@@ -81,7 +81,7 @@ vphone-cli vm stop myphone    # run from another terminal to stop it
 
 客户机停止后虚拟机即结束；如果 15 秒后仍未停止，也会结束。vphoned 无法代为响应的客户机（例如处于 DFU 或仍在启动中）会像拔掉电源一样立即关闭。再按一次 Control-C 会直接关闭，不再等待。
 
-`vm stop` 只向虚拟机自己的进程发送信号，即 `vphone-vm` 和 Virtualization 的虚拟机服务。其他打开了磁盘的程序（例如正在计算磁盘大小的 Launchpad、聚焦或备份工具）会被列出名称，但不会被终止。
+`vm stop` 只向虚拟机自己的进程发送信号，即 `vphone-vm` 和 Virtualization 的虚拟机服务。其他打开了磁盘的程序（例如正在计算磁盘大小的 Launchpad、聚焦或备份工具）会被列出名称，但不会被终止。无论虚拟机是因 SIGINT 退出还是被强制终止，`vm stop` 随后都会等待约 3 秒（另加每次查找所用的时间），让它的进程退出，并释放该虚拟机的磁盘、SEP 存储和 nvram 文件以及控制套接字。如果仍有这样的进程未退出，或控制套接字仍在使用中，`vm stop` 会在标准错误中列出它并以 1 退出；否则输出 `stopped` 并以 0 退出。
 
 ## 控制套接字
 
