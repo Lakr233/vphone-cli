@@ -595,10 +595,7 @@ struct VPhoneLaunchpadControlCommands {
             }
             return value
         }
-        // Apple TV, HomePod and HomeView restore on their own: templates
-        // and slimming drive iOS Setup Assistant and its apps.
-        let requiresStandaloneRestore = device?.hasPrefix("AppleTV") == true || device?.hasPrefix("AudioAccessory") == true
-            || device?.hasPrefix("HomeAccessory") == true
+        let requiresStandaloneRestore = VPhoneLaunchpadMachine.requiresStandaloneRestore(for: device)
         let (patches, guestPatches) = try await Self.patches(
             request,
             commandLine: commandLine,
@@ -613,7 +610,7 @@ struct VPhoneLaunchpadControlCommands {
         if requiresStandaloneRestore || restoredSystem {
             if !Self.slimmingSwitches(request).isEmpty {
                 throw VPhoneLaunchpadError(requiresStandaloneRestore
-                    ? "Apple TV, HomePod and HomeView are created without a template; the slimming switches do not apply."
+                    ? "Apple TV, HomePod, HomeView and Apple Vision Pro are created without a template. The slimming switches do not apply."
                     : "The \(patches.preset) preset creates a machine without a template; the slimming switches do not apply.")
             }
             var off = VPhoneLaunchpadSlimming()

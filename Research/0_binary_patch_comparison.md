@@ -7675,10 +7675,24 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
 
 - `preboot-exp-visionos_virtual_product` changes only the known generic VM product
   token to native V201. The board identity remains RealityDevice14,1. The
-  existing Preboot composition backup provides reversal.
+  existing Preboot composition backup provides reversal. The selection is also
+  available for visionOS 27.2 with the 26.4 donor after the 27.2.1 stock
+  virtual-product boot aborted in wakeboardd's HMD product lookup.
+  The cloudOS 27.2 research-board mix also starts wakeboardd with the V201 token.
+- An environment-only update applies the visionOS Mach-O platform to the staged
+  GPU compiler plugin, as a full install already does. Without that step the
+  update replaces the working platform tag with iOS, and `MTLCompilerService`
+  refuses to load the plugin during composite pipeline creation.
+- `system-datamigrator-exp-visionos_windowless_progress` selects the native path
+  that continues without a migration progress window. It preserves the gathered
+  plugin count and skips only window construction. The patch checks the pristine
+  24N124 executable digest and re-attests the changed code page. On an untrimmed
+  24N124 guest, native data migration finished after the update and the progress
+  window no longer crashed. The desktop was still black during that check.
 - `system-launchdaemons-exp-visionos_nonfatal_services` journals only panic-on-crash
   policy fields for polarisd, realitycamerad, realitycoprocessorloaderd and arkitd.
-  It retains the native jobs; it does not emulate their hardware.
+  It retains the native jobs. The release gate also covers visionOS 27.2 after
+  the 27.2.1 restore reboot reached launchd and panicked on realitycamerad.
 - `system-launchd-exp-visionos_uxm_ipc` injects a PID-1-only adapter for two exact
   UXM/Polaris lookups absent from the PCC sandbox. Each optional display rule
   has a separate selection and root-owned marker:
@@ -7688,6 +7702,9 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
   `system-launchd-exp-visionos_wakeboard_system_ipc`.
   Rules validate audit token/PID version, executable/signing identity, operation
   and filter type; other checks retain the native function's ABI and errno.
+  The 27.2.1 test on the 26.4 donor observed UXM to Polaris and backboardd to
+  HMD properties, presentable-owner and system-setter lookup failures. Only those selections
+  gained applicability to this pair. The other display services retain their gates.
 - `system-launchd-exp-visionos_environment_ipc` adds a separate root-owned
   `/usr/lib/vphone-visionos-environment-ipc` marker for RealityEnvironment's
   lookup of `com.apple.surfboard.environmentservice`. The 2026-11-08 runtime

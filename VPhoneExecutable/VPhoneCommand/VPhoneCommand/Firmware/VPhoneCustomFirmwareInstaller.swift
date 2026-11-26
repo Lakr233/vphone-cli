@@ -228,6 +228,9 @@ struct VPhoneCustomFirmwareInstaller {
         if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.visionOSFramePacing), device.family != .vision {
             throw ValidationError("The V201 frame pacing correction requires a visionOS guest.")
         }
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.visionOSMigrationProgress), device.family != .vision {
+            throw ValidationError("Windowless migration progress requires a visionOS guest.")
+        }
         if !effectiveEnabled.isDisjoint(with: [FirmwareGuestSystemPatchSet.visionOSVirtualProduct, FirmwareGuestSystemPatchSet.visionOSLegacyUXM, FirmwareGuestSystemPatchSet.visionOSUXMIPC] + Array(FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches)),
            device.family != .vision {
             throw ValidationError("The virtual display product, legacy UXM and native IPC experiments require a visionOS research guest.")
@@ -1417,6 +1420,7 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.visionOSSkipBuddy
                     && identifier != FirmwareGuestSystemPatchSet.visionOSEnvironments
                     && identifier != FirmwareGuestSystemPatchSet.visionOSFramePacing
+                    && identifier != FirmwareGuestSystemPatchSet.visionOSMigrationProgress
                     && !FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches.contains(identifier)
             }
             guard plan.isEnabled(identifier) else {
@@ -1707,6 +1711,21 @@ struct VPhoneCustomFirmwareInstaller {
                         try system.removeItem(marker)
                     }
                     print("  [+] visionOS ForceNoBuddy policy \(enabled ? "enabled" : "removed; original key will be restored") by UID 501 on boot")
+                }
+            }
+        }
+        if guestDevice.family == .vision {
+            let progress = FirmwareGuestSystemPatchSet.visionOSMigrationProgress
+            let path = String(FirmwareGuestSystemPatchSet.visionOSMigrationProgressPath.dropFirst())
+            isolate([progress]) {
+                if on(progress) {
+                    try patchCopy(of: path, in: system, work: work,
+                                  verb: "patch-visionos-migration-progress", backupSafe: backupSafe(progress))
+                    live.insert(progress)
+                } else if try revertCopy(of: path, in: system) {
+                    print("  [+] \(progress): restored datamigrator from backup")
+                } else if priorGuest.contains(progress) {
+                    throw ValidationError("The visionOS migration progress patch has no datamigrator backup; cannot safely restore it.")
                 }
             }
         }
@@ -2376,7 +2395,8 @@ struct VPhoneCustomFirmwareInstaller {
                     gpuBundleReinstalled = true
                 } else {
                     print("  [·] system-extensions-boot-gpu_bundle: no restore tree; GPU bundle left as installed")
-                    if !guestDevice.usesTVOS, try refreshGPUCompilerPlugin(system: system) {
+                    let platform = guestDevice.family == .vision ? MachOBuildPlatform.visionOS : nil
+                    if !guestDevice.usesTVOS, try refreshGPUCompilerPlugin(system: system, work: work, platform: platform) {
                         print("  [+] system-extensions-boot-gpu_bundle: compiler plugin updated from this bundle")
                     }
                 }
@@ -3532,15 +3552,27 @@ struct VPhoneCustomFirmwareInstaller {
 
     /// Replace an installed guest's compiler plugin with this bundle's when
     /// they differ, and seal the GPU bundle again. True when it was replaced.
-    private func refreshGPUCompilerPlugin(system: VPhoneConfinedDirectory) throws -> Bool {
+    private func refreshGPUCompilerPlugin(
+        system: VPhoneConfinedDirectory, work: WorkDirectory, platform: UInt32?,
+    ) throws -> Bool {
         let gpu = "System/Library/Extensions/\(VPhonePCCGPUDriver.name)"
-        let plugin = "\(gpu)/libAppleParavirtCompilerPluginIOGPUFamily.dylib"
+        let name = "libAppleParavirtCompilerPluginIOGPUFamily.dylib"
+        let plugin = "\(gpu)/\(name)"
         let source = resources.gpuCompilerPlugin
         guard try system.isRegularFile(plugin),
-              FileManager.default.fileExists(atPath: source.path),
-              try system.readData(plugin) != Data(contentsOf: source)
+              FileManager.default.fileExists(atPath: source.path)
         else { return false }
-        try system.replaceFile(plugin, fromFileAt: source, mode: 0o755, owner: Self.guestOwner)
+
+        let candidate: URL
+        if let platform {
+            candidate = work.file(name)
+            try work.directory.writeFile(name, contents: Data(contentsOf: source), mode: 0o600)
+            try retargetGuestBinary(at: candidate, to: platform)
+        } else {
+            candidate = source
+        }
+        guard try system.readData(plugin) != Data(contentsOf: candidate) else { return false }
+        try system.replaceFile(plugin, fromFileAt: candidate, mode: 0o755, owner: Self.guestOwner)
         try sealGuestBundle(system: system, bundle: gpu)
         return true
     }
@@ -3719,17 +3751,21 @@ struct VPhoneCustomFirmwareInstaller {
             let staged = work.file(name)
             try work.directory.removeItem(name)
             try system.copyFile(from: path, to: name, in: work.directory)
-            var data = try Data(contentsOf: staged)
-            try MachOBuildPlatform.set(platform, in: &data)
-            try data.write(to: staged)
-            try VPhoneSigner.sign(
-                fileAt: staged,
-                options: .init(identifier: nil, entitlements: nil, mergesExisting: true, style: .appleAdHoc),
-            )
+            try retargetGuestBinary(at: staged, to: platform)
             try system.replaceFile(path, fromFileAt: staged, mode: 0o755, owner: Self.guestOwner)
         }
         try sealGuestBundle(system: system, bundle: gpu)
         print("  [+] GPU driver retargeted to \(platform == MachOBuildPlatform.visionOS ? "visionOS" : "tvOS")")
+    }
+
+    private func retargetGuestBinary(at staged: URL, to platform: UInt32) throws {
+        var data = try Data(contentsOf: staged)
+        try MachOBuildPlatform.set(platform, in: &data)
+        try data.write(to: staged)
+        try VPhoneSigner.sign(
+            fileAt: staged,
+            options: .init(identifier: nil, entitlements: nil, mergesExisting: true, style: .appleAdHoc),
+        )
     }
 
     /// IOHIDUserDevice reserves IOClass. The shim supplies MiniDisplay's class

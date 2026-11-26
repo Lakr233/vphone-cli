@@ -1,4 +1,57 @@
-# visionOS 26.4 native UI bring-up
+# visionOS native UI bring-up
+
+## visionOS 27.2.1 on cloudOS 27.2
+
+The tested guest uses the `RealityDevice14,1` restore IPSW for visionOS 27.2.1
+(`24N124`) and the cloudOS 27.2 IPSW (`24B115`). The `27.2_24B119` kernelcache
+recipe supplies the virtual hardware kexts and the GPU driver comes from a
+temporary restore of `24B115`. On the Mac mini M6 running macOS 27.0, this
+pairing reached the native Home View and Settings About after an ordinary
+cold boot. Mouse clicks opened Settings and switched through Home View to
+Safari, which loaded `apple.com`. The host window reported 60 fps when those
+views settled, with brief dips during app launches.
+
+![Native visionOS 27.2.1 Home View after cold boot](Assets/visionos-27.2.1-home.png)
+
+Automated mouse-wheel input did not move the Safari page in this check.
+
+Build and install the core bundle with these selections, then set
+`visionos_ipsw` and `cloudos_ipsw` to the two local IPSW paths. With an
+unmodified Launchpad 2.18.0, use the following command and set
+`visionos_bundle` to the installed local core bundle version.
+
+```sh
+vphone-launchpad-cli vm create VisionPro-27.2.1 --bundle "$visionos_bundle" \
+  --device RealityDevice14,1 --preset visionos --no-template --slim off \
+  --iphone-source "$visionos_ipsw" --cloudos-source "$cloudos_ipsw" \
+  --cpu 4 --memory 6144 \
+  --allow preboot-exp-visionos_virtual_product \
+  --allow system-launchd-exp-visionos_uxm_ipc \
+  --allow system-launchd-exp-visionos_hmd_properties_ipc \
+  --allow system-launchd-exp-visionos_hmd_presentable_ipc \
+  --allow system-launchd-exp-visionos_hmd_system_setter_ipc \
+  --allow system-datamigrator-exp-visionos_windowless_progress
+```
+
+Let the native migrator finish and check `setup.status` for
+`data_migration_done: true`. In the tested VM, the mobile preference
+`com.apple.userexperiencemanagerd/PluginDenyList` included
+`RealityCameraUXMPlugin.plugin`, and `com.apple.purplebuddy/ForceNoBuddy` was
+`true`. Both keys were originally absent. Use the guest settings API to read
+each original value first. When trying the experiment, preserve other array
+entries. Restore the original values or remove keys that were originally
+absent to undo it. Restart the VM after applying the preferences.
+
+The matching cloudOS 27.2 guest had an active host framebuffer. The 26.4
+donor also booted 24N124 and completed native data migration with the
+windowless selection, but the host display API returned no frame in that
+configuration. The desktop procedure above uses the 27.2 donor.
+
+Use the host window or the host display API to validate output. The guest
+screenshot RPC can show the empty iPad compatibility surface while the native
+visionOS desktop is visible in the host window.
+
+## visionOS 26.4
 
 Experimental pairing: RealityDevice14,1 / N301AP, visionOS 26.4 (23O247),
 with the cloudOS/PCC 26.4 research kernel and boot chain. The guest retains
