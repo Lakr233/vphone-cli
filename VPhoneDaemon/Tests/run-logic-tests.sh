@@ -5,7 +5,8 @@ set -euo pipefail
 # Mac and runs them: service profile lists and bookkeeping, the first-boot
 # settle verdict, the device name rule, the pointer scroll parameters, the
 # Irisin package a guest takes, the MobileGestalt answers vphoned adds, the
-# value settings.set writes, the screenshot crop, scale and encode. No guest
+# value settings.set writes, the guest login shell rule, the screenshot crop,
+# scale and encode. No guest
 # is needed.
 
 daemon="${0:a:h:h}"
@@ -22,6 +23,7 @@ trap '/bin/rm -rf "$temporary"' EXIT
     "$daemon/Daemon/GuestProcessOutput.swift" \
     "$daemon/Daemon/GuestProcessSpool.swift" \
     "$daemon/Daemon/Bootstrap/GuestBootstrapPlatform.swift" \
+    "$daemon/Daemon/GuestLoginShellRule.swift" \
     "$daemon/Daemon/GuestSetupAssistantState.swift" \
     "$daemon/Daemon/GuestHomeViewDistancePolicy.swift" \
     "$daemon/Daemon/GuestMobileGestaltAnswers.swift" \
