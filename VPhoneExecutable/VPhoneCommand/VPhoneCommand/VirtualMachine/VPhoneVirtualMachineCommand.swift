@@ -164,7 +164,7 @@ struct VPhoneVirtualMachineInfoCommand: ParsableCommand {
             print("cpu:   \(report.cpuCount)")
             print("mem:   \(report.memoryMB) MB")
             print("disk:  \(report.diskSizeBytes) bytes")
-            print("net:   \(describeNetwork(report.network))")
+            print("net:   \(VPhoneNetworking.describe(report.network))")
             print("unlock: \(report.unlocksAtStartup ? "on" : "off")")
             print("location: \(report.syncsHostLocation ? "on" : "off")")
             print("developer tunnel: \(report.holdsDeveloperTunnel ? "on" : "off")")
@@ -382,7 +382,7 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
         }
         print(
             "updated \(updated.name): \(m.cpuCount) CPU, \(m.memorySize / (1024 * 1024)) MB, "
-                + "net=\(describeNetwork(m.networkConfig))",
+                + "net=\(VPhoneNetworking.describe(m.networkConfig))",
         )
     }
 
@@ -480,43 +480,6 @@ struct VPhoneVirtualMachineConfigCommand: ParsableCommand {
             throw ValidationError("Unknown network mode '\(s)'. Use nat, bridged, tunnel, or none.")
         }
     }
-}
-
-/// One line: mode, then whatever is set beyond it.
-func describeNetwork(_ net: VPhoneVirtualMachineManifest.NetworkConfig) -> String {
-    var parts = [net.mode == .bridged ? "bridged(\(net.bridgeInterface ?? "?"))" : net.mode.rawValue]
-    if !net.macAddress.isEmpty {
-        parts.append("mac \(net.macAddress)")
-    }
-    if let ipv4 = net.ipv4 {
-        var address = "ip \(ipv4.address)/\(ipv4.prefixLength)"
-        if let router = ipv4.router {
-            address += " gw \(router)"
-        }
-        if let dns = ipv4.dns, !dns.isEmpty {
-            address += " dns \(dns.joined(separator: ","))"
-        }
-        parts.append(address)
-    }
-    if let forwards = net.portForwards, !forwards.isEmpty {
-        parts.append("forward \(forwards.map(\.description).joined(separator: " "))")
-    }
-    if let name = net.localHostName {
-        parts.append("mdns \(name).local")
-    }
-    if net.resolvesMacName == false {
-        parts.append("mac-name off")
-    }
-    if net.mode == .nat, !VPhoneNetworking.reachesPeers(net) {
-        parts.append("nat-peers off")
-    }
-    if let intercept = net.intercept {
-        parts.append("intercept \(VPhoneVirtualMachineManifest.NetworkConfig.redactIntercept(intercept))")
-        if net.blockQUIC {
-            parts.append("block-quic")
-        }
-    }
-    return parts.joined(separator: ", ")
 }
 
 // MARK: - rename

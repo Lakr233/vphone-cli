@@ -62,7 +62,9 @@ QUIC rides UDP, which the proxy does not carry, so a QUIC app would bypass the p
 vphone-cli vm config <name> --intercept socks5://host:1080 --intercept-block-quic
 ```
 
-`vphone-cli vm info <name>` shows the active proxy (with its password redacted) and whether QUIC blocking is on.
+`vphone-cli vm info <name>` shows the active proxy and whether QUIC blocking is on. The password is redacted there and in `vm info --json` and `vm list --json`. `--no-intercept` removes the proxy but leaves QUIC blocking on; turn it off with `--no-intercept-block-quic`.
+
+A bundle older than 2.17.2 ignores `intercept` and connects the guest directly, so the guest's traffic skips the proxy without an error. `vm config` from such a bundle also drops the setting from the VM manifest when it saves. Use 2.17.2 or later with an intercepted machine.
 
 ### Credentials
 

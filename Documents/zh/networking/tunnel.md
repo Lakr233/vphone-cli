@@ -62,7 +62,9 @@ QUIC 运行在代理不承载的 UDP 之上，因此 QUIC App 会绕过代理。
 vphone-cli vm config <name> --intercept socks5://host:1080 --intercept-block-quic
 ```
 
-`vphone-cli vm info <name>` 会显示当前生效的代理（密码会被隐去）以及是否开启了 QUIC 拦截。
+`vphone-cli vm info <name>` 会显示当前生效的代理以及是否开启了 QUIC 拦截。密码在这里以及 `vm info --json` 和 `vm list --json` 中都会被隐去。`--no-intercept` 会移除代理，但 QUIC 拦截仍保持开启；用 `--no-intercept-block-quic` 关闭它。
+
+早于 2.17.2 的 bundle 会忽略 `intercept`，让客户机直接连接，客户机的流量会绕过代理且不会报错。这类 bundle 的 `vm config` 在保存时还会把这项设置从虚拟机清单中删掉。开启拦截的机器请使用 2.17.2 或更高版本。
 
 ### 凭据
 

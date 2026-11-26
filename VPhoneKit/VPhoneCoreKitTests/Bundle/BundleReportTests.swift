@@ -56,6 +56,27 @@ struct BundleReportTests {
         #expect(back.network == net)
     }
 
+    @Test func `redacts the intercept password`() throws {
+        let net = VPhoneVirtualMachineManifest.NetworkConfig(
+            mode: .tunnel, macAddress: "", intercept: "socks5://user:secret@host:1080",
+        )
+        let manifest = VPhoneVirtualMachineManifest(cpuCount: 2, memorySize: 2 << 30, networkConfig: net, romImages: nil)
+        let report = VPhoneBundleReport(bundle: VPhoneBundle(url: URL(fileURLWithPath: "/tmp/r"), manifest: manifest))
+        #expect(report.network.intercept == "socks5://user:***@host:1080")
+        let json = try String(decoding: JSONEncoder().encode(report), as: UTF8.self)
+        #expect(!json.contains("secret"))
+        #expect(manifest.networkConfig.intercept == "socks5://user:secret@host:1080")
+    }
+
+    @Test func `reports no intercept when none is set`() {
+        let manifest = VPhoneVirtualMachineManifest(
+            cpuCount: 2, memorySize: 2 << 30,
+            networkConfig: .init(mode: .tunnel, macAddress: ""), romImages: nil,
+        )
+        let report = VPhoneBundleReport(bundle: VPhoneBundle(url: URL(fileURLWithPath: "/tmp/r"), manifest: manifest))
+        #expect(report.network.intercept == nil)
+    }
+
     @Test func `encodes to JSON`() throws {
         let manifest = VPhoneVirtualMachineManifest(
             cpuCount: 2,

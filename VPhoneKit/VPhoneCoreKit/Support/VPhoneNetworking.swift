@@ -754,6 +754,46 @@ public enum VPhoneNetworking {
         cfg.mode == .nat && (cfg.reachesPeers ?? !hasFixedSharedAddress(cfg, host: host))
     }
 
+    /// One line for `vm info` and the `vm config` summary: mode, then whatever
+    /// is set beyond it. The intercept password is redacted. `block-quic` is
+    /// shown whenever it is stored, with or without an intercept, because the
+    /// UDP forwarder drops guest UDP/443 either way.
+    public static func describe(_ net: NetworkConfig) -> String {
+        var parts = [net.mode == .bridged ? "bridged(\(net.bridgeInterface ?? "?"))" : net.mode.rawValue]
+        if !net.macAddress.isEmpty {
+            parts.append("mac \(net.macAddress)")
+        }
+        if let ipv4 = net.ipv4 {
+            var address = "ip \(ipv4.address)/\(ipv4.prefixLength)"
+            if let router = ipv4.router {
+                address += " gw \(router)"
+            }
+            if let dns = ipv4.dns, !dns.isEmpty {
+                address += " dns \(dns.joined(separator: ","))"
+            }
+            parts.append(address)
+        }
+        if let forwards = net.portForwards, !forwards.isEmpty {
+            parts.append("forward \(forwards.map(\.description).joined(separator: " "))")
+        }
+        if let name = net.localHostName {
+            parts.append("mdns \(name).local")
+        }
+        if net.resolvesMacName == false {
+            parts.append("mac-name off")
+        }
+        if net.mode == .nat, !reachesPeers(net) {
+            parts.append("nat-peers off")
+        }
+        if let intercept = net.intercept {
+            parts.append("intercept \(NetworkConfig.redactIntercept(intercept))")
+        }
+        if net.blockQUIC {
+            parts.append("block-quic")
+        }
+        return parts.joined(separator: ", ")
+    }
+
     static func resolve(_ ipv4: IPv4Config, mode: NetworkMode, host: VPhoneNetworkHost, reachesPeers: Bool = false) throws -> ResolvedIPv4 {
         guard let address = VPhoneIPv4Address(dotted: ipv4.address) else {
             throw VPhoneNetworkingError.invalidAddress(field: "the guest address", value: ipv4.address)

@@ -56,12 +56,23 @@ func caughtCode(_ body: () throws -> Void) -> String? {
 
 // MARK: - SPI fake
 
-/// A programmable, call-recording fake of `GuestTrustStore.SPI`. `store` holds
-/// the DERs currently "installed"; the closures record each call in `calls` and
-/// honor the configured statuses / apply flags so a test can reproduce every
-/// REQ-007 failure branch without a live trustd.
+/// A programmable, call-recording fake of `GuestTrustStore.SPI`. `stores` holds
+/// the DERs currently "installed", keyed by the domain code each handle came
+/// from; the closures record each call in `calls` and honor the configured
+/// statuses / apply flags so a test can reproduce every failure branch without
+/// a live trustd.
 final class FakeSPI: @unchecked Sendable {
-    var store: [Data]
+    var stores: [Int32: [Data]] = [:]
+    /// The guest's single trustd keys both domains to one keyspace, so by default
+    /// every handle reaches the same store. Turn it off to model a trustd that
+    /// keeps the user and admin domains apart.
+    var sharedKeyspace = true
+    /// The store the enumeration (admin) domain reads: the shared store, or the
+    /// admin store when the keyspace is split.
+    var store: [Data] {
+        get { stores[key(3)] ?? [] }
+        set { stores[key(3)] = newValue }
+    }
     var calls: [String] = []
     /// The `SecTrustStoreDomain` code of each `forDomain` call (2 user, 3 admin).
     var domainCodes: [Int32] = []
@@ -90,6 +101,9 @@ final class FakeSPI: @unchecked Sendable {
 
     init(store: [Data] = []) { self.store = store }
 
+    private func key(_ code: Int32) -> Int32 { sharedKeyspace ? 0 : code }
+    private func key(_ handle: OpaquePointer) -> Int32 { key(Int32(Int(bitPattern: handle))) }
+
     static func der(of cert: SecCertificate) -> Data { SecCertificateCopyData(cert) as Data }
 
     static func contents(from store: [Data]) -> CFArray {
@@ -108,12 +122,11 @@ final class FakeSPI: @unchecked Sendable {
                 self.calls.append("forDomain")
                 self.domainCodes.append(code)
                 if self.forDomainReturnsNull { return nil }
-                // A DISTINCT handle per domain code, but every handle aliases the
-                // one shared `store` (set/remove/copyAll ignore the handle), as
-                // the guest's single trustd keys both domains to one keyspace.
+                // A distinct handle per domain code; set/remove/copyAll use it
+                // to pick that domain's store (one store unless split).
                 return OpaquePointer(bitPattern: Int(code))!
             },
-            set: { _, cert in
+            set: { handle, cert in
                 self.calls.append("set")
                 let n = self.setInvocations
                 self.setInvocations += 1
@@ -121,24 +134,25 @@ final class FakeSPI: @unchecked Sendable {
                     self.setEntered.signal()
                     self.setGate.wait()
                 }
-                if self.setApplies { self.store.append(FakeSPI.der(of: cert)) }
+                if self.setApplies { self.stores[self.key(handle), default: []].append(FakeSPI.der(of: cert)) }
                 if self.failSecondSet && n == 1 { return errSecIO }
                 return self.setStatus
             },
-            remove: { _, cert in
+            remove: { handle, cert in
                 self.calls.append("remove")
                 if self.removeApplies {
                     let der = FakeSPI.der(of: cert)
-                    self.store.removeAll { $0 == der }
+                    self.stores[self.key(handle)]?.removeAll { $0 == der }
                 }
                 return self.removeStatus
             },
-            copyAll: { _ in
+            copyAll: { handle in
                 self.calls.append("copyAll")
                 let index = self.copyAllCount
                 self.copyAllCount += 1
-                if let override = self.copyAllOverride { return override(index, self.store) }
-                return (self.copyAllStatus, FakeSPI.contents(from: self.store))
+                let store = self.stores[self.key(handle)] ?? []
+                if let override = self.copyAllOverride { return override(index, store) }
+                return (self.copyAllStatus, FakeSPI.contents(from: store))
             })
     }
 }
@@ -328,6 +342,21 @@ enum TrustStoreTests {
             let removedHex = try? GuestTrustStore.removeAnchor(sha256Hex: hex, resolveSPI: fake.spi)
             expectEqual(removedHex, hex, "remove returns the normalized hex")
             expect(fake.store.isEmpty, "remove clears the admin store")
+        }
+
+        // Split keyspace: on a trustd that kept the domains apart, list and
+        // remove (which read the admin domain) would not see a user install.
+        // Pins which domain each call uses, so a split shows up here.
+        do {
+            let fake = FakeSPI()
+            fake.sharedKeyspace = false
+            let user = try? GuestTrustStore.install(pem: certPEM, resolveSPI: fake.spi)
+            expect(user?.domain == .user && fake.stores[2] == [der], "a user install writes the user store")
+            let afterUser = try? GuestTrustStore.list(resolveSPI: fake.spi)
+            expect(afterUser?.isEmpty == true, "with split domains, list does not show a user install")
+            _ = try? GuestTrustStore.install(pem: certPEM, admin: true, resolveSPI: fake.spi)
+            let afterAdmin = try? GuestTrustStore.list(resolveSPI: fake.spi)
+            expect(afterAdmin?.first?.sha256 == sha256, "with split domains, list shows an admin install")
         }
 
         // Idempotency: re-installing a pre-present cert is success.

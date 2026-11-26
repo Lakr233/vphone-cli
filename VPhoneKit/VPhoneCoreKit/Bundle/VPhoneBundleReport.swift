@@ -45,9 +45,14 @@ public struct VPhoneBundleReport: Codable, Equatable, Sendable {
         // Report the effective setting so clients do not have to duplicate the
         // legacy fixed-address exception when the manifest has no explicit flag.
         let configuredNetwork = bundle.manifest.networkConfig
-        network = configuredNetwork.mode == .nat
+        let effectiveNetwork = configuredNetwork.mode == .nat
             ? configuredNetwork.with(reachesPeers: .some(VPhoneNetworking.reachesPeers(configuredNetwork)))
             : configuredNetwork
+        // The JSON goes to scripts and logs; carry the intercept with its
+        // password redacted, as `vm info` prints it.
+        network = effectiveNetwork.with(intercept: .some(effectiveNetwork.intercept.map(
+            VPhoneVirtualMachineManifest.NetworkConfig.redactIntercept,
+        )))
         restoreInfo = VPhoneRestoreInfo.load(fromBundle: bundle)
         customFirmwareInstalled = VPhoneRestoreInfo.customFirmwareInstalled(inBundle: bundle)
         udid = VPhoneRestoreOperations.resolveUDID(bundle: bundle)
