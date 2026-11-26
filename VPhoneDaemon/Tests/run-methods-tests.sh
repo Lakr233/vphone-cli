@@ -606,15 +606,13 @@ if (( catalog_ok )); then
     done
 fi
 
-# 7. capability: health() lists "methods" exactly once
+# 7. capability: the capability lists health() reports name "methods" exactly once
 listed_methods=$(/usr/bin/awk '
-    /func health\(/ { inside = 1 }
-    inside && index($0, "\"methods\",") { count++ }
-    inside && $0 == "    }" { inside = 0 }
+    index($0, "\"methods\",") { count++ }
     END { print count + 0 }
 ' "$dir/GuestAPI.swift" 2>/dev/null || print 0)
 if [[ "$listed_methods" != 1 ]]; then
-    print "FAIL capability: found $listed_methods \"methods\", in health(), expected 1"
+    print "FAIL capability: found $listed_methods \"methods\", in the capability lists, expected 1"
     failures=$((failures + 1))
 fi
 

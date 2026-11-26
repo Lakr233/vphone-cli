@@ -22,14 +22,8 @@ extension GuestAPI {
     }
 
     private static func hierarchyForeground() throws -> [String: Any] {
-        let front = frontmostApp()
-        guard front["verified"] as? Bool == true,
-              let bundle = front["bundle_id"] as? String, !bundle.isEmpty,
-              let running = try runningApps()["apps"] as? [[String: Any]],
-              let pid = running.first(where: { $0["bundle_id"] as? String == bundle })?["pid"] as? Int,
-              pid > 1, pid <= Int(Int32.max)
-        else { throw GuestAPIError.operationFailed("Cannot verify foreground application and PID") }
-        return ["bundle_id": bundle, "pid": pid, "verified": true, "source": front["source"] ?? ""]
+        let front = try verifiedForeground()
+        return ["bundle_id": front.bundle, "pid": front.pid, "verified": front.verified, "source": front.source]
     }
 
     static func nestedHierarchy(_ params: [String: Any]) throws -> [String: Any] {

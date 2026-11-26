@@ -32,14 +32,14 @@ flags=(-swift-version 6 -warnings-as-errors -module-cache-path "$temporary/modul
 print -r -- 'import Foundation' > "$temporary/Selectors.swift"
 sed -n '/^public struct ElementSelector {/,/^func validatePoint(/p' "$icli/Sources/IcliKit/Input/Screen.swift" | sed '$d' >> "$temporary/Selectors.swift"
 "${compiler[@]}" "${flags[@]}" -emit-library -emit-module -module-name IcliKit \
-    "$icli/Sources/IcliKit/Input/InterfaceGeometry.swift" "$daemon/Tests/PointGeometry/IcliTestSupport.swift" \
+    "$icli/Sources/IcliKit/Input/InterfaceGeometry.swift" "$daemon/Tests/PointGeometry/IcliTestSupport.swift" "$daemon/Tests/IcliForegroundStub.swift" \
     "$temporary/Selectors.swift" "$temporary/geometry.o" -o "$temporary/libIcliKit.$extension"
 "${compiler[@]}" "${flags[@]}" -emit-library -emit-module -module-name VphonedNative \
     "$daemon/Tests/PointGeometry/NativeTestSupport.swift" -o "$temporary/libVphonedNative.$extension"
 "${compiler[@]}" "${flags[@]}" -parse-as-library -lIcliKit -lVphonedNative -Xlinker -rpath -Xlinker "$temporary" \
     "$daemon/Daemon/GuestMethodSpec.swift" "$daemon/Daemon/GuestPaging.swift" "$daemon/Daemon/GuestPointGeometry.swift" \
     "$daemon/Daemon/GuestAPI+PointGeometry.swift" "$daemon/Daemon/GuestAPIInputMethods.swift" "$input" "$daemon/Tests/PointGeometry/PointGeometryTests.swift" \
-    "$daemon/Daemon/GuestAPI+SemanticGeometry.swift" "$daemon/Tests/PointGeometry/SemanticGeometryTests.swift" \
+    "$daemon/Daemon/GuestAPI+SemanticGeometry.swift" "$daemon/Daemon/GuestAPI+Foreground.swift" "$daemon/Tests/PointGeometry/SemanticGeometryTests.swift" \
     -o "$temporary/point-tests"
 "$temporary/point-tests"
 cat "$host" "$daemon/Tests/PointGeometry/HostLockTests.swift" > "$temporary/HostLockTests.swift"

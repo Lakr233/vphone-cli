@@ -68,8 +68,16 @@ Names only; params come from `methods.list`. Prefer `ui.*` to coordinates.
 - **Input:** `input.*`. `input.type` types key by key; `input.paste` and
   `clipboard.set` go through the pasteboard, faster for long or non-ASCII text.
 - **UI:** `ui.describe` (cheapest), `tree`, `element_at`, `tap_element`, `wait`,
-  `wait_gone`, `ocr`. Selector keys: `text`, `identifier`, `role`, `match`,
-  `index`.
+  `wait_gone`, `ocr`, `element.activate`, `element.focus`, `element.set_value`,
+  `element.attributes`. Selector keys: `text`, `identifier`, `role`, `match`,
+  `index`; `element.*` also takes `path` (child indexes in a nested `tree`).
+  `ui.tree`, `element_at` and the waits also work at the Home Screen.
+- **Accessibility settings:** `accessibility.get`, `accessibility.set`
+  (`voiceover`, `assistive_touch`, `switch_control`, `reduce_motion`,
+  `full_keyboard_access`, `text_size`). `set` takes 2 to 3 s: it re-reads after
+  2 s and fails `unavailable` with the settled value if the guest reverted it.
+  Enabling `voiceover` or `switch_control` records the first-use confirmation
+  first, so no alert appears.
 - **Apps:** `apps.*`. A launch reply with `frontmost_verified:false` means the
   front app was not confirmed as this app (always so when `url` is passed);
   check with a screenshot.

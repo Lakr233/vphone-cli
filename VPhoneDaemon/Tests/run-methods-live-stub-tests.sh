@@ -192,6 +192,17 @@ hasnt RETRY; has "$LK"; rc_is 1; calls_are 'system.reboot '
 case_run 502-other "{\"system.reboot\":{\"status\":502,\"json\":{\"type\":\"response\",\"error\":{\"code\":\"internal\",\"message\":\"x\"}}}}" $U
 hasnt RETRY; has "$LK"; rc_is 1; calls_are 'system.reboot '
 
+# --- no-alert check: only a real OCR read without an alert passes ---------------------
+A=VPHONE_LIVE_ALERT_CHECK=1
+OCR='{"result":{"count":1,"blocks":[{"text":"Settings"}]}}'
+case_run ocr-clean "{\"ui.ocr\":$OCR}" $A; has 'PASS ax voiceover shows no first-use alert'; has 'fails=0'
+case_run ocr-alert '{"ui.ocr":{"result":{"count":1,"blocks":[{"text":"VoiceOver changes the way you use"}]}}}' $A
+has 'FAIL ax voiceover shows no first-use alert: expected no alert text got voiceover changes'; has 'fails=1'
+case_run ocr-empty '{"ui.ocr":{"result":{"count":0,"blocks":[]}}}' $A; has 'FAIL ax voiceover shows no first-use alert: expected no alert text got ocr unread: {"count":0,"blocks":[]}'
+case_run ocr-empty-reply '{"ui.ocr":{"raw":""}}' $A; has 'FAIL ax voiceover shows no first-use alert: expected no alert text got ocr unread: empty or non-JSON reply'
+case_run ocr-non-json '{"ui.ocr":{"raw":"not json"}}' $A; has 'FAIL ax voiceover shows no first-use alert: expected no alert text got ocr unread: empty or non-JSON reply'
+case_run ocr-error '{"ui.ocr":{"error":{"code":"unavailable"}}}' $A; hasnt 'PASS ax'; has 'fails=1'
+
 # --- usage -------------------------------------------------------------------------
 rows m1=read
 for v in abc 0 -1 1.5 ''; do

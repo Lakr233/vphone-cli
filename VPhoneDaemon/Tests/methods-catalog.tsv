@@ -1,3 +1,5 @@
+accessibility.get	never	feature:string	-	features:object,unavailable:array	read
+accessibility.set	never	feature:string!,value:any!	-	feature:string,value:any	mutating
 accessibility.tree	never	nested:boolean,max_elements:integer,visible_only:boolean,clickable_only:boolean,limit:integer,max_depth:integer,timeout_ms:integer	-	action_eligible:boolean?,count:integer,elapsed_ms:number?,elements:array?,error:string~,filtering_applied:boolean?,foreground_after:object?,foreground_before:object?,format:string?,limits:object?,native_exception:string?,parent_checks:object?,pid:integer?,queries:integer?,readiness:object?,relationship_source:string?,roots:array?,runtime:object?,source:string?,status:string?,switches_after_restore:object?,switches_before:object?,symbols:object?,truncated:boolean?,truncation_reasons:array?	excluded:needs an unlocked guest with a frontmost app
 agent.apply_update	never	sha256:string!	-	restarting:boolean	mutating
 apfs.snapshot.delete	always	mount:string,name:string,prefix:string	-	after:array,already_deleted:array,before:array,deleted:array,mount:string,remaining:array	mutating
@@ -196,6 +198,10 @@ udid.clear	never	-	-	path:string:null,restarted_pids:array,udid:null,usb_reenume
 udid.get	never	-	-	path:string:null,udid:string:null	read
 udid.set	never	udid:string!	-	path:string:null,restarted_pids:array,udid:string:null,usb_reenumerated:boolean,usb_serial:string	mutating
 ui.describe	never	-	-	context_changed:boolean,elements:object?,frontmost:object,ocr:object?,screen:object,screenshot:object	read
+ui.element.activate	never	text:string,identifier:string,role:string,match:string,index:integer,path:array,action:string	-	action:string,activated:boolean,label:string,pid:integer,role:string	mutating
+ui.element.attributes	never	text:string,identifier:string,role:string,match:string,index:integer,path:array	-	enabled:boolean,focused:boolean,frame:object,identifier:string,label:string,path:array,pid:integer,role:string,value:string	read
+ui.element.focus	never	text:string,identifier:string,role:string,match:string,index:integer,path:array	-	focused:boolean,label:string,pid:integer,role:string	mutating
+ui.element.set_value	never	text:string,identifier:string,role:string,match:string,index:integer,path:array,value:string!	-	label:string,pid:integer,role:string,value:string	mutating
 ui.element_at	never	x:number!,y:number!	-	element:object?,error:string~,source:string?,x:number?,y:number?	excluded:needs params
 ui.ocr	never	languages:array,min_confidence:number	-	blocks:array,count:integer,engine:string	excluded:needs text recognition the guest lacks
 ui.tap_element	never	text:string,identifier:string,role:string,match:string,index:integer	-	element:object,tapped:boolean	mutating

@@ -8412,3 +8412,17 @@ with 4096 MB, 492 of 494 processes had a limit:
   `JetsamEvent` report was written, and vphoned kept the same two processes.
 - Only one process was above 80% of its limit: SystemVoiceAssistant, at
   4.9 of 6 MB.
+
+## vphoned native accessibility element and settings files (2026-11-26)
+
+`VPhoneDaemon/Native/` and `Daemon/` are synchronized folders in the Xcode
+project, so the new files are picked up without a project file edit. No guest
+binary, patch or entitlement changes: the files build into vphoned.
+
+`vphoned_ax_element.m` and `vphoned_ax_settings.m` back the `ui.element.*`
+and `accessibility.get`/`accessibility.set` methods. `vphoned_icli_ax.m`
+wraps IcliKit's `icli_ax_elements_json` and `icli_ax_element_at_json` so the
+daemon can read SpringBoard's accessibility elements at the Home Screen, where
+IcliKit's own helper needs a verified frontmost app. The methods are
+documented in `Research/vphoned_http_api.md`, "Element actions and
+accessibility settings".

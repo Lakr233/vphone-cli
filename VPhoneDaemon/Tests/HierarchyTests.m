@@ -68,6 +68,11 @@ int main(void) {@autoreleasepool {
  assert([r[@"parent_checks"][@"verified"] intValue]==3);
  NSDictionary *root=r[@"roots"][0];assert(root[@"frame"]==NSNull.null);
  assert([root[@"children"] count]==2);assert([root[@"children"][0][@"children"] count]==1);
+ // Every nested node carries its child-index path from the root.
+ assert([root[@"path"] isEqual:@[]]);
+ assert([root[@"children"][0][@"path"] isEqual:@[@0]]);
+ assert(([root[@"children"][0][@"children"][0][@"path"] isEqual:@[@0,@0]]));
+ assert([root[@"children"][1][@"path"] isEqual:@[@1]]);
  r=vp_ax_walk(f,(__bridge CFTypeRef)@"A",42,2,8,1000);
  assert([r[@"count"] intValue]==2);assert([r[@"truncated"] boolValue]);
  r=vp_ax_walk(f,(__bridge CFTypeRef)@"A",42,20,0,1000);

@@ -92,7 +92,7 @@ extension GuestAPI {
                 limit: (params["limit"] as? NSNumber)?.intValue,
             )
         case .uiElementAt:
-            return try elementAt(x: requiredNumber(params, "x"), y: requiredNumber(params, "y"))
+            return try elementAtForeground(x: requiredNumber(params, "x"), y: requiredNumber(params, "y"))
         case .uiTapElement:
             return try tapSemanticElement(selector(params))
         case .uiWait, .uiWaitGone:
@@ -112,6 +112,8 @@ extension GuestAPI {
         case .uiDescribe:
             try requireTextRecognition()
             return try describeScreen()
+        case .uiElementActivate, .uiElementFocus, .uiElementSetValue, .uiElementAttributes:
+            return try executeElement(m, params)
         }
     }
 

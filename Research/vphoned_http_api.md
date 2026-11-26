@@ -569,7 +569,7 @@ request carries `"force": true`.
 | Device | `device.snapshot`, `device.info` (snapshot plus network, screen, rotation, brightness, volume, low power, Developer Mode (the last answer amfid gave, refreshed in the background every 30 s; `{}` until it answers, and always on the tvOS 26.6 and HomePod 27.0 guests checked, whose amfid does not; `developer_mode.status` asks amfid directly and waits up to 10 s), agent, `device_name`, `ios_build`, `udid` — the `udid.set` override, else the guest's own UDID as usbmuxd lists it), `device.screen`, `device.network`, `device.displays` (a flat IOService probe of every display-ish object with its small properties — what the display stack bound; built for the foldable display work: `AppleParavirtGPU` `DisplayPortCount`, and each `AppleParavirtDisplay` width/height/`primary`), `device.ioreg {plane}`, `device.environment`, `device.basebin {archive?}` |
 | Display, audio | `display.pose` (read-only SpringBoard pose snapshot: orientation, device_orientation, hinge, tabletop; reports unavailable for an unsupported ABI), `display.modes` (read-only CoreAnimation display bounds, native size, current/available modes, and virtual-mode selector availability; availability does not prove a mode change is supported), `display.brightness {value?}`, `display.rotation {orientation?}`, `display.posture {hinge, orientation?, tabletop?}` (a foldable guest's pose through SpringBoard's test-automation override, see below; capability `device_pose`), `display.orientation` (SpringBoard's interface orientation without a screen capture, for polling; `degrees` is null while SpringBoard has no answer; `device_degrees`, present while the gravity provider runs, is the way the device is held in the interface degrees that match it, which differs from `degrees` while the app in front or the rotation lock keeps the interface from following; on a foldable `fold_angle` is the virtual hinge's angle, so a host can follow folds it did not ask for, and `screen_off` whether the panel is dark, so a host can keep the panel's frame from before off its window as it comes on (SpringBoard has the screen off and FoldDisplay saw the panel go off since it was last lit; the always-on Lock Screen keeps the panel on and is not dark); capability `display_orientation`), `display.rotation_lock {locked}`, `display.auto_lock`, `display.auto_lock.set {seconds}` (writes the mobile UserSettings input through cfprefsd and posts profiled's effective-settings notification, and returns an immediate readback; the caller must verify the effective value), `screen.unlock {passcode?, timeout_ms?}` (the display on and the Lock Screen passed, see below; capability `screen_unlock`), `audio.volume {value?, category?}`, `audio.state` |
 | Input | `input.touch`, `input.hid {page, usage, down?, long_press?}`, `input.button {name}`, `input.key {name}`, `input.type {text, delay_ms?}`, `input.paste {text}`, `input.tap`, `input.double_tap`, `input.long_press`, `input.swipe {from: [x, y], to: [x, y], seconds?, steps?}`, `input.drag {points}` (answers `count`), `input.touch_sequence {events}` — gesture coordinates are screen points; `input.pointer {x, y, seq?, buttons?}`, `input.scroll {phase, dx?, dy?, x?, y?}` (capabilities `pointer_scroll` and `pointer_buttons`, see below) |
-| UI | `ui.tree` (alias `accessibility.tree`), `ui.element_at`, `ui.tap_element`, `ui.wait`, `ui.wait_gone`, `ui.ocr {languages?, min_confidence?}`, `ui.describe`, `screen.screenshot {max_dimension?, quality?, region?}` |
+| UI | `ui.tree` (alias `accessibility.tree`), `ui.element_at`, `ui.tap_element`, `ui.element.activate {selector, action?}`, `ui.element.focus {selector}`, `ui.element.set_value {selector, value}`, `ui.element.attributes {selector}` (selector: `text`, `identifier`, `role`, `match?`, `index?` or `path`), `ui.wait`, `ui.wait_gone`, `ui.ocr {languages?, min_confidence?}`, `ui.describe`, `screen.screenshot {max_dimension?, quality?, region?}`; `accessibility.get {feature?}`, `accessibility.set {feature, value}` (see "Element actions and accessibility settings") |
 | Processes | `processes.list {filter?, limit?, cursor?}`, `processes.kill {pid, signal?}` **force**, `processes.spawn {executable, arguments?, timeout_ms?, max_output_bytes?, max_capture_bytes?}`, `processes.output {output_id, stream, offset?, limit?, binary?}`, `processes.output_release {output_id}`, `memory.jetsam`, `memory.pressure` (only the three kernel memory sysctls, for polling) |
 | launchd | `services.list {limit?, cursor?}`, `status`, `print`, `dump {limit?, cursor?}`, `disabled`, `start`, `enable`, `load`, `profile` (see below), `kickstart {label, kill?}` (`launchctl kickstart`, capability `service_kickstart`, see below); `services.stop`, `disable`, `remove`, `signal`, `unload`, `profile.apply {profile, groups?, allow?}` **force**, and `kickstart` with `kill` **force**; `launchd.getenv`, `setenv`, `unsetenv`. On tvOS, which never enables user sessions, they read the system domain alone; before icli 0.8.6 the foreground-user lookup trapped there and killed vphoned |
 | Logs | `logs.syslog {seconds, process?, level?, max_lines?, subsystem?, category?, message_contains?}` (a bounded capture of at most 60 s; filters apply before the line cap), `logs.crashes {bundle_id?, limit?, cursor?}`, `logs.crash {path}` |
@@ -1308,6 +1308,123 @@ cycles, malformed values, limits, timeout failures and readiness recovery,
 prints native coverage, and removes its outputs. The script also accepts an
 absolute invocation path from any working directory. It does not require a guest;
 these tests do not establish compatibility with every iOS build.
+
+## Element actions and accessibility settings
+
+### Home Screen and the element methods
+
+The `ui.element.*` methods (`executeElement` in `GuestAPI+Element.swift`) find
+one element in the verified foreground application by `text`, `identifier`,
+`role` or a nested-tree `path`, then read it or act on it: `activate` performs
+the named accessibility action, `focus` moves the assistive-technology cursor,
+`set_value` writes the value and `attributes` reads it. `methods.list` defines
+the params and results. An `action` name the guest does not know is an
+`invalid_param` error on the wire whose message lists the known actions.
+
+At the Home Screen the foreground is SpringBoard, not an app, and IcliKit's own
+element helper needs a verified frontmost app. The flat `ui.*` reads and
+`ui.element_at` therefore take a daemon-side path: `readSemanticElements` has a
+SpringBoard branch that calls `vp_icli_ax_elements` and `vp_icli_ax_element_at`
+in `Native/vphoned_icli_ax.m`, thin wrappers over the `icli_ax_elements_json`
+and `icli_ax_element_at_json` symbols that IcliKit already links, against
+SpringBoard's pid. Observed on a live iOS 27.0.1 guest at the Home Screen
+(after a hardware `home` key): `apps.foreground` reports
+`com.apple.springboard` with `verified: false`, and the flat `ui.tree` and
+`ui.element_at` answer from the Home Screen where they used to fail with
+`unavailable`.
+
+### AX attribute and action ids
+
+Probed on the same iOS 27.0.1 guest against Settings with a throwaway tool
+calling `AXUIElementCopyAttributeValue`, `AXUIElementSetAttributeValue` and
+`AXUIElementPerformAction` with numeric ids (the ids are `AXElement`'s own
+getters in AXRuntime, read from their disassembly, then confirmed live):
+
+| Id | Kind | Meaning | Live result |
+| --- | --- | --- | --- |
+| 2001 | attribute | label (`AXElement.label`) | string, e.g. `Airplane Mode` |
+| 2004 | attribute | traits bitmask; enabled is bit `0x100` (NotEnabled) clear | Airplane row `0x20000200000041` (enabled); the disabled Wi-Fi toggle has `0x100` set and `ui.tree` reports `enabled:false` |
+| 2006 | attribute | value (getter and setter) | set `vptest` on the Search field, read back `vptest` |
+| 2010 | action | activate (`AXElement _performActivate`) | `perform 2010` on the Bluetooth row returned 0 and opened the Bluetooth page; -25200 (unsupported) on the Search field |
+| 2018 | attribute | focused: read for the state, set with `{focused:1, assistiveTech:"UIAccessibilityNotificationVoiceOverIdentifier"}`; `focused:0` clears | Search field (`UISearchBarTextField`) and a `UISwitch` read 0, then 1 after the set, then 0 after clearing; vphoned's existing entitlements, VoiceOver off (and on for the switch) |
+
+Other ids seen: 2085 is `speakThisString`, not the label; 2094 is
+`isNativeFocused` (reads 0); `perform` 2044 (`setNativeFocus`) returns -25200.
+There is no enabled attribute: `AXElement` has no enabled getter.
+
+Set-focus. AXRuntime's `-[AXElement setAssistiveTechFocused:]` sends only
+`{focused:1}`. The app's handler (`_iosAccessibilitySetValue:forAttribute:` ->
+`_accessibilityHandleATFocused:assistiveTech:`) needs the assistive technology
+identifier: without the `assistiveTech` key it does nothing with VoiceOver off,
+and with VoiceOver on it raises `-[NSDictionary setObject:forKeyedSubscript:]:
+key cannot be nil` and Settings aborts (Preferences .ips, SIGABRT; a raw set
+returns -25204 then -25215 as the app dies). It is not an entitlement
+failure: AXRuntime's only entitlement string is `com.apple.accessibility.api`,
+which vphoned has, and adding `com.apple.accessibility.voiceover` (the one extra
+entitlement `vot` carries) changed nothing. With the key, using vphoned's
+existing entitlements and VoiceOver off, the Search field (`UISearchBarTextField`)
+read back 2018 = 1 and, after `{focused:0, assistiveTech:...}`, 0; with VoiceOver
+on a `UISwitch` did the same and Settings stayed up. The state persists in the
+app after the caller exits. SwiftUI rows (Bluetooth) accept the call (return 0)
+but 2018 stays 0, with or without VoiceOver. 2094 (`isNativeFocused`) stays 0 and
+the field's keyboard focus (traits `0x200000`) does not change: 2018 is the
+assistive-technology cursor, not first responder. The set is ignored by SwiftUI
+rows and works on UIKit views. VoiceOver was enabled with
+`_AXSVoiceOverTouchSetEnabled(true)` for some runs and restored to 0, read
+back 0.
+
+`perform` of 2007-2013, 2017, 2019-2021 on the Search field returns -25200
+(unsupported, 2010 included) and 2014-2016, 2018 and 2022 return 0 with no
+change in traits or value. The only path found that gives a text field keyboard
+focus is the tap `ui.tap_element` already sends: traits gain `0x200000`.
+
+Keyboard focus of a text field shows in traits bit `0x200000` (`ui.tree`
+traits `0x2200040400` unfocused, `0x2200240400` focused); no 2000-3100 boolean
+attribute changes with it.
+
+### Accessibility settings symbols
+
+Each feature of `accessibility.get`/`accessibility.set` maps to a getter and a
+setter exported by `/usr/lib/libAccessibility.dylib`. Resolved with `dlsym` and
+exercised on a live iOS 27.0.1 guest with a throwaway arm64 tool (pushed with
+`push`, run through the machine socket's `shell` request): each setter flipped
+the value, the getter read the new value back, the setter restored the original
+and the getter read the original again. Bool setters take a `Boolean`.
+
+| Feature | Getter | Setter | Guest round trip |
+| --- | --- | --- | --- |
+| `voiceover` | `_AXSVoiceOverTouchEnabled` | `_AXSVoiceOverTouchSetEnabled` | 0 -> 1 -> 0 |
+| `assistive_touch` | `_AXSAssistiveTouchEnabled` | `_AXSAssistiveTouchSetEnabled` | 0 -> 1 -> 0 |
+| `switch_control` | `_AXSAssistiveTouchScannerEnabled` | `_AXSAssistiveTouchScannerSetEnabled` | 0 -> 1 -> 0 |
+| `reduce_motion` | `_AXSReduceMotionEnabled` | `_AXSSetReduceMotionEnabled` | 0 -> 1 -> 0 |
+| `full_keyboard_access` | `_AXSFullKeyboardAccessEnabled` | `_AXSFullKeyboardAccessSetEnabled` | 0 -> 1 -> 0 |
+| `text_size` | `_AXSCopyPreferredContentSizeCategoryName` (returns a +1 `CFString`) | `_AXSSetPreferredContentSizeCategoryName` (takes a `CFString`) | unset -> `UICTContentSizeCategoryXXXL` -> `UICTContentSizeCategoryL` |
+
+All six pairs resolve on this guest, so none is marked unavailable. The text size
+getter returns NULL on a guest whose size was never set (the state of this guest
+before the test); passing NULL to the setter returns it to that unset state.
+The probe returned the guest to its starting values.
+
+`accessibility.get` reads one `feature`, or all six when it is omitted, and
+`accessibility.set` changes one persistently; `methods.list` defines the
+params and results. `text_size` reports `l` when the getter returns NULL
+(never set).
+
+`accessibility.set` calls the setter, reads the value back, waits 2 seconds
+and reads it again, so it takes at least 2 s and under 3 s while holding the
+interface lock. It succeeds only when the second read equals the requested
+value. When the guest reverted the setting it fails
+`unavailable` and the message carries the settled value; for `text_size` the
+settled value is mapped as in `get` (NULL is `l`; an unmapped name fails
+`unavailable` with the raw name in the message).
+
+Setting `voiceover` or `switch_control` to true first writes the feature's
+first-use confirmation preference as `mobile` (`VoiceOverTouchUsageConfirmed`
+in `com.apple.Accessibility`; `AXSAssistiveTouchSwitchUsageConfirmedPreference`
+in `com.apple.AssistiveTouch`), as if the user had pressed OK on the SpringBoard
+alert, so no alert appears and the setting holds. Without it the guest shows
+the alert and turns the setting back off. The write happens only after the
+feature is confirmed available, and it persists after the feature is disabled.
 
 ## Environment and identity updates
 

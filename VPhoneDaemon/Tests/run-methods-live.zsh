@@ -10,7 +10,12 @@
 #   VPHONE_VM           VM name to launch; default the first free VM from `vm list`; a running VM -> exit 2,
 #                       an unknown name -> `vm launch` exits -> UNAVAILABLE, exit 2
 #   VPHONE_LIBRARY_ROOT VM library (default ~/.vphone/machines) read to accept `vm list` names
-#   port                fixed 127.0.0.1:8765; something already listening -> UNAVAILABLE, exit 2
+#   VPHONE_LIVE_PORT    API port on 127.0.0.1 (default 8765); something already listening -> UNAVAILABLE, exit 2
+#   VPHONE_LIVE_SECTION accessibility: after boot run only the accessibility and element section, then stop (default: all)
+#   VPHONE_LIVE_AX_FAIL_AFTER_SET  non-empty: the accessibility section exits 1 right after its first set, to prove the
+#                       exit trap restores the settings
+#   VPHONE_LIVE_AX_FAIL_RESTORE    feature name: the exit trap's restore set for that one feature sends an invalid value, so it
+#                       fails, to prove the FAIL line prints, every other feature is still restored and the run exits 1
 # A per-run token travels only in the environment (VPHONE_API_TOKEN) and a 0600 header file for the HTTP client.
 # The EXIT trap (also run on INT/TERM) removes the header files and stops the VM this run launched (health
 # answered, or its launch job still booting); a VM this run did not launch is never stopped.
@@ -25,11 +30,16 @@
 #   Three consecutive timeout/transport/unparsable failures print `FAIL guest unresponsive` and stop the run.
 # Test seam (no VM): VPHONE_LIVE_BASE_URL (e.g. http://127.0.0.1:9), VPHONE_LIVE_TOKEN and optionally
 #   VPHONE_LIVE_CATALOG run only the schema comparison against that server (run-methods-live-stub-tests.sh);
-#   with VPHONE_LIVE_UNFORCED_CHECK=1 they run one unforced system.reboot refusal check instead.
+#   with VPHONE_LIVE_UNFORCED_CHECK=1 they run one unforced system.reboot refusal check instead, and with
+#   VPHONE_LIVE_ALERT_CHECK=1 the "shows no first-use alert" check against the stub's ui.ocr reply.
 # Unforced calls to force methods: a guest-closed reply (HTTP 000, or the proxy's 502 `guest_closed`) is retried
 #   once and prints `RETRY <method> <params>: guest closed without a reply`; a second one halts with LEAK.
 # Input observe (checks numbered 9): unlocks the guest, launches Settings (apps.launch), taps its status bar in
 #   Settings, presses a letter key and the home button.
+# Accessibility and element section (checks prefixed `ax`): reads accessibility.get first and restores every feature in
+#   the EXIT trap (`PASS ax settings restored on exit` or FAIL), then drives the Home Screen and Settings: the nested
+#   ui.tree path, ui.element.attributes/activate/focus/set_value, error codes, and accessibility.get/set for each feature.
+#   It unlocks the guest, launches Settings, turns VoiceOver on briefly, and leaves the guest at the Home Screen.
 # Output: `PASS <check>` or `FAIL <check>: expected <x> got <y>` per check, then
 #   live: <n> checks, <f> failures
 #   TOTAL_FAILS=<f>
@@ -162,6 +172,20 @@ e() {
   case $3 in *'Pass force'*) if ! print -r -- "$s" | grep -qF 'Pass force'; then echo "LEAK: $1 was not refused unforced; stopping"; finish || true; exit 1; fi ;; esac
 }
 
+# ax_alert_text: the first-use confirmation text on screen (ui.ocr reads the screen). Prints the alert phrase found; "none"
+# only for a real read (numeric .count and non-empty recognized text) without one; "ocr unread: ..." when the read failed
+# or the reply was empty or not JSON.
+ax_alert_text() {
+  local r out
+  r=$(rpc '{"method":"ui.ocr"}')
+  out=$(print -r -- "$r" | jq -r '
+    if ((.result.count | type) == "number") and ([.result.blocks[]? | (.text // .string // "" | tostring)] | join("") | length > 0)
+    then ((.result | tojson | ascii_downcase | scan("changes the gestures|switch control changes|voiceover changes")) // "none")
+    else "ocr unread: \(.error // .result // . | tojson | .[0:120])" end' 2>/dev/null | head -1)
+  print -r -- "${out:-ocr unread: empty or non-JSON reply}"
+}
+# ax_alert_check <feature>: the "shows no first-use alert" check; passes only on a real OCR read without an alert.
+ax_alert_check() { local z; z=$(ax_alert_text); [ "$z" = none ] && chk "ax $1 shows no first-use alert" ok || chk "ax $1 shows no first-use alert" bad "no alert text" "$z"; }
 # Test seam: a stub server stands in for the guest and only the schema comparison runs
 # (or, with VPHONE_LIVE_UNFORCED_CHECK=1, one unforced system.reboot check).
 if [ -n "${VPHONE_LIVE_BASE_URL-}" ]; then
@@ -175,6 +199,7 @@ if [ -n "${VPHONE_LIVE_BASE_URL-}" ]; then
     e system.reboot '{}' 'Pass force: true to reboot the guest'
     finish; exit
   fi
+  if [ "${VPHONE_LIVE_ALERT_CHECK-}" = 1 ]; then total=0; fails=0; ax_alert_check voiceover; echo "fails=$fails"; exit; fi
   schema_section
   schema_summary
   [ $sf = 0 ]; exit
@@ -185,7 +210,9 @@ cd "$root"
 bundle=${VPHONE_BUNDLE:-$root/.build/XcodeBundle/Build/Products/Debug/VPhone.bundle}
 cli=$bundle/Contents/MacOS/vphone-cli
 lib=${VPHONE_LIBRARY_ROOT:-$HOME/.vphone/machines}
-addr=127.0.0.1:8765
+port=${VPHONE_LIVE_PORT:-8765}
+case $port in ''|*[!0-9]*|0|0[0-9]*) echo "invalid VPHONE_LIVE_PORT $port; set a port number" >&2; exit 2 ;; esac
+addr=127.0.0.1:$port
 mkdir -p .build; log=$root/.build/methods-vm.log
 tests=$root/VPhoneDaemon/Tests/run-methods-tests.sh
 n_specs=$(zsh "$tests" --specs | wc -l | tr -d ' ')
@@ -208,7 +235,7 @@ valid_name "$vm" || { echo "UNAVAILABLE: invalid VM name '$vm'; use only letters
 echo vm=$vm
 # A running VM is never used or stopped, including one named by $VPHONE_VM.
 if is_running "$vm"; then echo "UNAVAILABLE: $vm is running; stop it or set VPHONE_VM to another VM"; exit 2; fi
-if nc -z 127.0.0.1 8765 >/dev/null 2>&1; then echo "UNAVAILABLE: port 8765 in use; stop the process holding it"; exit 2; fi
+if nc -z 127.0.0.1 $port >/dev/null 2>&1; then echo "UNAVAILABLE: port $port in use; stop the process holding it or set VPHONE_LIVE_PORT"; exit 2; fi
 
 token=$(openssl rand -hex 16)
 hdr=$(mktemp); started=0; lpid=
@@ -216,10 +243,31 @@ sdir=$(mktemp -d); schema_base=http://$addr
 printf 'Authorization: Bearer %s\n' "$token" > "$hdr"
 (umask 077; : > "$hdr.code")
 # The VM is this run's own (checked free above): stop it once health answered, or while its launch job is still booting.
+# Accessibility features as read before the accessibility section changed any (compact sorted JSON); empty when none
+# were read. The EXIT trap puts every one back and checks them, on every exit path.
+ax_before=
+ax_restore() {
+  [ -n "$ax_before" ] || return 0
+  ax_unconfirm
+  local b=$ax_before f after; ax_before=
+  local bad=0 r
+  for f in $(print -r -- "$b" | jq -r 'keys[]'); do
+    r=$(rpc "$(jq -nc --arg f "$f" --argjson b "$b" --arg x "${VPHONE_LIVE_AX_FAIL_RESTORE-}" '{method:"accessibility.set",params:{feature:$f,value:(if $x == $f then "invalid" else $b[$f] end)}}')")
+    # A revert or other error on one feature is reported; the loop still restores every other feature.
+    if print -r -- "$r" | jq -e '.error' > /dev/null 2>&1; then echo "FAIL ax restore $f: $(print -r -- "$r" | jq -c '.error')"; bad=1; fi
+  done
+  after=$(rpc '{"method":"accessibility.get"}' | jq -cS '.result.features' 2>/dev/null || true)
+  if [ "$after" = "$b" ]; then echo "PASS ax settings restored on exit: $after"
+  else echo "FAIL ax settings restored on exit: expected $b got ${after:-none}"; return 1; fi
+  return $bad
+}
+ax_failed=0
 cleanup() {
+  ax_restore || ax_failed=1
   if [ -n "$lpid" ] && { [ $started = 1 ] || kill -0 $lpid 2>/dev/null; }; then "$cli" vm stop "$vm" || true; fi
   if [ -n "$lpid" ] && kill -0 $lpid 2>/dev/null; then kill $lpid 2>/dev/null || true; fi
   rm -rf "$hdr" "$hdr.code" "$sdir"
+  [ $ax_failed = 0 ] || exit 1
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -241,6 +289,115 @@ done
 echo "hash matched after ${SECONDS}s"
 
 total=0; fails=0
+
+# --- accessibility and element methods ---------------------------------------
+# axq <jq filter> <reply>: the filter applied to a reply's result (or its error object); empty when absent.
+axq() { print -r -- "$2" | jq -r "(.result // .error // .) | $1" 2>/dev/null || true; }
+# axis <check name> <jq filter> <reply> <expected>: a passing check when the filter prints the expected text.
+axis() { local z; z=$(axq "$2" "$3"); [ "$z" = "$4" ] && chk "ax $1" ok || chk "ax $1" bad "$4" "${z:-none}"; }
+ax_fg() { rpc '{"method":"apps.foreground"}' | jq -r '.result.bundle_id // ""' 2>/dev/null || true; }
+ax_wait_fg() { local i; for i in 1 2 3 4 5 6 7 8 9 10; do [ "$(ax_fg)" = "$1" ] && return 0; sleep 1; done; return 1; }
+# ax_wait_element <params json>: true once ui.element.attributes finds the element (up to 10 s).
+ax_wait_element() { local i; for i in 1 2 3 4 5 6 7 8 9 10; do [ -n "$(axq '.label // empty' "$(rpc "{\"method\":\"ui.element.attributes\",\"params\":$1}")")" ] && return 0; sleep 1; done; return 1; }
+# ax_unconfirm: delete both first-use confirmation preferences so a missing pre-confirm write shows up as an alert.
+ax_unconfirm() {
+  rpc '{"method":"settings.delete","params":{"domain":"com.apple.Accessibility","key":"VoiceOverTouchUsageConfirmed"}}' > /dev/null
+  rpc '{"method":"settings.delete","params":{"domain":"com.apple.AssistiveTouch","key":"AXSAssistiveTouchSwitchUsageConfirmedPreference"}}' > /dev/null
+}
+ax_home() { rpc '{"method":"input.button","params":{"name":"home"}}' > /dev/null; sleep 2; }
+ax_fresh_settings() {
+  rpc '{"method":"apps.terminate","params":{"bundle_id":"com.apple.Preferences"}}' > /dev/null; sleep 1
+  rpc '{"method":"apps.launch","params":{"bundle_id":"com.apple.Preferences"}}' > /dev/null
+  ax_wait_fg com.apple.Preferences && ax_wait_element '{"role":"UISearchBarTextField"}'
+}
+ax_section() {
+  local r z f nv ov p sx sy feats='["assistive_touch","full_keyboard_access","reduce_motion","switch_control","text_size","voiceover"]'
+  ax_home
+  # A freshly booted guest is locked and refuses to unlock for up to ~60 s; retry for up to 100 s.
+  for _ in $(seq 20); do [ "$(axq '.locked' "$(rpc '{"method":"screen.unlock"}')")" = false ] && break; sleep 5; done
+  ax_home
+  z=$(rpc '{"method":"accessibility.get"}' | jq -cS '.result.features' 2>/dev/null || true)
+  case $z in '{'*) ax_before=$z ;; *) chk "ax baseline accessibility.get" bad "a features object" "${z:-none}"; return 0 ;; esac
+  echo "ax baseline: $ax_before"
+
+  # accessibility.get: every feature is in features or unavailable; one named feature returns only itself.
+  r=$(rpc '{"method":"accessibility.get"}')
+  axis "get lists every feature" "[(.features | keys[]), .unavailable[]] | sort == $feats" "$r" true
+  axis "get types: five booleans and a text_size string" '.features | [to_entries[] | select(.key != "text_size") | .value | type] + [.text_size | type] | unique | join(",")' "$r" boolean,string
+  axis "get with feature returns only that feature" '.features | keys | join(",")' "$(rpc '{"method":"accessibility.get","params":{"feature":"reduce_motion"}}')" reduce_motion
+  # accessibility.set waits 2 s and reads again, so it succeeds only when the guest kept the value. All six features
+  # must round-trip. Turning voiceover or switch_control on is held 5 s in all and the screen (ui.ocr) must show
+  # no first-use confirmation alert.
+  for f in voiceover assistive_touch switch_control reduce_motion full_keyboard_access text_size; do
+    ov=$(print -r -- "$ax_before" | jq -c --arg f $f '.[$f]')
+    if [ $f = text_size ]; then nv='"xl"'; [ "$ov" != '"xl"' ] || nv='"l"'; else nv=$([ "$ov" = true ] && echo false || echo true); fi
+    if [ $nv = true ] && { [ $f = voiceover ] || [ $f = switch_control ]; }; then ax_unconfirm; fi
+    r=$(rpc "{\"method\":\"accessibility.set\",\"params\":{\"feature\":\"$f\",\"value\":$nv}}")
+    axis "set $f $nv answers feature and value" '[.feature, (.value | tojson)] | join(" ")' "$r" "$f $nv"
+    axis "get returns $f $nv" ".features.$f | tojson" "$(rpc "{\"method\":\"accessibility.get\",\"params\":{\"feature\":\"$f\"}}")" "$nv"
+    if [ $nv = true ] && { [ $f = voiceover ] || [ $f = switch_control ]; }; then
+      sleep 3
+      axis "get still returns $f true after 5 s" ".features.$f | tojson" "$(rpc "{\"method\":\"accessibility.get\",\"params\":{\"feature\":\"$f\"}}")" true
+      ax_alert_check $f
+    fi
+    [ -z "${VPHONE_LIVE_AX_FAIL_AFTER_SET-}" ] || { echo "ax forced failure after setting $f to $nv"; exit 1; }
+    rpc "{\"method\":\"accessibility.set\",\"params\":{\"feature\":\"$f\",\"value\":$ov}}" > /dev/null; sleep 1
+    axis "set $f back restores $ov" ".features.$f | tojson" "$(rpc "{\"method\":\"accessibility.get\",\"params\":{\"feature\":\"$f\"}}")" "$ov"
+  done
+
+  # Home Screen: ui.tree lists icons, ui.element_at returns the icon at a point, ui.tap_element launches Settings.
+  ax_home
+  # The Home Screen lays out again after the text size change; wait for one Settings icon.
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    [ "$(axq '[.elements[] | select(.label == "Settings")] | length' "$(rpc '{"method":"ui.tree"}')")" = 1 ] && break; sleep 1
+  done
+  r=$(rpc '{"method":"ui.tree"}')
+  axis "Home Screen ui.tree returns icons" '[.count > 0, ([.elements[] | select(.label == "Settings")] | length) == 1] | join(",")' "$r" true,true
+  sx=$(axq '[.elements[] | select(.label == "Settings")][0].x' "$r"); sy=$(axq '[.elements[] | select(.label == "Settings")][0].y' "$r")
+  axis "Home Screen nested ui.tree has a root with path [] and children" '[(.roots | length > 0), (.roots[0].path | tojson), (.roots[0].children | length > 0)] | join(",")' "$(rpc '{"method":"ui.tree","params":{"nested":true}}')" 'true,[],true'
+  axis "Home Screen ui.element_at returns the Settings icon" '.element.label' "$(rpc "{\"method\":\"ui.element_at\",\"params\":{\"x\":${sx:-0},\"y\":${sy:-0}}}")" Settings
+  axis "Home Screen ui.tap_element Settings answers tapped" '.tapped' "$(rpc '{"method":"ui.tap_element","params":{"text":"Settings","match":"exact"}}')" true
+  ax_wait_fg com.apple.Preferences && chk "ax Home Screen ui.tap_element launches Settings" ok || chk "ax Home Screen ui.tap_element launches Settings" bad com.apple.Preferences "$(ax_fg)"
+  # The element methods at the Home Screen: attributes carries every key; activate launches Settings.
+  rpc '{"method":"apps.terminate","params":{"bundle_id":"com.apple.Preferences"}}' > /dev/null; ax_home
+  r=$(rpc '{"method":"ui.element.attributes","params":{"text":"Settings","match":"exact"}}')
+  axis "Home Screen ui.element.attributes has every key" 'keys | join(",")' "$r" enabled,focused,frame,identifier,label,path,pid,role,value
+  r=$(rpc '{"method":"ui.element.activate","params":{"text":"Settings","match":"exact"}}')
+  axis "Home Screen ui.element.activate Settings answers activated" '[.activated, .action, .label] | join(",")' "$r" true,activate,Settings
+  ax_wait_fg com.apple.Preferences && chk "ax Home Screen ui.element.activate launches Settings" ok || chk "ax Home Screen ui.element.activate launches Settings" bad com.apple.Preferences "$(ax_fg)"
+
+  # Settings, fresh: nested snapshot paths, attributes, set_value, focus, error codes, activate.
+  if ! ax_fresh_settings; then chk "ax Settings root page ready" bad "Settings with its search field" "$(ax_fg)"; return 0; fi
+  r=$(rpc '{"method":"ui.tree","params":{"nested":true,"max_elements":2000}}')
+  axis "nested ui.tree keeps action_eligible false" '.action_eligible' "$r" false
+  axis "nested ui.tree: root path is []" '.roots | map(.path | tojson) | join(",")' "$r" '[]'
+  axis "nested ui.tree: path on every node" '[.roots[] | def n: ., (.children[]? | n); n | select((.path | type) != "array")] | length' "$r" 0
+  axis "nested ui.tree: walking children by path reaches every node" '. as $t | [.roots[0] | def n: ., (.children[]? | n); n | . as $n | select((reduce $n.path[] as $i ($t.roots[0]; .children[$i])) != $n)] | length' "$r" 0
+  r=$(rpc '{"method":"ui.element.attributes","params":{"role":"UISearchBarTextField"}}')
+  axis "attributes has label, value, identifier, role, frame, enabled, focused, path, pid" 'keys | join(",")' "$r" enabled,focused,frame,identifier,label,path,pid,role,value
+  axis "attributes types" '[(.label, .value, .identifier, .role | type), (.frame | [.x, .y, .width, .height] | map(type) | unique[]), (.enabled, .focused | type), (.path | type), (.pid | type)] | join(",")' "$r" string,string,string,string,number,boolean,boolean,array,number
+  p=$(axq '.path | tojson' "$r")
+  axis "attributes by path finds the same element" '.role' "$(rpc "{\"method\":\"ui.element.attributes\",\"params\":{\"path\":$p}}")" UISearchBarTextField
+  axis "set_value abc answers value abc" '.value' "$(rpc '{"method":"ui.element.set_value","params":{"role":"UISearchBarTextField","value":"abc"}}')" abc
+  axis "set_value abc reads back abc" '.value' "$(rpc '{"method":"ui.element.attributes","params":{"role":"UISearchBarTextField"}}')" abc
+  rpc '{"method":"ui.element.set_value","params":{"role":"UISearchBarTextField","value":""}}' > /dev/null
+  rpc '{"method":"accessibility.set","params":{"feature":"voiceover","value":true}}' > /dev/null; sleep 2
+  axis "focus with VoiceOver on answers focused" '.focused' "$(rpc '{"method":"ui.element.focus","params":{"role":"UISearchBarTextField"}}')" true
+  rpc '{"method":"accessibility.set","params":{"feature":"voiceover","value":false}}' > /dev/null; sleep 1
+  r=$(rpc '{"method":"ui.element.attributes","params":{"text":"Search"}}')
+  axis "ambiguous selector names the count and a hint" '.message | test("^ambiguous: [0-9]+ elements match; pass index")' "$r" true
+  axis "no match is not_found with a hint" '[.code, (.message | test("check text and role"))] | join(",")' "$(rpc '{"method":"ui.element.attributes","params":{"text":"__no_such_element__"}}')" not_found,true
+  r=$(rpc '{"method":"ui.element.attributes","params":{"path":[0],"text":"__no_such_element__"}}')
+  axis "stale path with a different text fails stale with a hint" '.message | test("^stale: .*refresh the path from a new ui.tree")' "$r" true
+  axis "bad action is refused listing the known actions" '[.code, .message] | join(" ")' "$(rpc '{"method":"ui.element.activate","params":{"identifier":"com.apple.settings.general","action":"__no_such_action__"}}')" 'invalid_param unknown action; known actions: activate'
+  axis "activate on an unsupported element fails with a hint" '.message | test("does not support activate.*try another element")' "$(rpc '{"method":"ui.element.activate","params":{"path":[]}}')" true
+  r=$(rpc '{"method":"ui.element.activate","params":{"identifier":"com.apple.settings.general"}}')
+  axis "activate General answers activated, action, label and role" '[.activated, .action, .label, (.role | length > 0)] | join(",")' "$r" true,activate,General,true
+  ax_wait_element '{"identifier":"com.apple.settings.general.about"}' && chk "ax activate General opens its page" ok || chk "ax activate General opens its page" bad "an About row" none
+  rpc '{"method":"apps.terminate","params":{"bundle_id":"com.apple.Preferences"}}' > /dev/null; ax_home
+  [ "$(ax_fg)" = com.apple.springboard ] && chk "ax guest left at the Home Screen" ok || chk "ax guest left at the Home Screen" bad com.apple.springboard "$(ax_fg)"
+}
+if [ "${VPHONE_LIVE_SECTION-}" = accessibility ]; then ax_section; finish; exit; fi
 
 # --- capability and catalog -------------------------------------------------
 h=$(cu http://$addr/v1/health || true)
@@ -679,6 +836,8 @@ n=$(print -r -- "$rc" | J -r "$L"' | [.[] | select(.name | startswith("input."))
 z=$(print -r -- "$rc" | J -r "$L"' | [.[] | select(.name | startswith("input.")) | select(([.params[].name] | index("observe")) != null and ([.params[].name] | index("observe_delay_ms")) != null and ([.result[].name] | index("observed")) != null) | .name | ltrimstr("input.")] | sort | join(",")')
 want=button,double_tap,drag,hid,key,long_press,paste,pointer,scroll,swipe,tap,touch,touch2,touch_sequence,type
 [ "$n" = 15 ] && [ "$z" = "$want" ] && chk "9 methods.list has 15 input.* methods with observe, observe_delay_ms, observed" ok || chk "9 methods.list has 15 input.* methods with observe, observe_delay_ms, observed" bad "15 input.* methods: $want" "n=${n:-none} with=${z:-none}"
+
+ax_section
 
 # --- schema comparison of every read-class method ---------------------------
 schema_section

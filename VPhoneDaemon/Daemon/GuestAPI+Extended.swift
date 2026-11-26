@@ -9,6 +9,7 @@ extension GuestAPI {
             .make(DeviceMethod.self, executeDevice),
             .make(InputMethod.self, executeInput),
             .make(InterfaceMethod.self, executeInterface),
+            .make(AccessibilityMethod.self, executeAccessibility),
             .make(ProcessMethod.self, executeProcess),
             .make(ServiceMethod.self, executeService),
             .make(LogMethod.self, executeLog),
