@@ -130,7 +130,9 @@ static VPInjectionEnvironment vpPrepareChild(const char *path, char *const envp[
     if (vpIsInjectionTarget(path) || vpIsMISFixTarget(path) || vpIsDeviceHubFixTarget(path) ||
         vpIsDeviceNameTarget(path)) {
         vpPrepareLoaderLink(path);
-        if (geteuid() == 0 && vpIsInjectionTarget(path))
+        // xpcproxy is one-shot (launchd already ran the cached check right before
+        // spawning it); skip its cold walk and keep root-shell/daemon spawners covered.
+        if (geteuid() == 0 && !vpInXPCProxy && vpIsInjectionTarget(path))
             vpEnsureRootHideTweakSignatures(getenv("VPHONE_JB_ROOT"));
         char names[96];
         vpDescribeInsertedLibraries(&libraries, names, sizeof(names));

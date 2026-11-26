@@ -93,11 +93,13 @@ public enum VPhoneSigner {
         // needs it only on the directory. It is also why an interrupted run
         // leaves the original untouched rather than half written.
         let temporary = url.deletingLastPathComponent()
-            .appendingPathComponent(".\(url.lastPathComponent).vphonesign")
-        try? FileManager.default.removeItem(at: temporary)
+            .appendingPathComponent(".\(url.lastPathComponent).vphonesign.\(getpid()).\(UUID().uuidString)")
         try signed.write(to: temporary, options: .atomic)
-        if let mode = try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] {
-            try? FileManager.default.setAttributes([.posixPermissions: mode], ofItemAtPath: temporary.path)
+        var info = stat()
+        if lstat(url.path, &info) == 0 {
+            _ = chmod(temporary.path, info.st_mode & 0o7777)
+            // Preserve ownership when running as root (e.g. vphoned); ignore EPERM otherwise.
+            _ = chown(temporary.path, info.st_uid, info.st_gid)
         }
         guard rename(temporary.path, url.path) == 0 else {
             let reason = String(cString: strerror(errno))
@@ -235,11 +237,77 @@ public enum VPhoneSigner {
     }
 
     public static func needsAdHocLibraryResign(in data: Data) -> Bool {
-        guard let file = try? VPhoneMachOFile(data: data) else { return false }
+        guard data.count >= 8 else { return false }
+        let magic: UInt32 = data.littleEndianValue(at: 0)
+        var sliceRanges: [Range<Int>] = []
+        switch magic {
+        case FAT_CIGAM:
+            let count = Int(data.bigEndianValue(at: 4) as UInt32)
+            let entrySize = MemoryLayout<fat_arch>.size
+            guard (1 ..< 20).contains(count), data.holds(8, count * entrySize) else { return false }
+            for index in 0 ..< count {
+                let entry = 8 + index * entrySize
+                let cpuType = cpu_type_t(bitPattern: data.bigEndianValue(at: entry) as UInt32)
+                if cpuType == CPU_TYPE_ARM { continue }
+                guard VPhoneMachOImage.armCPUTypes.contains(cpuType) else { return false }
+                let offset = Int(data.bigEndianValue(at: entry + 8) as UInt32)
+                let length = Int(data.bigEndianValue(at: entry + 12) as UInt32)
+                guard data.holds(offset, length) else { return false }
+                sliceRanges.append(offset ..< offset + length)
+            }
+            guard !sliceRanges.isEmpty else { return false }
+        case MH_MAGIC_64:
+            sliceRanges.append(0 ..< data.count)
+        default:
+            return false
+        }
+
+        let headerSize = MemoryLayout<mach_header_64>.size
         let libraryTypes: Set<UInt32> = [UInt32(MH_DYLIB), UInt32(MH_BUNDLE)]
-        for slice in file.slices where libraryTypes.contains(slice.fileType) {
-            guard let signature = slice.signature else { return true }
-            let blob = slice.image.subdata(in: signature.dataOffset ..< signature.dataOffset + signature.dataSize)
+        for range in sliceRanges {
+            guard range.count >= headerSize else { return false }
+            let base = range.lowerBound
+            guard data.littleEndianValue(at: base) as UInt32 == MH_MAGIC_64 else { return false }
+            let cpuType = cpu_type_t(bitPattern: data.littleEndianValue(at: base + 4) as UInt32)
+            guard VPhoneMachOImage.armCPUTypes.contains(cpuType) else { return false }
+            let fileType: UInt32 = data.littleEndianValue(at: base + 12)
+            guard libraryTypes.contains(fileType) else { continue }
+
+            let commandCount: UInt32 = data.littleEndianValue(at: base + 16)
+            let commandsSize = Int(data.littleEndianValue(at: base + 20) as UInt32)
+            guard headerSize + commandsSize <= range.count else { return false }
+
+            var signature: (offset: Int, size: Int)?
+            var hasLinkedit = false
+            var cursor = 0
+            for _ in 0 ..< commandCount {
+                guard cursor + 8 <= commandsSize else { return false }
+                let start = base + headerSize + cursor
+                let command: UInt32 = data.littleEndianValue(at: start)
+                let size = Int(data.littleEndianValue(at: start + 4) as UInt32)
+                guard size >= 8, size % 8 == 0, cursor + size <= commandsSize else { return false }
+                if command == UInt32(LC_CODE_SIGNATURE), size >= MemoryLayout<linkedit_data_command>.size {
+                    signature = (
+                        Int(data.littleEndianValue(at: start + 8) as UInt32),
+                        Int(data.littleEndianValue(at: start + 12) as UInt32),
+                    )
+                } else if command == UInt32(LC_SEGMENT_64), size >= MemoryLayout<segment_command_64>.size {
+                    let segName = data[data.startIndex + start + 8 ..< data.startIndex + start + 24]
+                        .prefix { $0 != 0 }
+                    if segName.elementsEqual("__LINKEDIT".utf8) {
+                        hasLinkedit = true
+                    }
+                }
+                cursor += size
+            }
+            guard hasLinkedit else { return false }
+            guard let signature else { return true }
+            guard signature.offset >= 0, signature.size >= 0,
+                  signature.offset <= range.count, signature.size <= range.count - signature.offset,
+                  signature.offset + signature.size == range.count
+            else { return false }
+            let blobStart = data.startIndex + base + signature.offset
+            let blob = data[blobStart ..< blobStart + signature.size]
             if VPhoneCodeSignature.needsAdHocUpgrade(in: blob) {
                 return true
             }

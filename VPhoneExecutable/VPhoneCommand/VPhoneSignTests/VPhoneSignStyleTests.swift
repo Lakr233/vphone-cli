@@ -178,5 +178,19 @@ struct VPhoneSignStyleTests {
 
         // Non-Mach-O input is ignored.
         #expect(!VPhoneSigner.needsAdHocLibraryResign(in: Data("#!/bin/sh\n".utf8)))
+
+        // Non-zero startIndex Data slices work without rebasing copies.
+        let padded = Data(count: 13) + ldidDylib
+        #expect(VPhoneSigner.needsAdHocLibraryResign(in: padded[13...]))
+        let paddedAdHoc = Data(count: 13) + adHocDylib
+        #expect(!VPhoneSigner.needsAdHocLibraryResign(in: paddedAdHoc[13...]))
+
+        // Truncated SuperBlob (< 44 bytes) safely requests upgrade instead of trapping.
+        var truncatedSuperBlob = Data()
+        for word: UInt32 in [0xFADE_0CC0, 20, 1, 0, 20] {
+            var be = word.bigEndian
+            withUnsafeBytes(of: &be) { truncatedSuperBlob.append(contentsOf: $0) }
+        }
+        #expect(VPhoneCodeSignature.needsAdHocUpgrade(in: truncatedSuperBlob))
     }
 }

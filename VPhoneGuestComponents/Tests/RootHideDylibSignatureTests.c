@@ -421,6 +421,74 @@ int main(void) {
     vpEnsureRootHideTweakSignatures(root);
     assert(readSliceCDFlags(newTweak, 0) == CS_ADHOC);
 
+    // 9. Truncated SuperBlob (length < 44 with a CodeDirectory index entry) must return EFTYPE
+    //    without underflowing `length - 44u` or over-reading the heap buffer (ASan regression).
+    char shortSB[PATH_MAX];
+    snprintf(shortSB, sizeof(shortSB), "%s/usr/lib/libshort_sb.dylib", root);
+    {
+        uint8_t buf[0x1020] = {0};
+        struct mach_header_64 hdr = {
+            .magic = MH_MAGIC_64,
+            .cputype = CPU_TYPE_ARM64,
+            .cpusubtype = CPU_SUBTYPE_ARM64_ALL,
+            .filetype = MH_DYLIB,
+            .ncmds = 1,
+            .sizeofcmds = sizeof(struct linkedit_data_command),
+        };
+        struct linkedit_data_command cs = {
+            .cmd = LC_CODE_SIGNATURE,
+            .cmdsize = sizeof(cs),
+            .dataoff = 0x1000,
+            .datasize = 20,
+        };
+        memcpy(buf, &hdr, sizeof(hdr));
+        memcpy(buf + sizeof(hdr), &cs, sizeof(cs));
+        uint8_t *sb = buf + 0x1000;
+        putBE32(sb + 0, CS_MAGIC_SUPERBLOB);
+        putBE32(sb + 4, 20u);
+        putBE32(sb + 8, 1u);
+        putBE32(sb + 12, 0u);
+        putBE32(sb + 16, 20u);
+        writeFile(shortSB, buf, 0x1000 + 20, 0644);
+        assert(vpPrepareRootHideDylib(shortSB, root, failed, sizeof(failed)) == EFTYPE);
+        assert(strstr(failed, "libshort_sb.dylib") != NULL);
+    }
+
+    // 10. Malformed unaligned load command cmdsize must return EFTYPE without UBSan misalignment.
+    char unalignedLC[PATH_MAX];
+    snprintf(unalignedLC, sizeof(unalignedLC), "%s/usr/lib/libunaligned.dylib", root);
+    {
+        uint8_t buf[0x1000] = {0};
+        struct mach_header_64 hdr = {
+            .magic = MH_MAGIC_64,
+            .cputype = CPU_TYPE_ARM64,
+            .cpusubtype = CPU_SUBTYPE_ARM64_ALL,
+            .filetype = MH_DYLIB,
+            .ncmds = 2,
+            .sizeofcmds = 17,
+        };
+        struct load_command lc1 = {.cmd = 0x1234, .cmdsize = 9};
+        struct load_command lc2 = {.cmd = 0x5678, .cmdsize = 8};
+        memcpy(buf, &hdr, sizeof(hdr));
+        memcpy(buf + sizeof(hdr), &lc1, sizeof(lc1));
+        memcpy(buf + sizeof(hdr) + 9, &lc2, sizeof(lc2));
+        writeFile(unalignedLC, buf, sizeof(buf), 0644);
+        assert(vpPrepareRootHideDylib(unalignedLC, root, failed, sizeof(failed)) == EFTYPE);
+        assert(strstr(failed, "libunaligned.dylib") != NULL);
+    }
+
+    // 11. An unsigned tweak in TweakInject does not break snapshot caching forever; replacing it
+    //     with a valid ldid tweak invalidates the cache and upgrades it.
+    char brokenTweak[PATH_MAX];
+    snprintf(brokenTweak, sizeof(brokenTweak), "%s/usr/lib/TweakInject/BrokenTweak.dylib", root);
+    writeThin(brokenTweak, MH_DYLIB, NULL, NULL, 0, 0, -1, 0644);
+    vpEnsureRootHideTweakSignatures(root);
+    // Replace brokenTweak via unlink + write so TweakInject directory mtime updates.
+    assert(unlink(brokenTweak) == 0);
+    writeThin(brokenTweak, MH_DYLIB, NULL, NULL, 1, 0, -1, 0644);
+    vpEnsureRootHideTweakSignatures(root);
+    assert(readSliceCDFlags(brokenTweak, 0) == CS_ADHOC);
+
     removeTree(scratch);
     puts("RootHide dylib signature tests passed");
     return 0;

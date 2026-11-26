@@ -14,7 +14,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#define VP_SIG_MAX_IMAGES 64
+#define VP_SIG_MAX_IMAGES 256
 #define VP_SIG_MAX_RPATHS 16
 #define VP_SIG_MAX_SLICES 16
 #define VP_SIG_MAX_PATCHES 32
@@ -47,9 +47,14 @@ typedef struct {
 } VPFlagsPatch;
 
 typedef struct {
+    dev_t dev;
+    ino_t ino;
+} VPFileID;
+
+typedef struct {
     char root[PATH_MAX];
-    char images[VP_SIG_MAX_IMAGES][PATH_MAX];
-    size_t imageCount;
+    VPFileID visited[VP_SIG_MAX_IMAGES];
+    size_t visitedCount;
     char rpaths[VP_SIG_MAX_RPATHS][PATH_MAX];
     size_t rpathCount;
     int status;
@@ -94,7 +99,7 @@ static void vpRecordFailure(VPSigWalk *walk, int status, const char *path) {
         snprintf(walk->failedPath, sizeof(walk->failedPath), "%s", path);
 }
 
-static ssize_t vpPReadExact(int fd, void *buffer, size_t count, off_t offset) {
+static int vpPReadExact(int fd, void *buffer, size_t count, off_t offset) {
     uint8_t *cursor = (uint8_t *)buffer;
     size_t remaining = count;
     while (remaining > 0) {
@@ -102,15 +107,15 @@ static ssize_t vpPReadExact(int fd, void *buffer, size_t count, off_t offset) {
         if (got < 0) {
             if (errno == EINTR)
                 continue;
-            return -1;
+            return errno ? errno : EIO;
         }
         if (got == 0)
-            return (ssize_t)(count - remaining);
+            return EIO;
         cursor += (size_t)got;
         offset += got;
         remaining -= (size_t)got;
     }
-    return (ssize_t)count;
+    return 0;
 }
 
 static int vpWriteAll(int fd, const uint8_t *buffer, size_t count) {
@@ -120,7 +125,7 @@ static int vpWriteAll(int fd, const uint8_t *buffer, size_t count) {
         if (written < 0) {
             if (errno == EINTR)
                 continue;
-            return errno;
+            return errno ? errno : EIO;
         }
         buffer += (size_t)written;
         remaining -= (size_t)written;
@@ -136,7 +141,7 @@ static int vpPWriteExact(int fd, const void *buffer, size_t count, off_t offset)
         if (written < 0) {
             if (errno == EINTR)
                 continue;
-            return errno;
+            return errno ? errno : EIO;
         }
         cursor += (size_t)written;
         offset += written;
@@ -159,14 +164,16 @@ static int vpCollectArm64Slices(int fd, uint64_t fileSize, VPSigSlice slices[VP_
     if (fileSize < sizeof(uint32_t))
         return 0;
     uint32_t magic = 0;
-    if (vpPReadExact(fd, &magic, sizeof(magic), 0) != (ssize_t)sizeof(magic))
-        return errno ? errno : EIO;
+    int readStatus = vpPReadExact(fd, &magic, sizeof(magic), 0);
+    if (readStatus)
+        return readStatus;
     if (magic == MH_MAGIC_64) {
         if (fileSize < sizeof(struct mach_header_64))
             return 0;
         struct mach_header_64 header;
-        if (vpPReadExact(fd, &header, sizeof(header), 0) != (ssize_t)sizeof(header))
-            return errno ? errno : EIO;
+        readStatus = vpPReadExact(fd, &header, sizeof(header), 0);
+        if (readStatus)
+            return readStatus;
         if (header.cputype == CPU_TYPE_ARM64) {
             slices[0].offset = 0;
             slices[0].size = fileSize;
@@ -178,7 +185,7 @@ static int vpCollectArm64Slices(int fd, uint64_t fileSize, VPSigSlice slices[VP_
         return 0;
 
     struct fat_header fat;
-    if (fileSize < sizeof(fat) || vpPReadExact(fd, &fat, sizeof(fat), 0) != (ssize_t)sizeof(fat))
+    if (fileSize < sizeof(fat) || vpPReadExact(fd, &fat, sizeof(fat), 0) != 0)
         return 0;
     uint32_t count = OSSwapBigToHostInt32(fat.nfat_arch);
     if (count == 0 || count > VP_SIG_MAX_SLICES)
@@ -189,8 +196,9 @@ static int vpCollectArm64Slices(int fd, uint64_t fileSize, VPSigSlice slices[VP_
     for (uint32_t index = 0; index < count; index++) {
         struct fat_arch arch;
         off_t entryOffset = (off_t)sizeof(fat) + (off_t)index * (off_t)sizeof(arch);
-        if (vpPReadExact(fd, &arch, sizeof(arch), entryOffset) != (ssize_t)sizeof(arch))
-            return errno ? errno : EIO;
+        readStatus = vpPReadExact(fd, &arch, sizeof(arch), entryOffset);
+        if (readStatus)
+            return readStatus;
         cpu_type_t cpuType = (cpu_type_t)OSSwapBigToHostInt32((uint32_t)arch.cputype);
         if (cpuType != CPU_TYPE_ARM64)
             continue;
@@ -220,11 +228,9 @@ static int vpInspectSliceSignature(int fd, const VPSigSlice *slice, uint32_t dat
     uint8_t *blob = malloc(datasize);
     if (!blob)
         return ENOMEM;
-    int status = 0;
-    if (vpPReadExact(fd, blob, datasize, slice->offset + (off_t)dataoff) != (ssize_t)datasize) {
-        status = errno ? errno : EIO;
+    int status = vpPReadExact(fd, blob, datasize, slice->offset + (off_t)dataoff);
+    if (status)
         goto done;
-    }
 
     uint32_t magic = vpReadBE32(blob);
     uint32_t length = vpReadBE32(blob + 4);
@@ -264,7 +270,7 @@ static int vpInspectSliceSignature(int fd, const VPSigSlice *slice, uint32_t dat
                               (slot >= VP_CS_SLOT_ALTERNATE_FIRST && slot <= VP_CS_SLOT_ALTERNATE_LAST);
         if (!isCodeDirectory)
             continue;
-        if (blobOffset < 12u + count * 8u || blobOffset > length - 44u) {
+        if (length < 44u || blobOffset < 12u + count * 8u || blobOffset > length - 44u) {
             status = EFTYPE;
             goto done;
         }
@@ -299,7 +305,10 @@ done:
     return status;
 }
 
-static int vpRewriteWithAdHocFlags(const char *canonicalPath, const struct stat *info,
+// Copies from the already-inspected `srcFd` so the written bytes and patch
+// offsets always refer to the exact same inode. Returns EAGAIN if another
+// writer (for example vphoned or dpkg) already replaced `canonicalPath`.
+static int vpRewriteWithAdHocFlags(int srcFd, const char *canonicalPath, const struct stat *info,
                                    const VPFlagsPatch *patches, size_t patchCount) {
     const char *slash = strrchr(canonicalPath, '/');
     if (!slash || slash == canonicalPath || !slash[1])
@@ -314,15 +323,9 @@ static int vpRewriteWithAdHocFlags(const char *canonicalPath, const struct stat 
     if (used <= 0 || (size_t)used >= sizeof(tempPath))
         return ENAMETOOLONG;
 
-    int srcFd = open(canonicalPath, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-    if (srcFd < 0)
-        return errno;
     int dstFd = open(tempPath, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
-    if (dstFd < 0) {
-        int err = errno;
-        close(srcFd);
-        return err;
-    }
+    if (dstFd < 0)
+        return errno;
 
     int status = 0;
     uint8_t *buffer = malloc(65536);
@@ -330,19 +333,26 @@ static int vpRewriteWithAdHocFlags(const char *canonicalPath, const struct stat 
         status = ENOMEM;
         goto cleanup;
     }
-    for (;;) {
-        ssize_t got = read(srcFd, buffer, 65536);
+    off_t readOffset = 0;
+    while (readOffset < info->st_size) {
+        size_t chunk = (size_t)(info->st_size - readOffset);
+        if (chunk > 65536)
+            chunk = 65536;
+        ssize_t got = pread(srcFd, buffer, chunk, readOffset);
         if (got < 0) {
             if (errno == EINTR)
                 continue;
-            status = errno;
+            status = errno ? errno : EIO;
             goto cleanup;
         }
-        if (got == 0)
-            break;
+        if (got == 0) {
+            status = EIO;
+            goto cleanup;
+        }
         status = vpWriteAll(dstFd, buffer, (size_t)got);
         if (status)
             goto cleanup;
+        readOffset += got;
     }
     for (size_t index = 0; index < patchCount; index++) {
         status = vpPWriteExact(dstFd, &patches[index].newFlagsBE, sizeof(patches[index].newFlagsBE),
@@ -359,8 +369,6 @@ static int vpRewriteWithAdHocFlags(const char *canonicalPath, const struct stat 
 
     free(buffer);
     buffer = NULL;
-    close(srcFd);
-    srcFd = -1;
     if (close(dstFd) != 0) {
         status = errno;
         dstFd = -1;
@@ -368,6 +376,13 @@ static int vpRewriteWithAdHocFlags(const char *canonicalPath, const struct stat 
         return status;
     }
     dstFd = -1;
+
+    struct stat current;
+    if (lstat(canonicalPath, &current) != 0 ||
+        current.st_dev != info->st_dev || current.st_ino != info->st_ino) {
+        unlink(tempPath);
+        return EAGAIN;
+    }
     if (rename(tempPath, canonicalPath) != 0) {
         status = errno;
         unlink(tempPath);
@@ -377,8 +392,6 @@ static int vpRewriteWithAdHocFlags(const char *canonicalPath, const struct stat 
 
 cleanup:
     free(buffer);
-    if (srcFd >= 0)
-        close(srcFd);
     if (dstFd >= 0)
         close(dstFd);
     unlink(tempPath);
@@ -437,7 +450,8 @@ static void vpWalkSliceDependencies(VPSigWalk *walk, const char *imageDir, const
         uint32_t offset = 0;
         for (uint32_t index = 0; index < count && offset + sizeof(struct load_command) <= size; index++) {
             const struct load_command *command = (const struct load_command *)(commands + offset);
-            if (command->cmdsize < sizeof(*command) || command->cmdsize > size - offset)
+            if (command->cmdsize < sizeof(*command) || (command->cmdsize & 3u) != 0 ||
+                command->cmdsize > size - offset)
                 break;
             offset += command->cmdsize;
             if (pass == 0) {
@@ -472,15 +486,23 @@ static void vpWalkSliceDependencies(VPSigWalk *walk, const char *imageDir, const
     }
 }
 
-static void vpVisitImage(VPSigWalk *walk, const char *canonicalImage) {
-    for (size_t index = 0; index < walk->imageCount; index++) {
-        if (strcmp(walk->images[index], canonicalImage) == 0)
-            return;
+static int vpHasVisited(const VPSigWalk *walk, dev_t dev, ino_t ino) {
+    for (size_t index = 0; index < walk->visitedCount; index++) {
+        if (walk->visited[index].dev == dev && walk->visited[index].ino == ino)
+            return 1;
     }
-    if (walk->imageCount >= VP_SIG_MAX_IMAGES)
-        return;
-    strcpy(walk->images[walk->imageCount++], canonicalImage);
+    return 0;
+}
 
+static void vpRecordVisited(VPSigWalk *walk, dev_t dev, ino_t ino) {
+    if (vpHasVisited(walk, dev, ino) || walk->visitedCount >= VP_SIG_MAX_IMAGES)
+        return;
+    walk->visited[walk->visitedCount].dev = dev;
+    walk->visited[walk->visitedCount].ino = ino;
+    walk->visitedCount++;
+}
+
+static void vpVisitImage(VPSigWalk *walk, const char *canonicalImage) {
     char imageDir[PATH_MAX];
     strcpy(imageDir, canonicalImage);
     char *leaf = strrchr(imageDir, '/');
@@ -488,105 +510,132 @@ static void vpVisitImage(VPSigWalk *walk, const char *canonicalImage) {
         return;
     *leaf = '\0';
 
-    int fd = open(canonicalImage, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
-    if (fd < 0)
-        return;
-    struct stat info;
-    if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode)) {
-        close(fd);
-        return;
-    }
-
-    VPSigSlice slices[VP_SIG_MAX_SLICES];
-    size_t sliceCount = 0;
-    int status = vpCollectArm64Slices(fd, (uint64_t)info.st_size, slices, &sliceCount);
-    if (status) {
-        close(fd);
-        vpRecordFailure(walk, status, canonicalImage);
-        return;
-    }
-    if (sliceCount == 0) {
-        close(fd);
-        return;
-    }
-
-    uint8_t *sliceCommands[VP_SIG_MAX_SLICES] = {0};
-    uint32_t sliceCmdCounts[VP_SIG_MAX_SLICES] = {0};
-    uint32_t sliceCmdSizes[VP_SIG_MAX_SLICES] = {0};
-    VPFlagsPatch patches[VP_SIG_MAX_PATCHES];
-    size_t patchCount = 0;
-
-    for (size_t index = 0; index < sliceCount; index++) {
-        struct mach_header_64 header;
-        if (slices[index].size < sizeof(header) ||
-            vpPReadExact(fd, &header, sizeof(header), slices[index].offset) != (ssize_t)sizeof(header) ||
-            header.magic != MH_MAGIC_64 || header.cputype != CPU_TYPE_ARM64 ||
-            header.sizeofcmds == 0 || header.sizeofcmds > VP_SIG_MAX_COMMANDS ||
-            sizeof(header) + (uint64_t)header.sizeofcmds > slices[index].size) {
-            status = EFTYPE;
-            break;
+    for (int attempt = 0; attempt < 2; attempt++) {
+        int fd = open(canonicalImage, O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+        if (fd < 0)
+            return;
+        struct stat info;
+        if (fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) || info.st_size <= 0) {
+            close(fd);
+            return;
         }
-        uint8_t *commands = malloc(header.sizeofcmds);
-        if (!commands) {
-            status = ENOMEM;
-            break;
+        if (vpHasVisited(walk, info.st_dev, info.st_ino)) {
+            close(fd);
+            return;
         }
-        if (vpPReadExact(fd, commands, header.sizeofcmds,
-                         slices[index].offset + (off_t)sizeof(header)) != (ssize_t)header.sizeofcmds) {
-            free(commands);
-            status = errno ? errno : EIO;
-            break;
+        if (walk->visitedCount >= VP_SIG_MAX_IMAGES) {
+            close(fd);
+            return;
         }
-        sliceCommands[index] = commands;
-        sliceCmdCounts[index] = header.ncmds;
-        sliceCmdSizes[index] = header.sizeofcmds;
+        vpRecordVisited(walk, info.st_dev, info.st_ino);
 
-        // Only inspect/repair loadable libraries and bundles; executables keep
-        // their own classification (for example type 5 for vm_remap).
-        if (header.filetype != MH_DYLIB && header.filetype != MH_BUNDLE)
-            continue;
+        VPSigSlice slices[VP_SIG_MAX_SLICES];
+        size_t sliceCount = 0;
+        int status = vpCollectArm64Slices(fd, (uint64_t)info.st_size, slices, &sliceCount);
+        if (status) {
+            close(fd);
+            vpRecordFailure(walk, status, canonicalImage);
+            return;
+        }
+        if (sliceCount == 0) {
+            close(fd);
+            return;
+        }
 
-        int foundCodeSig = 0;
-        uint32_t csDataOff = 0;
-        uint32_t csDataSize = 0;
-        uint32_t cmdOffset = 0;
-        for (uint32_t cmdIndex = 0;
-             cmdIndex < header.ncmds && cmdOffset + sizeof(struct load_command) <= header.sizeofcmds;
-             cmdIndex++) {
-            const struct load_command *command = (const struct load_command *)(commands + cmdOffset);
-            if (command->cmdsize < sizeof(*command) || command->cmdsize > header.sizeofcmds - cmdOffset)
+        uint8_t *sliceCommands[VP_SIG_MAX_SLICES] = {0};
+        uint32_t sliceCmdCounts[VP_SIG_MAX_SLICES] = {0};
+        uint32_t sliceCmdSizes[VP_SIG_MAX_SLICES] = {0};
+        VPFlagsPatch patches[VP_SIG_MAX_PATCHES];
+        size_t patchCount = 0;
+
+        for (size_t index = 0; index < sliceCount; index++) {
+            struct mach_header_64 header;
+            if (slices[index].size < sizeof(header) ||
+                vpPReadExact(fd, &header, sizeof(header), slices[index].offset) != 0 ||
+                header.magic != MH_MAGIC_64 || header.cputype != CPU_TYPE_ARM64 ||
+                header.sizeofcmds == 0 || header.sizeofcmds > VP_SIG_MAX_COMMANDS ||
+                sizeof(header) + (uint64_t)header.sizeofcmds > slices[index].size) {
+                status = EFTYPE;
                 break;
-            if (command->cmd == LC_CODE_SIGNATURE && command->cmdsize >= sizeof(struct linkedit_data_command)) {
-                const struct linkedit_data_command *linkedit = (const struct linkedit_data_command *)command;
-                foundCodeSig = 1;
-                csDataOff = linkedit->dataoff;
-                csDataSize = linkedit->datasize;
             }
-            cmdOffset += command->cmdsize;
+            uint8_t *commands = malloc(header.sizeofcmds);
+            if (!commands) {
+                status = ENOMEM;
+                break;
+            }
+            status = vpPReadExact(fd, commands, header.sizeofcmds,
+                                  slices[index].offset + (off_t)sizeof(header));
+            if (status) {
+                free(commands);
+                break;
+            }
+            sliceCommands[index] = commands;
+            sliceCmdCounts[index] = header.ncmds;
+            sliceCmdSizes[index] = header.sizeofcmds;
+
+            // Only inspect/repair loadable libraries and bundles; executables keep
+            // their own classification (for example type 5 for vm_remap).
+            if (header.filetype != MH_DYLIB && header.filetype != MH_BUNDLE)
+                continue;
+
+            int foundCodeSig = 0;
+            uint32_t csDataOff = 0;
+            uint32_t csDataSize = 0;
+            uint32_t cmdOffset = 0;
+            for (uint32_t cmdIndex = 0;
+                 cmdIndex < header.ncmds && cmdOffset + sizeof(struct load_command) <= header.sizeofcmds;
+                 cmdIndex++) {
+                const struct load_command *command = (const struct load_command *)(commands + cmdOffset);
+                if (command->cmdsize < sizeof(*command) || (command->cmdsize & 3u) != 0 ||
+                    command->cmdsize > header.sizeofcmds - cmdOffset) {
+                    status = EFTYPE;
+                    break;
+                }
+                if (command->cmd == LC_CODE_SIGNATURE && command->cmdsize >= sizeof(struct linkedit_data_command)) {
+                    const struct linkedit_data_command *linkedit = (const struct linkedit_data_command *)command;
+                    foundCodeSig = 1;
+                    csDataOff = linkedit->dataoff;
+                    csDataSize = linkedit->datasize;
+                }
+                cmdOffset += command->cmdsize;
+            }
+            if (status)
+                break;
+            if (!foundCodeSig) {
+                status = EFTYPE;
+                break;
+            }
+            status = vpInspectSliceSignature(fd, &slices[index], csDataOff, csDataSize,
+                                             patches, &patchCount, VP_SIG_MAX_PATCHES);
+            if (status)
+                break;
         }
-        if (!foundCodeSig) {
-            status = EFTYPE;
-            break;
+
+        if (!status && patchCount > 0)
+            status = vpRewriteWithAdHocFlags(fd, canonicalImage, &info, patches, patchCount);
+        close(fd);
+
+        if (status == EAGAIN && attempt == 0) {
+            for (size_t index = 0; index < sliceCount; index++)
+                free(sliceCommands[index]);
+            continue;
         }
-        status = vpInspectSliceSignature(fd, &slices[index], csDataOff, csDataSize,
-                                         patches, &patchCount, VP_SIG_MAX_PATCHES);
+        if (!status && patchCount > 0) {
+            struct stat updated;
+            if (lstat(canonicalImage, &updated) == 0)
+                vpRecordVisited(walk, updated.st_dev, updated.st_ino);
+        }
         if (status)
-            break;
-    }
+            vpRecordFailure(walk, status, canonicalImage);
 
-    close(fd);
-
-    if (!status && patchCount > 0)
-        status = vpRewriteWithAdHocFlags(canonicalImage, &info, patches, patchCount);
-    if (status)
-        vpRecordFailure(walk, status, canonicalImage);
-
-    for (size_t index = 0; index < sliceCount; index++) {
-        if (sliceCommands[index]) {
-            vpWalkSliceDependencies(walk, imageDir, sliceCommands[index],
-                                    sliceCmdCounts[index], sliceCmdSizes[index]);
-            free(sliceCommands[index]);
+        for (size_t index = 0; index < sliceCount; index++) {
+            if (sliceCommands[index]) {
+                vpWalkSliceDependencies(walk, imageDir, sliceCommands[index],
+                                        sliceCmdCounts[index], sliceCmdSizes[index]);
+                free(sliceCommands[index]);
+            }
         }
+        return;
     }
 }
 
@@ -618,18 +667,16 @@ int vpPrepareRootHideDylib(const char *library, const char *root,
     return status;
 }
 
-static VPPathStamp vpStatStamp(const char *path) {
-    VPPathStamp stamp;
-    memset(&stamp, 0, sizeof(stamp));
+static void vpStatStamp(const char *path, VPPathStamp *stamp) {
+    memset(stamp, 0, sizeof(*stamp));
     struct stat info;
     if (stat(path, &info) == 0) {
-        stamp.present = 1;
-        stamp.dev = info.st_dev;
-        stamp.ino = info.st_ino;
-        stamp.mtimeSec = info.st_mtimespec.tv_sec;
-        stamp.mtimeNsec = info.st_mtimespec.tv_nsec;
+        stamp->present = 1;
+        stamp->dev = info.st_dev;
+        stamp->ino = info.st_ino;
+        stamp->mtimeSec = info.st_mtimespec.tv_sec;
+        stamp->mtimeNsec = info.st_mtimespec.tv_nsec;
     }
-    return stamp;
 }
 
 static void vpCaptureTweakSnapshot(const char *canonicalRoot, VPTweakSnapshot *snapshot) {
@@ -646,8 +693,21 @@ static void vpCaptureTweakSnapshot(const char *canonicalRoot, VPTweakSnapshot *s
     for (size_t index = 0; index < 5; index++) {
         int used = snprintf(fullPath, sizeof(fullPath), "%s/%s", canonicalRoot, relativePaths[index]);
         if (used > 0 && (size_t)used < sizeof(fullPath))
-            snapshot->stamps[index] = vpStatStamp(fullPath);
+            vpStatStamp(fullPath, &snapshot->stamps[index]);
     }
+}
+
+static int vpSnapshotsEqual(const VPTweakSnapshot *lhs, const VPTweakSnapshot *rhs) {
+    if (strcmp(lhs->root, rhs->root) != 0)
+        return 0;
+    for (size_t index = 0; index < 5; index++) {
+        const VPPathStamp *a = &lhs->stamps[index];
+        const VPPathStamp *b = &rhs->stamps[index];
+        if (a->present != b->present || a->dev != b->dev || a->ino != b->ino ||
+            a->mtimeSec != b->mtimeSec || a->mtimeNsec != b->mtimeNsec)
+            return 0;
+    }
+    return 1;
 }
 
 static int vpHasDylibSuffix(const char *name) {
@@ -682,7 +742,7 @@ void vpEnsureRootHideTweakSignatures(const char *root) {
 
     VPTweakSnapshot before;
     vpCaptureTweakSnapshot(canonicalRoot, &before);
-    if (vpHasTweakSnapshot && memcmp(&before, &vpLastTweakSnapshot, sizeof(before)) == 0) {
+    if (vpHasTweakSnapshot && vpSnapshotsEqual(&before, &vpLastTweakSnapshot)) {
         pthread_mutex_unlock(&vpTweakSnapshotLock);
         return;
     }
@@ -695,19 +755,26 @@ void vpEnsureRootHideTweakSignatures(const char *root) {
     strcpy(walk->root, canonicalRoot);
 
     char path[PATH_MAX];
-    if (snprintf(path, sizeof(path), "%s/usr/lib/TweakLoader.dylib", canonicalRoot) < (int)sizeof(path))
+    int used = snprintf(path, sizeof(path), "%s/usr/lib/TweakLoader.dylib", canonicalRoot);
+    if (used > 0 && (size_t)used < sizeof(path))
         vpVisitCandidate(walk, path);
-    if (snprintf(path, sizeof(path), "%s/usr/lib/libellekit.dylib", canonicalRoot) < (int)sizeof(path))
+    used = snprintf(path, sizeof(path), "%s/usr/lib/libellekit.dylib", canonicalRoot);
+    if (used > 0 && (size_t)used < sizeof(path))
         vpVisitCandidate(walk, path);
-    if (snprintf(path, sizeof(path), "%s/usr/lib/ellekit", canonicalRoot) < (int)sizeof(path))
+    used = snprintf(path, sizeof(path), "%s/usr/lib/ellekit", canonicalRoot);
+    if (used > 0 && (size_t)used < sizeof(path))
         vpScanDylibDirectory(walk, path);
-    if (snprintf(path, sizeof(path), "%s/usr/lib/TweakInject", canonicalRoot) < (int)sizeof(path))
+    used = snprintf(path, sizeof(path), "%s/usr/lib/TweakInject", canonicalRoot);
+    if (used > 0 && (size_t)used < sizeof(path))
         vpScanDylibDirectory(walk, path);
 
     int status = walk->status;
     free(walk);
 
-    if (status == 0) {
+    // Cache permanent file-format failures (EFTYPE) alongside clean passes so an
+    // unrepairable unsigned tweak does not force PID 1 to rescan on every spawn;
+    // any subsequent vphoned/dpkg update changes directory mtimes and invalidates.
+    if (status == 0 || status == EFTYPE) {
         vpCaptureTweakSnapshot(canonicalRoot, &vpLastTweakSnapshot);
         vpHasTweakSnapshot = 1;
     }
