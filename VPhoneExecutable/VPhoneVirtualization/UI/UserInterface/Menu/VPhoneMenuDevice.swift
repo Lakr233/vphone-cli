@@ -122,6 +122,9 @@ extension VPhoneMenuController {
         trackpadItem.state = VPhoneTrackpadGestures.isEnabled ? .on : .off
         trackpadGesturesItem = trackpadItem
         menu.addItem(trackpadItem)
+        let rightClickHomeItem = makeItem("Right Click Presses Home", action: #selector(toggleRightClickHome(_:)))
+        rightClickHomeItem.state = VPhoneSecondaryClickHome.isEnabled ? .on : .off
+        menu.addItem(rightClickHomeItem)
         // On a guest with a pointer of its own (an iPad) the mouse is that
         // pointer or a finger; saved, like the trackpad switch, for every window.
         let mouseModeItem = NSMenuItem(title: "Mouse Over Display", action: nil, keyEquivalent: "")
@@ -415,6 +418,14 @@ extension VPhoneMenuController {
         VPhoneTrackpadGestures.isEnabled = enabled
         trackpadGesturesItem?.state = enabled ? .on : .off
         captureView?.trackpadGesturesEnabled = enabled
+    }
+
+    /// Restores the pre-secondary-click behaviour. Persisted, as the trackpad
+    /// switch is.
+    @objc func toggleRightClickHome(_ sender: NSMenuItem) {
+        let enabled = !VPhoneSecondaryClickHome.isEnabled
+        VPhoneSecondaryClickHome.isEnabled = enabled
+        sender.state = enabled ? .on : .off
     }
 
     /// Saved for every window of every machine, as the trackpad switch is.

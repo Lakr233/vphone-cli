@@ -22594,6 +22594,40 @@
         }
       }
     },
+    "Right Click Presses Home" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right Click Presses Home"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右クリックでホームボタン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "우클릭으로 홈 버튼"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nhấp chuột phải nhấn nút Home"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右键点击按下主屏幕按钮"
+          }
+        }
+      }
+    },
     "Trackpad Scroll & Pinch to Touch" : {
       "localizations" : {
         "en" : {

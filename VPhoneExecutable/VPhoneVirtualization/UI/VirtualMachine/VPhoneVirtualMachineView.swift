@@ -380,9 +380,14 @@ class VPhoneVirtualMachineView: VZVirtualMachineView {
     /// no pointer, so it is replayed as a touch-and-hold, which is what opens
     /// the same menu by finger. A click released before the hold registers is
     /// kept down until it has. Holding and dragging carries on as a drag, as a
-    /// finger would.
+    /// finger would. Device > Right Click Presses Home replaces all of this
+    /// with the Home press a right click was before.
     override func rightMouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        if VPhoneSecondaryClickHome.isEnabled {
+            keySender?.sendHome()
+            return
+        }
         let localPoint = convert(event.locationInWindow, from: nil)
         if pressPointer(Self.secondaryPointerButton, at: localPoint) {
             return
@@ -1379,6 +1384,20 @@ enum VPhoneTrackpadGestures {
     static var isEnabled: Bool {
         get { !UserDefaults.standard.bool(forKey: disabledKey) }
         set { UserDefaults.standard.set(!newValue, forKey: disabledKey) }
+    }
+}
+
+// MARK: - Right Click Preference
+
+/// User preference for pressing Home on a right click instead of replaying it
+/// as the guest's secondary click. Off by default; the Device menu exposes the
+/// toggle.
+enum VPhoneSecondaryClickHome {
+    private static let key = "rightClickSendsHome"
+
+    static var isEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: key) }
+        set { UserDefaults.standard.set(newValue, forKey: key) }
     }
 }
 
