@@ -79,8 +79,6 @@ The row counts the settings that differ from the defaults and names anything the
 
 Under **Firmware**, a release that also runs on its own cloudOS (`fw catalog`'s third column) offers that cloudOS beside the recommended one. The creation then builds the kernelcache mix as you, linked by the kmutil the release's kernelcache was built with (see [Firmware preparation](../firmware/firmware-preparation.md#the-kmutil-that-links-the-mix)). With Core Bundles up to 2.17, the helper links it as root instead, which asks for authorization once.
 
-Launchpad still shows an `ipsw` tool field for these pairings, for older compatible Core Bundles (2.12.0) that stage the mix with it. Core Bundle 2.12.1 and later extract natively and ignore the selected path.
-
 The iPhone XS Max runs iOS 18.1 to 18.7.2, each on its own release's cloudOS, with no template and the Minimal preset by default; Standard works as well (checked on 18.6). Its pairings always rebuild the kernelcache, on any macOS, with the kmutil of macOS 15.
 
 ### How the creation uses templates

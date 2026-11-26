@@ -37,8 +37,6 @@ CLI는 번들의 iPhoneOS 플랫폼 버전을 선택한 cloudOS 버전과 대조
 
 3. `fw patch`로 계속합니다. `fw patch`는 캐시에서 믹스를 가져옵니다. 사용자 권한으로 실행하면 `fw patch`가 믹스를 직접 빌드하기도 하며, root로 실행하면 캐시에서 가져오기만 합니다.
 
-`fw kernelcache`의 이전 `--ipsw` 인자는 여전히 받지만 무시됩니다.
-
 ## 믹스를 링크하는 kmutil
 
 커널은 Apple이 링크한 레이아웃으로만 부팅되며, 그 레이아웃은 링크하는 kmutil이 정합니다. macOS 15와 26.0~26.3은 커널을 앞에, macOS 26.4 이상은 뒤에 두고, macOS 27은 kext의 auth stub도 남깁니다. 모든 kernelcache에는 Apple이 빌드할 때 사용한 kmutil 버전이 기록되어 있으므로, `fw kernelcache`는 어떤 macOS에서든 같은 버전으로 믹스를 링크합니다.

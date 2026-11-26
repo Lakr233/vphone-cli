@@ -216,11 +216,11 @@ only after success. Host artifacts use the repository's 0777 permission rule.
 unprivileged; root only links a staged volume through the existing descriptor
 based copy. `checkMixable` reports missing staging before a root pipeline starts.
 
-`fw kernelcache --ipsw <path>` and the Swift `stage(ipsw:)` argument are accepted
-but ignored throughout 2.12.x. `VPHONE_IPSW` is not read. The legacy Launchpad
-UI still exposes its ipsw selector and can pass the path; Core ignores it.
-Removing that UI and the compatibility argument across both products belongs
-to the planned 2.13 transition with its `minimumBundleComponents` update.
+`fw kernelcache --ipsw <path>`, the Swift `stage(ipsw:)` argument and the
+`VPHONE_IPSW` constant were accepted but ignored from 2.12.x on. Series 2.20
+removes all three, with the Launchpad ipsw field and the
+`vphone-launchpad-cli create --ipsw` passthrough, and raises
+`minimumBundleComponents` to 2.20.0.
 
 Validation covers the two pinned 26.4 beta collections. Other recipe generations
 and a fresh native-extraction -> kmutil -> guest boot remain separate acceptance

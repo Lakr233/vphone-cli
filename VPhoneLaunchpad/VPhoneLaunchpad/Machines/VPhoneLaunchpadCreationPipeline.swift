@@ -61,10 +61,6 @@ final class VPhoneLaunchpadCreationPipeline {
         /// of its own.
         var usesTemplate = true
         var slimming = VPhoneLaunchpadSlimming()
-        /// The ipsw a 2.12.0 bundle stages the kernelcache mix with (`fw
-        /// kernelcache --ipsw`), whose link the helper runs as root. A 2.12.1
-        /// bundle extracts natively and ignores it; nil passes none.
-        var kernelcacheIPSW: String?
 
         var machine: VPhoneLaunchpadMachinePath {
             VPhoneLaunchpadMachinePath(libraryRoot: libraryRoot, name: name)
@@ -463,9 +459,8 @@ final class VPhoneLaunchpadCreationPipeline {
             // decides whether a mix is needed and says "[=] … needs no mix"
             // otherwise, so it runs for every machine. It stages and links the
             // mix as the user, with the kmutil the base names. A 2.17 bundle only
-            // stages it ("[+] Staged.") and the helper links it as root; the ipsw
-            // is only passed on for a 2.12.0 bundle.
-            let kernelcache = ["fw", "kernelcache", name] + (options.kernelcacheIPSW.map { ["--ipsw", $0] } ?? []) + library
+            // stages it ("[+] Staged.") and the helper links it as root.
+            let kernelcache = ["fw", "kernelcache", name] + library
             if try await run(kernelcache, onLine: tee).lines.contains(where: { $0.hasPrefix("[+] Staged.") }) {
                 let status = try await helper.linkKernelcache(
                     bundleVersion: version,

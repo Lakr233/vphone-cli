@@ -41,8 +41,6 @@ struct VPhoneLaunchpadNewMachineView: View {
     /// picked under Firmware; nil keeps the pairing's default
     /// (`defaultsToOwnCloudOS(restoredSystem:)`).
     @State private var ownCloudOSChoice: Bool?
-    /// The ipsw that stages a mix; vphone-cli does not ship one.
-    @AppStorage("KernelcacheIPSW") private var kernelcacheIPSW = ""
     @State private var cpu = Self.defaultCPU
     @State private var memoryMB = Self.defaultMemoryMB
     @State private var diskSizeGB = Self.defaultDiskSizeGB
@@ -111,16 +109,10 @@ struct VPhoneLaunchpadNewMachineView: View {
         usesOwnCloudOS && !usesCustomSources ? selectedPairing?.matchingCloudOS : nil
     }
 
-    /// Whether `fw patch` rebuilds the kernelcache, which a 2.12.0 bundle
-    /// stages with the ipsw (a 2.12.1 one extracts natively): on
-    /// the release's own cloudOS, and always for a watch, whose kexts no
-    /// cloudOS kernelcache has.
+    /// Whether `fw patch` rebuilds the kernelcache: on the release's own
+    /// cloudOS, and always for a watch, whose kexts no cloudOS kernelcache has.
     private var rebuildsKernelcache: Bool {
         ownCloudOS != nil || !usesCustomSources && selectedGuest?.isWatch == true
-    }
-
-    private var hasKernelcacheIPSW: Bool {
-        FileManager.default.isExecutableFile(atPath: kernelcacheIPSW)
     }
 
     private var effectiveName: String {
@@ -664,14 +656,8 @@ struct VPhoneLaunchpadNewMachineView: View {
                     Text(verbatim: pairing.recommendedCloudOS.name).tag(false)
                     Text("\(own.name), matching \(pairing.ios.name)").tag(true)
                 }
-                if usesOwnCloudOS {
-                    sourceField("ipsw", $kernelcacheIPSW)
-                }
             } else {
                 LabeledContent("cloudOS", value: selectedPairing?.recommendedCloudOS.name ?? "—")
-                if rebuildsKernelcache {
-                    sourceField("ipsw", $kernelcacheIPSW)
-                }
             }
         } header: {
             Text("Firmware")
@@ -679,9 +665,9 @@ struct VPhoneLaunchpadNewMachineView: View {
             Text(usesCustomSources
                 ? "These two files replace the device and version chosen on the basic page."
                 : ownCloudOS != nil
-                ? "On its own cloudOS the release boots its own kernel, rebuilt with the vphone600 virtualisation kexts: it is staged as you, and the helper links it as root. The ipsw (with `kernel extract --kdk`) is only needed by a 2.12.0 Core Bundle."
+                ? "On its own cloudOS the release boots its own kernel, rebuilt with the vphone600 virtualisation kexts: it is staged as you, and the helper links it as root."
                 : rebuildsKernelcache
-                ? "A watch boots the cloudOS kernel rebuilt with its own kexts: it is staged as you, and the helper links it as root. The ipsw (with `kernel extract --kdk`) is only needed by a 2.12.0 Core Bundle."
+                ? "A watch boots the cloudOS kernel rebuilt with its own kexts: it is staged as you, and the helper links it as root."
                 : "The device and version are chosen on the basic page; cloudOS goes with them.")
                 .foregroundStyle(.secondary)
         }
@@ -912,7 +898,6 @@ struct VPhoneLaunchpadNewMachineView: View {
             keepArtifacts: keepArtifacts,
             usesTemplate: usesTemplate,
             slimming: slimming,
-            kernelcacheIPSW: rebuildsKernelcache && hasKernelcacheIPSW ? kernelcacheIPSW : nil,
         )
         let pipeline = model.machines.create(options)
         model.machines.selection = [pipeline.machine]

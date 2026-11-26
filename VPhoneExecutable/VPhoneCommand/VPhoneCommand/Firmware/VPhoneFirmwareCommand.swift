@@ -774,8 +774,6 @@ struct VPhoneFirmwareKernelcacheCommand: ParsableCommand {
         visibility: .hidden,
     ))
     var linkOnly = false
-    @Option(help: ArgumentHelp("Legacy compatibility option; native extraction ignores this path", valueName: "path", visibility: .hidden))
-    var ipsw: String?
     @Option(name: .customLong("work-parent"), help: ArgumentHelp("Private kernelcache work directory", visibility: .hidden))
     var workParent = "/private/var/tmp"
     @Option(help: ArgumentHelp(
@@ -818,7 +816,7 @@ struct VPhoneFirmwareKernelcacheCommand: ParsableCommand {
             guard !linkOnly else {
                 throw ValidationError("\(name)'s kernelcache mix is not staged. Stage it first: vphone-cli fw kernelcache \(name)")
             }
-            try mixer.stage(input, ipsw: ipsw)
+            try mixer.stage(input)
         }
         try mixer.link(input)
         print("[+] The kernelcache mix is ready; `fw patch` takes it from the cache.")
