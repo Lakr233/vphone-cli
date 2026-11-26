@@ -36,6 +36,9 @@ struct MachineProductTypeTests {
         let homePod = root.appendingPathComponent("homepod-mini", isDirectory: true)
         try manager.createDirectory(at: homePod.appendingPathComponent("FirmwareOriginals/AudioAccessory5,1_27.0_24J361_Restore"), withIntermediateDirectories: true)
         expect(VPhoneLaunchpadMachine.guestProductType(in: homePod) == "AudioAccessory5,1", "HomePod restore tree")
+        let vision = root.appendingPathComponent("vision-pro", isDirectory: true)
+        try manager.createDirectory(at: vision.appendingPathComponent("FirmwareOriginals/iPhoneOS_RealityDevice14,1_27.2.1_24N124_Restore"), withIntermediateDirectories: true)
+        expect(VPhoneLaunchpadMachine.guestProductType(in: vision) == "RealityDevice14,1", "Vision Pro restore tree")
         expect(VPhoneLaunchpadMachine.guestProductType(in: root.appendingPathComponent("missing")) == nil, "nothing to read")
 
 
@@ -51,6 +54,8 @@ struct MachineProductTypeTests {
         expect(machine.isPad && machine.osName == "iPadOS", "iPad guest")
         machine.guestProductType = VPhoneLaunchpadMachine.guestProductType(in: tv)
         expect(machine.isAppleTV && !machine.isPad && machine.osName == "tvOS", "Apple TV guest")
+        machine.guestProductType = VPhoneLaunchpadMachine.guestProductType(in: vision)
+        expect(machine.osName == "visionOS", "Vision Pro guest OS label")
 
         machine.guestProductType = VPhoneLaunchpadMachine.guestProductType(in: homePod)
         expect(machine.isHomePod && !machine.isAppleTV && !machine.isPad && machine.osName == "HomePod Software", "HomePod guest")
