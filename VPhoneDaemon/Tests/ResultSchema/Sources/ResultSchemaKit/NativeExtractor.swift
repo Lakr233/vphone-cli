@@ -840,7 +840,7 @@ private final class Engine {
         return false
     }
 
-    // MARK: type inference (REQ-RPC-007)
+    // MARK: type inference
 
     /// A value's type and whether it is `NSNull` on some path (null-only is `(.null, true)`).
     typealias Inferred = (type: KeyType, nullable: Bool)

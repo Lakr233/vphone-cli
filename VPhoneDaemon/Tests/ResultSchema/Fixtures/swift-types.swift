@@ -1,4 +1,4 @@
-// Fixture for the type-inference forms (REQ-RPC-007). Parsed only, never compiled.
+// Fixture for the type-inference forms. Parsed only, never compiled.
 // Each expect line is: function => catalog cell.
 
 struct Probe {

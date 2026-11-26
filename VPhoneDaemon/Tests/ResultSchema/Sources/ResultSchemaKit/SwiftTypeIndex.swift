@@ -107,7 +107,7 @@ struct TypeRef: Equatable, Sendable {
     }
 }
 
-/// Declared members and functions of the repo's types, by simple type name (REQ-RPC-007).
+/// Declared members and functions of the repo's types, by simple type name.
 struct TypeIndex {
     struct Method {
         let parameters: [(label: String, optional: Bool)]

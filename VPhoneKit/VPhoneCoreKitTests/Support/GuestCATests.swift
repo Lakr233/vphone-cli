@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import VPhoneCoreKit
 
-// MARK: - Guest CA host-side core (TASK-010 / REQ-008)
+// MARK: - Guest CA host-side core
 
 /// Exercises `VPhoneGuestCA` without the non-linkable command binary: host-side
 /// rejects open no socket and raise `UsageError`; a tiny in-test Unix-socket

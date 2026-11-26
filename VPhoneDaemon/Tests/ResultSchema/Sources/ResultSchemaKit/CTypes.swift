@@ -1,6 +1,6 @@
 import Foundation
 
-/// Types of C functions and structs Swift imports (REQ-RPC-007): a call `icli_screen_metrics()` has the
+/// Types of C functions and structs Swift imports: a call `icli_screen_metrics()` has the
 /// return type its declaration gives, and `.width` the field type of the struct it returns.
 final class CTypes {
     let sources: (String) -> [NativeSource]

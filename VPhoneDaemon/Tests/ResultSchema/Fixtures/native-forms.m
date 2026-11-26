@@ -128,7 +128,7 @@ NSDictionary *bridgeRemote(void) {
     return decodeBridgeJSON(icli_remote_json());
 }
 
-// Type inference (REQ-RPC-007): casts, declared locals and parameters give a type; an
+// Type inference: casts, declared locals and parameters give a type; an
 // external property, an NSNumber or `?: NSNull.null` gives any.
 // expect: nativeTypes => array:array,cast:integer,count:integer,dict:object,external:any,float:number,fmt:string,int:integer,label:string,mixed:any,no:boolean,nullable:string:null,on:boolean,ratio:number,text:string,wrapped:any,yes:boolean
 NSDictionary *nativeTypes(int n, double ratio, BOOL on, NSString *label, NSNumber *wrapped) {
