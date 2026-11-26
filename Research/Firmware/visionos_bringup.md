@@ -6,8 +6,10 @@ The tested guest uses the `RealityDevice14,1` restore IPSW for visionOS 27.2.1
 (`24N124`) and the cloudOS 27.2 IPSW (`24B115`). The `27.2_24B119` kernelcache
 recipe supplies the virtual hardware kexts and the GPU driver comes from a
 temporary restore of `24B115`. On the Mac mini M6 running macOS 27.0, this
-pairing reached the native Home View and Settings About. The host window
-reported 60 fps while those views were settled.
+pairing reached the native Home View and Settings About after an ordinary
+cold boot. Mouse clicks opened Settings and switched through Home View to
+Safari, which loaded `apple.com`. The host window reported 60 fps when those
+views settled, with brief dips during app launches.
 
 Create the guest with the `visionos` preset, without an iOS template or slimming.
 The following selections compose the tested guest environment:
