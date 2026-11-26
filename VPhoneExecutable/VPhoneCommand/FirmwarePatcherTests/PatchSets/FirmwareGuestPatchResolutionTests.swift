@@ -351,7 +351,8 @@ struct FirmwareGuestPatchResolutionTests {
             ("26.3", "26.4", false), ("26.5", "26.4", false),
             ("26.4", "26.3", false), ("26.4", "26.5", false), ("27.0", "26.4", false),
             ("27.2.1", "26.4", [FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPC,
-                                 FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPC].contains(identifier)),
+                                 FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPC,
+                                 FirmwareGuestSystemPatchSet.visionOSHMDSystemSetterIPC].contains(identifier)),
             ("27.2.1", "27.2", false),
         ] {
             let plan = try VPhonePatchPlan.resolve(

@@ -220,6 +220,10 @@ public enum FirmwareGuestSystemPatchSet {
     ]
 
     private static let ios27 = VPhonePatchApplicability(iOSBase: .major(27))
+    private static let visionOSDisplayServices = VPhonePatchApplicability(
+        iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
+        cloudOS: .release(major: 26, minor: 4),
+    )
 
     /// The bases where short-circuiting `checkTrustAndAuthorization` in the
     /// shared cache is survivable.
@@ -366,37 +370,28 @@ public enum FirmwareGuestSystemPatchSet {
                 title: "visionOS HMD presentable lookup",
                 summary: "Enables only backboardd's observed lookup of com.apple.wakeboard.hmdpresentable.owner in the scoped launchd adapter. Requires the UXM IPC adapter plus its independent root-owned marker, exact caller path/signing identity and validated audit token. Experimental visionOS research on the reviewed OS pairs.",
                 target: .guestFile(path: visionOSHMDPresentableIPCMarker),
-                applicability: VPhonePatchApplicability(
-                    iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
-                    cloudOS: .release(major: 26, minor: 4),
-                ),
+                applicability: visionOSDisplayServices,
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSHMDSystemSetterIPC,
                 title: "visionOS HMD system setter lookup",
                 summary: "Enables only backboardd's native lookup of com.apple.wakeboard.hmdsystemsetter in the scoped launchd adapter. Requires the UXM IPC adapter plus its independent root-owned marker, exact caller path/signing identity and validated audit token. Selected from the native RS call chain and exercised in the documented UI checkpoint.",
                 target: .guestFile(path: visionOSHMDSystemSetterIPCMarker),
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+                applicability: visionOSDisplayServices,
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSHMDPropertiesIPC,
                 title: "visionOS HMD properties lookup",
                 summary: "Enables only backboardd's observed lookup of com.apple.wakeboard.hmdproperties in the scoped launchd adapter. Requires the UXM IPC adapter plus both root-owned markers, exact caller path/signing identity and validated audit token. Experimental visionOS research on the reviewed OS pairs.",
                 target: .guestFile(path: visionOSHMDPropertiesIPCMarker),
-                applicability: VPhonePatchApplicability(
-                    iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
-                    cloudOS: .release(major: 26, minor: 4),
-                ),
+                applicability: visionOSDisplayServices,
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSUXMIPC,
                 title: "visionOS UXM service lookups",
                 summary: "Loads a scoped launchd adapter for the PCC sandbox's missing UXM/Polaris service rules. Requires exact caller path, signing identity, audit token and root-owned marker; permits only the two observed native service lookups and forwards other checks unchanged. Experimental visionOS research on the reviewed OS pairs.",
                 target: .guestExecutable(path: "/sbin/launchd"),
-                applicability: VPhonePatchApplicability(
-                    iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
-                    cloudOS: .release(major: 26, minor: 4),
-                ),
+                applicability: visionOSDisplayServices,
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSVirtualProduct,
