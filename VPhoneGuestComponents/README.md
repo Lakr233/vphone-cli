@@ -60,7 +60,13 @@ final executable through `posix_spawnp`. Injected App and bootstrap processes
 carry the hook to their child executables through `posix_spawn`, `posix_spawnp`,
 and `execve`. SystemHook loads the selected bootstrap's
 `usr/lib/TweakLoader.dylib` in App and bootstrap processes when it exists;
-ElleKit owns tweak selection and loading. It logs PID and executable path to
+ElleKit owns tweak selection and loading. Before `dlopen`, SystemHook checks
+that a RootHide `TweakLoader.dylib` and its in-root dependencies carry either a
+real CMS signature or `CS_ADHOC` (`Shared/RootHideDylibSignature.c`),
+re-signing CMS-less `ldid` libraries atomically when writable and skipping the
+`dlopen` rather than letting TXM `selector 38` kill the host otherwise;
+`launchdhook` (PID 1) and `vphoned` repair RootHide dylibs proactively as root.
+It logs PID and executable path to
 `/var/mobile/Library/Caches/vphone-systemhook.log`, falling back to the app's
 own `Library/Caches` when sandboxed.
 `DISABLE_TWEAKS=1` and the safe-mode flags skip injection.

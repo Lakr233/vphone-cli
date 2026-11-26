@@ -224,4 +224,26 @@ public enum VPhoneSigner {
     public static func entitlements(in data: Data) throws -> [Data] {
         try VPhoneMachOFile(data: data).slices.compactMap(\.embeddedEntitlements)
     }
+
+    /// Returns whether `url` is a Mach-O shared library or loadable bundle
+    /// (`MH_DYLIB` / `MH_BUNDLE`) whose signature lacks both a real CMS blob
+    /// and `CS_ADHOC` (`0x2`), so TXM would classify it as type 5 under
+    /// `/private/var/containers/Bundle/` and reject it in higher-trust hosts.
+    public static func needsAdHocLibraryResign(fileAt url: URL) -> Bool {
+        guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return false }
+        return needsAdHocLibraryResign(in: data)
+    }
+
+    public static func needsAdHocLibraryResign(in data: Data) -> Bool {
+        guard let file = try? VPhoneMachOFile(data: data) else { return false }
+        let libraryTypes: Set<UInt32> = [UInt32(MH_DYLIB), UInt32(MH_BUNDLE)]
+        for slice in file.slices where libraryTypes.contains(slice.fileType) {
+            guard let signature = slice.signature else { return true }
+            let blob = slice.image.subdata(in: signature.dataOffset ..< signature.dataOffset + signature.dataSize)
+            if VPhoneCodeSignature.needsAdHocUpgrade(in: blob) {
+                return true
+            }
+        }
+        return false
+    }
 }

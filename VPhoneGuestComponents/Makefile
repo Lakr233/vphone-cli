@@ -40,10 +40,10 @@ VCAMCAPTURED_INPUTS := $(call find_headers,$(VCAM_HEADER_DIRS)) \
 	$(call find_folders,$(VCAM_HEADER_DIRS))
 VCAMCAPTURED_INCLUDE_FLAGS := $(addprefix -I,$(call find_folders,VCamCaptured) $(VCAM_SHARED_DIRS))
 LAUNCHHOOK := $(STAGE)/launchhook/launchdhook-vphone.dylib
-LAUNCHHOOK_SOURCES := $(wildcard LaunchHook/*.c) Shared/RootHideLoaderLinks.c Shared/VPhoneX1Spawn.c Shared/VPhoneMachPortsCompat.c
+LAUNCHHOOK_SOURCES := $(wildcard LaunchHook/*.c) Shared/RootHideDylibSignature.c Shared/RootHideLoaderLinks.c Shared/VPhoneX1Spawn.c Shared/VPhoneMachPortsCompat.c
 LAUNCHHOOK_INCLUDES := $(wildcard LaunchHook/*.h LaunchHook/*.inc Shared/*.h)
 SYSTEMHOOK := $(STAGE)/systemhook/SystemHook-vphone.dylib
-SYSTEMHOOK_SOURCES := $(wildcard SystemHook/*.c) $(wildcard FlutterRemapFix/*.c) Shared/RootHideLoaderLinks.c Shared/VPhoneX1Spawn.c Shared/VPhoneMachPortsCompat.c LaunchHook/VPhoneMachMessage.c MISFix/MISFixDetour.c
+SYSTEMHOOK_SOURCES := $(wildcard SystemHook/*.c) $(wildcard FlutterRemapFix/*.c) Shared/RootHideDylibSignature.c Shared/RootHideLoaderLinks.c Shared/VPhoneX1Spawn.c Shared/VPhoneMachPortsCompat.c LaunchHook/VPhoneMachMessage.c MISFix/MISFixDetour.c
 SYSTEMHOOK_INCLUDES := $(wildcard SystemHook/*.h SystemHook/*.inc FlutterRemapFix/*.h Shared/*.h) MISFix/MISFixDetour.h MISFix/MISFixConditionalBranch.h MISFix/MISFixConfig.h
 # libmis is not a framework and has no header; the iPhoneOS SDK does ship
 # libmis.tbd, so the interposed symbols bind two-level like any other import
@@ -235,7 +235,7 @@ GPU_PROVENANCE := $(STAGE)/gpu/README.md
 
 # Directory timestamps also catch files removed from the wildcard inputs.
 
-.PHONY: all gpu package test-loader-links test-injection-environment test-devicename test-vcam-dataplane test-virtiosound test-x1-lowering clean
+.PHONY: all gpu package test-loader-links test-roothide-dylib-signature test-injection-environment test-devicename test-vcam-dataplane test-virtiosound test-x1-lowering clean
 
 all: $(ARTIFACTS) $(PLISTS) $(GPU_PROVENANCE)
 
@@ -282,6 +282,12 @@ test-loader-links:
 	/usr/bin/clang -Wall -Wextra -Werror -o $(OUT)/RootHideLoaderLinksTests \
 		Tests/RootHideLoaderLinksTests.c Shared/RootHideLoaderLinks.c
 	@$(OUT)/RootHideLoaderLinksTests
+
+test-roothide-dylib-signature:
+	@mkdir -p $(OUT)
+	/usr/bin/clang -Wall -Wextra -Werror -fsanitize=address,undefined -o $(OUT)/RootHideDylibSignatureTests \
+		Tests/RootHideDylibSignatureTests.c Shared/RootHideDylibSignature.c
+	@$(OUT)/RootHideDylibSignatureTests
 
 test-injection-environment:
 	@mkdir -p $(OUT)

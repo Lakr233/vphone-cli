@@ -1,6 +1,7 @@
 #include "../Shared/InjectionEnvironment.h"
 #include "../Shared/AttitudeProcess.h"
 #include "../Shared/JetsamLimits.h"
+#include "../Shared/RootHideDylibSignature.h"
 #include "../Shared/RootHideLoaderLinks.h"
 #include "../Shared/VPhoneX1Spawn.h"
 #include <crt_externs.h>
@@ -129,6 +130,8 @@ static VPInjectionEnvironment vpPrepareChild(const char *path, char *const envp[
     if (vpIsInjectionTarget(path) || vpIsMISFixTarget(path) || vpIsDeviceHubFixTarget(path) ||
         vpIsDeviceNameTarget(path)) {
         vpPrepareLoaderLink(path);
+        if (geteuid() == 0 && vpIsInjectionTarget(path))
+            vpEnsureRootHideTweakSignatures(getenv("VPHONE_JB_ROOT"));
         char names[96];
         vpDescribeInsertedLibraries(&libraries, names, sizeof(names));
         char decision[160];
@@ -348,6 +351,23 @@ __attribute__((constructor)) static void vpLogProcess(void) {
     // dlopen is not a spawn: link TweakLoader's dependency directories, such
     // as usr/lib/ellekit, before dyld looks for them.
     vpEnsureRootHideLoaderLink(loader, root);
+    // Ensure TweakLoader and its in-root dependencies carry CS_ADHOC (or a
+    // real CMS signature) before dlopen. Under txm-cfw-executable_remap,
+    // CMS-less ldid libraries under /private/var/containers/Bundle/ classify
+    // as type 5 and are killed by TXM selector 38 in higher-trust hosts.
+    if (access(loader, R_OK) == 0) {
+        char failedPath[PATH_MAX] = {0};
+        int signatureStatus = vpPrepareRootHideDylib(loader, root, failedPath, sizeof(failedPath));
+        if (signatureStatus != 0) {
+            int logFd = vpOpenLog("vphone-systemhook.log");
+            if (logFd >= 0) {
+                dprintf(logFd, "pid=%d tweakloader=%s skipped=incompatible-signature target=%s errno=%d\n",
+                        getpid(), loader, failedPath[0] ? failedPath : loader, signatureStatus);
+                close(logFd);
+            }
+            return;
+        }
+    }
     vpLoadLibrary("tweakloader", loader);
 }
 
