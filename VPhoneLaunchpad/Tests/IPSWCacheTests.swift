@@ -145,6 +145,14 @@ struct IPSWCacheTests {
         let notZip = root.appendingPathComponent("broken.ipsw")
         try Data(repeating: 0, count: 4096).write(to: notZip)
         expect((try? VPhoneLaunchpadIPSW.read(notZip)) == nil, "not a zip")
+
+        // A directory offset near UInt64.max must be refused, not added to the size.
+        var overflowing = zip64Archive(member: "BuildManifest.plist", contents: try manifestData(iPhone))
+        let record = overflowing.range(of: Data([0x50, 0x4B, 0x06, 0x06]))!.lowerBound
+        overflowing.replaceSubrange(record + 48 ..< record + 56, with: Data(repeating: 0xFF, count: 8))
+        let overflow = root.appendingPathComponent("overflow.ipsw")
+        try overflowing.write(to: overflow)
+        expect((try? VPhoneLaunchpadIPSW.read(overflow)) == nil, "ZIP64 directory offset overflow")
     }
 
     /// A one-member stored archive whose entry and end record go through
