@@ -21,6 +21,8 @@
 	<true/>
 	<key>com.apple.lsapplicationworkspace.rebuildappdatabases</key>
 	<true/>
+	<key>com.apple.managedconfiguration.feature-setting.maxInactivity</key>
+	<true/>
 	<key>com.apple.powerd.lowpowermode.allow</key>
 	<true/>
 	<key>com.apple.Pasteboard.background-access</key>

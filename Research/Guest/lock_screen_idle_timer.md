@@ -114,7 +114,18 @@ Measured with the vphoned of this change, on both guests:
 | Auto-Lock to 2 minutes (`locktest-ipad`) | key removed; Lock Screen off after 7 s |
 | Auto-Lock back to Never, then `system.respring` (`locktest-ipad`) | key written; Lock Screen lit after 60 s |
 
-The first row means vphoned's write beats SpringBoard's read on a normal boot
+Setter, measured on a throwaway guest (`display.auto_lock.set`, then `display.auto_lock`):
+
+| Step | Result |
+| --- | --- |
+| `seconds` 60, 180, 7 | `auto_lock_seconds` 60, 180, 7; `lock_screen_minimum_seconds` null |
+| `seconds` 0 | 2147483647, `never` true, `lock_screen_minimum_seconds` 2147483647 |
+| `system.respring` after 0 | still 2147483647 and `never` true |
+| `seconds` 120, then `system.respring` | 120 before and after; `lock_screen_minimum_seconds` null |
+| `seconds` -1 | error "Auto-Lock seconds must be between 0 and Int32.max"; value stays 120 |
+| vphoned signed without the entitlement, `seconds` 0 from 120 | error "profiled did not apply the Auto-Lock change"; value stays 120, minimum null |
+
+The first row of the table above means vphoned's write beats SpringBoard's read on a normal boot
 even when vphoned is first replaced by the host. That is an observation on
 these two guests, not a guarantee.
 
@@ -122,6 +133,33 @@ these two guests, not a guarantee.
 lock_screen_minimum_seconds}`; capability `display_auto_lock`.
 
 The side button still turns the screen off; that is a request, not a timeout.
+
+## Setting Auto-Lock from vphoned
+
+`display.auto_lock.set` once wrote `restrictedValue.maxInactivity` into
+`UserSettings.plist` through cfprefsd. It returned success while
+`display.auto_lock` kept the old value, also after `system.respring`: profiled
+regenerates `EffectiveUserSettings.plist` from its own state and ignores that
+file, and a stored `0` was not Never either.
+
+Only profiled changes the effective value, through
+`-[MCProfileConnection setParametersForSettingsByType:toSystem:user:passcode:]`.
+profiled drops that call without an error unless the caller holds
+`com.apple.managedconfiguration.profiled.set` (an array containing
+`UserSettings`) or the boolean
+`com.apple.managedconfiguration.feature-setting.maxInactivity`. vphoned is
+signed with the second one.
+
+The setter calls it with `toSystem:NO user:YES`, because the user file
+overrides the system file in the effective merge, and with
+`{"restrictedValue":{"maxInactivity":{"value":N,"rangeMinimum":0}}}`;
+`rangeMinimum` 0 lets values below the stored minimum apply. `seconds` 0 is
+sent as 2147483647 (Never). The variant with a completion block and
+`waitUntilCompleted` crashed vphoned, so it is not used. Success is reported
+only after `EffectiveUserSettings.plist` shows the requested value, within
+three seconds; otherwise the call fails with "profiled did not apply the
+Auto-Lock change". A vphoned signed without the entitlement therefore returns
+that error instead of a silent success.
 
 ## Reproducing
 
