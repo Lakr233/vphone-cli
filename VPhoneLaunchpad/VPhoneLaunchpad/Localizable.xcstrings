@@ -1915,30 +1915,30 @@
         }
       }
     },
-    "A watch boots the cloudOS kernel rebuilt with its own kexts: it is staged as you, and the helper links it as root. The ipsw (with `kernel extract --kdk`) is only needed by a 2.12.0 Core Bundle." : {
+    "A watch boots the cloudOS kernel rebuilt with its own kexts: it is staged as you, and the helper links it as root." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apple Watch 启动的是用其自身 kext 重新构建的 cloudOS 内核：内核以你的身份暂存，再由 Helper 以 root 身份链接。只有 2.12.0 版核心 Bundle 才需要 ipsw（带 `kernel extract --kdk`）。"
+            "value" : "Apple Watch 启动的是用其自身 kext 重新构建的 cloudOS 内核：内核以你的身份暂存，再由 Helper 以 root 身份链接。"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apple Watch は、独自の kext で再構築した cloudOS カーネルで起動します。カーネルは現在のユーザとしてステージングされ、ヘルパーが root としてリンクします。ipsw（`kernel extract --kdk` 付き）が必要なのは、2.12.0 のコアバンドルだけです。"
+            "value" : "Apple Watch は、独自の kext で再構築した cloudOS カーネルで起動します。カーネルは現在のユーザとしてステージングされ、ヘルパーが root としてリンクします。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apple Watch는 자체 kext로 다시 빌드한 cloudOS 커널로 부팅합니다. 커널은 현재 사용자 권한으로 준비되고, 권한 있는 도우미가 root로 링크합니다. ipsw(`kernel extract --kdk` 포함)는 2.12.0 코어 번들에서만 필요합니다."
+            "value" : "Apple Watch는 자체 kext로 다시 빌드한 cloudOS 커널로 부팅합니다. 커널은 현재 사용자 권한으로 준비되고, 권한 있는 도우미가 root로 링크합니다."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Apple Watch khởi động kernel cloudOS được dựng lại với các kext của chính nó: kernel được chuẩn bị dưới tài khoản của bạn, và trình trợ giúp liên kết nó với quyền root. Chỉ Bundle lõi 2.12.0 mới cần ipsw (với `kernel extract --kdk`)."
+            "value" : "Apple Watch khởi động kernel cloudOS được dựng lại với các kext của chính nó: kernel được chuẩn bị dưới tài khoản của bạn, và trình trợ giúp liên kết nó với quyền root."
           }
         }
       }
@@ -13163,30 +13163,30 @@
         }
       }
     },
-    "On its own cloudOS the release boots its own kernel, rebuilt with the vphone600 virtualisation kexts: it is staged as you, and the helper links it as root. The ipsw (with `kernel extract --kdk`) is only needed by a 2.12.0 Core Bundle." : {
+    "On its own cloudOS the release boots its own kernel, rebuilt with the vphone600 virtualisation kexts: it is staged as you, and the helper links it as root." : {
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "使用该版本自身的 cloudOS 时，会启动它自己的内核，并用 vphone600 虚拟化 kext 重新构建：以你的身份暂存，再由 Helper 以 root 身份链接。只有 2.12.0 版核心 Bundle 需要 ipsw（配合 `kernel extract --kdk`）。"
+            "value" : "使用该版本自身的 cloudOS 时，会启动它自己的内核，并用 vphone600 虚拟化 kext 重新构建：以你的身份暂存，再由 Helper 以 root 身份链接。"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "対応する cloudOS 上では、リリース自身のカーネルを vphone600 の仮想化 kext で再構築して起動します。カーネルは現在のユーザとしてステージングされ、ヘルパーが root としてリンクします。ipsw（`kernel extract --kdk` 付き）が必要なのは、2.12.0 のコアバンドルだけです。"
+            "value" : "対応する cloudOS 上では、リリース自身のカーネルを vphone600 の仮想化 kext で再構築して起動します。カーネルは現在のユーザとしてステージングされ、ヘルパーが root としてリンクします。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "자체 cloudOS에서는 이 릴리스가 vphone600 가상화 kext로 다시 빌드한 자체 커널로 부팅합니다. 커널은 현재 사용자 권한으로 준비되고, 권한 있는 도우미가 root로 링크합니다. ipsw(`kernel extract --kdk` 포함)는 2.12.0 코어 번들에서만 필요합니다."
+            "value" : "자체 cloudOS에서는 이 릴리스가 vphone600 가상화 kext로 다시 빌드한 자체 커널로 부팅합니다. 커널은 현재 사용자 권한으로 준비되고, 권한 있는 도우미가 root로 링크합니다."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trên cloudOS của chính nó, bản phát hành khởi động kernel riêng, được dựng lại với các kext ảo hóa vphone600: kernel được chuẩn bị dưới tài khoản của bạn, và trình trợ giúp liên kết nó với quyền root. Chỉ Bundle lõi 2.12.0 mới cần ipsw (với `kernel extract --kdk`)."
+            "value" : "Trên cloudOS của chính nó, bản phát hành khởi động kernel riêng, được dựng lại với các kext ảo hóa vphone600: kernel được chuẩn bị dưới tài khoản của bạn, và trình trợ giúp liên kết nó với quyền root."
           }
         }
       }
@@ -24541,34 +24541,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "iTunes Store"
-          }
-        }
-      }
-    },
-    "ipsw" : {
-      "localizations" : {
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ipsw"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ipsw"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ipsw"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ipsw"
           }
         }
       }
