@@ -394,7 +394,10 @@ public enum FirmwareGuestSystemPatchSet {
                 title: "visionOS virtual display product",
                 summary: "Replaces only the generic virtual iPhone product token with visionOS's native virtual V201 token, selecting wakeboardd's IOMobileFramebuffer display path. Keeps RealityDevice14,1 identity and paravirtual hardware; experimental and reversible through the Preboot repair backup.",
                 target: .prebootDeviceTree,
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
+                    cloudOS: .release(major: 26, minor: 4),
+                ),
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSLegacyUXM,
@@ -408,7 +411,10 @@ public enum FirmwareGuestSystemPatchSet {
                 title: "visionOS headless service exits",
                 summary: "Reversibly removes panic-on-crash policies from four headset service jobs while retaining their launch configuration. Headless visionOS research only; does not supply missing hardware or repair the services.",
                 target: .guestFile(path: "/System/Library/xpc/launchd.plist"),
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4)),
+                applicability: VPhonePatchApplicability(iOSBase: .oneOf([
+                    .release(major: 26, minor: 4),
+                    .release(major: 27, minor: 2),
+                ])),
             ),
             VPhonePatchDeclaration(
                 identifier: homePodCryptexClass,

@@ -7675,10 +7675,13 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
 
 - `preboot-exp-visionos_virtual_product` changes only the known generic VM product
   token to native V201. The board identity remains RealityDevice14,1. The
-  existing Preboot composition backup provides reversal.
+  existing Preboot composition backup provides reversal. The selection is also
+  available for visionOS 27.2 with the 26.4 donor after the 27.2.1 stock
+  virtual-product boot aborted in wakeboardd's HMD product lookup.
 - `system-launchdaemons-exp-visionos_nonfatal_services` journals only panic-on-crash
   policy fields for polarisd, realitycamerad, realitycoprocessorloaderd and arkitd.
-  It retains the native jobs; it does not emulate their hardware.
+  It retains the native jobs. The release gate also covers visionOS 27.2 after
+  the 27.2.1 restore reboot reached launchd and panicked on realitycamerad.
 - `system-launchd-exp-visionos_uxm_ipc` injects a PID-1-only adapter for two exact
   UXM/Polaris lookups absent from the PCC sandbox. Each optional display rule
   has a separate selection and root-owned marker:
