@@ -508,6 +508,7 @@ struct FirmwarePatchSetCatalogTests {
                     && $0.identifier != FirmwareGuestSystemPatchSet.visionOSSkipBuddy
                     && $0.identifier != FirmwareGuestSystemPatchSet.visionOSEnvironments
                     && $0.identifier != FirmwareGuestSystemPatchSet.visionOSFramePacing
+                    && $0.identifier != FirmwareGuestSystemPatchSet.visionOSMigrationProgress
                     && $0.identifier != FirmwareGuestSystemPatchSet.visionOSUXMIPC
                     && !FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches.contains($0.identifier)
                     && $0.identifier != FirmwareGuestSystemPatchSet.homePodTopCap

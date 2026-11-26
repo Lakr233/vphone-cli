@@ -166,14 +166,23 @@ nonisolated struct VPhoneLaunchpadMachine: Decodable, Hashable, Identifiable, Se
 
     /// The guest OS name, including accessory and watch guests.
     var osName: String {
-        isHomeView ? "HomeView Software" : isHomePod ? "HomePod Software" : isWatch ? "watchOS" : isAppleTV ? "tvOS" : isPad ? "iPadOS" : "iOS"
+        if guestProductType?.hasPrefix("RealityDevice") == true {
+            return "visionOS"
+        }
+        return isHomeView ? "HomeView Software" : isHomePod ? "HomePod Software" : isWatch ? "watchOS" : isAppleTV ? "tvOS" : isPad ? "iPadOS" : "iOS"
+    }
+
+    static func requiresStandaloneRestore(for productType: String?) -> Bool {
+        guard let productType else { return false }
+        return ["AppleTV", "AudioAccessory", "HomeAccessory", "RealityDevice"].contains {
+            productType.hasPrefix($0)
+        }
     }
 
     /// config.plist's `guestProductType`, else the product type in the name
     /// of the restore tree `fw prepare` keeps in `FirmwareOriginals`
     /// (`iPhone17,3_…_Restore`, or `iPhoneOS_iPad16,1_…_Restore` for an iPad
-    /// and `iPhoneOS_AppleTV5,3_…_Restore` for an Apple TV, `iPhoneOS_Watch7,18_…`
-    /// for an Apple Watch),
+    /// and `iPhoneOS_RealityDevice14,1_…_Restore` for an Apple Vision Pro),
     /// for configs written before the key.
     static func guestProductType(in folder: URL) -> String? {
         let config = NSDictionary(contentsOf: folder.appendingPathComponent("config.plist"))
@@ -183,7 +192,7 @@ nonisolated struct VPhoneLaunchpadMachine: Decodable, Hashable, Identifiable, Se
         let originals = folder.appendingPathComponent("FirmwareOriginals", isDirectory: true)
         let names = (try? FileManager.default.contentsOfDirectory(atPath: originals.path)) ?? []
         for name in names.sorted() where name.hasSuffix("_Restore") {
-            if let type = name.split(separator: "_").first(where: { $0.wholeMatch(of: /(iPhone|iPad|AppleTV|AudioAccessory|HomeAccessory|Watch)\d+,\d+/) != nil }) {
+            if let type = name.split(separator: "_").first(where: { $0.wholeMatch(of: /(iPhone|iPad|AppleTV|AudioAccessory|HomeAccessory|Watch|RealityDevice)\d+,\d+/) != nil }) {
                 return String(type)
             }
         }
@@ -242,6 +251,24 @@ nonisolated struct VPhoneLaunchpadFirmwareCatalog: Decodable, Sendable {
         /// The files the firmware needs in the IPSW cache, relative to it, from
         /// a bundle that lists them: an OTA and the IPSW it is restored over.
         var files: [String]?
+
+        /// The build in parentheses at the end of the name
+        /// (`cloudOS 26.5 (23F75)`), or nil.
+        var buildInName: String? {
+            guard name.hasSuffix(")"), let open = name.lastIndex(of: "(") else {
+                return nil
+            }
+            let build = name[name.index(after: open) ..< name.index(before: name.endIndex)]
+            return build.isEmpty ? nil : String(build)
+        }
+
+        /// The major version in the name: 27 for `iOS 27.2`, `iOS 27 beta 3`
+        /// or `cloudOS 27.2 (24B115)`.
+        var majorVersion: Int? {
+            name.split(separator: " ").first { $0.first?.isNumber == true }
+                .flatMap { $0.split(separator: ".").first }
+                .flatMap { Int($0) }
+        }
     }
 
     struct Pairing: Decodable, Hashable, Identifiable, Sendable {
@@ -253,6 +280,39 @@ nonisolated struct VPhoneLaunchpadFirmwareCatalog: Decodable, Sendable {
 
         var id: String {
             ios.url
+        }
+
+        /// Every cloudOS the pairing names: the recommended one, then the
+        /// release's own.
+        var cloudOSImages: [Image] {
+            [recommendedCloudOS] + (matchingCloudOS.map { [$0] } ?? [])
+        }
+
+        /// Whether a new machine gets the release's own cloudOS unless told
+        /// otherwise: only for a preset that restores a resealed system onto
+        /// a stock kernel (`minimal`), which `fw prepare` refuses for iOS 27
+        /// on a cloudOS 26 kernel. Everything else stays on the recommended
+        /// cloudOS 26.4, whose kernel `standard` patches for 27.x and which
+        /// needs no kernelcache rebuild.
+        func defaultsToOwnCloudOS(restoredSystem: Bool) -> Bool {
+            matchingCloudOS != nil && needsCloudOS27(restoredSystem: restoredSystem)
+        }
+
+        /// Whether `fw prepare` refuses this release on a cloudOS 26 kernel:
+        /// `minimal` (a resealed system on a stock kernel) on iOS or iPadOS 27
+        /// and later (`FirmwareRestoreImagePatchSet.cloudOSRefusal`). iPhone
+        /// and iPad only, as there. The refusal looks at the cryptex merge
+        /// patch itself, so a preset with the restore image patch set but that
+        /// patch blocked counts here without being refused.
+        func needsCloudOS27(restoredSystem: Bool) -> Bool {
+            restoredSystem && (ios.name.hasPrefix("iOS ") || ios.name.hasPrefix("iPadOS "))
+                && (ios.majorVersion ?? 0) >= 27
+        }
+
+        /// The cloudOS a new machine gets unless told otherwise
+        /// (``defaultsToOwnCloudOS(restoredSystem:)``).
+        func defaultCloudOS(restoredSystem: Bool) -> Image {
+            defaultsToOwnCloudOS(restoredSystem: restoredSystem) ? matchingCloudOS ?? recommendedCloudOS : recommendedCloudOS
         }
 
         /// The build the bundle gives, else the one from an IPSW name such as
@@ -304,14 +364,15 @@ nonisolated struct VPhoneLaunchpadFirmwareCatalog: Decodable, Sendable {
             family == "homePod"
         }
 
-        /// HomePod, HomeView and Apple TV do not use iOS templates or slimming.
+        /// These guests restore independently of the iOS setup workflow.
         var requiresStandaloneRestore: Bool {
-            isAppleTV || isHomePod || isHomeView
+            isAppleTV || isHomePod || isHomeView || family == "vision"
         }
 
         /// The system its IPSWs install.
         var osName: String {
-            isHomeView ? "HomeView Software" : isHomePod ? "HomePod Software" : isWatch ? "watchOS" : isAppleTV ? "tvOS" : isPad ? "iPadOS" : "iOS"
+            if family == "vision" { return "visionOS" }
+            return isHomeView ? "HomeView Software" : isHomePod ? "HomePod Software" : isWatch ? "watchOS" : isAppleTV ? "tvOS" : isPad ? "iPadOS" : "iOS"
         }
 
         /// The name with its product type, `iPhone 16 (iPhone17,3)`: Launchpad

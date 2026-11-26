@@ -108,17 +108,22 @@ final class VPhoneLaunchpadIPSWImport {
 
     /// The catalog URL whose download this IPSW is: one with the same file
     /// name, else one whose name gives the same build and a product type in
-    /// common, or a catalog cloudOS of the same build for a cloudOS IPSW.
+    /// common, or a catalog cloudOS of the same build for a cloudOS IPSW
+    /// (`cloudOS 26.5 (23F75)`, a release's own).
     nonisolated static func catalogURL(
         for facts: VPhoneLaunchpadIPSW,
         named fileName: String,
         in catalog: VPhoneLaunchpadFirmwareCatalog,
     ) -> URL? {
         let pairings = catalog.guests.flatMap(\.pairings)
-        let images = facts.kind == .cloudOS ? pairings.map(\.recommendedCloudOS) : pairings.map(\.ios)
+        let images = facts.kind == .cloudOS ? pairings.flatMap(\.cloudOSImages) : pairings.map(\.ios)
         let urls = images.compactMap { URL(string: $0.url) }
         if let same = urls.first(where: { $0.lastPathComponent == fileName }) {
             return same
+        }
+        if facts.kind == .cloudOS, !facts.build.isEmpty,
+           let own = images.first(where: { ($0.build ?? $0.buildInName) == facts.build }) {
+            return URL(string: own.url)
         }
         return urls.first { url in
             guard let named = VPhoneLaunchpadIPSW(fileName: url.lastPathComponent), named.build == facts.build else {

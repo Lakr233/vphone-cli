@@ -36,26 +36,21 @@ struct MachineConsoleLogTests {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("mcl-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
-        let previous = getenv("VPHONE_LIBRARY_ROOT").map { String(cString: $0) }
-        setenv("VPHONE_LIBRARY_ROOT", dir.path, 1)
-        defer {
-            if let previous { setenv("VPHONE_LIBRARY_ROOT", previous, 1) } else { unsetenv("VPHONE_LIBRARY_ROOT") }
+        ProcessEnvironment.withOverrides(["VPHONE_LIBRARY_ROOT": dir.path]) {
+            let resolved = VPhoneMachineConsoleLog.defaultRoot(chosen: URL(fileURLWithPath: "/Volumes/Chosen"))
+            #expect(resolved == VPhoneMachineConsoleLog.canonical(dir))
+            #expect(VPhoneMachineConsoleLog.url(libraryRoot: resolved, name: "m1", defaultRoot: resolved).lastPathComponent == "m1.log")
         }
-        let resolved = VPhoneMachineConsoleLog.defaultRoot(chosen: URL(fileURLWithPath: "/Volumes/Chosen"))
-        #expect(resolved == VPhoneMachineConsoleLog.canonical(dir))
-        #expect(VPhoneMachineConsoleLog.url(libraryRoot: resolved, name: "m1", defaultRoot: resolved).lastPathComponent == "m1.log")
     }
 
     @Test func `chosen library is the default when the variable is unset or empty`() {
-        let previous = getenv("VPHONE_LIBRARY_ROOT").map { String(cString: $0) }
-        defer {
-            if let previous { setenv("VPHONE_LIBRARY_ROOT", previous, 1) } else { unsetenv("VPHONE_LIBRARY_ROOT") }
-        }
         let chosen = URL(fileURLWithPath: "/Volumes/Chosen/machines")
-        unsetenv("VPHONE_LIBRARY_ROOT")
-        #expect(VPhoneMachineConsoleLog.defaultRoot().hasSuffix(".vphone/machines"))
-        #expect(VPhoneMachineConsoleLog.defaultRoot(chosen: chosen) == VPhoneMachineConsoleLog.canonical(chosen))
-        setenv("VPHONE_LIBRARY_ROOT", "", 1)
-        #expect(VPhoneMachineConsoleLog.defaultRoot(chosen: chosen) == VPhoneMachineConsoleLog.canonical(chosen))
+        ProcessEnvironment.withOverrides(["VPHONE_LIBRARY_ROOT": nil]) {
+            #expect(VPhoneMachineConsoleLog.defaultRoot().hasSuffix(".vphone/machines"))
+            #expect(VPhoneMachineConsoleLog.defaultRoot(chosen: chosen) == VPhoneMachineConsoleLog.canonical(chosen))
+        }
+        ProcessEnvironment.withOverrides(["VPHONE_LIBRARY_ROOT": ""]) {
+            #expect(VPhoneMachineConsoleLog.defaultRoot(chosen: chosen) == VPhoneMachineConsoleLog.canonical(chosen))
+        }
     }
 }

@@ -10,7 +10,8 @@ class VPhoneVirtualMachineWindowController: NSObject, NSWindowDelegate {
     private weak var virtualMachineView: VPhoneVirtualMachineView?
     private(set) var homePodDisplayView: VPhoneHomePodDisplayView?
     private var homePodGuest = false
-    private var usesTVOS = false
+    private var guestOSName = "iOS"
+    private var restoredVisionOSVersion: String?
     private(set) var touchIDMonitor: VPhoneTouchIDMonitor?
     private var homeButton: NSButton?
     private var foldButton: NSButton?
@@ -57,11 +58,20 @@ class VPhoneVirtualMachineWindowController: NSObject, NSWindowDelegate {
         sceneIdentifier: String,
         homePodGuest: Bool = false,
         usesTVOS: Bool = false,
+        visionOSGuest: Bool = false,
+        restoredVisionOSVersion: String? = nil,
         foldableGuest: Bool = false,
     ) {
         self.control = control
         self.homePodGuest = homePodGuest
-        self.usesTVOS = usesTVOS
+        guestOSName = if visionOSGuest {
+            VPhoneGuestDevice.Family.vision.osName
+        } else if homePodGuest {
+            "HomePod"
+        } else {
+            usesTVOS ? "tvOS" : "iOS"
+        }
+        self.restoredVisionOSVersion = restoredVisionOSVersion
         self.foldableGuest = foldableGuest
         machineDirectory = URL(fileURLWithPath: sceneIdentifier)
         homeButton = nil
@@ -534,9 +544,8 @@ class VPhoneVirtualMachineWindowController: NSObject, NSWindowDelegate {
             parts.append(VPhoneLocalization.text("Mouse captured: Control–Option–M releases it"))
         }
         if control.isConnected {
-            if let version = control.guestIOSVersion, !version.isEmpty {
-                let osName = homePodGuest ? "HomePod" : usesTVOS ? "tvOS" : "iOS"
-                parts.append("\(osName) \(version)")
+            if let version = restoredVisionOSVersion ?? control.guestIOSVersion, !version.isEmpty {
+                parts.append("\(guestOSName) \(version)")
             }
             if let address = control.guestIPAddress, !address.isEmpty {
                 parts.append(address)

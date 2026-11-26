@@ -62,7 +62,9 @@ QUIC는 프록시가 전달하지 않는 UDP 위에서 동작하므로 QUIC 앱�
 vphone-cli vm config <name> --intercept socks5://host:1080 --intercept-block-quic
 ```
 
-`vphone-cli vm info <name>`는 활성 프록시(비밀번호는 가려집니다)와 QUIC 차단 여부를 보여 줍니다.
+`vphone-cli vm info <name>`는 활성 프록시와 QUIC 차단 여부를 보여 줍니다. 비밀번호는 여기서도, `vm info --json`과 `vm list --json`에서도 가려집니다. `--no-intercept`는 프록시를 제거하지만 QUIC 차단은 켜진 채로 둡니다. 끄려면 `--no-intercept-block-quic`을 사용하세요.
+
+2.17.2보다 오래된 bundle은 `intercept`를 무시하고 게스트를 직접 연결하므로, 게스트 트래픽이 오류 없이 프록시를 우회합니다. 그런 bundle의 `vm config`는 저장할 때 이 설정을 VM 매니페스트에서 삭제합니다. 인터셉트를 쓰는 머신에는 2.17.2 이상을 사용하세요.
 
 ### 자격 증명
 

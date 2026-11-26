@@ -492,6 +492,30 @@ nonisolated struct VPhoneLaunchpadTemplate: Decodable, Identifiable, Hashable, S
     var url: URL {
         URL(fileURLWithPath: path, isDirectory: true)
     }
+
+    /// Whether it was built on `cloudOS`: by the download it records, else
+    /// by the build the catalog or the name gives (`cloudOS 26.5 (23F75)`),
+    /// else by the version alone (`cloudOS 26.4`), unless the build is one of
+    /// `others`' (`cloudOS 26.4 (23E244)` is not the 26.4 beta). A recorded
+    /// local file says nothing about which catalog image it was.
+    func isBuilt(
+        on cloudOS: VPhoneLaunchpadFirmwareCatalog.Image,
+        notOn others: [VPhoneLaunchpadFirmwareCatalog.Image] = [],
+    ) -> Bool {
+        if let source = sources?.cloudOS, Self.isDownload(source) {
+            return source == cloudOS.url
+        }
+        if let build = cloudOS.build ?? cloudOS.buildInName {
+            return build == key.cloudOSBuild
+        }
+        return cloudOS.name == "cloudOS \(key.cloudOSVersion)"
+            && !others.contains { $0 != cloudOS && ($0.build ?? $0.buildInName) == key.cloudOSBuild }
+    }
+
+    private static func isDownload(_ source: String) -> Bool {
+        let scheme = URL(string: source)?.scheme?.lowercased()
+        return scheme == "https" || scheme == "http"
+    }
 }
 
 /// `vm template list --json`.

@@ -1,6 +1,6 @@
 ---
 name: vphone-guest-control
-description: Install vphone-launchpad and VPhone.bundle, create and run vphone virtual iPhones, and drive a running guest from the command line with vphone-launchpad-cli and the per-machine vphone.sock. Make sure to use this skill whenever the user mentions vphone, vphone-launchpad, vphone-launchpad-cli, VPhone.bundle, vphoned, vphone.sock, or a virtual iPhone on their Mac, even if they do not name the tool. That includes setting vphone up, creating/starting/stopping a machine, tapping/swiping/typing/taking screenshots in the guest, calling a vphoned method (apps, files, logs, processes, UI tree), installing an IPA into a guest, installing the roothide/rootless bootstrap (Irisin), ssh into a guest, installing a .deb, or debugging a guest that shows a black screen or will not boot to the UI.
+description: Drive vphone virtual iPhones on a Mac with vphone-launchpad-cli: install Launchpad and VPhone.bundle, create, start, stop and list machines (vm list), call vphoned methods, tap, type, take a screenshot, install an IPA or the roothide/rootless bootstrap, ssh in, debug a black screen. Use whenever the user mentions vphone, vphone-launchpad, VPhone.bundle, vphoned, vphone.sock or a virtual iPhone, even without naming the tool.
 ---
 
 # Driving vphone
@@ -14,9 +14,11 @@ Virtualization.framework. Two pieces matter to you:
 | `vphone-launchpad-cli` | A stateless client of the running app. Every command also appears in the app's window and history. |
 
 Use `vphone-launchpad-cli` for everything. The app does the privileged and
-signed work for you; a second route (sudo, a copy of `vphone-cli`, `devicectl`)
-either lacks the entitlements, bypasses the checks the app records, or times out
-against these guests.
+signed work for you; a second route (sudo, a copy of `vphone-cli`) either lacks
+the entitlements or bypasses the checks the app records. `devicectl` is a
+different problem: `xcrun devicectl device install app` times out against
+these guests (pairing and `device process launch` work once Developer Mode is
+on); install apps as in [rpc-methods](references/rpc-methods.md#installing-an-app).
 
 ## How a session should go
 
@@ -31,6 +33,8 @@ against these guests.
      only decides what new machines get.
    - `machines: 0`: create one ([machines](references/machines.md)).
    - Otherwise: list machines, start the one the user named, then control it.
+     `vm start` returns before vphoned is up: use `--wait` or `vm wait` before any
+     `guest` command ([machines](references/machines.md#start-wait-stop)).
 2. **Pick the reference for the task, and read it before acting.**
 
    | Task | Read |
@@ -42,7 +46,7 @@ against these guests.
    | Call a vphoned method: apps, files, logs, UI tree, processes | [references/rpc-methods.md](references/rpc-methods.md) |
    | Installing an IPA | [references/rpc-methods.md](references/rpc-methods.md#installing-an-app) |
    | roothide vs rootless, installing the bootstrap, ssh, `/rootfs`, handing files to vphoned, `.deb` | [references/guest-layout.md](references/guest-layout.md) |
-   | Black screen, timeouts, AMFI, "客体代理未连接" | [references/troubleshooting.md](references/troubleshooting.md) |
+   | Black screen, timeouts, AMFI, "guest not connected" (客户机未连接) | [references/troubleshooting.md](references/troubleshooting.md) |
    | A symptom the above does not cover; which research note or source explains it | [references/finding-docs.md](references/finding-docs.md) |
 
 3. **Verify with the guest, not with assumptions.** After an input, take a
@@ -53,8 +57,13 @@ against these guests.
 ## Output and errors
 
 - Progress lines go to **stderr** as they arrive. The result is **one JSON
-  document on stdout**. Exit 0 is success; exit 1 is failure with the reason on
-  stderr. Parse stdout, and read stderr when the exit code is 1.
+  document on stdout**. Exit 0 is success; exit 1 (including `ok:false` from a
+  guest call) is failure with the reason on stderr. Parse stdout, and read
+  stderr when the exit code is 1. Error objects carry `code`, `message` and an
+  optional `hint`; only some vphoned errors add `reason`, `errno` and
+  `retryable` (for example `setup.skip` and APFS snapshots); a plain
+  `guest not connected` carries none, and has its own retry rule in
+  troubleshooting.
 - `vphone-launchpad-cli help` prints every command with its options and is
   authoritative if this skill and the installed version disagree.
 - Quote JSON in single quotes: `guest rpc myphone apps.launch '{"bundle_id":"com.apple.Preferences"}'`.
@@ -86,8 +95,7 @@ These exist because each one has cost the user real time or disk before.
 - **Keep the host API listener on loopback.** `--api-listen` sends its token in
   clear text.
 - **Install apps through installd** (`ideviceinstaller`) when the point is to
-  test installation; `apps.install` bypasses installd. Never use
-  `xcrun devicectl` to install or launch (it times out); listing devices is fine.
+  test installation; `apps.install` bypasses installd.
 - **When stuck, read before experimenting.** The repository's guides and
   `Research/` notes quote real failures; see
   [references/finding-docs.md](references/finding-docs.md).

@@ -22,6 +22,7 @@ vphone-cli fw catalog
 | 연구용 보드 | `17,3_26.6_23G71` | `26.6-23G71` | CLI에서 standard 및 Minimal 프리셋, Launchpad에서 standard(2026-10-20): 디바이스 트리와 SEP 변환, kernelcache 믹스, 복원, CFW, 부팅, vphoned ping |
 | 연구용 보드 | `17,3_26.5_23F77` | `26.5-23F75` | CLI에서 standard 프리셋(2026-10-20): 임시 cloudOS 복원으로 얻은 GPU 드라이버, kernelcache 믹스, 복원, CFW, 부팅, vphoned ping |
 | 연구용 보드 | `17,3_26.4_23E246` | `26.4-23E244` | CLI에서 standard 프리셋(2026-10-20): 임시 cloudOS 복원으로 얻은 GPU 드라이버, kernelcache 믹스, 복원, CFW, 부팅, vphoned ping |
+| 연구용 보드 | `Watch7,18_27.2_24S116` | `27.2-24B115` | Launchpad의 CLI에서 `watchos` 프리셋(2026-11-24): cloudOS 27.2 커널 기반 watch kernelcache 믹스, 복원, CFW, 부팅, vphoned ping |
 | 연구용 보드 | `Watch7,18_26.4_23T240` | `26.4-23E244` | CLI와 Launchpad에서 `watchos` 프리셋(2026-10-20): watch kernelcache 믹스, 복원, 부팅, vphoned ping |
 | 연구용 보드 | `11,6_18.7.2_22H124` | `18.7.2-22H43` | CLI에서 Minimal 프리셋(2026-10-21): 임시 cloudOS 복원으로 얻은 GPU 드라이버, macOS 15.6.1의 kmutil이 ssh로 링크한 iOS 18 kernelcache 믹스, 복원, 부팅, vphoned ping. 화면, 잠금 화면, 잠금 해제, 홈 스와이프 확인 |
 | 연구용 보드 | `11,6_18.1_22B83` | `18.1-22B83` | CLI에서 Minimal 프리셋(2026-10-21): 임시 cloudOS 복원으로 얻은 GPU 드라이버, macOS 15.6.1의 kmutil이 ssh로 링크한 kernelcache 믹스, 복원, 부팅, vphoned. Hello 화면, 잠금 화면, 잠금 해제, 홈 스와이프 확인 |
@@ -37,7 +38,7 @@ vphone-cli fw catalog
 - `fw patch`는 연구용 보드의 디바이스 트리와 SEP를 vphone600용으로 바꾸고, 해당 kernelcache의 레시피에 따라 vphone600 가상화 kext를 넣어 kernelcache를 다시 빌드합니다.
 - KDK 추출과 링크 모두 사용자 권한으로 실행되며, 링크에는 그 kernelcache를 빌드할 때 사용된 kmutil을 씁니다(`vphone-cli fw kernelcache`). [kernelcache 레시피](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md)와 [펌웨어 준비](firmware-preparation.md)를 참고하세요.
 - `fw prepare`는 레시피가 없는 cloudOS를 거부합니다.
-- `fw catalog`는 각 iOS 릴리스 자체의 cloudOS를 권장 cloudOS 옆에 표시하며, Launchpad는 이를 **Firmware** 아래에서 제공합니다.
+- `fw catalog`는 각 iOS 릴리스 자체의 cloudOS를 권장 cloudOS 옆에 표시하며, Launchpad는 이를 **Firmware** 아래에서 제공합니다. Launchpad(New Machine과 `vphone-launchpad-cli vm create`)는 권장 cloudOS를 사용합니다. 예외는 iOS 또는 iPadOS 27 이상의 Minimal 프리셋입니다. `fw prepare`와 `fw patch`는 이 프리셋을 수정하지 않은 cloudOS 26 커널에서 거부합니다. 카탈로그에 릴리스 자체의 cloudOS가 있으면(iPhone, iOS 27.2) Launchpad가 그것을 사용하고, 없으면 standard 프리셋만 동작한다고 New Machine이 경고합니다. `vphone-cli vm create`는 권장 cloudOS를 그대로 사용하며, 자체 cloudOS가 있으면 거부 메시지가 이를 알려 줍니다.
 
 | cloudOS | `vresearch101ap` | `vphone600ap` | kernelcache 레시피 |
 | --- | --- | --- | --- |

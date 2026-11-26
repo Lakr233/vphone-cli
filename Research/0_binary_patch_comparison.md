@@ -5332,6 +5332,46 @@ entry, which failed PAC on `retab`). On 2026-10-20 the staged volume's kernel
 and all 124 kext executables were byte-identical to the research mix that
 booted to Setup with working touch.
 
+#### watchOS 27.2
+
+`watch_27.2_24S116` links the watchOS kexts of the Watch7,18 27.2 (24S116)
+IPSW against the cloudOS 27.2 (24B115) kernel of the iPhone recipe
+`27.2_24B119`. 24S116's kernel (xnu-13432.44.3) is the 27.2 build closest to
+the base's (42.3); 24S118 is 44.4. Both kernels have the same KPI symbol sets
+and C++ kernel class sizes, every watch family class a VM or donor kext
+subclasses has the size it has in the base, and both caches were built by
+KernelManagement 514.40.8, so the kmutil of the iPhone recipe links it.
+
+| Source | Kexts |
+| --- | --- |
+| `watch7c_27.2_24S116` | 113 (106 + 7 KPI): 26.4's watchOS set without `hfs.kext` (gone in watchOS 27), plus `security.Image4` (APFS) and `EXBrightCalibrationConsumer` (light sensor) by OSBundleLibraries |
+| base: 24B112 `kernelcache.release.vresearch101` | 11, as for 26.4 |
+| `vphone600_26.4_23E5207q` | 6, as for 26.4 |
+
+The watch map is BinDiff against the 23E5207i KDK; the base map is the
+iPhone recipe's with the fixes the watch kexts' imports need (226 watch and
+148 base kernel fixes, about 6,400 family and class labels). Each watch-kext
+kernel import is checked three ways: the watch-to-base alignment, the macOS
+27.2 vmapple names reached from each side, and the branch targets of both
+functions. The last check is needed because an alignment anchored on a wrong
+label agrees with it. The watch's `_ifnet_reference` sits on the entry of
+`ifnet_release`, and the alignment passed it. Placeholder names (`fN`) also
+collide across builds: the watch's ENODEV stub carried the name the base
+gives ENXIO, and IOUSBHostFamily's indices are 2 apart. Every family import
+of the base and donor kexts is checked again by code against the watch build.
+Constructor twins are told apart by the vtable they store, destructor twins
+by their tail call. The research notes are in
+`data/27.2 watchOS/mix/README.md`. Offline (2026-11-23), kmutil 514.40.8 linked
+all 130 bundles from the mix extraction (0 unresolved of 35,520 imports), and
+`KernelCollectionStubCalls` made every stub call direct and resealed
+corecrypto. The kernel patch finders miss `apfs_seal_broken` in the watch's
+APFS. The `watchos` preset applies no kernel patch.
+
+From Launchpad's CLI (2026-11-24), the `watchos` preset linked the mix,
+restored, installed the CFW and booted to a vphoned ping. watchOS 27.2 ships
+the watch speaker graph as `graph_configurations.plist` instead of
+`graph_configurations_halspp.plist` (see `Research/Guest/watch_audio.md`).
+
 ### Device tree
 
 The installed tree presents N227b through the board copy iPad and Apple TV
@@ -7675,10 +7715,24 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
 
 - `preboot-exp-visionos_virtual_product` changes only the known generic VM product
   token to native V201. The board identity remains RealityDevice14,1. The
-  existing Preboot composition backup provides reversal.
+  existing Preboot composition backup provides reversal. The selection is also
+  available for visionOS 27.2 with the 26.4 donor after the 27.2.1 stock
+  virtual-product boot aborted in wakeboardd's HMD product lookup.
+  The cloudOS 27.2 research-board mix also starts wakeboardd with the V201 token.
+- An environment-only update applies the visionOS Mach-O platform to the staged
+  GPU compiler plugin, as a full install already does. Without that step the
+  update replaces the working platform tag with iOS, and `MTLCompilerService`
+  refuses to load the plugin during composite pipeline creation.
+- `system-datamigrator-exp-visionos_windowless_progress` selects the native path
+  that continues without a migration progress window. It preserves the gathered
+  plugin count and skips only window construction. The patch checks the pristine
+  24N124 executable digest and re-attests the changed code page. On an untrimmed
+  24N124 guest, native data migration finished after the update and the progress
+  window no longer crashed. The desktop was still black during that check.
 - `system-launchdaemons-exp-visionos_nonfatal_services` journals only panic-on-crash
   policy fields for polarisd, realitycamerad, realitycoprocessorloaderd and arkitd.
-  It retains the native jobs; it does not emulate their hardware.
+  It retains the native jobs. The release gate also covers visionOS 27.2 after
+  the 27.2.1 restore reboot reached launchd and panicked on realitycamerad.
 - `system-launchd-exp-visionos_uxm_ipc` injects a PID-1-only adapter for two exact
   UXM/Polaris lookups absent from the PCC sandbox. Each optional display rule
   has a separate selection and root-owned marker:
@@ -7688,6 +7742,9 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
   `system-launchd-exp-visionos_wakeboard_system_ipc`.
   Rules validate audit token/PID version, executable/signing identity, operation
   and filter type; other checks retain the native function's ABI and errno.
+  The 27.2.1 test on the 26.4 donor observed UXM to Polaris and backboardd to
+  HMD properties, presentable-owner and system-setter lookup failures. Only those selections
+  gained applicability to this pair. The other display services retain their gates.
 - `system-launchd-exp-visionos_environment_ipc` adds a separate root-owned
   `/usr/lib/vphone-visionos-environment-ipc` marker for RealityEnvironment's
   lookup of `com.apple.surfboard.environmentservice`. The 2026-11-08 runtime

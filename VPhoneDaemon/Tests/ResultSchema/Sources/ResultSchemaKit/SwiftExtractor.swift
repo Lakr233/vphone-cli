@@ -176,7 +176,7 @@ private final class Session {
     lazy var cTypes = CTypes(sources: lookup.native)
     private var indexes: [String: TypeIndex] = [:]
 
-    /// Declarations of the lookup sources plus `parsed` (REQ-RPC-007 type inference).
+    /// Declarations of the lookup sources plus `parsed`, for type inference.
     func typeIndex(including parsed: ParsedFile) -> TypeIndex {
         if let cached = indexes[parsed.file] { return cached }
         let names = Set(lookup.levels.joined().map(\.file))

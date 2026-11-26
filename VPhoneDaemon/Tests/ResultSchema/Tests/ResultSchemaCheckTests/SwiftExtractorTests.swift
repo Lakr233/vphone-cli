@@ -74,7 +74,7 @@ final class SwiftExtractorTests: XCTestCase {
         }
     }
 
-    /// REQ-RPC-007: each table row, and a swapped expectation must not match.
+    /// Each table row, and a swapped expectation must not match.
     func testTypeInferenceTable() throws {
         let text = """
         func f(_ pasteboard: Pasteboard, value: Int?) -> [String: Any] {

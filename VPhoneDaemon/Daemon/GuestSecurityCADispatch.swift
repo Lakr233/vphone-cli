@@ -7,8 +7,8 @@ import Foundation
 /// imports UIKit/IcliKit/VphonedNative and cannot compile into the standalone
 /// `run-trust-store-tests.sh` build. Each method is a thin, error-transparent
 /// mapping over `GuestTrustStore` (install/removeAnchor/list) — the SPI-backed
-/// behaviour, all-or-none rules and input rejects live there (REQ-007/008);
-/// this layer only owns the RPC param keys and the reply field names (REQ-006).
+/// behaviour, all-or-none rules and input rejects live there;
+/// this layer only owns the RPC param keys and the reply field names.
 enum GuestSecurityCADispatch {
     /// `security.ca_install` {pem, admin?}: install the PEM anchor into the
     /// selected trust domain (`admin: true` ⇒ admin, else user), reply

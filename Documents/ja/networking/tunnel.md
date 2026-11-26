@@ -62,7 +62,9 @@ QUIC はプロキシが扱わない UDP 上で動くため、QUIC アプリは�
 vphone-cli vm config <name> --intercept socks5://host:1080 --intercept-block-quic
 ```
 
-`vphone-cli vm info <name>` は、有効なプロキシ（パスワードは伏せられます）と QUIC ブロックが有効かどうかを表示します。
+`vphone-cli vm info <name>` は、有効なプロキシと QUIC ブロックが有効かどうかを表示します。パスワードはここでも、`vm info --json` と `vm list --json` でも伏せられます。`--no-intercept` はプロキシを外しますが、QUIC ブロックは有効のままです。無効にするには `--no-intercept-block-quic` を使います。
+
+2.17.2 より古い bundle は `intercept` を無視してゲストを直接接続するため、ゲストの通信はエラーなしでプロキシを迂回します。そうした bundle の `vm config` は、保存時にこの設定を VM マニフェストから削除します。インターセプトを使うマシンでは 2.17.2 以降を使ってください。
 
 ### 認証情報
 

@@ -299,6 +299,27 @@ struct VPhoneCustomFirmwarePatchVisionOSFramePacingCommand: ParsableCommand {
     }
 }
 
+// MARK: - patch-visionos-migration-progress
+
+struct VPhoneCustomFirmwarePatchVisionOSMigrationProgressCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "patch-visionos-migration-progress",
+        abstract: "Run visionOS migration without allocating its Metal progress window",
+        shouldDisplay: false,
+    )
+
+    @Argument(help: "Path to the reviewed visionOS datamigrator Mach-O", transform: URL.init(fileURLWithPath:))
+    var binary: URL
+
+    @Flag(name: .customLong("dry-run"), help: "Validate without writing")
+    var dryRun = false
+
+    func run() throws {
+        try requireUntruncatedMachO(at: binary)
+        try CustomFirmwareVisionOSMigrationProgress.patch(at: binary, dryRun: dryRun, log: machOVerbLog)
+    }
+}
+
 // MARK: - patch-watchdogd
 
 struct VPhoneCustomFirmwarePatchWatchdogdCommand: ParsableCommand {
@@ -753,6 +774,7 @@ enum VPhoneCustomFirmwareMachOVerbs {
             VPhoneCustomFirmwareAuditArm64eX1Command.self,
             VPhoneCustomFirmwarePatchWatchdogdCommand.self,
             VPhoneCustomFirmwarePatchVisionOSFramePacingCommand.self,
+            VPhoneCustomFirmwarePatchVisionOSMigrationProgressCommand.self,
             VPhoneCustomFirmwarePatchDiskimagesiodCommand.self,
             VPhoneCustomFirmwarePatchRemotePairingCommand.self,
             VPhoneCustomFirmwarePatchVirtualAudioCommand.self,

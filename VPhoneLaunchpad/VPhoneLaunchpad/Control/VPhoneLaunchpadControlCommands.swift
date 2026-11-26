@@ -563,6 +563,28 @@ struct VPhoneLaunchpadControlCommands {
         let device = request.option("device") ?? iphone.flatMap { source in
             VPhoneLaunchpadIPSW.productType(forSource: source)
         }
+
+        func number(_ option: String, _ fallback: Int) throws -> Int {
+            guard let text = request.option(option) else {
+                return fallback
+            }
+            guard let value = Int(text), value > 0 else {
+                throw VPhoneLaunchpadError("--\(option) takes a positive number.")
+            }
+            return value
+        }
+        let requiresStandaloneRestore = VPhoneLaunchpadMachine.requiresStandaloneRestore(for: device)
+        let (patches, guestPatches) = try await Self.patches(
+            request,
+            commandLine: commandLine,
+            defaultPreset: VPhoneLaunchpadPatchSelection.defaultPreset(forDevice: device),
+            emit: emit,
+        )
+        // The Minimal preset seals the system it restores, which a template's
+        // trim and setup boot would write.
+        let restoredSystem = patches.customisesRestoredSystem
+        // The default cloudOS depends on the preset: Minimal on iOS 27 and
+        // later needs the release's own (`defaultCloudOS(restoredSystem:)`).
         if iphone == nil || cloudOS == nil {
             let result = try await commandLine.run(["fw", "catalog", "--json"], recordInHistory: false)
             guard result.succeeded, let data = result.jsonData else {
@@ -578,42 +600,32 @@ struct VPhoneLaunchpadControlCommands {
                 let known = catalog.guests.map(\.productType).joined(separator: ", ")
                 throw VPhoneLaunchpadError("The firmware catalog has no \(device ?? ""). Choose one of \(known), or pass --iphone-source and --cloudos-source.")
             }
-            guard let pairing = guest.defaultPairing else {
+            // An --iphone-source the catalog lists, or a local copy under its
+            // download's name, is that pairing's release.
+            let listed = iphone.flatMap { source in
+                let name = (source as NSString).lastPathComponent
+                return guest.pairings.first { $0.ios.url == source }
+                    ?? guest.pairings.first { URL(string: $0.ios.url)?.lastPathComponent == name }
+            }
+            guard let pairing = listed ?? guest.defaultPairing else {
                 throw VPhoneLaunchpadError("Unable to read the firmware catalog. Pass --iphone-source and --cloudos-source.", detail: result.tail)
             }
+            // The release's own cloudOS fits only the release's own iOS, not an
+            // --iphone-source the catalog doesn't know.
+            let releaseCloudOS = iphone == nil || listed != nil
+                ? pairing.defaultCloudOS(restoredSystem: restoredSystem)
+                : pairing.recommendedCloudOS
             iphone = iphone ?? pairing.ios.url
-            cloudOS = cloudOS ?? pairing.recommendedCloudOS.url
+            cloudOS = cloudOS ?? releaseCloudOS.url
             emit("firmware: \(iphone ?? "") + \(cloudOS ?? "")")
         }
 
-        func number(_ option: String, _ fallback: Int) throws -> Int {
-            guard let text = request.option(option) else {
-                return fallback
-            }
-            guard let value = Int(text), value > 0 else {
-                throw VPhoneLaunchpadError("--\(option) takes a positive number.")
-            }
-            return value
-        }
-        // Apple TV, HomePod and HomeView restore on their own: templates
-        // and slimming drive iOS Setup Assistant and its apps.
-        let requiresStandaloneRestore = device?.hasPrefix("AppleTV") == true || device?.hasPrefix("AudioAccessory") == true
-            || device?.hasPrefix("HomeAccessory") == true
-        let (patches, guestPatches) = try await Self.patches(
-            request,
-            commandLine: commandLine,
-            defaultPreset: VPhoneLaunchpadPatchSelection.defaultPreset(forDevice: device),
-            emit: emit,
-        )
-        // The Minimal preset seals the system it restores, which a template's
-        // trim and setup boot would write.
-        let restoredSystem = patches.customisesRestoredSystem
         let usesTemplate = !request.flag("no-template") && !requiresStandaloneRestore && !restoredSystem
         let slimming: VPhoneLaunchpadSlimming
         if requiresStandaloneRestore || restoredSystem {
             if !Self.slimmingSwitches(request).isEmpty {
                 throw VPhoneLaunchpadError(requiresStandaloneRestore
-                    ? "Apple TV, HomePod and HomeView are created without a template; the slimming switches do not apply."
+                    ? "Apple TV, HomePod, HomeView and Apple Vision Pro are created without a template. The slimming switches do not apply."
                     : "The \(patches.preset) preset creates a machine without a template; the slimming switches do not apply.")
             }
             var off = VPhoneLaunchpadSlimming()

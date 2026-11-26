@@ -22,6 +22,7 @@ These are the iPhone17,3 combinations run end to end with the native JB pipeline
 | Research board | `17,3_26.6_23G71` | `26.6-23G71` | standard and Minimal presets from the CLI, standard from Launchpad (2026-10-20): converted device tree and SEP, kernelcache mix, restore, CFW, boot, vphoned ping |
 | Research board | `17,3_26.5_23F77` | `26.5-23F75` | standard preset from the CLI (2026-10-20): GPU driver from a temporary cloudOS restore, kernelcache mix, restore, CFW, boot, vphoned ping |
 | Research board | `17,3_26.4_23E246` | `26.4-23E244` | standard preset from the CLI (2026-10-20): GPU driver from a temporary cloudOS restore, kernelcache mix, restore, CFW, boot, vphoned ping |
+| Research board | `Watch7,18_27.2_24S116` | `27.2-24B115` | `watchos` preset from Launchpad's CLI (2026-11-24): watch kernelcache mix on the cloudOS 27.2 kernel, restore, CFW, boot, vphoned ping |
 | Research board | `Watch7,18_26.4_23T240` | `26.4-23E244` | `watchos` preset from the CLI and from Launchpad (2026-10-20): watch kernelcache mix, restore, boot, vphoned ping |
 | Research board | `11,6_18.7.2_22H124` | `18.7.2-22H43` | Minimal preset from the CLI (2026-10-21): GPU driver from a temporary cloudOS restore, iOS 18 kernelcache mix linked over ssh by the kmutil of macOS 15.6.1, restore, boot, vphoned ping; screen, lock screen, unlock and home swipes checked |
 | Research board | `11,6_18.1_22B83` | `18.1-22B83` | Minimal preset from the CLI (2026-10-21): GPU driver from a temporary cloudOS restore, kernelcache mix linked over ssh by the kmutil of macOS 15.6.1, restore, boot, vphoned; Hello screen, lock screen, unlock and home swipes checked |
@@ -37,7 +38,7 @@ Every later cloudOS (checked on 2026-10-03) lists only the PCC boards and `vrese
 - `fw patch` turns the research board's device tree and SEP into vphone600's and rebuilds its kernelcache with the vphone600 virtualization kexts, from a recipe for that kernelcache.
 - KDK extraction and the link run as you (`vphone-cli fw kernelcache`), the link with the kmutil the kernelcache was built with. See [the kernelcache recipes](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md) and [Firmware preparation](firmware-preparation.md).
 - `fw prepare` refuses a cloudOS that no recipe covers.
-- `fw catalog` lists each iOS release's own cloudOS beside the recommended one, and Launchpad offers it under **Firmware**.
+- `fw catalog` lists each iOS release's own cloudOS beside the recommended one, and Launchpad offers it under **Firmware**. Launchpad (New Machine and `vphone-launchpad-cli vm create`) stays on the recommended cloudOS, except for the Minimal preset on iOS or iPadOS 27 and later: `fw prepare` and `fw patch` refuse that preset on a stock cloudOS 26 kernel. Where the catalog has the release's own cloudOS (iPhone, iOS 27.2), Launchpad takes it; otherwise New Machine warns that only the standard preset works. `vphone-cli vm create` keeps the recommended cloudOS, and its refusal names the own cloudOS where there is one.
 
 | cloudOS | `vresearch101ap` | `vphone600ap` | kernelcache recipe |
 | --- | --- | --- | --- |

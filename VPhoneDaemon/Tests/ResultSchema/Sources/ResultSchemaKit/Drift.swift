@@ -2,7 +2,7 @@ import Foundation
 import SwiftParser
 import SwiftSyntax
 
-/// What the tool prints and how it exits (REQ-RPC-008).
+/// What the tool prints and how it exits.
 public struct DriftReport: Equatable {
     public var stdout: [String] = []
     public var stderr: [String] = []
@@ -130,7 +130,7 @@ private final class ArmProbe: SyntaxVisitor {
     }
 }
 
-/// Compares the keys extracted from each producer to the declared schema (REQ-RPC-008).
+/// Compares the keys extracted from each producer to the declared schema.
 public enum DriftCheck {
     static let tail = "; fix the entry in result-producers.tsv"
 

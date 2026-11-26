@@ -160,9 +160,14 @@ public enum VPhoneFirmwareCatalog {
 
     /// cloudOS releases with only the research board (vresearch101ap). A VM on one
     /// of them runs its own release's kernel, rebuilt with the vphone600 kexts
-    /// (FirmwareResearchBoardPatchSet, kernelcache_recipes), which needs root and an
-    /// ipsw with `kernel extract --kdk`. They are offered beside the 26.4 beta, which
-    /// stays the recommendation: it needs neither.
+    /// (FirmwareResearchBoardPatchSet, kernelcache_recipes), which `fw kernelcache`
+    /// downloads and links per release. They are listed beside the 26.4 beta, which
+    /// stays each pairing's `recommendedCloudOS`: it needs no kernelcache rebuild,
+    /// `standard` patches its kernel for 27.x, and `minimal` with `trusted-darwinos`
+    /// loses Developer Mode on the 26.5 and 26.6 research board kernels. Launchpad picks the release's own one only for `minimal` on iOS 27 and
+    /// later, which `fw prepare` refuses on a cloudOS 26 kernel
+    /// (`FirmwareRestoreImagePatchSet.cloudOSRefusal`); `vphone-cli vm create` keeps
+    /// the recommendation.
     public static let researchBoardCloudOS: [(version: String, option: VPhoneCloudOSOption)] = [
         ("26.4", .init(name: "cloudOS 26.4 (23E244)", url: "https://updates.cdn-apple.com/private-cloud-compute/6acb7959507f25a76753f5a08ee39f09671486eb7619367e42dc1869bd779035")),
         ("26.5", .init(name: "cloudOS 26.5 (23F75)", url: "https://updates.cdn-apple.com/private-cloud-compute/602f1132456a1323ac145ea13828c3ca72845259b50f99af1cef8329d5e25748")),
@@ -577,10 +582,11 @@ public enum VPhoneFirmwareCatalog {
 
     /// Apple Watch releases. The watch boots the research board kernel of the
     /// cloudOS its kernelcache recipe is for, rebuilt with the watchOS kexts:
-    /// 26.4 (23E244) for watchOS 26.4.
+    /// 26.4 (23E244) for watchOS 26.4, 27.2 (24B115) for watchOS 27.2.
     static let watchReleases: [(devices: [String], releases: [(version: String, url: String)])] = [
         (devices: ["Watch7,18"], releases: [
             ("26.4", "https://updates.cdn-apple.com/2026SpringFCS/fullrestores/122-09130/486B2E2B-DEDB-4DCF-80F0-7A84ED51B074/Watch7,18_26.4_23T240_Restore.ipsw"),
+            ("27.2", "https://updates.cdn-apple.com/2026FallFCS/fullrestores/122-72904/D5EBE9D5-1530-43AD-AB84-9945467E37B0/Watch7,18_27.2_24S116_Restore.ipsw"),
         ]),
     ]
 

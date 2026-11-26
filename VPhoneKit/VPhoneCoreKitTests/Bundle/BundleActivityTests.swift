@@ -226,4 +226,133 @@ struct BundleActivityTests {
         try Data().write(to: bundle.url.appendingPathComponent("vphone.sock"))
         #expect(!isRunning(bundle))
     }
+
+    // MARK: - Waiting for the machine to release its files (vm stop)
+
+    /// `Self.service` or `Self.vm` with another PID.
+    private func holder(_ pid: pid_t, _ like: VPhoneProcessHolder) -> VPhoneProcessHolder {
+        VPhoneProcessHolder(pid: pid, executablePath: like.executablePath)
+    }
+
+    /// Runs `confirmStopped` over `holders` and `socket` (one answer per
+    /// probe, the last repeats), with a counting fake sleep, and returns the
+    /// result with how many times it slept and probed the holders.
+    private func confirm(
+        maxSleeps: Int,
+        _ holders: [[VPhoneProcessHolder]],
+        socket: [Bool] = [false],
+    ) -> (message: String, isError: Bool, sleeps: Int, probes: Int) {
+        var probes = 0
+        var socketProbes = 0
+        var sleeps = 0
+        let r = VPhoneBundleActivity.confirmStopped(
+            name: "m",
+            maxSleeps: maxSleeps,
+            interval: 0.1,
+            holders: {
+                defer { probes += 1 }
+                return holders[min(probes, holders.count - 1)]
+            },
+            socketIsLive: {
+                defer { socketProbes += 1 }
+                return socket[min(socketProbes, socket.count - 1)]
+            },
+            sleep: { _ in sleeps += 1 },
+        )
+        return (r.message, r.isError, sleeps, probes)
+    }
+
+    @Test func `vm stop waits for a VM service holder that outlives vphone-vm, then reports stopped`() {
+        // vphone-vm quit on SIGINT; the VM service, never signalled, still
+        // holds SEPStorage or nvram.bin for two probes.
+        let svc = holder(410, Self.service)
+        let r = confirm(maxSleeps: 30, [[svc], [svc], []])
+        #expect(r.message == "m: stopped")
+        #expect(!r.isError)
+        #expect(r.sleeps == 2)
+        #expect(r.probes == 3)
+    }
+
+    @Test func `vm stop that cannot free the files exits non-zero naming them`() {
+        let r = confirm(maxSleeps: 4, [[holder(410, Self.service)]])
+        #expect(r.message == "m: could not stop; still held by 410 com.apple.Virtualization.VirtualMachine")
+        #expect(r.isError)
+        #expect(r.sleeps == 4)
+        #expect(r.probes == 5)
+    }
+
+    @Test func `vm stop does not wait on or fail for a holder that does not run a machine`() {
+        let r = confirm(maxSleeps: 30, [[VPhoneProcessHolder(pid: 999, executablePath: "/usr/bin/backupd")]])
+        #expect(r.message == "m: stopped")
+        #expect(!r.isError)
+        #expect(r.sleeps == 0)
+        #expect(r.probes == 1)
+    }
+
+    @Test func `vm stop names what is left in PID order`() {
+        let r = confirm(maxSleeps: 1, [[holder(4242, Self.service), holder(101, Self.vm)]])
+        #expect(r.message == "m: could not stop; still held by 101 vphone-vm, 4242 com.apple.Virtualization.VirtualMachine")
+        #expect(r.isError)
+    }
+
+    @Test func `vm stop names a vphone-vm found both ways once`() {
+        let r = confirm(maxSleeps: 1, [[holder(101, Self.vm), holder(101, Self.vm)]])
+        #expect(r.message == "m: could not stop; still held by 101 vphone-vm")
+        #expect(r.isError)
+    }
+
+    @Test func `vm stop waits for vphone-vm to close its control socket`() {
+        // No process holds the files, but vphone.sock still answers for two
+        // probes.
+        let r = confirm(maxSleeps: 30, [[]], socket: [true, true, false])
+        #expect(r.message == "m: stopped")
+        #expect(!r.isError)
+        #expect(r.sleeps == 2)
+    }
+
+    @Test func `vm stop with a control socket that stays live exits non-zero`() {
+        let r = confirm(maxSleeps: 3, [[]], socket: [true])
+        #expect(r.message == "m: could not stop; its control socket is still live")
+        #expect(r.isError)
+        #expect(r.sleeps == 3)
+    }
+
+    @Test func `vm stop on a bundle probes its control socket and its vphone-vm`() throws {
+        let (root, bundle) = try makeBundle()
+        defer { try? FileManager.default.removeItem(at: root) }
+        // This process holds a state file but runs no machine: never waited on.
+        let fd = open(bundle.url.appendingPathComponent("Disk.img").path, O_RDONLY)
+        try #require(fd >= 0)
+        defer { close(fd) }
+        let confirm = { VPhoneBundleActivity.confirmStopped(bundle, maxSleeps: 0, interval: 0.1) }
+        #expect(confirm() == (message: "vm: stopped", isError: false))
+
+        let (listener, _) = try listenAtControlSocket(of: bundle)
+        #expect(confirm() == (message: "vm: could not stop; its control socket is still live", isError: true))
+        close(listener)
+        #expect(confirm() == (message: "vm: stopped", isError: false))
+
+        // A vphone-vm of this machine's config that holds none of its files.
+        let program = root.appendingPathComponent("vphone-vm")
+        try FileManager.default.copyItem(at: URL(fileURLWithPath: "/bin/cat"), to: program)
+        let process = Process()
+        process.executableURL = program
+        // cat reads "-" first and blocks on a pipe that is never written to.
+        process.arguments = ["-", "--config", bundle.configURL.path]
+        process.standardInput = Pipe()
+        try process.run()
+        defer { process.terminate() }
+        let expected = "vm: could not stop; still held by \(process.processIdentifier) vphone-vm"
+        // The stand-in takes a moment to become observable, and the first run
+        // of a freshly copied executable can take over 5 s under full-suite
+        // load: poll on a bounded deadline until it is named. A passing run
+        // stops polling as soon as it is.
+        let deadline = Date().addingTimeInterval(30)
+        var r = confirm()
+        while r.message != expected, Date() < deadline {
+            Thread.sleep(forTimeInterval: 0.1)
+            r = confirm()
+        }
+        #expect(r == (message: expected, isError: true))
+    }
 }

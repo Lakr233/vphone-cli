@@ -24,9 +24,9 @@ public enum VPhoneGuestCA {
         _ timeout: Int,
     ) throws -> [String: Any]
 
-    /// The client-side RPC bound (REQ-007/REQ-008): 30 seconds.
+    /// The client-side RPC bound: 30 seconds.
     public static let timeoutSeconds = 30
-    /// A PEM may not exceed 64 KiB (REQ-006/REQ-008).
+    /// A PEM may not exceed 64 KiB.
     public static let maximumPEMBytes = 64 * 1024
     static let certificateBegin = "-----BEGIN CERTIFICATE-----"
     static let certificateEnd = "-----END CERTIFICATE-----"
@@ -223,7 +223,7 @@ public enum VPhoneGuestCA {
 
     /// Validate the `security.ca_list` reply and render stdout. Any violation is
     /// a malformed-reply error (exit 1) with no partial output. The host itself
-    /// replaces C0/DEL control chars in each `subject` with a space (REQ-006/008)
+    /// replaces C0/DEL control chars in each `subject` with a space
     /// rather than trusting guest sanitization.
     static func formatList(_ result: [String: Any]) throws -> String {
         guard let anchors = result["anchors"] as? [Any] else {

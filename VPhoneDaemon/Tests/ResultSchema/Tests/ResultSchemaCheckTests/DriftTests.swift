@@ -2,9 +2,8 @@ import Foundation
 import XCTest
 @testable import ResultSchemaKit
 
-/// Drift scenarios (REQ-RPC-008): each copies Fixtures/drift to a temp dir and mutates it.
-/// The NFR-RPC-002 timing test (built binary, real tree, under 60 s) waits for Phase 4, when
-/// every catalog row has a `result` cell.
+/// Drift scenarios: each copies Fixtures/drift to a temp dir and mutates it.
+/// A timing test (built binary, real tree, under 60 s) is not part of this suite.
 final class DriftTests: XCTestCase {
     static let fixture = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()

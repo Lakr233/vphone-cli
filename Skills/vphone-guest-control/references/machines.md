@@ -22,14 +22,19 @@ One object per machine: `name`, `libraryRoot`, `state` (`stopped`, `running`,
 `controlSocket` (null until the machine serves `vphone.sock`), `bundle`,
 `guestEnvironmentBundle`, `bootChainBundle` (see
 [Core Bundle of a machine](#core-bundle-of-a-machine)), and when known `udid`,
-`ios` and `cloudOS`. Check `state` before any machine command; start and
-update refuse a machine that is not `stopped`.
+`ios` and `cloudOS`. Check `state` before any machine command.
 
 ## Create
 
-A creation downloads two IPSWs, patches the boot chain, restores through DFU,
-installs the custom firmware into the guest, and boots once to prove vphoned
-answers. It leaves a **stopped** machine. Success is not a running guest.
+By default a creation clones the machine from a template that matches its
+device, iOS and cloudOS builds, preset and disk size. Only when no such
+template exists does it build one first (download two IPSWs, patch the boot
+chain, restore through DFU, install the custom firmware); `--no-template`
+restores the machine on its own that way instead. Either way it boots once to
+prove vphoned answers. When the CLI waits (no `--no-wait`), it returns with the machine
+**running**: the first boot ends when vphoned answers. Do not `vm start` it
+(that fails with "is already running."); check with `vm list` or `vm wait`.
+(Standalone `vphone-cli vm create` stops the VM after its first boot.)
 
 Before starting, check free disk (tens of GB, more with `--keep-artifacts`),
 that no other creation is running, and that `status` shows `bundleReady` (or
@@ -39,12 +44,12 @@ that the version you pass to `--bundle` passed its checks in `bundle list`).
 vphone-launchpad-cli vm create myphone [--bundle <version>] \
   [--iphone-source <path-or-url>] [--cloudos-source <path-or-url>] [--device <product-type>] \
   [--cpu 8] [--memory 8192] [--disk-size 64] \
-  [--network nat|bridged|none] [--preset standard|experimental] \
-  [--keep-artifacts] [--no-wait]
+  [--network nat|bridged|tunnel|none] [--preset <name-or-plist>] \
+  [--no-template] [--keep-artifacts] [--no-wait]
 ```
 
-- **`--bundle`** binds the machine to an installed version; the default bundle
-  otherwise. Every step runs with it, and the result reports it as `bundle`.
+- **`--bundle`** binds the machine to an installed version (default bundle
+  otherwise); the result reports it as `bundle`.
 - **Sources are optional.** If either is omitted, the newest pairing from
   `vphone-cli fw catalog` is used (the CLI prints `firmware: <iphone> + <cloudos>`).
   Pass both explicitly to pin a pairing; verified pairings are listed in
@@ -59,19 +64,28 @@ vphone-launchpad-cli vm create myphone [--bundle <version>] \
   another. `AppleTV14,1` makes an Apple TV 4K guest the same way, with the
   `tvos-4k` preset; `fw prepare` takes its device tree and arm64e userland
   from the catalog's OTA. See `Research/Firmware/tvos_support.md`.
-- **Units:** `--cpu` is a count, `--memory` is **MB**, `--disk-size` is **GB**.
+- **Units and preset:** `--preset` is a name (`standard` by default,
+  `minimal`, `experimental`, and the device presets `tvos`, `tvos-4k`,
+  `watchos`, `visionos`, `homepod-mini`, `homeview`) or the path of a preset
+  plist; the built-in ones are
+  `VPhoneExecutable/VPhoneVirtualization/Resources/patches_presets/<name>.plist`.
+  `minimal` is a stock boot chain, kernel and TXM, restored on its own without
+  slimming. `--cpu` is a count, `--memory` is **MB**, `--disk-size` is **GB**.
   Defaults 8, 8192, 64. All must be positive integers.
+- **`--network`:** `nat` (default), `bridged`, `tunnel` (guest traffic goes
+  through connections `vphone-vm` opens on the Mac, so it follows a VPN or
+  proxy app) or `none`. Change it later on a stopped machine with
+  `vphone-launchpad-cli exec vm config <name> --network tunnel`; an older
+  bundle that does not list `tunnel` in `vphone-cli vm config --help` rejects it.
 - **Name:** letters, digits, `.`, `-`, `_`. Keep it short: the machine path must
   fit a Unix socket path, and the command says so if it does not.
-- **`--preset`** picks the patch preset: `standard` (default) or `experimental`.
-- **`--no-wait`** returns at once with a report instead of streaming the
-  pipeline. Without it the CLI streams the creation log and returns when the
-  pipeline stops.
-- The nine steps, in order: `create`, `prepare`, `patch`, `bootDFU`, `waitDFU`,
-  `restore`, `stopDFU`, `installCFW`, `firstBoot`. The final JSON report lists
-  each with `status` and `seconds`, plus the `log` path.
-- Creation needs network access for the restore ticket. Do not interrupt a
-  restore by killing processes; the window owns it.
+- **`--no-wait`** returns at once with a report; otherwise the CLI streams the
+  creation log until the pipeline stops.
+- The final JSON report lists the steps it ran (`create`, `prepare`, `patch`,
+  `bootDFU`, `restore`, `installCFW`, `firstBoot` and others, in order), each
+  with `status` and `seconds`, plus the `log` path.
+- Creation needs network access. Do not interrupt a restore by killing
+  processes; the window owns it.
 
 If the name exists or a creation under it is running, the command refuses.
 Choose a new name rather than reusing a half-built machine.
@@ -82,7 +96,7 @@ Choose a new name rather than reusing a half-built machine.
 vphone-launchpad-cli vm create myphone --from restore
 ```
 
-`--from` takes one of the step names above and reruns from there. It works only
+`--from` takes a step name from the report and reruns from there. It works only
 for a creation **this running Launchpad has started since it launched**; after a
 relaunch it says there is nothing to retry. In that case create under a new
 name. Read why it failed first:
@@ -100,23 +114,36 @@ vphone-launchpad-cli vm wait myphone --timeout 300
 vphone-launchpad-cli vm stop myphone
 ```
 
-- `--wait` pings vphoned over `vphone.sock` every second until it answers. It
-  fails early, with the console log path, on a kernel panic or when the VM
-  process exits. The default timeout is 300 s, which first boots can use up.
+- `vm start` without `--wait` returns before vphoned is up: always `--wait` or
+  `vm wait` before any `guest` command. `--wait` pings vphoned over
+  `vphone.sock` every second until it answers. It fails early, with the console
+  log path, on a kernel panic or when the VM process exits. The default timeout
+  is 300 s, which first boots can use up.
 - A window opens by default. `--headless` runs without one, and the guest is
   driven entirely through `vphone.sock`.
 - `vm start` refuses a machine that is running or busy. If the VM was started
-  elsewhere, use `vm wait`.
+  elsewhere, use `vm wait`. A process that only holds the disk does not block
+  it: `vm start` prints a note and `vm list` shows that holder as `diskOpenIn`
+  (state stays `stopped`).
+- `vm stop` asks the guest to shut down (`system.shutdown`), waits up to 30 s,
+  then ends the VM.
+- From a plain terminal, `vphone-cli vm launch <name> --detach [--timeout <s>]`
+  (default 300; not with `--dfu`) runs the VM in its own session and returns
+  when vphoned answers. A kernel panic or timeout exits 1 and leaves the VM
+  running. Its console log is `~/Library/Logs/vphone-launchpad/<name>.log`, or
+  `<name>-<digest>.log` for a machine outside the log-naming root
+  (`VPHONE_LIBRARY_ROOT`, else `~/.vphone/machines`; a Host Setup folder does
+  not count), read by `vm log`. See `Documents/en/machines/create-and-run.md`.
 
 ## Logs
 
-```sh
-vphone-launchpad-cli vm log myphone --lines 100
-vphone-launchpad-cli vm log myphone --kind create|dfu|patch --lines 200
-```
-
+`vm log myphone --lines 100`, or `--kind create|dfu|patch` for a creation step.
 Files live in `~/Library/Logs/vphone-launchpad/`: `<name>.log` (VM console and
 kernel output), `<name>-create.log`, `<name>-dfu.log`, `<name>-patch.log`.
+Log names ignore the Host Setup folder: a machine whose library is not
+`VPHONE_LIBRARY_ROOT`, else `~/.vphone/machines`, uses `<name>-<digest>` in
+place of `<name>` (8 hex digits of its library path), even when that library is
+Launchpad's default. `vm list` → `log` gives the path.
 
 ## Core Bundle of a machine
 
@@ -131,7 +158,7 @@ never moves a machine. Three layers come from a bundle at different times:
 | Boot chain and patches | `bootChainBundle` | Never; create a new machine |
 
 ```sh
-vphone-launchpad-cli vm set-bundle myphone 2.2.4 --update-environment
+vphone-launchpad-cli vm set-bundle myphone X.Y.z --update-environment
 ```
 
 `vm set-bundle` rebinds the machine. With `--update-environment` it also
@@ -156,14 +183,19 @@ machine's own bundle and changes nothing else. Do it when
 without `--update-environment`. `cfw install myphone` redoes the whole custom-firmware install through the root
 helper; use it only to repair a machine, and only when asked.
 
+`cfw update-kernel myphone` re-patches the kernelcache from the machine's
+current patch selection and swaps it into Preboot, keeping the data (stopped
+machine, through the helper). It is the way to change a kernel patch on an
+existing machine.
+
 ## Where things live
 
 | Path | Contents |
 | --- | --- |
-| `~/.vphone/machines/<name>/` | One machine: disk, `config.plist`, `launchpad.json` (its Core Bundle), `vphone.sock` while running |
+| `<library>/<name>/` | One machine: disk, `config.plist`, `launchpad.json` (its Core Bundle), `vphone.sock` while running |
 | `~/.vphone/ipsws/` | Downloaded source IPSWs, shared |
 | `~/.vphone/gpu-drivers/<version>_<build>/` | GPU driver extracted per cloudOS build, shared |
 | `~/Library/Logs/vphone-launchpad/` | Console and creation logs |
 
-`VPHONE_ROOT` relocates the library and caches. Launchpad can hold several
-libraries; `status.libraries` lists them.
+Launchpad's default library is `VPHONE_LIBRARY_ROOT`, else the folder chosen
+in Host Setup, else `~/.vphone/machines`; `status.libraries` lists every library.

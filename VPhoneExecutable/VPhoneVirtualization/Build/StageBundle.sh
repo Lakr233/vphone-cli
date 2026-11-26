@@ -115,7 +115,11 @@ done
 /bin/cp "$tvos_daemon_products/vphoned" "$guest/vphoned-tvos"
 # Watch guests still run the iOS daemon marked watchOS: watchOS 8 is iOS 15's
 # release.
-daemon_sdk="$(/usr/bin/otool -l "$guest/vphoned" | /usr/bin/awk '/LC_BUILD_VERSION/ { found = 1 } found && $1 == "sdk" { print $2; exit }')"
+daemon_sdk="$(/usr/bin/otool -l "$guest/vphoned" | /usr/bin/awk '
+    /LC_BUILD_VERSION/ { found = 1 }
+    found && $1 == "sdk" && sdk == "" { sdk = $2 }
+    END { if (sdk == "") exit 1; print sdk }
+')"
 /usr/bin/xcrun vtool -set-build-version watchos 8.0 "$daemon_sdk" -replace -output "$guest/vphoned-watchos" "$guest/vphoned"
 # iOS before 26 needs Span's back-deployment library. Keep /usr/lib/swift
 # first so newer guests use their system implementation; only the iOS daemon

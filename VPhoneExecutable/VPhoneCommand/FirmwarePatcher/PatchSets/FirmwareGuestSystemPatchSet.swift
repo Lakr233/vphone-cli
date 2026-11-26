@@ -197,6 +197,8 @@ public enum FirmwareGuestSystemPatchSet {
     public static let visionOSLegacyUXM = "system-featureflags-exp-visionos_legacy_uxm"
     public static let visionOSFramePacing = "system-wakeboard-exp-visionos_frame_pacing"
     public static let visionOSFramePacingPath = "/usr/libexec/wakeboardd"
+    public static let visionOSMigrationProgress = "system-datamigrator-exp-visionos_windowless_progress"
+    public static let visionOSMigrationProgressPath = "/System/Library/PrivateFrameworks/DataMigration.framework/XPCServices/com.apple.datamigrator.xpc/com.apple.datamigrator"
     public static let visionOSEnvironments = "system-featureflags-exp-visionos_environments"
     public static let visionOSEnvironmentsPath = "/System/Library/FeatureFlags/Domain/RealityEnvironment.plist"
     public static let visionOSSkipBuddy = "system-preferences-exp-visionos_skip_buddy"
@@ -220,6 +222,10 @@ public enum FirmwareGuestSystemPatchSet {
     ]
 
     private static let ios27 = VPhonePatchApplicability(iOSBase: .major(27))
+    private static let visionOSDisplayServices = VPhonePatchApplicability(
+        iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
+        cloudOS: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
+    )
 
     /// The bases where short-circuiting `checkTrustAndAuthorization` in the
     /// shared cache is survivable.
@@ -327,6 +333,13 @@ public enum FirmwareGuestSystemPatchSet {
                 applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 2)),
             ),
             VPhonePatchDeclaration(
+                identifier: visionOSMigrationProgress,
+                title: "visionOS windowless migration progress",
+                summary: "Runs the native migration jobs without constructing their Metal progress window. Applies only to the reviewed 27.2.1 executable and keeps migration state and results under the native migrator's control.",
+                target: .guestExecutable(path: visionOSMigrationProgressPath),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 2)),
+            ),
+            VPhonePatchDeclaration(
                 identifier: visionOSFramePacing,
                 title: "visionOS virtual display frame pacing",
                 summary: "Corrects V201's late-vsync rounding so the native 60 Hz compositor does not skip another whole period after each synchronous present. Preserves its display clock, rendering, frame submission and native signature metadata. Experimental visionOS26.4/26.4 research only, independently reversible and off by default.",
@@ -364,37 +377,40 @@ public enum FirmwareGuestSystemPatchSet {
             VPhonePatchDeclaration(
                 identifier: visionOSHMDPresentableIPC,
                 title: "visionOS HMD presentable lookup",
-                summary: "Enables only backboardd's observed lookup of com.apple.wakeboard.hmdpresentable.owner in the scoped launchd adapter. Requires the UXM IPC adapter plus its independent root-owned marker, exact caller path/signing identity and validated audit token. Experimental visionOS26.4 research; does not grant other display services.",
+                summary: "Enables only backboardd's observed lookup of com.apple.wakeboard.hmdpresentable.owner in the scoped launchd adapter. Requires the UXM IPC adapter plus its independent root-owned marker, exact caller path/signing identity and validated audit token. Experimental visionOS research on the reviewed OS pairs.",
                 target: .guestFile(path: visionOSHMDPresentableIPCMarker),
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+                applicability: visionOSDisplayServices,
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSHMDSystemSetterIPC,
                 title: "visionOS HMD system setter lookup",
                 summary: "Enables only backboardd's native lookup of com.apple.wakeboard.hmdsystemsetter in the scoped launchd adapter. Requires the UXM IPC adapter plus its independent root-owned marker, exact caller path/signing identity and validated audit token. Selected from the native RS call chain and exercised in the documented UI checkpoint.",
                 target: .guestFile(path: visionOSHMDSystemSetterIPCMarker),
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+                applicability: visionOSDisplayServices,
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSHMDPropertiesIPC,
                 title: "visionOS HMD properties lookup",
-                summary: "Enables only backboardd's observed lookup of com.apple.wakeboard.hmdproperties in the scoped launchd adapter. Requires the UXM IPC adapter plus both root-owned markers, exact caller path/signing identity and validated audit token. Experimental visionOS26.4 research; does not grant other compositor channels.",
+                summary: "Enables only backboardd's observed lookup of com.apple.wakeboard.hmdproperties in the scoped launchd adapter. Requires the UXM IPC adapter plus both root-owned markers, exact caller path/signing identity and validated audit token. Experimental visionOS research on the reviewed OS pairs.",
                 target: .guestFile(path: visionOSHMDPropertiesIPCMarker),
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+                applicability: visionOSDisplayServices,
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSUXMIPC,
                 title: "visionOS UXM service lookups",
-                summary: "Loads a scoped launchd adapter for the PCC sandbox's missing UXM/Polaris service rules. Requires exact caller path, signing identity, audit token and root-owned marker; permits only the two observed native service lookups and forwards other checks unchanged. Experimental visionOS26.4 research only.",
+                summary: "Loads a scoped launchd adapter for the PCC sandbox's missing UXM/Polaris service rules. Requires exact caller path, signing identity, audit token and root-owned marker; permits only the two observed native service lookups and forwards other checks unchanged. Experimental visionOS research on the reviewed OS pairs.",
                 target: .guestExecutable(path: "/sbin/launchd"),
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+                applicability: visionOSDisplayServices,
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSVirtualProduct,
                 title: "visionOS virtual display product",
                 summary: "Replaces only the generic virtual iPhone product token with visionOS's native virtual V201 token, selecting wakeboardd's IOMobileFramebuffer display path. Keeps RealityDevice14,1 identity and paravirtual hardware; experimental and reversible through the Preboot repair backup.",
                 target: .prebootDeviceTree,
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
+                    cloudOS: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
+                ),
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSLegacyUXM,
@@ -408,7 +424,10 @@ public enum FirmwareGuestSystemPatchSet {
                 title: "visionOS headless service exits",
                 summary: "Reversibly removes panic-on-crash policies from four headset service jobs while retaining their launch configuration. Headless visionOS research only; does not supply missing hardware or repair the services.",
                 target: .guestFile(path: "/System/Library/xpc/launchd.plist"),
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4)),
+                applicability: VPhonePatchApplicability(iOSBase: .oneOf([
+                    .release(major: 26, minor: 4),
+                    .release(major: 27, minor: 2),
+                ])),
             ),
             VPhonePatchDeclaration(
                 identifier: homePodCryptexClass,

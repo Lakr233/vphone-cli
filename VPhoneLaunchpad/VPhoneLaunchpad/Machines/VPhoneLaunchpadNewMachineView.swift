@@ -37,8 +37,10 @@ struct VPhoneLaunchpadNewMachineView: View {
     @State private var inspectedCustomSource: String?
     @State private var cloudOSSource = ""
     /// Run the release on its own cloudOS, where the research board stands in
-    /// for vphone600 and the kernelcache is mixed (`fw kernelcache`).
-    @State private var usesOwnCloudOS = false
+    /// for vphone600 and the kernelcache is mixed (`fw kernelcache`), as
+    /// picked under Firmware; nil keeps the pairing's default
+    /// (`defaultsToOwnCloudOS(restoredSystem:)`).
+    @State private var ownCloudOSChoice: Bool?
     /// The ipsw that stages a mix; vphone-cli does not ship one.
     @AppStorage("KernelcacheIPSW") private var kernelcacheIPSW = ""
     @State private var cpu = Self.defaultCPU
@@ -92,6 +94,16 @@ struct VPhoneLaunchpadNewMachineView: View {
     private var warnsAboutServiceTrimming: Bool {
         slimming.slim && slimming.trimsServices
             && VPhoneLaunchpadSlimming.warnsAboutServiceTrimming(iphoneSource: sources?.0 ?? "")
+    }
+
+    /// Whether the pairing gets its own cloudOS when none is picked: only
+    /// for the Minimal preset on iOS 27 and later.
+    private var defaultsToOwnCloudOS: Bool {
+        selectedPairing?.defaultsToOwnCloudOS(restoredSystem: patches.customisesRestoredSystem) ?? false
+    }
+
+    private var usesOwnCloudOS: Bool {
+        ownCloudOSChoice ?? defaultsToOwnCloudOS
     }
 
     /// The release's own cloudOS, when chosen and the pairing has one.
@@ -187,13 +199,17 @@ struct VPhoneLaunchpadNewMachineView: View {
         return nil
     }
 
-    /// Whether a current template was built from the chosen device and
-    /// release; nil for custom IPSWs and until the template list is read.
+    /// Whether a current template was built from the chosen device, release
+    /// and cloudOS; nil for custom IPSWs and until the template list is read.
     private var templateAvailable: Bool? {
         guard !usesCustomSources, let guest, let pairing = selectedPairing, let templates = model.machines.templates else {
             return nil
         }
-        return templates.contains { !$0.stale && $0.key.device == guest && $0.key.iOSBuild == pairing.build }
+        let cloudOS = ownCloudOS ?? pairing.recommendedCloudOS
+        let others = catalog?.guests.flatMap(\.pairings).flatMap(\.cloudOSImages) ?? []
+        return templates.contains {
+            !$0.stale && $0.key.device == guest && $0.key.iOSBuild == pairing.build && $0.isBuilt(on: cloudOS, notOn: others)
+        }
     }
 
     private var canCreate: Bool {
@@ -248,6 +264,12 @@ struct VPhoneLaunchpadNewMachineView: View {
             applyGuestDefaults(previousProductType: previous)
             inspectedCustomSource = source
         }
+        // A cloudOS picked under Firmware is for that release and preset;
+        // the next one starts from its own default.
+        .onChange(of: pairing) { ownCloudOSChoice = nil }
+        .onChange(of: guest) { ownCloudOSChoice = nil }
+        .onChange(of: bundleVersion) { ownCloudOSChoice = nil }
+        .onChange(of: patches.customisesRestoredSystem) { ownCloudOSChoice = nil }
         .onChange(of: usesCustomSources) { previous, _ in
             applyGuestDefaults(previousProductType: previous ? customGuestProductType : selectedGuest?.productType)
         }
@@ -451,6 +473,15 @@ struct VPhoneLaunchpadNewMachineView: View {
         } else if let own = ownCloudOS {
             Text("On its own cloudOS, \(own.name): the kernelcache is rebuilt, which asks for administrator access once.")
                 .foregroundStyle(.secondary)
+        } else if let pairing = selectedPairing, pairing.needsCloudOS27(restoredSystem: patches.customisesRestoredSystem),
+                  (pairing.recommendedCloudOS.majorVersion ?? 0) < 27 {
+            if let own = pairing.matchingCloudOS {
+                Text("\(pairing.ios.name) does not start on \(pairing.recommendedCloudOS.name) with this preset. Choose \(own.name) in Advanced Options, or the Standard preset.")
+                    .foregroundStyle(.orange)
+            } else {
+                Text("\(pairing.ios.name) does not start on \(pairing.recommendedCloudOS.name) with this preset. Choose the Standard preset.")
+                    .foregroundStyle(.orange)
+            }
         } else if rebuildsKernelcache, let cloudOS = selectedPairing?.recommendedCloudOS.name {
             Text("With \(cloudOS): the kernelcache is rebuilt with the watch's kexts, which asks for administrator access once.")
                 .foregroundStyle(.secondary)
@@ -526,6 +557,7 @@ struct VPhoneLaunchpadNewMachineView: View {
             slimming != defaultSlimming,
             chosenVersion != nil && bundleVersion != model.bundles.defaultVersion,
             usesCustomSources,
+            !usesCustomSources && selectedPairing?.matchingCloudOS != nil && usesOwnCloudOS != defaultsToOwnCloudOS,
             patches != VPhoneLaunchpadPatchSelection(),
             network != Self.defaultNetwork,
             !usesTemplate && keepArtifacts,
@@ -628,9 +660,9 @@ struct VPhoneLaunchpadNewMachineView: View {
                 sourceField("Guest IPSW", $iphoneSource)
                 sourceField("cloudOS IPSW", $cloudOSSource)
             } else if let pairing = selectedPairing, let own = pairing.matchingCloudOS {
-                Picker("cloudOS", selection: $usesOwnCloudOS) {
+                Picker("cloudOS", selection: Binding(get: { usesOwnCloudOS }, set: { ownCloudOSChoice = $0 })) {
                     Text(verbatim: pairing.recommendedCloudOS.name).tag(false)
-                    Text(verbatim: own.name).tag(true)
+                    Text("\(own.name), matching \(pairing.ios.name)").tag(true)
                 }
                 if usesOwnCloudOS {
                     sourceField("ipsw", $kernelcacheIPSW)
@@ -791,10 +823,8 @@ struct VPhoneLaunchpadNewMachineView: View {
         usesCustomSources ? customGuestProductType : selectedGuest?.productType
     }
 
-    /// Apple TV, HomePod and HomeView are restored without iOS templates or slimming.
     private var requiresStandaloneRestore: Bool {
-        guestProductType?.hasPrefix("AppleTV") == true || guestProductType?.hasPrefix("AudioAccessory") == true
-            || guestProductType?.hasPrefix("HomeAccessory") == true
+        VPhoneLaunchpadMachine.requiresStandaloneRestore(for: guestProductType)
     }
 
     private func applyGuestDefaults(previousProductType: String?) {

@@ -36,6 +36,9 @@ struct MachineProductTypeTests {
         let homePod = root.appendingPathComponent("homepod-mini", isDirectory: true)
         try manager.createDirectory(at: homePod.appendingPathComponent("FirmwareOriginals/AudioAccessory5,1_27.0_24J361_Restore"), withIntermediateDirectories: true)
         expect(VPhoneLaunchpadMachine.guestProductType(in: homePod) == "AudioAccessory5,1", "HomePod restore tree")
+        let vision = root.appendingPathComponent("vision-pro", isDirectory: true)
+        try manager.createDirectory(at: vision.appendingPathComponent("FirmwareOriginals/iPhoneOS_RealityDevice14,1_27.2.1_24N124_Restore"), withIntermediateDirectories: true)
+        expect(VPhoneLaunchpadMachine.guestProductType(in: vision) == "RealityDevice14,1", "Vision Pro restore tree")
         expect(VPhoneLaunchpadMachine.guestProductType(in: root.appendingPathComponent("missing")) == nil, "nothing to read")
 
 
@@ -51,6 +54,12 @@ struct MachineProductTypeTests {
         expect(machine.isPad && machine.osName == "iPadOS", "iPad guest")
         machine.guestProductType = VPhoneLaunchpadMachine.guestProductType(in: tv)
         expect(machine.isAppleTV && !machine.isPad && machine.osName == "tvOS", "Apple TV guest")
+        machine.guestProductType = VPhoneLaunchpadMachine.guestProductType(in: vision)
+        expect(machine.osName == "visionOS", "Vision Pro guest OS label")
+        expect(VPhoneLaunchpadMachine.requiresStandaloneRestore(for: machine.guestProductType), "Vision Pro skips iOS template setup and slimming")
+        expect(!VPhoneLaunchpadMachine.requiresStandaloneRestore(for: "iPad16,1"), "iPad still supports templates")
+        let visionDevice = VPhoneLaunchpadFirmwareCatalog.Device(productType: "RealityDevice14,1", name: "Apple Vision Pro", family: "vision", pairings: [])
+        expect(visionDevice.osName == "visionOS" && visionDevice.requiresStandaloneRestore, "Vision Pro catalog family")
 
         machine.guestProductType = VPhoneLaunchpadMachine.guestProductType(in: homePod)
         expect(machine.isHomePod && !machine.isAppleTV && !machine.isPad && machine.osName == "HomePod Software", "HomePod guest")
@@ -86,6 +95,25 @@ struct MachineProductTypeTests {
         try (["guestProductType": "AppleTV18,1"] as NSDictionary).write(to: tv.appendingPathComponent("config.plist"))
         machine.guestProductType = VPhoneLaunchpadMachine.guestProductType(in: tv)
         expect(machine.guestProductType == "AppleTV18,1" && machine.isAppleTV && machine.osName == "tvOS", "J265 identity wins over HD restore tree")
-        print("Machine product type tests passed: config, restore trees, OS name, catalog builds")
+
+        // The recommended cloudOS stays the default; only the Minimal preset
+        // on iOS or iPadOS 27 and later takes the release's own.
+        let iPhone = #"""
+        {"device":"iPhone17,3","pairings":[
+         {"ios":{"name":"iOS 26.5","url":"https://example.com/iPhone17,3_26.5_23F77_Restore.ipsw"},"recommendedCloudOS":{"name":"cloudOS 26.4","url":"https://example.com/c264"},"matchingCloudOS":{"name":"cloudOS 26.5 (23F75)","url":"https://example.com/c265"}},
+         {"ios":{"name":"iOS 27.2","url":"https://example.com/iPhone17,3_27.2_24B120_Restore.ipsw"},"recommendedCloudOS":{"name":"cloudOS 26.4","url":"https://example.com/c264"},"matchingCloudOS":{"name":"cloudOS 27.2 (24B115)","url":"https://example.com/c272"}},
+         {"ios":{"name":"iOS 27 beta 3","url":"https://example.com/iPhone17,3_27.0_24A5300a_Restore.ipsw"},"recommendedCloudOS":{"name":"cloudOS 26.4","url":"https://example.com/c264"}}]}
+        """#
+        let pairings = try JSONDecoder().decode(VPhoneLaunchpadFirmwareCatalog.self, from: Data(iPhone.utf8)).pairings
+        expect(pairings[0].defaultCloudOS(restoredSystem: false).url == "https://example.com/c264", "standard 26.5 on 26.4")
+        expect(pairings[0].defaultCloudOS(restoredSystem: true).url == "https://example.com/c264", "minimal 26.5 on 26.4")
+        expect(pairings[1].defaultCloudOS(restoredSystem: false).url == "https://example.com/c264", "standard 27.2 on 26.4")
+        expect(pairings[1].defaultCloudOS(restoredSystem: true).url == "https://example.com/c272", "minimal 27.2 on its own")
+        expect(pairings[2].ios.majorVersion == 27 && pairings[2].needsCloudOS27(restoredSystem: true), "beta name")
+        expect(pairings[2].defaultCloudOS(restoredSystem: true).url == "https://example.com/c264", "no own cloudOS")
+        expect(!pairings[1].needsCloudOS27(restoredSystem: false) && !pairings[0].needsCloudOS27(restoredSystem: true), "only minimal 27+")
+        expect(pairings[1].matchingCloudOS?.buildInName == "24B115" && pairings[1].recommendedCloudOS.buildInName == nil, "build in name")
+        expect(pairings[1].cloudOSImages.map(\.url) == ["https://example.com/c264", "https://example.com/c272"], "cloudOS images")
+        print("Machine product type tests passed: config, restore trees, OS name, catalog builds, default cloudOS")
     }
 }

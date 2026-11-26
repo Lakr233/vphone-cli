@@ -209,13 +209,25 @@ struct VPhoneVirtualMachineStopCommand: ParsableCommand {
         Sends SIGINT to the machine's vphone-vm, waits, then sends SIGKILL to whatever of the \
         machine is left. Only processes that run a machine are ever signalled: vphone-vm and \
         Virtualization's VM service holding this machine's disk. Any other process that has the \
-        disk open (Launchpad measuring it, Spotlight, a backup tool) is named, never signalled.
+        disk open (Launchpad measuring it, Spotlight, a backup tool) is named, never signalled. \
+        Once the machine has been signalled, whether it quit on SIGINT or was killed, it waits \
+        about 3 seconds, plus the time each lookup takes, for the machine's processes to exit and \
+        release its state files and control socket, so an immediate 'vm launch' is not refused; \
+        if such a process or the control socket is still there it exits 1 naming it.
         """,
     )
 
     @OptionGroup var lib: VPhoneLibraryOption
     @Argument(help: "VM name") var name: String?
     @Option(name: .shortAndLong, help: "Seconds to wait for graceful shutdown before SIGKILL") var timeout: Int = 20
+
+    // The release wait after the stop, by SIGINT or SIGKILL: at most 30 sleeps
+    // of 0.1 s for the machine's processes to exit and release the state files
+    // and control socket, so about 3 s plus the time of up to 31 lookups, each
+    // a scan of the process table. Reaping completes well under a second; the
+    // rest is headroom.
+    private static let releaseWaitSleeps = 30
+    private static let releaseWaitInterval: TimeInterval = 0.1
 
     func run() throws {
         let name = try VPhoneVirtualMachineSelection.resolveExisting(name, in: lib.library)
@@ -288,6 +300,19 @@ struct VPhoneVirtualMachineStopCommand: ParsableCommand {
             print("\(name): its disk is also open in \(VPhoneProcessHolder.describe(others)), "
                 + "which does not run it and was not signalled")
         }
-        print("\(name): stopped")
+        // Report stopped only once the launch gate would let the machine start
+        // again: no process that runs a machine holds the state files, no
+        // vphone-vm of this config runs and the control socket is not live.
+        // The "others" above are reported, never waited for.
+        let r = VPhoneBundleActivity.confirmStopped(
+            bundle,
+            maxSleeps: Self.releaseWaitSleeps,
+            interval: Self.releaseWaitInterval,
+        )
+        if r.isError {
+            fputs(r.message + "\n", stderr)
+            throw ExitCode(1)
+        }
+        print(r.message)
     }
 }

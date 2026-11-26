@@ -22,6 +22,7 @@ vphone-cli fw catalog
 | 研究用ボード | `17,3_26.6_23G71` | `26.6-23G71` | CLI から standard と Minimal プリセット、Launchpad から standard（2026-10-20）：デバイスツリーと SEP の変換、kernelcache ミックス、復元、CFW、起動、vphoned の ping |
 | 研究用ボード | `17,3_26.5_23F77` | `26.5-23F75` | CLI から standard プリセット（2026-10-20）：一時的な cloudOS の復元から GPU ドライバ、kernelcache ミックス、復元、CFW、起動、vphoned の ping |
 | 研究用ボード | `17,3_26.4_23E246` | `26.4-23E244` | CLI から standard プリセット（2026-10-20）：一時的な cloudOS の復元から GPU ドライバ、kernelcache ミックス、復元、CFW、起動、vphoned の ping |
+| 研究用ボード | `Watch7,18_27.2_24S116` | `27.2-24B115` | Launchpad の CLI から `watchos` プリセット（2026-11-24）：cloudOS 27.2 カーネル上の Watch の kernelcache ミックス、復元、CFW、起動、vphoned の ping |
 | 研究用ボード | `Watch7,18_26.4_23T240` | `26.4-23E244` | CLI と Launchpad から `watchos` プリセット（2026-10-20）：Watch の kernelcache ミックス、復元、起動、vphoned の ping |
 | 研究用ボード | `11,6_18.7.2_22H124` | `18.7.2-22H43` | CLI から Minimal プリセット（2026-10-21）：一時的な cloudOS の復元から GPU ドライバ、macOS 15.6.1 の kmutil で ssh 経由でリンクした iOS 18 の kernelcache ミックス、復元、起動、vphoned の ping。画面、ロック画面、ロック解除、ホームへのスワイプを確認 |
 | 研究用ボード | `11,6_18.1_22B83` | `18.1-22B83` | CLI から Minimal プリセット（2026-10-21）：一時的な cloudOS の復元から GPU ドライバ、macOS 15.6.1 の kmutil で ssh 経由でリンクした kernelcache ミックス、復元、起動、vphoned。「こんにちは」画面、ロック画面、ロック解除、ホームへのスワイプを確認 |
@@ -37,7 +38,7 @@ vphone-cli fw catalog
 - `fw patch` は、研究用ボードのデバイスツリーと SEP を vphone600 のものに変換し、その kernelcache 用のレシピに従って、vphone600 の仮想化 kext を加えて kernelcache を作り直します。
 - KDK の展開とリンクはどちらもあなたのユーザ権限で実行され、リンクにはその kernelcache のビルドに使われた kmutil を使います（`vphone-cli fw kernelcache`）。[kernelcache のレシピ](../../../VPhoneExecutable/VPhoneVirtualization/Resources/kernelcache_recipes/README.md)と[ファームウェアの準備](firmware-preparation.md)をご覧ください。
 - `fw prepare` は、どのレシピにも該当しない cloudOS を拒否します。
-- `fw catalog` は各 iOS リリースに対応する cloudOS を推奨の cloudOS と並べて表示し、Launchpad では **Firmware** でそれを選べます。
+- `fw catalog` は各 iOS リリースに対応する cloudOS を推奨の cloudOS と並べて表示し、Launchpad では **Firmware** でそれを選べます。Launchpad（New Machine と `vphone-launchpad-cli vm create`）は推奨の cloudOS を使います。例外は iOS / iPadOS 27 以降での Minimal プリセットです。`fw prepare` と `fw patch` は、このプリセットを未改変の cloudOS 26 カーネル上では拒否します。カタログにリリース自身の cloudOS がある場合（iPhone、iOS 27.2）は Launchpad がそれを使い、ない場合は standard プリセットしか使えないことを New Machine が警告します。`vphone-cli vm create` は推奨の cloudOS のままで、リリース自身の cloudOS がある場合は拒否メッセージがそれを示します。
 
 | cloudOS | `vresearch101ap` | `vphone600ap` | kernelcache のレシピ |
 | --- | --- | --- | --- |
