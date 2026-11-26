@@ -364,9 +364,12 @@ public enum FirmwareGuestSystemPatchSet {
             VPhonePatchDeclaration(
                 identifier: visionOSHMDPresentableIPC,
                 title: "visionOS HMD presentable lookup",
-                summary: "Enables only backboardd's observed lookup of com.apple.wakeboard.hmdpresentable.owner in the scoped launchd adapter. Requires the UXM IPC adapter plus its independent root-owned marker, exact caller path/signing identity and validated audit token. Experimental visionOS26.4 research; does not grant other display services.",
+                summary: "Enables only backboardd's observed lookup of com.apple.wakeboard.hmdpresentable.owner in the scoped launchd adapter. Requires the UXM IPC adapter plus its independent root-owned marker, exact caller path/signing identity and validated audit token. Experimental visionOS research on the reviewed OS pairs.",
                 target: .guestFile(path: visionOSHMDPresentableIPCMarker),
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
+                    cloudOS: .release(major: 26, minor: 4),
+                ),
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSHMDSystemSetterIPC,
@@ -378,16 +381,22 @@ public enum FirmwareGuestSystemPatchSet {
             VPhonePatchDeclaration(
                 identifier: visionOSHMDPropertiesIPC,
                 title: "visionOS HMD properties lookup",
-                summary: "Enables only backboardd's observed lookup of com.apple.wakeboard.hmdproperties in the scoped launchd adapter. Requires the UXM IPC adapter plus both root-owned markers, exact caller path/signing identity and validated audit token. Experimental visionOS26.4 research; does not grant other compositor channels.",
+                summary: "Enables only backboardd's observed lookup of com.apple.wakeboard.hmdproperties in the scoped launchd adapter. Requires the UXM IPC adapter plus both root-owned markers, exact caller path/signing identity and validated audit token. Experimental visionOS research on the reviewed OS pairs.",
                 target: .guestFile(path: visionOSHMDPropertiesIPCMarker),
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
+                    cloudOS: .release(major: 26, minor: 4),
+                ),
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSUXMIPC,
                 title: "visionOS UXM service lookups",
-                summary: "Loads a scoped launchd adapter for the PCC sandbox's missing UXM/Polaris service rules. Requires exact caller path, signing identity, audit token and root-owned marker; permits only the two observed native service lookups and forwards other checks unchanged. Experimental visionOS26.4 research only.",
+                summary: "Loads a scoped launchd adapter for the PCC sandbox's missing UXM/Polaris service rules. Requires exact caller path, signing identity, audit token and root-owned marker; permits only the two observed native service lookups and forwards other checks unchanged. Experimental visionOS research on the reviewed OS pairs.",
                 target: .guestExecutable(path: "/sbin/launchd"),
-                applicability: VPhonePatchApplicability(iOSBase: .release(major: 26, minor: 4), cloudOS: .release(major: 26, minor: 4)),
+                applicability: VPhonePatchApplicability(
+                    iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
+                    cloudOS: .release(major: 26, minor: 4),
+                ),
             ),
             VPhonePatchDeclaration(
                 identifier: visionOSVirtualProduct,

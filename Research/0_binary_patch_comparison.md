@@ -7695,6 +7695,9 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
   `system-launchd-exp-visionos_wakeboard_system_ipc`.
   Rules validate audit token/PID version, executable/signing identity, operation
   and filter type; other checks retain the native function's ABI and errno.
+  The 27.2.1 test on the 26.4 donor observed UXM to Polaris and backboardd to
+  HMD properties and presentable-owner lookup failures. Only those selections
+  gained applicability to this pair. The other display services retain their gates.
 - `system-launchd-exp-visionos_environment_ipc` adds a separate root-owned
   `/usr/lib/vphone-visionos-environment-ipc` marker for RealityEnvironment's
   lookup of `com.apple.surfboard.environmentservice`. The 2026-11-08 runtime
