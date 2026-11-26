@@ -144,7 +144,8 @@ NSDictionary *vp_hinge_get(void) {
         BOOL alive = pid > 1 && (kill(pid, 0) == 0 || errno == EPERM);
         double age = NSDate.date.timeIntervalSince1970 - [status[@"updated_at"] doubleValue];
         BOOL flowing = [status[@"report_interval_us"] unsignedLongLongValue] > 0;
-        running = [status[@"enumerated"] boolValue] && alive && age >= 0 && (age < 10 || !flowing);
+        BOOL fresh = age >= 0 && age < 10;
+        running = [status[@"enumerated"] boolValue] && alive && (fresh || !flowing);
     } else {
         status = NSNull.null;
     }

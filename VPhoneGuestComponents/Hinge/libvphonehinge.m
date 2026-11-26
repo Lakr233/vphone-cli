@@ -149,6 +149,19 @@ static NSString *VPhoneHingeAcceptClientDispatches(void) {
     [self publishStatus];
 }
 
+- (void)updateHeartbeat {
+    // The status is republished every two seconds only while samples flow, as
+    // with the accelerometer: cfprefsd need not carry a rewrite for the
+    // guest's whole life, and vphoned judges an idle provider
+    // (report_interval_us == 0) by its pid and enumerated flag alone.
+    if (self.heartbeat) {
+        BOOL flowing = self.enumerated && self.interval > 0;
+        dispatch_source_set_timer(self.heartbeat,
+                                  flowing ? dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC) : DISPATCH_TIME_FOREVER,
+                                  2 * NSEC_PER_SEC, 100 * NSEC_PER_MSEC);
+    }
+}
+
 - (void)updateTimer {
     // locationd's relay keeps the last value it was sent and never asks for
     // one; when locationd restarts it reseeds 0° and portrait. Stationary
@@ -158,15 +171,7 @@ static NSString *VPhoneHingeAcceptClientDispatches(void) {
     uint64_t period = self.enumerated ? VP_HINGE_REPUSH_SECONDS * NSEC_PER_SEC : DISPATCH_TIME_FOREVER;
     dispatch_source_set_timer(self.timer, period == DISPATCH_TIME_FOREVER ? DISPATCH_TIME_FOREVER : DISPATCH_TIME_NOW,
                               period, NSEC_PER_MSEC);
-    // The status is republished every two seconds only while samples flow, as
-    // with the accelerometer: cfprefsd need not carry a rewrite for the
-    // guest's whole life, and vphoned judges the provider by its pid.
-    if (self.heartbeat) {
-        BOOL flowing = period != DISPATCH_TIME_FOREVER;
-        dispatch_source_set_timer(self.heartbeat,
-                                  flowing ? dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC) : DISPATCH_TIME_FOREVER,
-                                  2 * NSEC_PER_SEC, 100 * NSEC_PER_MSEC);
-    }
+    [self updateHeartbeat];
 }
 
 // MARK: - Apple's sweep model
@@ -426,6 +431,7 @@ static double VPhoneHingeMillisecondsPerTick(void) {
     if ([key isEqualToString:@"ReportInterval"]) {
         self.interval = VPhoneHingeInterval(value);
         self.properties[key] = @(self.interval);
+        [self updateHeartbeat];
         [self publishStatus];
         return YES;
     }
