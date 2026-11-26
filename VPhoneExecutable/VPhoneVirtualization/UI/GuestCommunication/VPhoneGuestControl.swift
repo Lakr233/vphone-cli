@@ -1104,6 +1104,19 @@ final class VPhoneGuestControl {
         try await call("bootstrap.status")
     }
 
+    /// Installs the initial package set into an installed bootstrap.
+    ///
+    /// This one runs far past the read and relay timeouts, so a thrown error is
+    /// as likely to be a lost reply as a failure. Callers follow
+    /// `bootstrapStatus` with `VPhoneBootstrapPackagesStatus` instead of
+    /// taking the throw at face value.
+    func installBootstrapPackages() async throws -> [String: Any] {
+        guard guestCapabilities.contains("bootstrap_packages") else {
+            throw ControlError.unsupportedCapability("bootstrap_packages")
+        }
+        return try await call("bootstrap.packages")
+    }
+
     func installedBootstrap() async throws -> [String: Any] {
         guard guestCapabilities.contains("bootstrap_uninstall") else {
             throw ControlError.unsupportedCapability("bootstrap_uninstall")

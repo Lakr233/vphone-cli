@@ -148,6 +148,24 @@ extension VPhoneMenuController {
             rootless.keyEquivalent = "\r"
         }
         alert.addButton(withTitle: VPhoneLocalization.text("Cancel")).keyEquivalent = "\u{1b}"
+        // Irisin alone leaves the guest without a shell, SSH or coreutils, so
+        // the packages are on by default; a guest whose vphoned cannot install
+        // them says so instead of offering a box that would fail.
+        let offersPackages = control.guestCapabilities.contains("bootstrap_packages")
+        let packages = NSButton(
+            checkboxWithTitle: VPhoneLocalization.text("Also install OwnGoal Bootstrap for vphone"),
+            target: nil,
+            action: nil,
+        )
+        packages.state = offersPackages ? .on : .off
+        packages.isEnabled = offersPackages
+        packages.sizeToFit()
+        // NSAlert insets the accessory 16 points from each edge; inset another
+        // 6 so the box lines up with the alert's text column.
+        let accessory = NSView(frame: NSRect(x: 0, y: 0, width: 360, height: packages.frame.height))
+        packages.setFrameOrigin(NSPoint(x: 6, y: 0))
+        accessory.addSubview(packages)
+        alert.accessoryView = accessory
         VPhoneAlert.present(alert) { [weak self] response in
             let layout: String
             switch response {
@@ -155,11 +173,13 @@ extension VPhoneMenuController {
             case .alertSecondButtonReturn where offersRootless: layout = "rootless"
             default: return
             }
-            self?.performBootstrapInstallation(layout: layout, localURL: localURL)
+            self?.performBootstrapInstallation(
+                layout: layout, localURL: localURL, alsoInstallPackages: packages.state == .on,
+            )
         }
     }
 
-    private func performBootstrapInstallation(layout: String, localURL: URL?) {
+    private func performBootstrapInstallation(layout: String, localURL: URL?, alsoInstallPackages: Bool) {
         isInstallingBootstrap = true
         installBootstrapItem?.isEnabled = false
         installBootstrapFromFileItem?.isEnabled = false
@@ -231,6 +251,49 @@ extension VPhoneMenuController {
                     )
                 } else {
                     VPhoneLocalization.format("Installed Irisin %@ in %@.", version, root)
+                }
+                if alsoInstallPackages {
+                    let irisin = alert.informativeText
+                    // Irisin is in; the packages can run for half an hour more.
+                    // The sheet is document-modal, so holding Close shut until
+                    // then would lock the VM window for the whole install, and
+                    // quitting to escape would stop the guest mid-transaction.
+                    close.isEnabled = true
+                    indicator.isIndeterminate = true
+                    indicator.startAnimation(nil)
+                    switch await installBootstrapPackages(label: statusLabel, indicator: indicator) {
+                    case let .installed(packages):
+                        indicator.stopAnimation(nil)
+                        indicator.isIndeterminate = false
+                        indicator.doubleValue = 100
+                        statusLabel.stringValue = VPhoneLocalization.text("Bootstrap installed")
+                        alert.informativeText = packages.isEmpty
+                            ? irisin
+                            : irisin + "\n\n" + VPhoneLocalization.format(
+                                "Installed %@.", packages.joined(separator: ", "),
+                            )
+                    case let .skipped(note):
+                        indicator.stopAnimation(nil)
+                        indicator.isIndeterminate = false
+                        indicator.doubleValue = 100
+                        statusLabel.stringValue = VPhoneLocalization.text("Bootstrap installed")
+                        alert.informativeText = irisin + "\n\n" + VPhoneLocalization.format(
+                            "No packages were installed: %@.", note,
+                        )
+                    case let .failed(reason):
+                        indicator.stopAnimation(nil)
+                        indicator.isIndeterminate = false
+                        indicator.doubleValue = 100
+                        // Irisin is installed; only the packages failed. Say so,
+                        // and name the way back, since asking for the bootstrap
+                        // again only answers that it is already installed.
+                        statusLabel.stringValue = VPhoneLocalization.text("Packages not installed")
+                        alert.alertStyle = .warning
+                        alert.informativeText = irisin + "\n\n" + VPhoneLocalization.format(
+                            "The packages were not installed.\n\n%@\n\nOpen Irisin in the guest and run Bootstrap Install to finish.",
+                            reason,
+                        )
+                    }
                 }
             } catch VPhoneGuestControl.ControlError.bootstrapAlreadyInstalled {
                 poller.cancel()
@@ -430,7 +493,73 @@ extension VPhoneMenuController {
             label.stringValue = VPhoneLocalization.text("Registering Irisin…")
         case "firmware":
             label.stringValue = VPhoneLocalization.text("Recording firmware version…")
+        case "packages":
+            label.stringValue = VPhoneLocalization.text("Installing packages…")
         default: break
         }
+    }
+
+    /// What came of installing the packages.
+    private enum PackagesOutcome {
+        case installed([String])
+        case skipped(String)
+        case failed(String)
+    }
+
+    /// Runs `bootstrap.packages` and waits for it to finish.
+    ///
+    /// A silent guest is dropped at the 120 s read timeout and the whole
+    /// exchange at 180 s, while the guest carries on, so for a call that runs
+    /// far longer than either the reply is usually lost. A lost reply is
+    /// followed through `bootstrap.status` instead of being reported.
+    ///
+    /// Only errors raised before anything reached the guest are failures on
+    /// their own: there is no work for a status to describe, so following one
+    /// would wait out the full deadline and then blame the time.
+    private func installBootstrapPackages(
+        label: NSTextField, indicator: NSProgressIndicator,
+    ) async -> PackagesOutcome {
+        let deadline = Date().addingTimeInterval(1800)
+        label.stringValue = VPhoneLocalization.text("Installing packages…")
+        do {
+            switch VPhoneBootstrapPackagesStatus.outcome(forReply: try await control.installBootstrapPackages()) {
+            case let .skipped(note): return .skipped(note)
+            case let .completed(packages): return .installed(packages)
+            case .running, .failed: return .installed([])
+            }
+        } catch let VPhoneGuestControl.ControlError.guestError(message) where !message.isEmpty {
+            return .failed(message)
+        } catch let error as VPhoneGuestControl.ControlError {
+            switch error {
+            case .notConnected, .guestPaused, .unsupportedCapability:
+                return .failed(error.description)
+            default:
+                break
+            }
+        } catch {
+            // No reply yet; the guest is still working.
+        }
+        while Date() < deadline {
+            if Task.isCancelled { return .failed(VPhoneLocalization.text("The guest gave no reason.")) }
+            if let status = try? await control.bootstrapStatus() {
+                updateBootstrapProgress(status, label: label, indicator: indicator)
+                switch VPhoneBootstrapPackagesStatus.outcome(for: status) {
+                case let .completed(packages): return .installed(packages)
+                case let .skipped(note): return .skipped(note)
+                case let .failed(reason):
+                    return .failed(reason.isEmpty
+                        ? VPhoneLocalization.text("The guest gave no reason.")
+                        : reason)
+                case .running, nil: break
+                }
+            }
+            do {
+                try await Task.sleep(for: .seconds(2))
+            } catch {
+                // Cancelled: stop rather than spin through the deadline.
+                return .failed(VPhoneLocalization.text("The guest gave no reason."))
+            }
+        }
+        return .failed(VPhoneLocalization.text("The packages did not finish in time."))
     }
 }
