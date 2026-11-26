@@ -197,6 +197,8 @@ public enum FirmwareGuestSystemPatchSet {
     public static let visionOSLegacyUXM = "system-featureflags-exp-visionos_legacy_uxm"
     public static let visionOSFramePacing = "system-wakeboard-exp-visionos_frame_pacing"
     public static let visionOSFramePacingPath = "/usr/libexec/wakeboardd"
+    public static let visionOSMigrationProgress = "system-datamigrator-exp-visionos_windowless_progress"
+    public static let visionOSMigrationProgressPath = "/System/Library/PrivateFrameworks/DataMigration.framework/XPCServices/com.apple.datamigrator.xpc/com.apple.datamigrator"
     public static let visionOSEnvironments = "system-featureflags-exp-visionos_environments"
     public static let visionOSEnvironmentsPath = "/System/Library/FeatureFlags/Domain/RealityEnvironment.plist"
     public static let visionOSSkipBuddy = "system-preferences-exp-visionos_skip_buddy"
@@ -331,6 +333,13 @@ public enum FirmwareGuestSystemPatchSet {
                 applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 2)),
             ),
             VPhonePatchDeclaration(
+                identifier: visionOSMigrationProgress,
+                title: "visionOS windowless migration progress",
+                summary: "Runs the native migration jobs without constructing their Metal progress window. Applies only to the reviewed 27.2.1 executable and keeps migration state and results under the native migrator's control.",
+                target: .guestExecutable(path: visionOSMigrationProgressPath),
+                applicability: VPhonePatchApplicability(iOSBase: .release(major: 27, minor: 2)),
+            ),
+            VPhonePatchDeclaration(
                 identifier: visionOSFramePacing,
                 title: "visionOS virtual display frame pacing",
                 summary: "Corrects V201's late-vsync rounding so the native 60 Hz compositor does not skip another whole period after each synchronous present. Preserves its display clock, rendering, frame submission and native signature metadata. Experimental visionOS26.4/26.4 research only, independently reversible and off by default.",
@@ -400,7 +409,7 @@ public enum FirmwareGuestSystemPatchSet {
                 target: .prebootDeviceTree,
                 applicability: VPhonePatchApplicability(
                     iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
-                    cloudOS: .release(major: 26, minor: 4),
+                    cloudOS: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
                 ),
             ),
             VPhonePatchDeclaration(

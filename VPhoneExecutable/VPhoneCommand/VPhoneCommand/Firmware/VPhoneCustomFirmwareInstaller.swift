@@ -228,6 +228,9 @@ struct VPhoneCustomFirmwareInstaller {
         if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.visionOSFramePacing), device.family != .vision {
             throw ValidationError("The V201 frame pacing correction requires a visionOS guest.")
         }
+        if effectiveEnabled.contains(FirmwareGuestSystemPatchSet.visionOSMigrationProgress), device.family != .vision {
+            throw ValidationError("Windowless migration progress requires a visionOS guest.")
+        }
         if !effectiveEnabled.isDisjoint(with: [FirmwareGuestSystemPatchSet.visionOSVirtualProduct, FirmwareGuestSystemPatchSet.visionOSLegacyUXM, FirmwareGuestSystemPatchSet.visionOSUXMIPC] + Array(FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches)),
            device.family != .vision {
             throw ValidationError("The virtual display product, legacy UXM and native IPC experiments require a visionOS research guest.")
@@ -1417,6 +1420,7 @@ struct VPhoneCustomFirmwareInstaller {
                     && identifier != FirmwareGuestSystemPatchSet.visionOSSkipBuddy
                     && identifier != FirmwareGuestSystemPatchSet.visionOSEnvironments
                     && identifier != FirmwareGuestSystemPatchSet.visionOSFramePacing
+                    && identifier != FirmwareGuestSystemPatchSet.visionOSMigrationProgress
                     && !FirmwareGuestSystemPatchSet.visionOSDisplayIPCPatches.contains(identifier)
             }
             guard plan.isEnabled(identifier) else {
@@ -1707,6 +1711,21 @@ struct VPhoneCustomFirmwareInstaller {
                         try system.removeItem(marker)
                     }
                     print("  [+] visionOS ForceNoBuddy policy \(enabled ? "enabled" : "removed; original key will be restored") by UID 501 on boot")
+                }
+            }
+        }
+        if guestDevice.family == .vision {
+            let progress = FirmwareGuestSystemPatchSet.visionOSMigrationProgress
+            let path = String(FirmwareGuestSystemPatchSet.visionOSMigrationProgressPath.dropFirst())
+            isolate([progress]) {
+                if on(progress) {
+                    try patchCopy(of: path, in: system, work: work,
+                                  verb: "patch-visionos-migration-progress", backupSafe: backupSafe(progress))
+                    live.insert(progress)
+                } else if try revertCopy(of: path, in: system) {
+                    print("  [+] \(progress): restored datamigrator from backup")
+                } else if priorGuest.contains(progress) {
+                    throw ValidationError("The visionOS migration progress patch has no datamigrator backup; cannot safely restore it.")
                 }
             }
         }

@@ -253,12 +253,32 @@ struct FirmwareGuestPatchResolutionTests {
         }
     }
 
-    @Test func `visionOS virtual product is available on 27.2 with the 26.4 donor`() throws {
+    @Test func `visionOS virtual product is available on 27.2 with the two reviewed donors`() throws {
         let identifier = FirmwareGuestSystemPatchSet.visionOSVirtualProduct
         let declaration = try #require(FirmwarePatchSetCatalog.allDeclarations.first { $0.identifier == identifier })
         #expect(declaration.applicability.matches(iOSBase: VPhoneVersion("27.2.1"), cloudOS: VPhoneVersion("26.4")))
-        #expect(!declaration.applicability.matches(iOSBase: VPhoneVersion("27.2.1"), cloudOS: VPhoneVersion("27.2")))
+        #expect(declaration.applicability.matches(iOSBase: VPhoneVersion("27.2.1"), cloudOS: VPhoneVersion("27.2")))
+        #expect(!declaration.applicability.matches(iOSBase: VPhoneVersion("27.2.1"), cloudOS: VPhoneVersion("27.3")))
         #expect(!declaration.applicability.matches(iOSBase: VPhoneVersion("27.3"), cloudOS: VPhoneVersion("26.4")))
+    }
+
+    @Test func `visionOS windowless migration progress is opt in and limited to 27.2`() throws {
+        let identifier = FirmwareGuestSystemPatchSet.visionOSMigrationProgress
+        let cloud = VPhoneVersion("26.4")
+        for preset in FirmwarePatchSetCatalog.builtInPresets {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: preset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion("27.2.1"), cloudOS: cloud,
+            )
+            #expect(!plan.isEnabled(identifier), "\(preset.identifier) implicitly hides migration progress")
+        }
+        for (version, applicable) in [("26.4", false), ("27.2.1", true), ("27.3", false)] {
+            let plan = try VPhonePatchPlan.resolve(
+                preset: FirmwarePatchSetCatalog.visionOSPreset, patchSets: FirmwarePatchSetCatalog.bundled,
+                iOSBase: VPhoneVersion(version), cloudOS: cloud, allowed: [identifier],
+            )
+            #expect(plan.isEnabled(identifier) == applicable)
+        }
     }
 
     @Test func `visionOS Buddy preference is independent opt in for the tested OS pair`() throws {

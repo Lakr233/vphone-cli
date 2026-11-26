@@ -7678,10 +7678,17 @@ certification. See [the recipe, evidence and limitations](Firmware/visionos_brin
   existing Preboot composition backup provides reversal. The selection is also
   available for visionOS 27.2 with the 26.4 donor after the 27.2.1 stock
   virtual-product boot aborted in wakeboardd's HMD product lookup.
+  The cloudOS 27.2 research-board mix also starts wakeboardd with the V201 token.
 - An environment-only update applies the visionOS Mach-O platform to the staged
   GPU compiler plugin, as a full install already does. Without that step the
   update replaces the working platform tag with iOS, and `MTLCompilerService`
   refuses to load the plugin during composite pipeline creation.
+- `system-datamigrator-exp-visionos_windowless_progress` selects the native path
+  that continues without a migration progress window. It preserves the gathered
+  plugin count and skips only window construction. The patch checks the pristine
+  24N124 executable digest and re-attests the changed code page. On an untrimmed
+  24N124 guest, native data migration finished after the update and the progress
+  window no longer crashed. The desktop was still black during that check.
 - `system-launchdaemons-exp-visionos_nonfatal_services` journals only panic-on-crash
   policy fields for polarisd, realitycamerad, realitycoprocessorloaderd and arkitd.
   It retains the native jobs. The release gate also covers visionOS 27.2 after
