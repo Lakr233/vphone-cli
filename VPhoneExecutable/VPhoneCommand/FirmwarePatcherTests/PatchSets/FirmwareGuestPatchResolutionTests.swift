@@ -366,14 +366,14 @@ struct FirmwareGuestPatchResolutionTests {
             )
             #expect(!plan.isEnabled(identifier), "\(preset.identifier) implicitly enables the native UI service lookup")
         }
+        let hasVisionOS27Support = [FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPC,
+                                    FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPC,
+                                    FirmwareGuestSystemPatchSet.visionOSHMDSystemSetterIPC].contains(identifier)
         for (base, cloud, applicable) in [
             ("26.4", "26.4", true), ("26.4.1", "26.4.2", true),
             ("26.3", "26.4", false), ("26.5", "26.4", false),
             ("26.4", "26.3", false), ("26.4", "26.5", false), ("27.0", "26.4", false),
-            ("27.2.1", "26.4", [FirmwareGuestSystemPatchSet.visionOSHMDPropertiesIPC,
-                                 FirmwareGuestSystemPatchSet.visionOSHMDPresentableIPC,
-                                 FirmwareGuestSystemPatchSet.visionOSHMDSystemSetterIPC].contains(identifier)),
-            ("27.2.1", "27.2", false),
+            ("27.2.1", "26.4", hasVisionOS27Support), ("27.2.1", "27.2", hasVisionOS27Support),
         ] {
             let plan = try VPhonePatchPlan.resolve(
                 preset: FirmwarePatchSetCatalog.standardPreset, patchSets: FirmwarePatchSetCatalog.bundled,

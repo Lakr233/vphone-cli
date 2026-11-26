@@ -1,4 +1,43 @@
-# visionOS 26.4 native UI bring-up
+# visionOS native UI bring-up
+
+## visionOS 27.2.1 on cloudOS 27.2
+
+The tested guest uses the `RealityDevice14,1` restore IPSW for visionOS 27.2.1
+(`24N124`) and the cloudOS 27.2 IPSW (`24B115`). The `27.2_24B119` kernelcache
+recipe supplies the virtual hardware kexts and the GPU driver comes from a
+temporary restore of `24B115`. On the Mac mini M6 running macOS 27.0, this
+pairing reached the native Home View and Settings About. The host window
+reported 60 fps while those views were settled.
+
+Create the guest with the `visionos` preset, without an iOS template or slimming.
+The following selections compose the tested guest environment:
+
+- `preboot-exp-visionos_virtual_product`
+- `system-launchd-exp-visionos_uxm_ipc`
+- `system-launchd-exp-visionos_hmd_properties_ipc`
+- `system-launchd-exp-visionos_hmd_presentable_ipc`
+- `system-launchd-exp-visionos_hmd_system_setter_ipc`
+- `system-datamigrator-exp-visionos_windowless_progress`
+
+Let the native migrator finish and check `setup.status` for
+`data_migration_done: true`. In the tested VM, the mobile preference
+`com.apple.userexperiencemanagerd/PluginDenyList` included
+`RealityCameraUXMPlugin.plugin`, and `com.apple.purplebuddy/ForceNoBuddy` was
+`true`. Both keys were originally absent. Use the guest settings API to read
+each original value first. When trying the experiment, preserve other array
+entries. Restore the original values or remove keys that were originally
+absent to undo it. Restart the VM after applying the preferences.
+
+The matching cloudOS 27.2 guest had an active host framebuffer. The 26.4
+donor also booted 24N124 and completed native data migration with the
+windowless selection, but the host display API returned no frame in that
+configuration. The desktop procedure above uses the 27.2 donor.
+
+Use the host window or the host display API to validate output. The guest
+screenshot RPC can show the empty iPad compatibility surface while the native
+visionOS desktop is visible in the host window.
+
+## visionOS 26.4
 
 Experimental pairing: RealityDevice14,1 / N301AP, visionOS 26.4 (23O247),
 with the cloudOS/PCC 26.4 research kernel and boot chain. The guest retains

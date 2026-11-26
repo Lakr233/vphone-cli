@@ -224,7 +224,7 @@ public enum FirmwareGuestSystemPatchSet {
     private static let ios27 = VPhonePatchApplicability(iOSBase: .major(27))
     private static let visionOSDisplayServices = VPhonePatchApplicability(
         iOSBase: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
-        cloudOS: .release(major: 26, minor: 4),
+        cloudOS: .oneOf([.release(major: 26, minor: 4), .release(major: 27, minor: 2)]),
     )
 
     /// The bases where short-circuiting `checkTrustAndAuthorization` in the
