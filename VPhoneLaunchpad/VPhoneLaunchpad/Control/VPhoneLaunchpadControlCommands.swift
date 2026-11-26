@@ -642,6 +642,21 @@ struct VPhoneLaunchpadControlCommands {
         if let kernelcacheIPSW, !FileManager.default.isExecutableFile(atPath: kernelcacheIPSW) {
             throw VPhoneLaunchpadError("--ipsw names \(kernelcacheIPSW), which is not an executable.")
         }
+        // The Package Environment boxes, refused where New Machine greys them
+        // out rather than silently dropped.
+        let bootstrap = VPhoneLaunchpadBootstrapChoice(
+            wantsBootstrap: request.flag("bootstrap"),
+            wantsPackages: request.flag("bootstrap-packages"),
+        )
+        let installs = bootstrap.resolved(presetAllows: !restoredSystem, device: device)
+        if bootstrap.wantsBootstrap, !installs.bootstrap {
+            throw VPhoneLaunchpadError("The \(patches.preset) preset patches no kernel and reseals the system, which Irisin cannot install into.")
+        }
+        if bootstrap.wantsPackages, !installs.packages {
+            throw VPhoneLaunchpadError(installs.bootstrap
+                ? "Irisin's Apple TV package has no irisin-cli; this guest takes --bootstrap without its packages."
+                : "--bootstrap-packages needs --bootstrap.")
+        }
         let options = try VPhoneLaunchpadCreationPipeline.Options(
             name: machine.name,
             libraryRoot: machine.libraryRoot,
@@ -659,6 +674,9 @@ struct VPhoneLaunchpadControlCommands {
             usesTemplate: usesTemplate,
             slimming: slimming,
             kernelcacheIPSW: kernelcacheIPSW,
+            installsBootstrap: installs.bootstrap,
+            installsBootstrapPackages: installs.packages,
+            bootstrapLayout: VPhoneLaunchpadBootstrapChoice.layout(device: device),
         )
         return library.create(options)
     }

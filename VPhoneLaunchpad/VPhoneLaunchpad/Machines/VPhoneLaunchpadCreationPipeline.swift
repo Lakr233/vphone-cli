@@ -65,6 +65,14 @@ final class VPhoneLaunchpadCreationPipeline {
         /// kernelcache --ipsw`), whose link the helper runs as root. A 2.12.1
         /// bundle extracts natively and ignores it; nil passes none.
         var kernelcacheIPSW: String?
+        /// The Irisin bootstrap and its first packages, installed in the
+        /// machine after its first boot. Already resolved against the preset
+        /// and the device (``VPhoneLaunchpadBootstrapChoice/resolved(presetAllows:device:)``).
+        var installsBootstrap = false
+        var installsBootstrapPackages = false
+        /// The Irisin layout, as the device allows it
+        /// (``VPhoneLaunchpadBootstrapChoice/layout(device:)``).
+        var bootstrapLayout = "roothide"
 
         var machine: VPhoneLaunchpadMachinePath {
             VPhoneLaunchpadMachinePath(libraryRoot: libraryRoot, name: name)
@@ -142,6 +150,8 @@ final class VPhoneLaunchpadCreationPipeline {
             buildName: options.usesTemplate ? VPhoneLaunchpadCreationPlan.newBuildName() : nil,
             slimming: options.slimming,
             appliesGuestPatches: options.usesTemplate && options.patchOverrides.hasGuestOverrides,
+            installsBootstrap: options.installsBootstrap,
+            installsBootstrapPackages: options.installsBootstrapPackages,
         )
         self.bundles = bundles
         self.helper = helper
@@ -169,7 +179,7 @@ final class VPhoneLaunchpadCreationPipeline {
     }
 
     var isFinished: Bool {
-        statuses[.firstBoot] == .passed
+        statuses[steps.last ?? .firstBoot] == .passed
     }
 
     func status(_ step: Step) -> VPhoneLaunchpadStatus {
@@ -219,6 +229,9 @@ final class VPhoneLaunchpadCreationPipeline {
         case .applyGuestPatches: VPhoneLaunchpadTemplateCommands.setPatches(name, options.patchOverrides, includingGuest: true)
             .joined(separator: " ") + "; cfw update-environment \(name)"
         case .firstBoot: "vm launch \(name)"
+        // vphoned RPCs through the running machine's vphone.sock, which no
+        // `vphone-cli` verb wraps; the row shows no command for them.
+        case .installBootstrap, .installBootstrapPackages: ""
         }
     }
 
@@ -274,6 +287,12 @@ final class VPhoneLaunchpadCreationPipeline {
                 try Task.checkCancellation()
                 statuses[step] = .passed
                 durations[step] = Date().timeIntervalSince(began)
+                // The machine is usable from here; the tree is no longer the
+                // way back to a failed boot, and a bootstrap step that fails
+                // should not keep it.
+                if step == .firstBoot, !options.keepArtifacts, !plan.usesTemplate {
+                    await removeRestoreFiles()
+                }
             } catch {
                 statuses[step] = .failed
                 durations[step] = Date().timeIntervalSince(began)
@@ -292,9 +311,6 @@ final class VPhoneLaunchpadCreationPipeline {
             }
             // Read after the step: Find Template decides what follows.
             next = plan.step(after: step)
-        }
-        if !options.keepArtifacts, !plan.usesTemplate {
-            await removeRestoreFiles()
         }
         append("● \(options.name) is ready.")
     }
@@ -625,7 +641,138 @@ final class VPhoneLaunchpadCreationPipeline {
 
         case .firstBoot:
             try await firstBoot()
+
+        case .installBootstrap:
+            append("$ vphoned bootstrap.install (\(options.bootstrapLayout))")
+            append(try await runBootstrap("bootstrap.install", layout: options.bootstrapLayout, within: 900))
+
+        case .installBootstrapPackages:
+            append("$ vphoned bootstrap.packages")
+            append(try await runBootstrap("bootstrap.packages", layout: nil, within: 1800))
         }
+    }
+
+    // MARK: - Bootstrap
+
+    /// vphoned's `bootstrap.install` or `bootstrap.packages` on the machine
+    /// left running by First boot, as `vm create --bootstrap` runs them.
+    /// Returns the line to log.
+    private func runBootstrap(_ method: String, layout: String?, within seconds: Int) async throws -> String {
+        let socketPath = machine.url.appendingPathComponent("vphone.sock").path
+        let name = options.name
+        // The machine First boot left running. Nil when Launchpad did not
+        // start it, which leaves the panic check alone to notice a dead guest.
+        let child = library?.launchedProcess(machine)
+        let machine = machine
+        let library = library
+        let stopped: @Sendable () -> Bool = {
+            child?.isRunning == false
+                || DispatchQueue.main.sync { MainActor.assumeIsolated { library?.panicked.contains(machine) == true } }
+        }
+        let cancelled = OSAllocatedUnfairLock(initialState: false)
+        return try await withTaskCancellationHandler {
+            // The call blocks for minutes and polls with Thread.sleep, so it
+            // gets its own thread rather than one of the cooperative pool's.
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, any Error>) in
+                Thread.detachNewThread {
+                    do {
+                        continuation.resume(returning: try Self.bootstrap(
+                            method, layout: layout, machine: name, socketPath: socketPath, within: seconds,
+                            cancelled: { cancelled.withLock { $0 } }, stopped: stopped,
+                        ))
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        } onCancel: {
+            cancelled.withLock { $0 = true }
+        }
+    }
+
+    /// vphoned's error code for a second `bootstrap.install`
+    /// (`GuestIrisinInstaller.alreadyInstalledCode`). An older guest sends only
+    /// the message.
+    nonisolated private static let alreadyInstalledCode = "bootstrap_already_installed"
+
+    /// One bootstrap call. The VM gives up relaying a request after 180 s while
+    /// the guest carries on, so a lost reply is followed by `bootstrap.status`
+    /// until a status for this call ends. A retried step finds the install
+    /// already done, which vphoned refuses and this reads as a pass.
+    nonisolated private static func bootstrap(
+        _ method: String,
+        layout: String?,
+        machine: String,
+        socketPath: String,
+        within seconds: Int,
+        cancelled: @Sendable () -> Bool,
+        stopped: @Sendable () -> Bool,
+    ) throws -> String {
+        // A step is retried on its own, by which time the machine First boot
+        // left running may have been stopped.
+        guard VPhoneControlSocket.ping(socketPath: socketPath) else {
+            throw VPhoneLaunchpadError(String(localized: "vphoned does not answer on \(machine). Start the machine, then retry this step."))
+        }
+        let params: [String: Any] = layout.map { ["layout": $0] } ?? [:]
+        // `bootstrap.status` reports both calls; only the packages one names
+        // the packages.
+        let isPackages = method == "bootstrap.packages"
+        do {
+            return summary(try VPhoneControlSocket.rpc(method, params: params, socketPath: socketPath, timeout: seconds))
+        } catch let error as VPhoneGuestCallError where error.kind == .refused {
+            guard error.code == Self.alreadyInstalledCode
+                || error.message.hasPrefix("Irisin bootstrap already completed")
+            else {
+                // irisin-cli's Bootstrap Install is for a first installation,
+                // so it also refuses a guest that already has the packages and
+                // one left half-installed; both are undone by uninstalling.
+                throw VPhoneLaunchpadError(isPackages
+                    ? String(localized: "The guest refused to install the bootstrap packages. Uninstall the bootstrap and install it again; Bootstrap Install only works on a guest that has none of them.")
+                    : String(localized: "The guest refused to install the bootstrap."),
+                    detail: error.message)
+            }
+            return "the bootstrap is already installed"
+        } catch {
+            // No reply within the relay timeout; the guest carries on.
+        }
+        let deadline = Date().addingTimeInterval(TimeInterval(seconds))
+        while Date() < deadline {
+            if cancelled() {
+                throw CancellationError()
+            }
+            if stopped() {
+                throw VPhoneLaunchpadError(String(localized: "\(machine) stopped while the bootstrap was installing."))
+            }
+            if let status = try? VPhoneControlSocket.rpc("bootstrap.status", params: [:], socketPath: socketPath, timeout: 10),
+               (status["packages"] != nil) == isPackages
+            {
+                switch status["phase"] as? String {
+                case "completed":
+                    return summary(status)
+                case "failed":
+                    throw VPhoneLaunchpadError(
+                        String(localized: "The bootstrap installation failed in the guest."),
+                        detail: status["message"] as? String,
+                    )
+                default:
+                    break
+                }
+            }
+            Thread.sleep(forTimeInterval: 2)
+        }
+        throw VPhoneLaunchpadError(String(localized: "The bootstrap installation did not finish in time."))
+    }
+
+    /// The log line for a finished `bootstrap.install` or `bootstrap.packages`.
+    nonisolated private static func summary(_ result: [String: Any]) -> String {
+        if let packages = result["packages"] as? [String] {
+            if let skipped = result["skipped"] as? String {
+                return "no packages installed: \(skipped)"
+            }
+            return "installed \(packages.joined(separator: ", ")) with Bootstrap Install"
+        }
+        let warning = (result["service_start_warning"] as? String).map { " (\($0))" } ?? ""
+        return "Irisin \(result["version"] as? String ?? "") installed in \(result["jbroot"] as? String ?? "")" + warning
     }
 
     // MARK: - Template steps

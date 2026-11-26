@@ -1194,6 +1194,40 @@
         }
       }
     },
+    "%@ stopped while the bootstrap was installing." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ stopped while the bootstrap was installing."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブートストラップのインストール中に %@ が停止しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "부트스트랩을 설치하는 중에 %@이(가) 중지되었습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ đã dừng trong khi cài đặt bootstrap."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装引导环境期间 %@ 已停止。"
+          }
+        }
+      }
+    },
     "%@ use this version and will be marked Damaged until you choose another Core Bundle for them or install it again." : {
       "localizations" : {
         "en" : {
@@ -9494,6 +9528,74 @@
         }
       }
     },
+    "Install bootstrap" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install bootstrap"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブートストラップをインストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "부트스트랩 설치"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt bootstrap"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装引导环境"
+          }
+        }
+      }
+    },
+    "Install bootstrap packages" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install bootstrap packages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブートストラップのパッケージをインストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "부트스트랩 패키지 설치"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt gói bootstrap"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装引导环境软件包"
+          }
+        }
+      }
+    },
     "Install custom firmware" : {
       "localizations" : {
         "en" : {
@@ -9558,6 +9660,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请在“核心 Bundle”中安装，或为这台虚拟机选择其他版本。"
+          }
+        }
+      }
+    },
+    "Install the OwnGoal bootstrap package" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install the OwnGoal bootstrap package"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OwnGoal ブートストラップパッケージをインストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OwnGoal 부트스트랩 패키지 설치"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt gói bootstrap OwnGoal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装 OwnGoal 引导环境软件包"
+          }
+        }
+      }
+    },
+    "Install the bootstrap" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Install the bootstrap"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブートストラップをインストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "부트스트랩 설치"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt bootstrap"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "安装引导环境"
           }
         }
       }
@@ -9801,6 +9971,40 @@
         }
       }
     },
+    "Installs Irisin in the machine after its first boot." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installs Irisin in the machine after its first boot."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "初回起動後に Irisin を仮想マシンにインストールします。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "첫 부팅 후 가상 머신에 Irisin을 설치합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt Irisin vào máy ảo sau lần khởi động đầu tiên."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在虚拟机首次启动后安装 Irisin。"
+          }
+        }
+      }
+    },
     "Install…" : {
       "localizations" : {
         "en" : {
@@ -9899,6 +10103,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "接口"
+          }
+        }
+      }
+    },
+    "Irisin's Apple TV package has no irisin-cli, so this guest takes the bootstrap without its packages." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin's Apple TV package has no irisin-cli, so this guest takes the bootstrap without its packages."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin の Apple TV 版パッケージには irisin-cli が含まれないため、このゲストはパッケージなしでブートストラップのみを導入します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin의 Apple TV 패키지에는 irisin-cli가 없으므로 이 게스트는 패키지 없이 부트스트랩만 설치합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gói Apple TV của Irisin không có irisin-cli, nên máy khách này chỉ nhận bootstrap mà không có các gói của nó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Irisin 的 Apple TV 软件包不含 irisin-cli，因此该客户机只安装引导环境，不安装其软件包。"
           }
         }
       }
@@ -13651,6 +13889,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更改"
+          }
+        }
+      }
+    },
+    "Package Environment" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Package Environment"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パッケージ環境"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "패키지 환경"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Môi trường gói"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "软件包环境"
           }
         }
       }
@@ -18564,6 +18836,40 @@
         }
       }
     },
+    "The %@ preset patches no kernel and reseals the system, which Irisin cannot install into." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The %@ preset patches no kernel and reseals the system, which Irisin cannot install into."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ プリセットはカーネルにパッチを当てず、システムを再シールするため、Irisin をインストールできません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 프리셋은 커널을 패치하지 않고 시스템을 다시 봉인하므로 Irisin을 설치할 수 없습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cấu hình sẵn %@ không vá kernel và niêm phong lại hệ thống, nên Irisin không thể cài vào đó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 预设不修补内核并会重新封印系统，Irisin 无法安装其中。"
+          }
+        }
+      }
+    },
     "The Core Bundle of %@ is not installed. Choose another Core Bundle for it." : {
       "localizations" : {
         "en" : {
@@ -18820,6 +19126,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "启动链在创建虚拟机时构建。主机程序、客户机环境和客户机补丁之后仍可更改。"
+          }
+        }
+      }
+    },
+    "The bootstrap installation did not finish in time." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The bootstrap installation did not finish in time."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブートストラップのインストールが時間内に完了しませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "부트스트랩 설치가 제한 시간 안에 끝나지 않았습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt bootstrap không hoàn tất kịp thời gian."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "引导环境安装未在限定时间内完成。"
+          }
+        }
+      }
+    },
+    "The bootstrap installation failed in the guest." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The bootstrap installation failed in the guest."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲスト内でブートストラップのインストールに失敗しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게스트에서 부트스트랩 설치가 실패했습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cài đặt bootstrap trong máy khách đã thất bại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "客户机中的引导环境安装失败。"
           }
         }
       }
@@ -19228,6 +19602,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "客户机以自己的地址加入这台 Mac 某个网络接口所在的网络，该网络上的其他设备可以访问它。"
+          }
+        }
+      }
+    },
+    "The guest refused to install the bootstrap packages. Uninstall the bootstrap and install it again; Bootstrap Install only works on a guest that has none of them." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The guest refused to install the bootstrap packages. Uninstall the bootstrap and install it again; Bootstrap Install only works on a guest that has none of them."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲストがブートストラップのパッケージのインストールを拒否しました。ブートストラップを削除してから入れ直してください。Bootstrap Install は、どのパッケージも入っていないゲストでのみ動作します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게스트가 부트스트랩 패키지 설치를 거부했습니다. 부트스트랩을 제거한 뒤 다시 설치하십시오. Bootstrap Install은 해당 패키지가 하나도 없는 게스트에서만 동작합니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máy khách đã từ chối cài đặt các gói bootstrap. Hãy gỡ bootstrap rồi cài lại; Bootstrap Install chỉ hoạt động trên máy khách chưa có gói nào trong số đó."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "客户机拒绝安装引导环境软件包。请先卸载引导环境再重新安装；Bootstrap Install 仅适用于尚未安装这些软件包的客户机。"
+          }
+        }
+      }
+    },
+    "The guest refused to install the bootstrap." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The guest refused to install the bootstrap."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ゲストがブートストラップのインストールを拒否しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "게스트가 부트스트랩 설치를 거부했습니다."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Máy khách đã từ chối cài đặt bootstrap."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "客户机拒绝安装引导环境。"
           }
         }
       }
@@ -24675,6 +25117,40 @@
         }
       }
     },
+    "owngoal-bootstrap-vphone: apt and dpkg, the shells, sudo, the core command-line tools, OpenSSH, curl, git and the OwnGoal apps." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "owngoal-bootstrap-vphone: apt and dpkg, the shells, sudo, the core command-line tools, OpenSSH, curl, git and the OwnGoal apps."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "owngoal-bootstrap-vphone: apt と dpkg、各種シェル、sudo、主要なコマンドラインツール、OpenSSH、curl、git、OwnGoal のアプリ。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "owngoal-bootstrap-vphone: apt와 dpkg, 셸, sudo, 핵심 명령줄 도구, OpenSSH, curl, git 및 OwnGoal 앱."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "owngoal-bootstrap-vphone: apt và dpkg, các shell, sudo, công cụ dòng lệnh cốt lõi, OpenSSH, curl, git và các ứng dụng OwnGoal."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "owngoal-bootstrap-vphone：apt 与 dpkg、各种 shell、sudo、核心命令行工具、OpenSSH、curl、git 以及 OwnGoal 应用。"
+          }
+        }
+      }
+    },
     "vm leases failed" : {
       "localizations" : {
         "en" : {
@@ -24807,6 +25283,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "客户机中的 vphoned 和 hook 库。"
+          }
+        }
+      }
+    },
+    "vphoned does not answer on %@. Start the machine, then retry this step." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vphoned does not answer on %@. Start the machine, then retry this step."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の vphoned が応答しません。仮想マシンを起動してから、この手順をやり直してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@의 vphoned가 응답하지 않습니다. 가상 머신을 시작한 뒤 이 단계를 다시 시도하십시오."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vphoned không phản hồi trên %@. Hãy khởi động máy ảo rồi thử lại bước này."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 上的 vphoned 没有响应。请启动虚拟机后重试此步骤。"
           }
         }
       }

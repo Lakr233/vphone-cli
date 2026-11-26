@@ -23,6 +23,8 @@ vphone-cli vm create myphone --bootstrap roothide ...
 
 `--bootstrap roothide` 会在新虚拟机首次启动时完成第 1 步和第 2 步：先安装 Irisin，再通过 `irisin-cli` 从 Irisin 推荐的软件源以 Bootstrap Install 方式安装 `owngoal-bootstrap-vphone`。第 2 步要求 Irisin 的 `irisin-cli install` 支持 `--repository` 和 `--bootstrap-install`。
 
+在 Launchpad 中，新建虚拟机的 **Patches** 页面在 **Package Environment** 下提供同样的两个步骤：**Install the bootstrap** 和 **Install the OwnGoal bootstrap package**，在虚拟机启动后通过 vphoned 执行。软件包选项需要先勾选引导环境选项。不修补内核并会重新封印系统的预设（**Minimal**、**Apple Watch**）两者都不可用；Apple TV、HomePod 或 HomeView 客户机只能安装引导环境而不能安装软件包，因为 Irisin 的 Apple TV 软件包不含 `irisin-cli`。
+
 ## 删除
 
 选择 **Apps > Uninstall Bootstrap…**。删除后虚拟机会重启。

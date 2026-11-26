@@ -9,6 +9,7 @@ struct TemplatesTests {
         commandArguments()
         patchOverrides()
         creationPlan()
+        bootstrapChoice()
         guestRestart()
         try templateList()
         try templateFind()
@@ -304,7 +305,44 @@ struct TemplatesTests {
                      "Built, with guest patches: \(guest.steps)")
         let withoutTemplate = VPhoneLaunchpadCreationPlan(name: "lab-01", buildName: nil, slimming: VPhoneLaunchpadSlimming(), appliesGuestPatches: true)
         precondition(!withoutTemplate.steps.contains(.applyGuestPatches), "cfw install applies them without a template")
+
+        // The bootstrap steps follow the first boot, on the machine itself.
+        var bootstrapped = VPhoneLaunchpadCreationPlan(name: "lab-01", buildName: build, slimming: VPhoneLaunchpadSlimming())
+        bootstrapped.foundTemplate = true
+        bootstrapped.installsBootstrap = true
+        precondition(bootstrapped.steps == [.findTemplate, .cloneTemplate, .firstBoot, .installBootstrap],
+                     "Bootstrap after the first boot: \(bootstrapped.steps)")
+        bootstrapped.installsBootstrapPackages = true
+        precondition(bootstrapped.steps.suffix(2) == [.installBootstrap, .installBootstrapPackages], "Packages last")
+        precondition(!bootstrapped.buildsTemplate(.installBootstrap) && !bootstrapped.buildsTemplate(.installBootstrapPackages),
+                     "The bootstrap goes into the machine, not a template")
+        precondition(bootstrapped.machineName(for: .installBootstrapPackages) == "lab-01", "Installed in the new machine")
+        precondition(!Step.installBootstrap.needsRoot && !Step.installBootstrapPackages.needsRoot, "vphoned needs no host root")
+        var alonePlan = VPhoneLaunchpadCreationPlan(name: "lab-01", buildName: nil, slimming: unslimmed)
+        alonePlan.installsBootstrap = true
+        precondition(alonePlan.steps.last == .installBootstrap, "Without a template too: \(alonePlan.steps)")
         print("Creation plan tests passed")
+    }
+
+    // MARK: - Bootstrap choice
+
+    static func bootstrapChoice() {
+        var choice = VPhoneLaunchpadBootstrapChoice(wantsBootstrap: true, wantsPackages: true)
+        precondition(choice.resolved(presetAllows: true, device: "iPhone17,3") == (true, true), "An iPhone takes both")
+        precondition(choice.resolved(presetAllows: false, device: "iPhone17,3") == (false, false),
+                     "A preset that reseals the system takes neither")
+        // Irisin's Apple TV package carries no irisin-cli.
+        for device in ["AppleTV14,1", "AudioAccessory5,1", "HomeAccessory17,1"] {
+            precondition(choice.resolved(presetAllows: true, device: device) == (true, false), "\(device): bootstrap only")
+        }
+        choice.wantsBootstrap = false
+        precondition(choice.resolved(presetAllows: true, device: "iPhone17,3") == (false, false), "Packages need the bootstrap")
+        // visionOS serves only the rootless layout (`bootstrap_rootless_only`).
+        precondition(VPhoneLaunchpadBootstrapChoice.layout(device: "RealityDevice14,1") == "rootless", "visionOS takes rootless")
+        for device in ["iPhone17,3", "AppleTV14,1", nil] {
+            precondition(VPhoneLaunchpadBootstrapChoice.layout(device: device) == "roothide", "\(device ?? "no device"): roothide")
+        }
+        print("Bootstrap choice tests passed")
     }
 
     typealias Step = VPhoneLaunchpadCreationStep

@@ -23,6 +23,8 @@ vphone-cli vm create myphone --bootstrap roothide ...
 
 `--bootstrap roothide` does steps 1 and 2 during the new machine's first boot: it installs Irisin, then `owngoal-bootstrap-vphone` with Bootstrap Install through `irisin-cli`, from the repositories Irisin recommends. Step 2 needs an Irisin whose `irisin-cli install` has `--repository` and `--bootstrap-install`.
 
+In Launchpad, New Machine's **Patches** page has the same two steps under **Package Environment**: **Install the bootstrap** and **Install the OwnGoal bootstrap package**, run through vphoned once the machine has booted. The package box needs the bootstrap box. A preset that patches no kernel and reseals the system (**Minimal**, **Apple Watch**) takes neither; an Apple TV, HomePod or HomeView guest takes the bootstrap without the package, because Irisin's Apple TV package has no `irisin-cli`.
+
 ## Remove
 
 Choose **Apps > Uninstall Bootstrap…**. The VM restarts after removal.
