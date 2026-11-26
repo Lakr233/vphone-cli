@@ -106,7 +106,6 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 | `--no-template` | 单独恢复虚拟机，而不是从模板克隆。精简开关中只有 `--slim` 适用：`on`（默认）让这台虚拟机自己做一次初始化启动，会跳过设置助理；`off` 则从设置助理开始 |
 | `--slim on\|off`、`--trim …`、`--keep-languages …`、`--service-profile …`、`--remove-apps …`、`--keep-apps …` | `vphone-cli vm create` 的精简开关。与 New Machine 中一样，Apple 账户随精简的服务配置一起关闭 |
 | `--accounts-off` | 可以传入，但不会改变任何设置 |
-| `--ipsw <path>` | 可选。只传给 2.12.0 bundle，它用这个文件准备 kernelcache 组合，作用与 New Machine 的 ipsw 字段相同。2.12.1 bundle 会原生提取 |
 | `--from <step>` | 使用创建开始时的选项，从某个步骤（`findTemplate` … `firstBoot`）重试 |
 
 解析器还接受 `--iphone-source`、`--cloudos-source`、`--cpu`、`--memory`、`--disk-size`、`--network`、`--keep-artifacts` 和 `--no-wait`；见 `vphone-launchpad-cli help`。

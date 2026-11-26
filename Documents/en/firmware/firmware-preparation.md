@@ -37,8 +37,6 @@ A cloudOS after the 26.4 beta has no vphone600 components, so the research board
 
 3. Continue with `fw patch`, which takes the mix from the cache. `fw patch` also builds the mix itself when it runs as you; as root it only takes it from the cache.
 
-The old `--ipsw` argument of `fw kernelcache` is still accepted but ignored.
-
 ## The kmutil that links the mix
 
 A kernel boots only in the layout Apple linked it with, and that layout comes from the kmutil that links it: macOS 15 and 26.0 to 26.3 put the kernel first, macOS 26.4 and later put it last, and macOS 27 keeps the kexts' auth stubs. Every kernelcache records the kmutil version Apple built it with, so `fw kernelcache` links the mix with that same version, on any macOS:

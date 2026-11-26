@@ -106,7 +106,6 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 | `--no-template` | テンプレートを複製せず、マシンを単独で復元します。軽量化のスイッチのうち `--slim` だけが使えます。`on`（標準）ではマシン自身が初回セットアップ起動を行い、設定アシスタントを省略します。`off` では設定アシスタントから始まります |
 | `--slim on\|off`、`--trim …`、`--keep-languages …`、`--service-profile …`、`--remove-apps …`、`--keep-apps …` | `vphone-cli vm create` の軽量化のスイッチ。New Machine と同じく、Apple アカウントは trimmed のサービスプロファイルに従います |
 | `--accounts-off` | 受け付けますが、何も変わりません |
-| `--ipsw <path>` | 省略可能。2.12.0 のバンドルにだけ渡され、New Machine の ipsw 欄と同じく、kernelcache ミックスの準備に使われます。2.12.1 のバンドルはネイティブで展開します |
 | `--from <step>` | 作成開始時のオプションで、ある手順（`findTemplate` … `firstBoot`）からやり直します |
 
 パーサは `--iphone-source`、`--cloudos-source`、`--cpu`、`--memory`、`--disk-size`、`--network`、`--keep-artifacts`、`--no-wait` も受け付けます。`vphone-launchpad-cli help` をご覧ください。

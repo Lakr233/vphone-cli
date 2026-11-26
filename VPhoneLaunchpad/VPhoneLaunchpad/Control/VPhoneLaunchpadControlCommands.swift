@@ -634,14 +634,6 @@ struct VPhoneLaunchpadControlCommands {
         } else {
             slimming = try Self.slimming(request, usesTemplate: usesTemplate)
         }
-        // A 2.12.0 bundle stages a kernelcache mix with an ipsw, as New
-        // Machine's ipsw field; a 2.12.1 bundle extracts natively and ignores
-        // it. The creation runs `fw kernelcache` either way, which does nothing
-        // on a cloudOS that still has vphone600 components.
-        let kernelcacheIPSW = request.option("ipsw")
-        if let kernelcacheIPSW, !FileManager.default.isExecutableFile(atPath: kernelcacheIPSW) {
-            throw VPhoneLaunchpadError("--ipsw names \(kernelcacheIPSW), which is not an executable.")
-        }
         let options = try VPhoneLaunchpadCreationPipeline.Options(
             name: machine.name,
             libraryRoot: machine.libraryRoot,
@@ -658,7 +650,6 @@ struct VPhoneLaunchpadControlCommands {
             keepArtifacts: request.flag("keep-artifacts"),
             usesTemplate: usesTemplate,
             slimming: slimming,
-            kernelcacheIPSW: kernelcacheIPSW,
         )
         return library.create(options)
     }

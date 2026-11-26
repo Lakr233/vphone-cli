@@ -106,9 +106,8 @@ volume is linked from a clone in `/private/var/tmp` whose path has the length
 of Apple's build root (below). `fw patch` takes the mix from the cache, and
 builds it first when it runs as the user; root only reads it from the cache.
 
-`fw kernelcache --ipsw <path>` is still accepted as an ignored compatibility
-argument. The native extractor revision participates in both donor
-and mix cache keys, so older external-tool extractions are rebuilt.
+The native extractor revision participates in both donor and mix cache keys,
+so older external-tool extractions are rebuilt.
 
 Mixed kernelcaches are cached in `~/.vphone/kernelcache/mix`, keyed by the recipe,
 with kmutil's log beside each. Remove `~/.vphone/kernelcache` to rebuild them.

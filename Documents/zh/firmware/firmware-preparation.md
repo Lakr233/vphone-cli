@@ -37,8 +37,6 @@ bundle 中还附带一个 arm64e GPU 编译器插件。`fw prepare` 会在打补
 
 3. 继续运行 `fw patch`，它会从缓存中取用组合。以你的身份运行时，`fw patch` 也会自行构建组合；以 root 身份运行时，它只从缓存中取用。
 
-`fw kernelcache` 旧的 `--ipsw` 参数仍可传入，但会被忽略。
-
 ## 链接组合的 kmutil
 
 内核只能以 Apple 链接时所用的布局启动，而布局由链接它的 kmutil 决定：macOS 15 以及 26.0 到 26.3 把内核放在前面，macOS 26.4 及更新版本把内核放在后面，macOS 27 还会保留 kext 的 auth stub。每个 kernelcache 都记录了 Apple 构建它时所用的 kmutil 版本，所以 `fw kernelcache` 在任何 macOS 上都用同一版本链接组合：

@@ -55,9 +55,6 @@ public final class KernelCacheMixer {
     /// 7: linked by the base's own kmutil release, not this Mac's.
     static let revision = 7
 
-    /// Legacy source-compatibility constant. Native extraction does not read it.
-    public static let ipswEnvironmentVariable = "VPHONE_IPSW"
-
     public init(
         recipes: KernelCacheRecipes,
         cacheDirectory: URL = VPhoneResources.userDataRoot().appending(path: "kernelcache"),
@@ -174,8 +171,7 @@ public final class KernelCacheMixer {
     /// Extracts both kernelcaches and stages the volume kmutil links, as the
     /// invoking user, entirely in process. Does nothing when the mix
     /// or its volume is already in the cache.
-    /// The legacy ipsw argument is accepted as a no-op throughout 2.12.x.
-    public func stage(_ input: Input, ipsw _: String? = nil) throws {
+    public func stage(_ input: Input) throws {
         let (base, paths) = try locations(for: input)
         guard !FileManager.default.fileExists(atPath: paths.mixed.path), !Self.isStaged(paths.staged) else { return }
         guard geteuid() != 0 else {

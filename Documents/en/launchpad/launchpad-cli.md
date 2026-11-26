@@ -106,7 +106,6 @@ vphone-launchpad-cli vm create rt-e --block system-debugserver-cfw-install
 | `--no-template` | Restore the machine on its own instead of cloning a template. Of the slimming switches only `--slim` applies: `on` (the default) gives the machine a setup boot of its own, which skips Setup Assistant; `off` starts it at Setup Assistant |
 | `--slim on\|off`, `--trim …`, `--keep-languages …`, `--service-profile …`, `--remove-apps …`, `--keep-apps …` | The slimming switches of `vphone-cli vm create`. Apple Account goes with the trimmed service profile, as in New Machine |
 | `--accounts-off` | Accepted, and changes nothing |
-| `--ipsw <path>` | Optional. Passed only to a 2.12.0 bundle, which stages the kernelcache mix with it, as New Machine's ipsw field does. A 2.12.1 bundle extracts natively |
 | `--from <step>` | Retry from a step (`findTemplate` … `firstBoot`) with the options the creation started with |
 
 The parser also accepts `--iphone-source`, `--cloudos-source`, `--cpu`, `--memory`, `--disk-size`, `--network`, `--keep-artifacts` and `--no-wait`; see `vphone-launchpad-cli help`.
