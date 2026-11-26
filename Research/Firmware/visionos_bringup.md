@@ -11,15 +11,23 @@ cold boot. Mouse clicks opened Settings and switched through Home View to
 Safari, which loaded `apple.com`. The host window reported 60 fps when those
 views settled, with brief dips during app launches.
 
-Create the guest with the `visionos` preset, without an iOS template or slimming.
-The following selections compose the tested guest environment:
+Build and install the core bundle with these selections, then set
+`visionos_ipsw` and `cloudos_ipsw` to the two local IPSW paths. With an
+unmodified Launchpad 2.18.0, use the following command and set
+`visionos_bundle` to the installed local core bundle version.
 
-- `preboot-exp-visionos_virtual_product`
-- `system-launchd-exp-visionos_uxm_ipc`
-- `system-launchd-exp-visionos_hmd_properties_ipc`
-- `system-launchd-exp-visionos_hmd_presentable_ipc`
-- `system-launchd-exp-visionos_hmd_system_setter_ipc`
-- `system-datamigrator-exp-visionos_windowless_progress`
+```sh
+vphone-launchpad-cli vm create VisionPro-27.2.1 --bundle "$visionos_bundle" \
+  --device RealityDevice14,1 --preset visionos --no-template --slim off \
+  --iphone-source "$visionos_ipsw" --cloudos-source "$cloudos_ipsw" \
+  --cpu 4 --memory 6144 \
+  --allow preboot-exp-visionos_virtual_product \
+  --allow system-launchd-exp-visionos_uxm_ipc \
+  --allow system-launchd-exp-visionos_hmd_properties_ipc \
+  --allow system-launchd-exp-visionos_hmd_presentable_ipc \
+  --allow system-launchd-exp-visionos_hmd_system_setter_ipc \
+  --allow system-datamigrator-exp-visionos_windowless_progress
+```
 
 Let the native migrator finish and check `setup.status` for
 `data_migration_done: true`. In the tested VM, the mobile preference
