@@ -136,12 +136,14 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                 print("[developer-tunnel] the guest's UDID is unknown; the CoreDevice tunnel is not held")
             }
 
-            let camServer = VPhoneCameraServer()
-            cameraServer = camServer
+            // The visionOS guest agent has no host camera endpoint.
+            if !options.isVisionOSGuest {
+                cameraServer = VPhoneCameraServer()
+            }
 
             if let device = vm.virtualMachine.socketDevices.first as? VZVirtioSocketDevice {
                 control.connect(device: device)
-                camServer.connect(device: device)
+                cameraServer?.connect(device: device)
                 if let listen = command.apiListen {
                     let hostScreen = VPhoneHostScreenService(
                         scale: options.screenScale,
@@ -185,6 +187,8 @@ class VPhoneVirtualMachineAppDelegate: NSObject, NSApplicationDelegate {
                     .path,
                 homePodGuest: options.isHomePodGuest,
                 usesTVOS: options.usesTVOS,
+                visionOSGuest: options.isVisionOSGuest,
+                restoredVisionOSVersion: options.restoredVisionOSVersion,
                 foldableGuest: options.isFoldableGuest,
             )
             wc.captureView?.escapeIsBackGesture = !options.isPadGuest && !options.isTVGuest

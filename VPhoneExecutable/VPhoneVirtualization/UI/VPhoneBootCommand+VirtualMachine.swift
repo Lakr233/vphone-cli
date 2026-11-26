@@ -16,6 +16,10 @@ extension VPhoneBootCommand {
         print("[vphone] Loaded VM manifest from \(config.path)")
 
         let vmDir = config.deletingLastPathComponent()
+        let isVisionOSGuest = manifest.guestDevice.family == .vision
+        let restoredVisionOSVersion = isVisionOSGuest
+            ? VPhoneRestoreInfo.load(fromBundle: VPhoneBundle(url: vmDir, manifest: manifest))?.ios.version
+            : nil
 
         return try VPhoneVirtualMachine.Options(
             configURL: config,
@@ -37,6 +41,8 @@ extension VPhoneBootCommand {
             isHomePodGuest: manifest.guestDevice.family == .homePod,
             isHomeViewGuest: manifest.guestDevice.family == .homeView,
             isWatchGuest: manifest.guestDevice.family == .watch,
+            isVisionOSGuest: isVisionOSGuest,
+            restoredVisionOSVersion: restoredVisionOSVersion,
             isFoldableGuest: manifest.guestDevice == .iPhone19_4
         )
     }
