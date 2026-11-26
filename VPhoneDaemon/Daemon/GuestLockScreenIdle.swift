@@ -21,6 +21,10 @@ import notify
 /// seconds back at once. So this runs before anything else at startup, to be
 /// ahead of SpringBoard on a boot where the key is missing.
 ///
+/// `setAutoLockSeconds` changes Auto-Lock through profiled, which applies it
+/// only for a caller holding the `feature-setting.maxInactivity` entitlement,
+/// and confirms the effective value before reporting success.
+///
 /// Measured on iOS 27.0 and iPadOS 26.6.2; see
 /// Research/Guest/lock_screen_idle_timer.md.
 enum GuestLockScreenIdle {
@@ -28,7 +32,6 @@ enum GuestLockScreenIdle {
     /// then posts `changedNotification`; ManagedConfiguration's own clients
     /// re-read it on the same signal.
     private static let settingsPath = "/var/mobile/Library/UserConfigurationProfiles/EffectiveUserSettings.plist"
-    private static let userSettingsPath = "/var/mobile/Library/UserConfigurationProfiles/UserSettings.plist"
     private static let changedNotification = "com.apple.managedconfiguration.effectivesettingschanged"
     private static let domain = "com.apple.springboard"
     private static let key = "SBMinimumLockscreenIdleTime"
@@ -73,25 +76,49 @@ enum GuestLockScreenIdle {
         ]
     }
 
-    /// Update the managed UserSettings input through cfprefsd and let profiled
-    /// regenerate EffectiveUserSettings. Never edit the effective file itself.
+    /// Sets Auto-Lock through profiled (ManagedConfiguration), the only writer of
+    /// the effective settings. profiled drops the call silently unless the caller
+    /// holds the `feature-setting.maxInactivity` entitlement, so success is only
+    /// reported once the effective value equals the request. `seconds` 0 is Never.
     static func setAutoLockSeconds(_ seconds: Int) throws -> [String: Any] {
-        guard seconds >= 0, seconds <= Int(Int32.max) else {
+        guard seconds >= 0, seconds <= never else {
             throw IcliError.failed("Auto-Lock seconds must be between 0 and Int32.max")
         }
-        guard let data = FileManager.default.contents(atPath: userSettingsPath),
-              let plist = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
-        else { throw IcliError.unavailable("UserSettings.plist is unavailable") }
-        var restricted = plist["restrictedValue"] as? [String: Any] ?? [:]
-        var setting = restricted["maxInactivity"] as? [String: Any] ?? [:]
-        setting["value"] = seconds
-        if setting["rangeMinimum"] == nil { setting["rangeMinimum"] = 120 }
-        restricted["maxInactivity"] = setting
-        _ = try writePreference(domain: userSettingsPath, key: "restrictedValue", value: .plist(restricted), notify: changedNotification)
+        let target = seconds == 0 ? never : seconds
+        try commitThroughProfiled(target)
+        let deadline = Date().addingTimeInterval(3)
+        while autoLockSeconds() != target {
+            guard Date() < deadline else {
+                throw IcliError.failed("profiled did not apply the Auto-Lock change")
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
         apply(reason: "requested Auto-Lock \(seconds)s")
         var result = describe()
         result["requested_auto_lock_seconds"] = seconds
         return result
+    }
+
+    private static func commitThroughProfiled(_ target: Int) throws {
+        guard dlopen("/System/Library/PrivateFrameworks/ManagedConfiguration.framework/ManagedConfiguration", RTLD_NOW) != nil else {
+            throw IcliError.unavailable("ManagedConfiguration framework could not be loaded")
+        }
+        guard let cls = NSClassFromString("MCProfileConnection") as? NSObject.Type else {
+            throw IcliError.unavailable("MCProfileConnection class is missing")
+        }
+        guard let conn = cls.perform(NSSelectorFromString("sharedConnection"))?.takeUnretainedValue() as? NSObject else {
+            throw IcliError.unavailable("MCProfileConnection sharedConnection is unavailable")
+        }
+        let selector = NSSelectorFromString("setParametersForSettingsByType:toSystem:user:passcode:")
+        guard conn.responds(to: selector) else {
+            throw IcliError.unavailable("MCProfileConnection setParametersForSettingsByType is missing")
+        }
+        typealias Call = @convention(c) (AnyObject, Selector, NSDictionary, Bool, Bool, NSString?) -> Void
+        let imp = unsafeBitCast(class_getMethodImplementation(type(of: conn), selector), to: Call.self)
+        // rangeMinimum 0 lets values below the stored minimum apply; user:YES because the
+        // user file overrides the system file in the effective merge.
+        let params: NSDictionary = ["restrictedValue": ["maxInactivity": ["value": NSNumber(value: target), "rangeMinimum": NSNumber(value: 0)]]]
+        imp(conn, selector, params, false, true, nil)
     }
 
     private static func apply(reason: String) {
