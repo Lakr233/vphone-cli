@@ -1,0 +1,25 @@
+0xfffffff0096a7520 (751 ins): AppleVendorSupported | Transport | LocationID | VendorID | VendorIDSource
+0xfffffff00968354c (645 ins): RequestTimeout | ReportDescriptor | hid-inductive-bypass | Transport | Inductive In-Band
+0xfffffff0096a8324 (607 ins): DisplayIntegrated | DeviceUsage | DeviceUsagePage | HIDPointerResolution | HIDScrollResolution
+0xfffffff00967d194 (595 ins): ProtectedAccess | HIDDeviceAccessEntitlement | IOUserClientMessageAppSuspended | IOUserClientDefaultLocking | IOUserClie
+0xfffffff0096dfc64 (455 ins): SupportsGlobeKey | BlessedUsage | BlessedUsagePage | EventType | UsagePage
+0xfffffff009695834 (376 ins): MultiBit | SupportsButtonEvents
+0xfffffff00968e2a8 (296 ins): HIDTimeSyncProperties | CEInterval | CEHorizon | Active
+0xfffffff0096e5f10 (281 ins): KeyboardEnabled
+0xfffffff009688114 (276 ins): HIDRMDeviceState | Allowed | Denied | Approving | RelayServiceInterfaceActive
+0xfffffff0096a6de4 (271 ins): 
+0xfffffff0096d39cc (259 ins): Privileged | MaxEnqueueReportSize | SetReportCnt | SetReportErrCnt | GetReportCnt
+0xfffffff0096ec850 (226 ins): hidq_force_usage_pair | QueueSize | hidq_size | DebugState | IOUserClientDefaultLocking
+0xfffffff0096ed99c (220 ins): Privileged | RegisterService
+0xfffffff0096e1a44 (183 ins): DigitizerCollectionDispatch | touchCancelElement | Transducers | DeviceModeElement | collectionDispatch
+0xfffffff00969b904 (169 ins): IOUserClientDefaultLocking | IOUserClientDefaultLockingSetProperties | IOUserClientDefaultLockingSingleThreadExternalMet
+0xfffffff0096c697c (158 ins): IOHIDUserDeviceDebugState | IOUserClientDefaultLocking | IOUserClientDefaultLockingSetProperties | IOUserClientDefaultLo
+0xfffffff0096dd528 (154 ins): Elements | Attempted to get %s on an element with %d children
+0xfffffff0096d34c4 (146 ins): FastPathHasEntitlement | FastPathMotionEventEntitlement
+0xfffffff0096d30bc (145 ins): IOUserClientMessageAppSuspended | IOUserClientDefaultLocking | IOUserClientDefaultLockingSetProperties | IOUserClientDef
+0xfffffff0096d1640 (126 ins): IOServiceDEXTEntitlements | com.apple.developer.driverkit.family.hid.device | RegisterService
+0xfffffff0096d3300 (113 ins): opened | openedByClient | copycount | errcount | suspendcount
+0xfffffff0096c5664 (102 ins): Privileged | HIDVirtualDevice | HIDDefaultBehavior
+0xfffffff00967fc88 (58 ins): 
+0xfffffff0096abec0 (47 ins): DeviceOpenedByEventSystem
+0xfffffff009675fc0 (45 ins): IOServiceDEXTEntitlements | com.apple.developer.driverkit.family.hid.eventservice | RegisterService

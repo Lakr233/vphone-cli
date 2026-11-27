@@ -1,0 +1,84 @@
+STR 0xd81 0xfffffe00076669c1 'copyTrustCacheAndManifestFromInputArgument'
+    XREF 0x1c07efc 0xfffffe000926db3c add
+    XREF 0x1c07f28 0xfffffe000926db68 add
+    XREF 0x1c07fa0 0xfffffe000926dbe0 add
+    XREF 0x1c08020 0xfffffe000926dc60 add
+    XREF 0x1c08048 0xfffffe000926dc88 add
+    XREF 0x1c0806c 0xfffffe000926dcac add
+    XREF 0x1c08090 0xfffffe000926dcd0 add
+STR 0xe91 0xfffffe0007666ad1 '%s: PID %d is requesting a trust cache load\n'
+    XREF 0x1c072a0 0xfffffe000926cee0 add
+STR 0xebe 0xfffffe0007666afe 'static IOReturn AppleMobileFileIntegrityUserClient::loadTrustCache(OSObject *, void *, IOExternalMethodArguments *)'
+    XREF 0x1c07294 0xfffffe000926ced4 add
+STR 0xf32 0xfffffe0007666b72 'com.apple.private.amfi.can-load-trust-cache'
+    XREF 0x1c072d8 0xfffffe000926cf18 add
+STR 0xf5e 0xfffffe0007666b9e '%s: failure getting load trust cache entitlement for process %d\n'
+    XREF 0x1c07300 0xfffffe000926cf40 add
+STR 0xf9f 0xfffffe0007666bdf '%s: process %d not allowed to load trust cache\n'
+    XREF 0x1c073ac 0xfffffe000926cfec add
+STR 0xffb 0xfffffe0007666c3b '%s: copyTrustCacheAndManifestFromInputArgument failed: %d\n'
+    XREF 0x1c07414 0xfffffe000926d054 add
+STR 0x1036 0xfffffe0007666c76 '%s: invalid load trust cache selector %d\n'
+    XREF 0x1c07428 0xfffffe000926d068 add
+STR 0x1134 0xfffffe0007666d74 '%s: only allowed process can modify the compilation service trust cache\n'
+    XREF 0x1c07618 0xfffffe000926d258 add
+STR 0x117d 0xfffffe0007666dbd 'static IOReturn AppleMobileFileIntegrityUserClient::isCdhashInTrustCache(OSObject *, void *, IOExternalMethodArguments *)'
+    XREF 0x1c076a0 0xfffffe000926d2e0 add
+    XREF 0x1c076f4 0xfffffe000926d334 add
+    XREF 0x1c07714 0xfffffe000926d354 add
+STR 0x11f7 0xfffffe0007666e37 '%s: Process %d is checking if a cdhash is in the trust cache\n'
+    XREF 0x1c076ac 0xfffffe000926d2ec add
+STR 0x1ee6 0xfffffe0007667b26 'com.apple.private.amfi.can-check-trust-cache'
+    XREF none
+STR 0x3023 0xfffffe0007668c63 'AMFI: research variant relaxes lock-state for trust caches: %u\n'
+    XREF 0x1c0c4a4 0xfffffe00092720e4 add
+STR 0x3063 0xfffffe0007668ca3 'amfi-allows-trust-cache-load'
+    XREF 0x1c0c518 0xfffffe0009272158 add
+STR 0x3080 0xfffffe0007668cc0 'AMFI: amfi-allows-trust-cache-load has unexpected size (%u).\n'
+    XREF 0x1c0c5c4 0xfffffe0009272204 add
+STR 0x30be 0xfffffe0007668cfe '%s: loading duplicate trust cache (success)\n'
+    XREF 0x1c0c640 0xfffffe0009272280 add
+    XREF 0x1c0c8cc 0xfffffe000927250c add
+STR 0x30eb 0xfffffe0007668d2b 'loadTrustCacheWithExternalManifest'
+    XREF 0x1c0c634 0xfffffe0009272274 add
+    XREF 0x1c0c724 0xfffffe0009272364 add
+    XREF 0x1c0c750 0xfffffe0009272390 add
+    XREF 0x1c0c774 0xfffffe00092723b4 add
+STR 0x310e 0xfffffe0007668d4e '%s: loading trust caches disallowed by system state\n'
+    XREF 0x1c0c730 0xfffffe0009272370 add
+    XREF 0x1c0c998 0xfffffe00092725d8 add
+STR 0x3143 0xfffffe0007668d83 '%s: attempted to load duplicate trust cache -- switching to success\n'
+    XREF 0x1c0c75c 0xfffffe000927239c add
+    XREF 0x1c0c948 0xfffffe0009272588 add
+STR 0x3188 0xfffffe0007668dc8 '%s: unable to load trust cache: %d\n'
+    XREF 0x1c0c780 0xfffffe00092723c0 add
+    XREF 0x1c0c97c 0xfffffe00092725bc add
+STR 0x31ac 0xfffffe0007668dec 'loadTrustCacheWithType'
+    XREF 0x1c0c8c0 0xfffffe0009272500 add
+    XREF 0x1c0c934 0xfffffe0009272574 add
+    XREF 0x1c0c98c 0xfffffe00092725cc add
+STR 0x31fc 0xfffffe0007668e3c 'trustCacheIsDuplicateImg4'
+    XREF 0x1c0c7f4 0xfffffe0009272434 add
+STR 0x332b 0xfffffe0007668f6b 'AMFI: Failed to get trust cache UUID for %s (TCReturn: 0x%02X | 0x%02X | %u)\n'
+    XREF 0x1c0d1cc 0xfffffe0009272e0c add
+STR 0x3379 0xfffffe0007668fb9 'AMFI: Failed to get trust cache type for %s: (TCReturn: 0x%02X | 0x%02X | %u)'
+    XREF 0x1c0d210 0xfffffe0009272e50 add
+STR 0x441a 0xfffffe000766a05a "Couldn't find trust cache UUID for process when mapping library from SMAC"
+    XREF 0x1c1054c 0xfffffe000927618c add
+STR 0x4464 0xfffffe000766a0a4 "Couldn't find trust cache UUID for library from SMAC"
+    XREF 0x1c10360 0xfffffe0009275fa0 add
+STR 0x4a6c 0xfffffe000766a6ac 'AMFI Trust Cache Interface'
+    XREF none
+STR 0x5fed 0xfffffe000766bc2d '%s (pid %u) not allowed for Restricted Execution Mode state (%s): code is not present in any trustcache\n'
+    XREF 0x1c14754 0xfffffe000927a394 add
+STR 0x6bbb 0xfffffe000766c7fb '%s not allowed for Restricted Execution Mode state (%s): code is not present in any trustcache'
+    XREF 0x1c16538 0xfffffe000927c178 add
+STR 0x6cbd 0xfffffe000766c8fd 'trust-cache'
+    XREF 0x1c1683c 0xfffffe000927c47c add
+STR 0x6dd1 0xfffffe000766ca11 'AMFI: Platform binary with platform identifier not in trust cache\n'
+    XREF 0x1c17878 0xfffffe000927d4b8 add
+STR 0x6e14 0xfffffe000766ca54 'platform binary with platform identifier not in trust cache\n'
+    XREF 0x1c17884 0xfffffe000927d4c4 add
+STR 0x7f37 0xfffffe000766db77 'int _check_cdhash_in_trustcache(struct proc *, user_addr_t)'
+    XREF 0x1c17bfc 0xfffffe000927d83c add
+    XREF 0x1c180cc 0xfffffe000927dd0c add

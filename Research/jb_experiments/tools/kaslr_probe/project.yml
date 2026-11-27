@@ -1,0 +1,29 @@
+name: kprobe
+options:
+  bundleIdPrefix: me.strelov
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: 25U9HN34VM
+    CODE_SIGN_STYLE: Automatic
+    PRODUCT_BUNDLE_IDENTIFIER: me.strelov.kprobe
+targets:
+  kprobe:
+    type: application
+    platform: iOS
+    sources: [kprobe.m, LaunchScreen.storyboard]
+    settings:
+      base:
+        CODE_SIGN_ENTITLEMENTS: kprobe.entitlements
+        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationPortrait"
+        GENERATE_INFOPLIST_FILE: YES
+    entitlements:
+      path: kprobe.entitlements
+      properties:
+        get-task-allow: true
+        application-identifier: "25U9HN34VM.me.strelov.kprobe"
+        com.apple.developer.team-identifier: 25U9HN34VM
+        keychain-access-groups: ["25U9HN34VM.me.strelov.kprobe"]

@@ -2658,6 +2658,59 @@ sandboxed callers that hit the renamed OID match the (rewritten)
 rule as intended. Covered occurrence verified on
 iPhone17,3 / iOS 26.1 / 23B85 at file offset `0xa6618b`.
 
+### `hv_vmm_present` is ENOENT to userland (EXP only, `kernel-exp-hv_vmm.user`)
+
+`KernelExperimentalPatcher.patchHvVmmHideFromUser()` (in `KernelEXPPatcher.findAll()`,
+right after the rename). The rename alone is not concealment on paper: `sysctl.next`
+and `sysctl.name2oid` are `CTLFLAG_RD` for everyone, so a walk of `kern.*` would list
+the OID under its new name. The handler `sysctl_vmm_present(oidp, arg1, arg2, req)`
+(24B119: `0xfffffff00b255f4c`) is now taught one rule: `req->p != NULL` means a
+process asked, and the answer is ENOENT; `req->p == NULL` is the kernel's own
+`kernel_sysctlbyname` (AMFI, the kexts that panic with "No PMGR?" otherwise), and it
+still gets the truth. The OID keeps its name and its MIB place. The companions are
+not optional: `bluetoothd` and `watchdogd` ask through userland, so they get the same
+ENOENT the rename gave them and need `system-bluetoothd-exp-hv_vmm_cache` and
+`system-watchdogd-exp-hv_vmm_cache` exactly as before; Clover runs all four.
+
+Reveal: `\0hv_vmm_present\0` (one hit) → the `__DATA_CONST` slot whose chained
+pointer names it → `oid_handler` two slots on. Shape check: `MOV x19, x3`, `STR wzr, [sp,
+#0xc]`, `ADRP x0`. The store becomes `B cave`; the cave is `LDR x8, [x19]; CBNZ x8 →
+exit; STR wzr, [sp, #0xc]; B adrp; exit: MOV w0, #2; LDP x29, x30; LDP x20, x19; ADD
+sp, sp, #0x30; RETAB` (36 bytes, `findCodeCave`). Every word is an `ARM64Encoder`
+product or an `ARM64` constant. Gated with `kernel-exp-hv_vmm` (same declaration), so it
+turns on and off with the rename.
+
+Measured on Clover (bundle `2d7855d9`, before this patch): `kern.hv_vmm_present` is
+already −1 (ENOENT) for an app. The MIB walk from an app returned nothing on that guest
+(`sysctl` at OID `{0,2}` refused), so on iOS the rename is already hiding the OID from
+any detector that does not know the new name; this patch closes the door for a guest or
+a build where the walk works, and costs nothing.
+
+### `kernel-exp-cpu_topology` — the CPU count sysctls answer a phone (EXP only)
+
+`KernelExperimentalPatcher.patchCpuTopology()`. `hw.ncpu`, `hw.activecpu`,
+`hw.physicalcpu`, `hw.physicalcpu_max`, `hw.logicalcpu`, `hw.logicalcpu_max` answer 6
+(every iPhone since the 8) instead of the VM's vCPU count. Six single-word
+replacements in `sysctl_hw_generic` plus a 16-byte cave for the two logical cases whose
+`b out` must survive. The Mach `host_info(HOST_BASIC_INFO)` trap and
+`hw.perflevelN.*` keep the real numbers. Details, hit points and the known seam:
+`Research/KernelCustomFirmwarePatches/patch_hw_cpu_topology.md`. Blocked in
+`standard`, on in `experimental`; turns the patcher on by itself.
+
+### Guest environment scrub (`VPHONE_JB_ROOT`, `DYLD_INSERT_LIBRARIES`)
+
+Not a firmware patch: `VPhoneGuestComponents/Shared/InjectionEnvironment.h`.
+`vpScrubInjectionEnvironment()`, first thing in SystemHook's constructor, keeps the
+root in a `strdup`'d static (`vpJailbreakRoot()`, which replaces the nine
+`getenv("VPHONE_JB_ROOT")` reads in `SystemHook-vphone.c`), zeroes both strings on
+the exec stack and drops both entries from `environ`. `getenv`,
+`NSProcessInfo.environment` and `sysctl(KERN_PROCARGS2)` — which copies the stack,
+not a kernel copy — then see nothing. Children still get both: `vpInsertHookLibraries`
+adds SystemHook and the root to any environment it is handed, and the child's
+constructor scrubs again. Measured on Clover before the scrub: both names visible
+through `getenv` and `KERN_PROCARGS2`; the guest bundle with the scrub has not been
+installed yet.
+
 ### `watchdogd` surgical hv_vmm_present cache patch (EXP only)
 
 **Why a dedicated patch.** After the EXP kernel-side OID rename

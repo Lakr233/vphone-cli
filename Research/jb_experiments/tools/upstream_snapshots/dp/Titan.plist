@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>DPExploitFlavors</key>
+	<dict>
+		<key>default</key>
+		<dict>
+			<key>DPFlavorPriority</key>
+			<integer>999</integer>
+			<key>DPSupportedDevices</key>
+			<array>
+				<string>A14</string>
+				<string>A15</string>
+				<string>A16</string>
+				<string>A17</string>
+			</array>
+			<key>DPSupportedRanges</key>
+			<array>
+				<dict>
+					<key>End</key>
+					<string>17.3.1</string>
+					<key>Start</key>
+					<string>16.1</string>
+				</dict>
+			</array>
+            <key>DPSupportInclude</key>
+            <array>
+                <dict>
+                    <key>Builds</key>
+                    <array>
+                        <string>21E5184i</string>
+                        <string>21E5184k</string>
+                        <string>21E5195e</string>
+                        <string>21E5200d</string>
+                    </array>
+                </dict>
+            </array>
+		</dict>
+	</dict>
+	<key>DPExploitType</key>
+	<string>PPL</string>
+	<key>CFBundleDisplayName</key>
+	<string>Titan</string>
+</dict>
+</plist>

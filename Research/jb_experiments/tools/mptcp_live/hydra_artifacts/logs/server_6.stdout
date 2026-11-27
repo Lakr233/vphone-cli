@@ -1,0 +1,15 @@
+00:56:48 mptcp_ip_server mode=fail iface=enp7s0 port=9999 count=1 server_key=0x0102030405060708
+00:56:48 Safe variant: DSS data_len=1, DATA_FIN=0, bad checksum. No spray, no FIN, no RST.
+00:56:54 [+] SYN (MP_CAPABLE v1) 10.0.1.2:53900 -> SYN-ACK with CHECKSUM bit; server_key=0x0102030405060708 isn=0x86d2938f
+(None, None)
+(None, None)
+(None, None)
+00:56:55 [+] 3rd ACK from 10.0.1.2:53900 subtype=1 (MPO_CAPABLE=0) tcp.ack=0x86d29390 expected=0x86d29390
+(None, None)
+(None, None)
+(None, None)
+00:56:56 [*] data from 10.0.1.2:53900 1B dss=(5, 3533533043, 3077237158, 0, 1) client_seq->0x22222224
+00:56:56 [>>>] DSS dlen=1 DATA_FIN=0 csum=0xDEAD dsn=0xd29d6f73 sseq=1 tcp.seq=0x86d29390 ack=0x22222224 bytes=2005d29d6f73d29d6f73000000010001dead
+00:56:56 [>>>] waiting 2 s for the device's reply (MP_FAIL expected on the report's path)
+(None, None)
+00:56:58 pcap: pcap/server_6.pcap (7 packets)

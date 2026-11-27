@@ -1,0 +1,33 @@
+iOS 27.2.1
+group root: /private/var/mobile/Containers/Shared/AppGroup/1706E787-6685-421A-BE89-AC10E361F2AF
+caches: /private/var/mobile/Containers/Shared/AppGroup/1706E787-6685-421A-BE89-AC10E361F2AF/Library/Caches
+baseline (alt=0) handle = -6
+baseline (alt=1) handle = -6
+caches is symlink after baseline: 0
+--- target /private/var/containers/Data/System
+  opendir after consume (alt=0): OK
+    entry 52939616-6227-442E-BA4B-E56BC0AAE9D8
+    entry 2053830D-716E-4556-B835-C46314BA7745
+    entry D1906F3E-CC8A-4108-BD80-BDAD2EA38474
+    entry 1E048AF1-F9BB-46D4-95CC-9978EA56056C
+    entry D5D8A979-1BCC-41CA-9633-05E60830D85F
+  alt=0: success 40/40  first=2  fail codes: 
+  alt=1: success 0/40  first=-99  fail codes: -6 
+  opendir after all (must be denied): Operation not permitted
+--- target /private/var/containers/Shared/SystemGroup
+  alt=0: success 0/40  first=-99  fail codes: -6 
+  alt=1: success 0/40  first=-99  fail codes: -6 
+  opendir after all (must be denied): Operation not permitted
+--- target /private/var/mobile/Containers/Data/Application
+  alt=0: success 0/40  first=-99  fail codes: -6 
+  alt=1: success 0/40  first=-99  fail codes: -6 
+  opendir after all (must be denied): Operation not permitted
+--- target /private/var/containers/Bundle/Application
+  alt=0: success 0/40  first=-99  fail codes: -6 
+  alt=1: success 0/40  first=-99  fail codes: -6 
+  opendir after all (must be denied): Operation not permitted
+--- target /private/var/mobile/Library
+  alt=0: success 0/40  first=-99  fail codes: -6 
+  alt=1: success 0/40  first=-99  fail codes: -6 
+  opendir after all (must be denied): Operation not permitted
+DONE

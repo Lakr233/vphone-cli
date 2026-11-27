@@ -1,0 +1,12 @@
+iOS 27.2.1 | iPhone | NECP probe start
+necp_open(0) -> fd=4 errno=0 (OK)
+necp_open(OBSERVER) -> fd=-1 errno=13 (Permission denied)
+ACTION_ADD (len=20) -> ret=0 errno=0 (OK)
+client_id = 9b79e1f3-7da4-46ec-9204-dd714b30dc89
+ACTION_ADD_FLOW flags=0 (len=60) -> ret=0 errno=0 (OK)
+flow_id = 534f4efb-9f26-4d8a-b4fb-90c459d57deb
+ACTION_REMOVE_FLOW -> ret=0 errno=0 (OK)
+ACTION_CLAIM -> ret=-1 errno=2 (No such file or directory)
+ACTION_REMOVE -> ret=0 errno=0 (OK)
+RESULT: necp-open ALLOWED from app sandbox; ADD ret=0
+DONE

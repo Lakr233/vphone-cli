@@ -63,6 +63,60 @@ extension KernelCustomFirmwarePatcher {
         return true
     }
 
+    /// NOP the `tbz` on bit 0 of `proc+0x15` that sits right before the MACF call in `task_for_pid`.
+    ///
+    /// Live read of launchd's `proc` (27.2): the byte is 0x7e, bit 0 clear, so this gate rejects root
+    /// with KERN_FAILURE before `mac_proc_check_get_task` is ever reached. Every reject in the function
+    /// returns the same 5, so the gate cannot be told apart from the return value.
+    /// Shape (anchor function = the one `proc_ro_ref_task` is referenced from):
+    ///   ldrb wN, [xM, #0x15]
+    ///   tbz   wN, #0, fail
+    ///   ldr   xK, [xJ, #8]
+    ///   mov   x1, sp
+    ///   mov   x0, xK
+    ///   mov   w2, #0
+    ///   bl    mac_proc_check_get_task
+    @discardableResult
+    func patchTaskForPidRootGate() -> Bool {
+        log("\n[CFW]_task_for_pid: proc+0x15 bit0 gate NOP")
+
+        guard let strOff = buffer.findString("proc_ro_ref_task") else {
+            log("  [-] task_for_pid anchor function not found")
+            return false
+        }
+        let refs = findStringRefs(strOff)
+        guard !refs.isEmpty, let funcStart = findFunctionStart(refs[0].adrpOff) else {
+            log("  [-] task_for_pid anchor function not found")
+            return false
+        }
+        let searchEnd = min(buffer.count, funcStart + 0x800)
+
+        var hits: [Int] = []
+        var off = funcStart
+        while off + 0x20 < searchEnd {
+            if matchUpstreamTaskForPidRootGate(at: off) {
+                hits.append(off + 4)
+            }
+            off += 4
+        }
+
+        guard hits.count == 1 else {
+            log("  [-] expected 1 upstream task_for_pid root-gate candidate, found \(hits.count)")
+            return false
+        }
+
+        let patchOff = hits[0]
+        let va = fileOffsetToVA(patchOff)
+        emit(
+            patchOff,
+            ARM64.nop,
+            patchID: "kernel-cfw-task_for_pid-root",
+            virtualAddress: va,
+            description: "NOP [_task_for_pid proc+0x15 bit0 gate]",
+        )
+        return true
+    }
+
     // MARK: - Private helpers
 
     private func matchUpstreamTaskForPidGate(at off: Int, funcStart: Int) -> Int? {
@@ -122,6 +176,42 @@ extension KernelCustomFirmwarePatcher {
         else { return nil }
 
         return off
+    }
+
+    private func matchUpstreamTaskForPidRootGate(at off: Int) -> Bool {
+        let insns = disasm.disassemble(in: buffer.data, at: off, count: 7)
+        guard insns.count >= 7 else { return false }
+        let ldrb = insns[0], tbz = insns[1], ldr = insns[2], mov1 = insns[3]
+        let mov0 = insns[4], mov2 = insns[5], blInsn = insns[6]
+
+        // ldrb wN, [xM, #0x15]
+        guard ldrb.mnemonic == "ldrb",
+              let ldrbOps = ldrb.detail?.operands, ldrbOps.count == 2,
+              ldrbOps[0].type == .register,
+              ldrbOps[1].type == .memory,
+              ldrbOps[1].mem.disp == 0x15
+        else { return false }
+        let reg = ldrbOps[0].reg
+
+        // tbz wN, #0, fail
+        guard tbz.mnemonic == "tbz",
+              let tbzOps = tbz.detail?.operands, tbzOps.count == 3,
+              tbzOps[0].type == .register, tbzOps[0].reg == reg,
+              tbzOps[1].type == .immediate, tbzOps[1].imm == 0,
+              tbzOps[2].type == .immediate
+        else { return false }
+
+        // ldr xK, [xJ, #8] / mov x1, sp / mov x0, xK / mov w2, #0 / bl
+        guard ldr.mnemonic == "ldr",
+              let ldrOps = ldr.detail?.operands, ldrOps.count == 2,
+              ldrOps[1].type == .memory, ldrOps[1].mem.disp == 8,
+              mov1.mnemonic == "mov",
+              mov0.mnemonic == "mov", disasm.firstRegisterName(mov0) == "x0",
+              blInsn.mnemonic == "bl",
+              isMovImmZero(mov2, dstName: "w2")
+        else { return false }
+
+        return true
     }
 
     private func isMovImmZero(_ insn: ARM64Instruction, dstName: String) -> Bool {

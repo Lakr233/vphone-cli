@@ -1,0 +1,2 @@
+00:55:10 mptcp_ip_server mode=fail iface=enp7s0 port=9999 count=1 server_key=0x0102030405060708
+00:55:10 Safe variant: DSS data_len=1, DATA_FIN=0, bad checksum. No spray, no FIN, no RST.

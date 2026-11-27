@@ -1,0 +1,82 @@
+{
+  "id": 10722209,
+  "name": "hydra-firewall",
+  "labels": {},
+  "created": "2026-03-19T16:01:22Z",
+  "rules": [
+    {
+      "direction": "in",
+      "source_ips": [
+        "200.225.112.0/22",
+        "89.167.94.146/32"
+      ],
+      "destination_ips": [],
+      "protocol": "tcp",
+      "port": "22",
+      "description": "ssh: owner ISP block + operator"
+    },
+    {
+      "direction": "in",
+      "source_ips": [
+        "0.0.0.0/0",
+        "::/0"
+      ],
+      "destination_ips": [],
+      "protocol": "tcp",
+      "port": "80",
+      "description": "http"
+    },
+    {
+      "direction": "in",
+      "source_ips": [
+        "0.0.0.0/0",
+        "::/0"
+      ],
+      "destination_ips": [],
+      "protocol": "tcp",
+      "port": "443",
+      "description": "https"
+    },
+    {
+      "direction": "out",
+      "source_ips": [],
+      "destination_ips": [
+        "0.0.0.0/0",
+        "::/0"
+      ],
+      "protocol": "icmp",
+      "port": null,
+      "description": null
+    },
+    {
+      "direction": "out",
+      "source_ips": [],
+      "destination_ips": [
+        "0.0.0.0/0",
+        "::/0"
+      ],
+      "protocol": "tcp",
+      "port": "any",
+      "description": null
+    },
+    {
+      "direction": "out",
+      "source_ips": [],
+      "destination_ips": [
+        "0.0.0.0/0",
+        "::/0"
+      ],
+      "protocol": "udp",
+      "port": "any",
+      "description": null
+    }
+  ],
+  "applied_to": [
+    {
+      "type": "server",
+      "server": {
+        "id": 124244456
+      }
+    }
+  ]
+}

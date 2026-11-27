@@ -171,6 +171,18 @@ final class VPhoneGuestKernel: @unchecked Sendable {
         return nil
     }
 
+    /// Where the kernelcache was slid: its `MH_FILESET` header where it runs,
+    /// minus the link-time `vmaddr` of its first `LC_SEGMENT_64`. Needs no
+    /// symbol map, so it also serves a kernel without one.
+    static func filesetSlide(_ tables: VPhoneGuestPageTables, below vectors: UInt64) -> (header: UInt64, linkTime: UInt64, slide: UInt64)? {
+        guard let header = filesetHeader(tables, below: vectors),
+              let mapped = mapped(tables, at: header),
+              let (_, pointer, _) = loadCommands(mapped.pointer, available: mapped.available).first(where: { $0.0 == 0x19 })
+        else { return nil }
+        let linkTime = pointer.loadUnaligned(fromByteOffset: 24, as: UInt64.self)
+        return (header, linkTime, header &- linkTime)
+    }
+
     /// The bytes at a kernel address that are mapped contiguously in guest
     /// RAM, up to 1 MB: enough for any header `loadCommands` reads. Each
     /// further page must follow on both in guest physical memory and in

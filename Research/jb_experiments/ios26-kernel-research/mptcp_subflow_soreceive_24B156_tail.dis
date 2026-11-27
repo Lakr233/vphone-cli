@@ -1,0 +1,89 @@
+0xfffffe000b0510d0  adrp     x8, #0xfffffe000b7df000
+0xfffffe000b0510d4  ldr      x22, [x8, #0x2d0]
+0xfffffe000b0510d8  ldr      x21, [sp, #0x60]
+0xfffffe000b0510dc  mov      x0, x21
+0xfffffe000b0510e0  bl       #0xfffffe000b044aa4
+0xfffffe000b0510e4  mov      x8, x0
+0xfffffe000b0510e8  orr      x0, x21, #0xffff800000000000
+0xfffffe000b0510ec  cbz      w8, #0xfffffe000b05111c
+0xfffffe000b0510f0  and      x8, x21, #0x7ffffffffff
+0xfffffe000b0510f4  tst      x21, #0x80000000000000
+0xfffffe000b0510f8  csel     x0, x8, x0, eq
+0xfffffe000b0510fc  bl       #0xfffffe000adac744
+0xfffffe000b051100  b        #0xfffffe000b051150
+0xfffffe000b051104  adrp     x0, #0xfffffe0007090000
+0xfffffe000b051108  add      x0, x0, #0x89d
+0xfffffe000b05110c  adrp     x1, #0xfffffe000708f000
+0xfffffe000b051110  add      x1, x1, #0xa79
+0xfffffe000b051114  mov      w2, #0x7f1
+0xfffffe000b051118  bl       #0xfffffe000b48ddd0
+0xfffffe000b05111c  tbz      x21, #0x37, #0xfffffe000b051144
+0xfffffe000b051120  mov      x8, #-0x20000000000
+0xfffffe000b051124  cmp      x0, x8
+0xfffffe000b051128  b.lo     #0xfffffe000b051144
+0xfffffe000b05112c  mov      x8, #0xfed000000000
+0xfffffe000b051130  movk     x8, #0xffff, lsl #48
+0xfffffe000b051134  cmp      x0, x8
+0xfffffe000b051138  b.hs     #0xfffffe000b051144
+0xfffffe000b05113c  bl       #0xfffffe000ab9a04c
+0xfffffe000b051140  b        #0xfffffe000b051150
+0xfffffe000b051144  and      x8, x21, #0x7ffffffffff
+0xfffffe000b051148  tst      x21, #0x80000000000000
+0xfffffe000b05114c  csel     x0, x0, x8, ne
+0xfffffe000b051150  ldr      w8, [x24, #0x1c]
+0xfffffe000b051154  stp      x0, x8, [sp, #8]
+0xfffffe000b051158  adrp     x8, #0xfffffe0007090000
+0xfffffe000b05115c  add      x8, x8, #0x8c6
+0xfffffe000b051160  str      x8, [sp]
+0xfffffe000b051164  adrp     x0, #0xfffffe000700c000
+0xfffffe000b051168  add      x0, x0, #0
+0xfffffe000b05116c  adrp     x3, #0xfffffe00070f1000
+0xfffffe000b051170  add      x3, x3, #0xa57
+0xfffffe000b051174  mov      x1, x22
+0xfffffe000b051178  mov      w2, #0x10
+0xfffffe000b05117c  bl       #0xfffffe000b306880
+0xfffffe000b051180  b        #0xfffffe000b051044
+0xfffffe000b051184  adrp     x0, #0xfffffe0007090000
+0xfffffe000b051188  add      x0, x0, #0x4b0
+0xfffffe000b05118c  adrp     x1, #0xfffffe000708f000
+0xfffffe000b051190  add      x1, x1, #0xa79
+0xfffffe000b051194  mov      w2, #0x874
+0xfffffe000b051198  bl       #0xfffffe000b48ddd0
+0xfffffe000b05119c  adrp     x0, #0xfffffe0007090000
+0xfffffe000b0511a0  add      x0, x0, #0x921
+0xfffffe000b0511a4  adrp     x1, #0xfffffe000708f000
+0xfffffe000b0511a8  add      x1, x1, #0xa79
+0xfffffe000b0511ac  mov      w2, #0x7bd
+0xfffffe000b0511b0  bl       #0xfffffe000b48ddd0
+0xfffffe000b0511b4  brk      #0x5519
+0xfffffe000b0511b8  ldr      x8, [x19, #0x88]
+0xfffffe000b0511bc  cbnz     x8, #0xfffffe000b0511cc
+0xfffffe000b0511c0  mov      w9, #0
+0xfffffe000b0511c4  mov      w10, #0
+0xfffffe000b0511c8  b        #0xfffffe000b0511f8
+0xfffffe000b0511cc  ldrh     w9, [x8, #0x1e]
+0xfffffe000b0511d0  tbnz     w9, #1, #0xfffffe000b0511f0
+0xfffffe000b0511d4  mov      w9, #0
+0xfffffe000b0511d8  mov      x10, x8
+0xfffffe000b0511dc  ldr      w11, [x10, #0x18]
+0xfffffe000b0511e0  add      w9, w11, w9
+0xfffffe000b0511e4  ldr      x10, [x10]
+0xfffffe000b0511e8  cbnz     x10, #0xfffffe000b0511dc
+0xfffffe000b0511ec  b        #0xfffffe000b0511f4
+0xfffffe000b0511f0  ldr      w9, [x8, #0x60]
+0xfffffe000b0511f4  ldrh     w10, [x8, #0x1c]
+0xfffffe000b0511f8  ldr      w11, [x19, #0x70]
+0xfffffe000b0511fc  ldr      w12, [x19, #0x80]
+0xfffffe000b051200  mov      w13, #0x84d
+0xfffffe000b051204  adrp     x14, #0xfffffe000708f000
+0xfffffe000b051208  add      x14, x14, #0xef0
+0xfffffe000b05120c  stp      x14, x13, [sp, #0x38]
+0xfffffe000b051210  stp      x11, x12, [sp, #0x28]
+0xfffffe000b051214  stp      x9, x10, [sp, #0x18]
+0xfffffe000b051218  adrp     x10, #0xfffffe0007090000
+0xfffffe000b05121c  add      x10, x10, #0x8c6
+0xfffffe000b051220  stp      x13, x8, [sp, #8]
+0xfffffe000b051224  adrp     x0, #0xfffffe00070a7000
+0xfffffe000b051228  add      x0, x0, #0xb88
+0xfffffe000b05122c  str      x10, [sp]
+0xfffffe000b051230  bl       #0xfffffe000b47bc20

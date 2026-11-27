@@ -1,0 +1,7 @@
+00:52:12 mptcp_ip_server mode=fail iface=enp7s0 port=9999 count=1 server_key=0x0102030405060708
+00:52:12 Safe variant: DSS data_len=1, DATA_FIN=0, bad checksum. No spray, no FIN, no RST.
+00:52:17 [+] SYN (MP_CAPABLE v1) 10.0.1.2:57259 -> SYN-ACK with CHECKSUM bit; server_key=0x0102030405060708 isn=0x65020f1e
+(None, None)
+(None, None)
+(None, None)
+00:52:32 pcap: pcap/server_2.pcap (3 packets)

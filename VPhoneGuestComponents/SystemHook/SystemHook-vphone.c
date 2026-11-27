@@ -68,7 +68,7 @@ static int vpIsWebKitGPUProcess(const char *path) {
 static int vpIsInjectionTarget(const char *path) {
     if (!path)
         return 0;
-    const char *root = getenv("VPHONE_JB_ROOT");
+    const char *root = vpJailbreakRoot();
     return vpIsBootstrapPath(path, root) || vpIsAppPath(path) || vpIsCameraDaemon(path) || vpIsMotionDaemon(path) ||
            (vpInBootstrap && path[0] != '/');
 }
@@ -108,7 +108,7 @@ static void vpLogSpawn(const char *path, const char *decision) {
 }
 
 static void vpPrepareLoaderLink(const char *path) {
-    const char *root = getenv("VPHONE_JB_ROOT");
+    const char *root = vpJailbreakRoot();
     int status = vpEnsureRootHideLoaderLink(path, root);
     if (!status && (!path || !strstr(path, "/.jbroot-")))
         return;
@@ -126,7 +126,7 @@ static void vpPrepareLoaderLink(const char *path) {
 // get their loader links prepared.
 static VPInjectionEnvironment vpPrepareChild(const char *path, char *const envp[], const char *kind) {
     const VPInsertedLibraries libraries = vpInsertedLibrariesFor(path);
-    VPInjectionEnvironment injected = vpInsertHooksFor(envp, getenv("VPHONE_JB_ROOT"), &libraries);
+    VPInjectionEnvironment injected = vpInsertHooksFor(envp, vpJailbreakRoot(), &libraries);
     if (vpIsInjectionTarget(path) || vpIsMISFixTarget(path) || vpIsDeviceHubFixTarget(path) ||
         vpIsDeviceNameTarget(path)) {
         vpPrepareLoaderLink(path);
@@ -148,7 +148,7 @@ static int vpSpawnP(pid_t *restrict pid, const char *restrict path, const posix_
                     const posix_spawnattr_t *restrict attributes, char *const argv[restrict],
                     char *const envp[restrict]) {
     VPInjectionEnvironment injected = vpPrepareChild(path, envp, "");
-    VPJetsamLimits limits = vpRaiseJetsamLimits(getenv("VPHONE_JB_ROOT"), path, attributes, envp);
+    VPJetsamLimits limits = vpRaiseJetsamLimits(vpJailbreakRoot(), path, attributes, envp);
     int status = vpSpawnWithInheritedX1Port(
         posix_spawnp, pid, path, actions, attributes, argv,
         injected.values ? injected.values : envp
@@ -162,7 +162,7 @@ static int vpSpawn(pid_t *restrict pid, const char *restrict path, const posix_s
                    const posix_spawnattr_t *restrict attributes, char *const argv[restrict],
                    char *const envp[restrict]) {
     VPInjectionEnvironment injected = vpPrepareChild(path, envp, "");
-    VPJetsamLimits limits = vpRaiseJetsamLimits(getenv("VPHONE_JB_ROOT"), path, attributes, envp);
+    VPJetsamLimits limits = vpRaiseJetsamLimits(vpJailbreakRoot(), path, attributes, envp);
     int status = vpSpawnWithInheritedX1Port(
         posix_spawn, pid, path, actions, attributes, argv,
         injected.values ? injected.values : envp
@@ -246,6 +246,7 @@ static void vpLoadLibrary(const char *kind, const char *library) {
 
 // xpcproxy needs this bridge because launchd only spawns the proxy, not its target.
 __attribute__((constructor)) static void vpLogProcess(void) {
+    vpScrubInjectionEnvironment();
     // The iOS 17 driver can load SystemHook while Metal is registering devices.
     if (vpUsesIOS17GPUTransport()) {
         vpInstallIOS18GPUTransport();
@@ -273,7 +274,7 @@ __attribute__((constructor)) static void vpLogProcess(void) {
     if (_NSGetExecutablePath(path, &length) != 0)
         return;
     vpInXPCProxy = strcmp(path, "/usr/libexec/xpcproxy") == 0;
-    vpInBootstrap = vpIsBootstrapPath(path, getenv("VPHONE_JB_ROOT"));
+    vpInBootstrap = vpIsBootstrapPath(path, vpJailbreakRoot());
 
     // Every process loads this hook; only the ones it acts on are logged.
     int fd = vpInXPCProxy || vpInBootstrap || vpIsAppPath(path) || vpIsCameraDaemon(path) || vpIsMotionDaemon(path)
@@ -283,7 +284,7 @@ __attribute__((constructor)) static void vpLogProcess(void) {
         char **arguments = *_NSGetArgv();
         dprintf(fd, "pid=%d path=%s label=%s root=%s\n", getpid(), path,
                 vpInXPCProxy && arguments && arguments[1] ? arguments[1] : "-",
-                getenv("VPHONE_JB_ROOT") ? getenv("VPHONE_JB_ROOT") : "<absent>");
+                vpJailbreakRoot() ? vpJailbreakRoot() : "<absent>");
         close(fd);
     }
 
@@ -343,7 +344,7 @@ __attribute__((constructor)) static void vpLogProcess(void) {
         vpLoadLibrary("attitude-hook", VP_ATTITUDE_HOOK);
     if (vpIsAppPath(path) && dlopen(VP_AVFOUNDATION, RTLD_LAZY | RTLD_NOLOAD))
         vpLoadLibrary("camera-hook", VP_CAMERA_APP_HOOK);
-    const char *root = getenv("VPHONE_JB_ROOT");
+    const char *root = vpJailbreakRoot();
     if (!root || !*root)
         root = "/var/jb";
     char loader[PATH_MAX];

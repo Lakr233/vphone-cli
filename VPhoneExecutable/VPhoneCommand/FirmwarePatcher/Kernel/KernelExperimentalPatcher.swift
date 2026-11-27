@@ -6,7 +6,11 @@
 // Current contents:
 //   - patchHvVmmRename (Part A + Part B): rename the kern.hv_vmm_present
 //     sysctl OID cstring AND mangle every kernel-internal caller. See
-//     EXPPatches/KernelExperimentalPatchHvVmmRename.swift for the implementation.
+//     ExperimentalPatches/KernelExperimentalPatchHvVmmRename.swift.
+//   - patchBootargsEmpty: kern.bootargs answers "" instead of the vphone
+//     command line. See ExperimentalPatches/KernelExperimentalPatchBootargs.swift.
+//   - patchCpuTopology: the CPU count sysctls answer a phone's 6 cores
+//     instead of the VM's. See ExperimentalPatches/KernelExperimentalPatchCpuTopology.swift.
 
 import Foundation
 import VPhonePatchKit
@@ -29,6 +33,9 @@ public final class KernelExperimentalPatcher: KernelCustomFirmwarePatcherBase, B
 
         // Former EXP patch, now part of the public CFW firmware pipeline.
         patchHvVmmRename()
+        patchHvVmmHideFromUser()
+        patchBootargsEmpty()
+        patchCpuTopology()
 
         return patches
     }

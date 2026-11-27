@@ -94,6 +94,12 @@ public enum FirmwareKernelCustomFirmwarePatchSet {
                 target: .firmware(.kernelcache),
             ),
             VPhonePatchDeclaration(
+                identifier: "kernel-cfw-task_for_pid-root",
+                title: "task_for_pid root gate",
+                summary: "Also NOPs the proc+0x15 bit0 gate that rejects root before the MACF check.",
+                target: .firmware(.kernelcache),
+            ),
+            VPhonePatchDeclaration(
                 identifier: "kernel-boot-port_to_map",
                 title: "Port to map conversion",
                 summary: "Skips the panic when a port is converted to a vm_map.",

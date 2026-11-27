@@ -107,12 +107,13 @@ extension FirmwarePipeline {
             plan?.isEnabled(identifier) ?? fallback
         }
 
-        // The hypervisor concealment. Its set holds this one patch, so the patcher
-        // goes when the patch does — the gate would refuse the write anyway, but a
-        // patcher built to write nothing is a patcher whose log lines lie.
-        // `standard` blocks it: see FirmwareKernelHypervisorPatchSet.
+        // The hypervisor concealment. `standard` blocks it: see
+        // FirmwareKernelHypervisorPatchSet. bootargs and cpu_topology do not
+        // depend on the hv_vmm rename, so either turns the patcher on.
         let includeHypervisor = includesSet(FirmwareKernelHypervisorPatchSet.identifier)
-            && isEnabled("kernel-exp-hv_vmm", fallback: false)
+            && (isEnabled("kernel-exp-hv_vmm", fallback: false)
+                || isEnabled("kernel-exp-bootargs", fallback: false)
+                || isEnabled("kernel-exp-cpu_topology", fallback: false))
 
         let baseIs18 = iOSBase?.major == 18
         let baseIs27 = iOSBase?.major == 27

@@ -1,0 +1,19 @@
+0xfffffff00969ba0c 0xfffffff0096a7520 751 AppleVendorSupported | Transport | LocationID | VendorID | V
+0xfffffff009677a4c 0xfffffff00968354c 645 RequestTimeout | ReportDescriptor | hid-inductive-bypass | T
+0xfffffff00969c810 0xfffffff0096a8324 607 DisplayIntegrated | DeviceUsage | DeviceUsagePage | HIDPoint
+0xfffffff0096d4150 0xfffffff0096dfc64 455 SupportsGlobeKey | BlessedUsage | BlessedUsagePage | EventTy
+0xfffffff009689d34 0xfffffff009695834 376 MultiBit | SupportsButtonEvents
+0xfffffff0096827a8 0xfffffff00968e2a8 296 HIDTimeSyncProperties | CEInterval | CEHorizon | Active
+0xfffffff0096da3fc 0xfffffff0096e5f10 281 KeyboardEnabled
+0xfffffff00967c614 0xfffffff009688114 276 HIDRMDeviceState | Allowed | Denied | Approving | RelayServi
+0xfffffff0096c7eb8 0xfffffff0096d39cc 259 Privileged | MaxEnqueueReportSize | SetReportCnt | SetReport
+0xfffffff0096e0d3c 0xfffffff0096ec850 226 hidq_force_usage_pair | QueueSize | hidq_size | DebugState |
+0xfffffff0096e1e88 0xfffffff0096ed99c 220 Privileged | RegisterService
+0xfffffff0096d5f30 0xfffffff0096e1a44 183 DigitizerCollectionDispatch | touchCancelElement | Transduce
+0xfffffff0096d1a14 0xfffffff0096dd528 154 Elements | Attempted to get %s on an element with %d childre
+0xfffffff0096c79b0 0xfffffff0096d34c4 146 FastPathHasEntitlement | FastPathMotionEventEntitlement
+0xfffffff0096c5b2c 0xfffffff0096d1640 126 IOServiceDEXTEntitlements | com.apple.developer.driverkit.fa
+0xfffffff0096c77ec 0xfffffff0096d3300 113 opened | openedByClient | copycount | errcount | suspendcoun
+0xfffffff0096b9b50 0xfffffff0096c5664 102 Privileged | HIDVirtualDevice | HIDDefaultBehavior
+0xfffffff0096a03ac 0xfffffff0096abec0 47 DeviceOpenedByEventSystem
+0xfffffff00966a4c0 0xfffffff009675fc0 45 IOServiceDEXTEntitlements | com.apple.developer.driverkit.fa

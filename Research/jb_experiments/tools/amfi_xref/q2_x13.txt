@@ -1,0 +1,90 @@
+STR 0x2237 0xfffffff007548e57 'com.apple.private.security.no-container'
+    XREF none
+STR 0x2374 0xfffffff007548f94 'com.apple.system-task-ports'
+    XREF none
+STR 0x2390 0xfffffff007548fb0 'com.apple.system-task-ports.control'
+    XREF 0x166a2b4 0xfffffff008bb0ed4 add
+    XREF 0x166c94c 0xfffffff008bb356c add
+STR 0x240f 0xfffffff00754902f 'dynamic-codesigning'
+    XREF 0x166acdc 0xfffffff008bb18fc add
+    XREF 0x166c794 0xfffffff008bb33b4 add
+STR 0x2423 0xfffffff007549043 'get-task-allow'
+    XREF 0x16647f0 0xfffffff008bab410 add
+    XREF 0x1668e68 0xfffffff008bafa88 add
+    XREF 0x166c8b4 0xfffffff008bb34d4 add
+    XREF 0x166ca14 0xfffffff008bb3634 add
+    XREF 0x166cfbc 0xfffffff008bb3bdc add
+STR 0x244d 0xfffffff00754906d 'task_for_pid-allow'
+    XREF 0x166a2a0 0xfffffff008bb0ec0 add
+    XREF 0x166c970 0xfffffff008bb3590 add
+STR 0x2676 0xfffffff007549296 'run-unsigned-code'
+    XREF none
+STR 0x3937 0xfffffff00754a557 'developer mode status'
+    XREF none
+STR 0x3965 0xfffffff00754a585 'developer mode status has been resolved'
+    XREF none
+STR 0x3b3b 0xfffffff00754a75b 'AMFI: delaying developer mode latching...\n'
+    XREF 0x1663348 0xfffffff008ba9f68 add
+STR 0x3bb6 0xfffffff00754a7d6 'AMFI: [2] informing daemon of developer mode state change'
+    XREF 0x1663810 0xfffffff008baa430 add
+STR 0x3d4a 0xfffffff00754a96a 'AMFI: Developer Mode is off (%i)\n'
+    XREF 0x1663b3c 0xfffffff008baa75c add
+STR 0x3e00 0xfffffff00754aa20 'AMFI: Enabling developer mode since we are restoring....\n'
+    XREF 0x16635c8 0xfffffff008baa1e8 add
+STR 0x3e3a 0xfffffff00754aa5a 'AMFI: Enabling developer mode since protected data is not available\n'
+    XREF 0x1663628 0xfffffff008baa248 add
+STR 0x3e7f 0xfffffff00754aa9f "AMFI: Disable developer mode since we couldn't get mobile obliteration status\n"
+    XREF 0x16635fc 0xfffffff008baa21c add
+STR 0x3ece 0xfffffff00754aaee 'AMFI: Enabling developer mode since we are in mobile obliteration\n'
+    XREF 0x1663654 0xfffffff008baa274 add
+STR 0x3f11 0xfffffff00754ab31 'AMFI: developer mode is enabled in the trusted darwinos research variant\n'
+    XREF 0x1663678 0xfffffff008baa298 add
+STR 0x3f5b 0xfffffff00754ab7b 'AMFI: developer mode is force enabled\n'
+    XREF 0x1663698 0xfffffff008baa2b8 add
+STR 0x3f82 0xfffffff00754aba2 'AMFI: trying to get developer mode status from ACM\n'
+    XREF 0x16636c4 0xfffffff008baa2e4 add
+STR 0x3fe6 0xfffffff00754ac06 'AMFI: Developer Mode Is On\n'
+    XREF 0x1663718 0xfffffff008baa338 add
+STR 0x4002 0xfffffff00754ac22 'AMFI: Developer Mode can not be enabled on trusted darwinOS.\n'
+    XREF 0x16636ac 0xfffffff008baa2cc add
+STR 0x4198 0xfffffff00754adb8 'AMFI: [1] informing daemon of developer mode state change'
+    XREF 0x1663d68 0xfffffff008baa988 add
+STR 0x469e 0xfffffff00754b2be 'com.apple.security.get-task-allow'
+    XREF 0x1664808 0xfffffff008bab428 add
+STR 0x4935 0xfffffff00754b555 'com.apple.system-task-ports.token.control'
+    XREF 0x166c5d0 0xfffffff008bb31f0 add
+STR 0x5849 0xfffffff00754c469 'AMFI: profile disallowed due to developer mode\n'
+    XREF 0x1667f68 0xfffffff008baeb88 add
+STR 0x6545 0xfffffff00754d165 'cs_enforcement_disable'
+    XREF 0x1669398 0xfffffff008baffb8 add
+STR 0x655c 0xfffffff00754d17c '%s: cs_enforcement disabled by boot-arg\n'
+    XREF 0x16693c4 0xfffffff008baffe4 add
+STR 0x65b9 0xfffffff00754d1d9 '"can\'t has cs_enforcement_disable" @%s:%d'
+    XREF 0x1683654 0xfffffff008bca274 add
+STR 0x6841 0xfffffff00754d461 'AMFI: allowing pid %u to inherit IPC ports (get-task-allow)\n'
+    XREF 0x166a16c 0xfffffff008bb0d8c add
+STR 0x68b9 0xfffffff00754d4d9 'com.apple.system-task-ports.read'
+    XREF 0x166a2c8 0xfffffff008bb0ee8 add
+    XREF 0x166c91c 0xfffffff008bb353c add
+STR 0x68da 0xfffffff00754d4fa 'com.apple.system-task-ports.inspect'
+    XREF 0x166a2dc 0xfffffff008bb0efc add
+    XREF 0x166c8e4 0xfffffff008bb3504 add
+STR 0x6d72 0xfffffff00754d992 'The system only allows platform binaries until developer mode status has been resolved, and the code is not a platform binary\n'
+    XREF 0x166aec0 0xfffffff008bb1ae0 add
+STR 0x6f74 0xfffffff00754db94 'Developer mode is disabled, %*.s is disallowed'
+    XREF 0x166cfb0 0xfffffff008bb3bd0 add
+STR 0x7213 0xfffffff00754de33 "AMFI: '%s': has developer signature (%#llx) but developer mode is not enabled\n"
+    XREF 0x166b08c 0xfffffff008bb1cac add
+STR 0x85a4 0xfffffff00754f1c4 'com.apple.system-task-ports.token.corpse'
+    XREF 0x166c580 0xfffffff008bb31a0 add
+STR 0x85cd 0xfffffff00754f1ed 'com.apple.system-task-ports.token.inspect'
+    XREF 0x166c524 0xfffffff008bb3144 add
+STR 0x85f7 0xfffffff00754f217 'com.apple.system-task-ports.token.read'
+    XREF 0x166c550 0xfffffff008bb3170 add
+    XREF 0x166c5ac 0xfffffff008bb31cc add
+STR 0x86cf 0xfffffff00754f2ef '%s: process %d attempted to use MAP_JIT but developer mode status has not been resolved!\n'
+    XREF 0x166c814 0xfffffff008bb3434 add
+STR 0x8774 0xfffffff00754f394 'AMFI: task_for_pid() not allowed\n'
+    XREF 0x166c9d0 0xfffffff008bb35f0 add
+STR 0x8796 0xfffffff00754f3b6 'AMFI: developer mode is disabled, processes can not run invalid.'
+    XREF 0x166ca60 0xfffffff008bb3680 add

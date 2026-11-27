@@ -1,0 +1,16 @@
+PATHLEAK baseline inode=294652291
+PATHLEAK Application ino=10M/297M found=0
+PATHLEAK Application ino=20M/297M found=0
+PATHLEAK Application ino=30M/297M found=0
+PATHLEAK Application ino=40M/297M found=0
+PATHLEAK Application ino=50M/297M found=0
+PATHLEAK Application ino=60M/297M found=0
+pid=5570 csops flags=0x22003305 platform=0 get-task-allow=1
+task_for_pid(0) = (os/kern) failure
+task_for_pid(1) = (os/kern) failure
+task_for_pid(2) = (os/kern) failure
+task_for_pid(100) = (os/kern) failure
+task_for_pid(5570) = (os/kern) failure
+host_get_special_port(4 kernel) = (os/kern) invalid argument
+
+DONE

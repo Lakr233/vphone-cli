@@ -1,0 +1,38 @@
+iOS 26.5.2
+group root: /private/var/mobile/Containers/Shared/AppGroup/EA783F5E-4A00-4032-89FA-848DC0D5AF4F
+caches: /private/var/mobile/Containers/Shared/AppGroup/EA783F5E-4A00-4032-89FA-848DC0D5AF4F/Library/Caches
+baseline (alt=0) handle = -6
+baseline (alt=1) handle = -6
+caches is symlink after baseline: 0
+--- target /private/var/mobile/Containers/Data/Application
+  lstat = 1
+  opendir before: Operation not permitted
+  worse_query(alt=0) handle = -6
+  worse_query(alt=1) handle = -6
+--- target /private/var/containers/Bundle/Application
+  lstat = 1
+  opendir before: Operation not permitted
+  worse_query(alt=0) handle = -6
+  worse_query(alt=1) handle = -6
+--- target /private/var/containers/Shared/SystemGroup
+  lstat = 1
+  opendir before: Operation not permitted
+  worse_query(alt=0) handle = -6
+  worse_query(alt=1) handle = -6
+--- target /private/var/containers/Data/System
+  lstat = 1
+  opendir before: Operation not permitted
+  worse_query(alt=0) handle = -6
+  worse_query(alt=1) handle = -6
+--- target /private/var/mobile/Library
+  lstat = 1
+  opendir before: Operation not permitted
+  worse_query(alt=0) handle = -6
+  worse_query(alt=1) handle = -6
+DONE
+16:57:41  Acquired tunnel connection to device.
+16:57:41  Enabling developer disk image services.
+16:57:41  Acquired usage assertion.
+Launched application with me.strelov.wqprobe bundle identifier.
+Waiting for the application to terminate...
+The app terminated with the exit code 0.

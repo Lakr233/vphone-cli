@@ -1,0 +1,190 @@
+===== x13
+0xd07 | 'static IOReturn AppleMobileFileIntegrityUserClient::copyTrus' | xref 0xfffffff008ba3470 | prologue [18446744005136495640, 'pacibsp', 84] | bl None
+0xd07 | 'static IOReturn AppleMobileFileIntegrityUserClient::copyTrus' | xref 0xfffffff008ba3518 (+0x165c8f8) | prologue 0xfffffff008ba3418 (+0x165c7f8) pacibsp | next bl -> 0xfffffff00a4ceedc
+0xd07 | 'static IOReturn AppleMobileFileIntegrityUserClient::copyTrus' | xref 0xfffffff008ba353c (+0x165c91c) | prologue 0xfffffff008ba3418 (+0x165c7f8) pacibsp | next bl -> 0xfffffff00a4ceedc
+0xdc7 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffff008ba3628 | prologue [18446744005136496036, 'pacibsp', 128] | bl None
+0xdc7 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffff008ba3654 (+0x165ca34) | prologue 0xfffffff008ba35a4 (+0x165c984) pacibsp | next bl -> 0xfffffff00a4ceedc
+0xdc7 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffff008ba36cc (+0x165caac) | prologue 0xfffffff008ba35a4 (+0x165c984) pacibsp | next bl -> 0xfffffff00a4ceedc
+0xdc7 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffff008ba374c | prologue [18446744005136496036, 'pacibsp', 420] | bl None
+0xdc7 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffff008ba3774 | prologue [18446744005136496036, 'pacibsp', 460] | bl None
+0xdc7 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffff008ba3798 | prologue [18446744005136496036, 'pacibsp', 496] | bl None
+0xdc7 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffff008ba37bc (+0x165cb9c) | prologue 0xfffffff008ba35a4 (+0x165c984) pacibsp | next bl -> 0xfffffff00a4ceedc
+0xed7 | '%s: PID %d is requesting a trust cache load\n' | xref 0xfffffff008ba2aac (+0x165be8c) | prologue 0xfffffff008ba2a78 (+0x165be58) pacibsp | next bl -> 0xfffffff00a4ceedc
+0xf04 | 'static IOReturn AppleMobileFileIntegrityUserClient::loadTrus' | xref 0xfffffff008ba2aa0 (+0x165be80) | prologue 0xfffffff008ba2a78 (+0x165be58) pacibsp | next bl -> 0xfffffff00a4ceedc
+0xf78 | 'com.apple.private.amfi.can-load-trust-cache' | xref 0xfffffff008ba2ae4 (+0x165bec4) | prologue 0xfffffff008ba2a78 (+0x165be58) pacibsp | next bl -> 0xfffffff008bafcac
+0xfa4 | '%s: failure getting load trust cache entitlement for process' | xref 0xfffffff008ba2b0c | prologue [18446744005136493176, 'pacibsp', 144] | bl None
+0xfe5 | '%s: process %d not allowed to load trust cache\n' | xref 0xfffffff008ba2bb8 (+0x165bf98) | prologue 0xfffffff008ba2a78 (+0x165be58) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x1015 | '%s: copyTrustCacheFromInputArguments failed: %d\n' | xref 0xfffffff008ba2ba4 (+0x165bf84) | prologue 0xfffffff008ba2a78 (+0x165be58) pacibsp | next bl -> 0xfffffff00a2fd170
+0x1046 | '%s: copyTrustCacheAndManifestFromInputArgument failed: %d\n' | xref 0xfffffff008ba2c20 (+0x165c000) | prologue 0xfffffff008ba2a78 (+0x165be58) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x1081 | '%s: invalid load trust cache selector %d\n' | xref 0xfffffff008ba2c34 (+0x165c014) | prologue 0xfffffff008ba2a78 (+0x165be58) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x117f | '%s: only allowed process can modify the compilation service ' | xref 0xfffffff008ba2e38 (+0x165c218) | prologue 0xfffffff008ba2ce0 (+0x165c0c0) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x11c8 | 'static IOReturn AppleMobileFileIntegrityUserClient::isCdhash' | xref 0xfffffff008ba2e90 (+0x165c270) | prologue 0xfffffff008ba2e58 (+0x165c238) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x11c8 | 'static IOReturn AppleMobileFileIntegrityUserClient::isCdhash' | xref 0xfffffff008ba2ee4 | prologue [18446744005136494168, 'pacibsp', 136] | bl None
+0x11c8 | 'static IOReturn AppleMobileFileIntegrityUserClient::isCdhash' | xref 0xfffffff008ba2f04 (+0x165c2e4) | prologue 0xfffffff008ba2e58 (+0x165c238) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x1242 | '%s: Process %d is checking if a cdhash is in the trust cache' | xref 0xfffffff008ba2e9c (+0x165c27c) | prologue 0xfffffff008ba2e58 (+0x165c238) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3009 | 'AMFI: research variant relaxes lock-state for trust caches: ' | xref 0xfffffff008ba7810 (+0x1660bf0) | prologue 0xfffffff008ba77cc (+0x1660bac) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3049 | 'amfi-allows-trust-cache-load' | xref 0xfffffff008ba7884 | prologue [18446744005136512972, 'pacibsp', 180] | bl None
+0x3066 | 'AMFI: amfi-allows-trust-cache-load has unexpected size (%u).' | xref 0xfffffff008ba7930 (+0x1660d10) | prologue 0xfffffff008ba77cc (+0x1660bac) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x30a4 | '%s: loading duplicate trust cache (success)\n' | xref 0xfffffff008ba79a8 (+0x1660d88) | prologue 0xfffffff008ba7968 (+0x1660d48) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x30a4 | '%s: loading duplicate trust cache (success)\n' | xref 0xfffffff008ba7c2c | prologue [18446744005136514004, 'pacibsp', 84] | bl None
+0x30d1 | 'loadTrustCacheWithExternalManifest' | xref 0xfffffff008ba799c (+0x1660d7c) | prologue 0xfffffff008ba7968 (+0x1660d48) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x30d1 | 'loadTrustCacheWithExternalManifest' | xref 0xfffffff008ba7a8c (+0x1660e6c) | prologue 0xfffffff008ba7968 (+0x1660d48) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x30d1 | 'loadTrustCacheWithExternalManifest' | xref 0xfffffff008ba7ab8 | prologue [18446744005136513384, 'pacibsp', 332] | bl None
+0x30d1 | 'loadTrustCacheWithExternalManifest' | xref 0xfffffff008ba7adc (+0x1660ebc) | prologue 0xfffffff008ba7968 (+0x1660d48) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x30f4 | '%s: loading trust caches disallowed by system state\n' | xref 0xfffffff008ba7a98 (+0x1660e78) | prologue 0xfffffff008ba7968 (+0x1660d48) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x30f4 | '%s: loading trust caches disallowed by system state\n' | xref 0xfffffff008ba7cf8 (+0x16610d8) | prologue 0xfffffff008ba7bd4 (+0x1660fb4) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3129 | '%s: attempted to load duplicate trust cache -- switching to ' | xref 0xfffffff008ba7ac4 | prologue [18446744005136513384, 'pacibsp', 344] | bl None
+0x3129 | '%s: attempted to load duplicate trust cache -- switching to ' | xref 0xfffffff008ba7ca8 (+0x1661088) | prologue 0xfffffff008ba7bd4 (+0x1660fb4) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x316e | '%s: unable to load trust cache: %d\n' | xref 0xfffffff008ba7ae8 (+0x1660ec8) | prologue 0xfffffff008ba7968 (+0x1660d48) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x316e | '%s: unable to load trust cache: %d\n' | xref 0xfffffff008ba7cdc (+0x16610bc) | prologue 0xfffffff008ba7bd4 (+0x1660fb4) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3192 | 'loadTrustCacheWithType' | xref 0xfffffff008ba7c20 | prologue [18446744005136514004, 'pacibsp', 72] | bl None
+0x3192 | 'loadTrustCacheWithType' | xref 0xfffffff008ba7c94 | prologue [18446744005136514004, 'pacibsp', 188] | bl None
+0x3192 | 'loadTrustCacheWithType' | xref 0xfffffff008ba7cec (+0x16610cc) | prologue 0xfffffff008ba7bd4 (+0x1660fb4) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x31e2 | 'trustCacheIsDuplicateImg4' | xref 0xfffffff008ba7b58 (+0x1660f38) | prologue 0xfffffff008ba7b10 (+0x1660ef0) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3305 | 'AMFI: Failed to get trust cache UUID for %s (TCReturn: 0x%02' | xref 0xfffffff008ba84a8 (+0x1661888) | prologue 0xfffffff008ba83c4 (+0x16617a4) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3353 | 'AMFI: Failed to get trust cache type for %s: (TCReturn: 0x%0' | xref 0xfffffff008ba84ec (+0x16618cc) | prologue 0xfffffff008ba83c4 (+0x16617a4) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x43b7 | "Couldn't find trust cache UUID for process when mapping libr" | xref 0xfffffff008bab73c | prologue [18446744005136527856, 'sub sp, sp, #0x220', 1356] | bl None
+0x4401 | "Couldn't find trust cache UUID for library from SMAC" | xref 0xfffffff008bab550 | prologue [18446744005136527856, 'sub sp, sp, #0x220', 864] | bl None
+0x5ee2 | '%s (pid %u) not allowed for Restricted Execution Mode state ' | xref 0xfffffff008baf65c | prologue [18446744005136544976, 'pacibsp', 392] | bl None
+0x6ab0 | '%s not allowed for Restricted Execution Mode state (%s): cod' | xref 0xfffffff008bb139c | prologue [18446744005136551936, 'sub sp, sp, #0x280', 924] | bl None
+0x6bb2 | 'trust-cache' | xref 0xfffffff008bb14a0 (+0x166a880) | prologue 0xfffffff008bb1000 (+0x166a3e0) sub sp, sp, #0x280 | next bl -> 0xfffffff008baf32c
+0x2390 | 'com.apple.system-task-ports.control' | xref 0xfffffff008bb0ed4 (+0x166a2b4) | prologue 0xfffffff008bb0c8c (+0x166a06c) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x2390 | 'com.apple.system-task-ports.control' | xref 0xfffffff008bb356c (+0x166c94c) | prologue 0xfffffff008bb3494 (+0x166c874) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x240f | 'dynamic-codesigning' | xref 0xfffffff008bb18fc (+0x166acdc) | prologue 0xfffffff008bb1000 (+0x166a3e0) sub sp, sp, #0x280 | next bl -> 0xfffffff008bb66ec
+0x240f | 'dynamic-codesigning' | xref 0xfffffff008bb33b4 (+0x166c794) | prologue 0xfffffff008bb32fc (+0x166c6dc) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x2423 | 'get-task-allow' | xref 0xfffffff008bab410 (+0x16647f0) | prologue 0xfffffff008bab1f0 (+0x16645d0) sub sp, sp, #0x220 | next bl -> 0xfffffff008ba831c
+0x2423 | 'get-task-allow' | xref 0xfffffff008bafa88 (+0x1668e68) | prologue 0xfffffff008baf4d0 (+0x16688b0) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x2423 | 'get-task-allow' | xref 0xfffffff008bb34d4 (+0x166c8b4) | prologue 0xfffffff008bb3494 (+0x166c874) pacibsp | next bl -> 0xfffffff008bafcac
+0x2423 | 'get-task-allow' | xref 0xfffffff008bb3634 (+0x166ca14) | prologue 0xfffffff008bb3610 (+0x166c9f0) pacibsp | next bl -> 0xfffffff008bafcac
+0x2423 | 'get-task-allow' | xref 0xfffffff008bb3bdc (+0x166cfbc) | prologue 0xfffffff008bb3b40 (+0x166cf20) pacibsp | next bl -> 0xfffffff008bbd770
+0x244d | 'task_for_pid-allow' | xref 0xfffffff008bb0ec0 (+0x166a2a0) | prologue 0xfffffff008bb0c8c (+0x166a06c) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x244d | 'task_for_pid-allow' | xref 0xfffffff008bb3590 (+0x166c970) | prologue 0xfffffff008bb3494 (+0x166c874) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x3b3b | 'AMFI: delaying developer mode latching...\n' | xref 0xfffffff008ba9f68 | prologue [18446744005136522336, 'pacibsp', 772] | bl None
+0x3bb6 | 'AMFI: [2] informing daemon of developer mode state change' | xref 0xfffffff008baa430 (+0x1663810) | prologue 0xfffffff008baa3e8 (+0x16637c8) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3d4a | 'AMFI: Developer Mode is off (%i)\n' | xref 0xfffffff008baa75c (+0x1663b3c) | prologue 0xfffffff008baa72c (+0x1663b0c) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3e00 | 'AMFI: Enabling developer mode since we are restoring....\n' | xref 0xfffffff008baa1e8 (+0x16635c8) | prologue 0xfffffff008ba9fc4 (+0x16633a4) pacibsp | next bl -> 0xfffffff008ba4bec
+0x3e3a | 'AMFI: Enabling developer mode since protected data is not av' | xref 0xfffffff008baa248 (+0x1663628) | prologue 0xfffffff008ba9fc4 (+0x16633a4) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3e7f | "AMFI: Disable developer mode since we couldn't get mobile ob" | xref 0xfffffff008baa21c (+0x16635fc) | prologue 0xfffffff008ba9fc4 (+0x16633a4) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3ece | 'AMFI: Enabling developer mode since we are in mobile obliter' | xref 0xfffffff008baa274 (+0x1663654) | prologue 0xfffffff008ba9fc4 (+0x16633a4) pacibsp | next bl -> 0xfffffff008bb06cc
+0x3f11 | 'AMFI: developer mode is enabled in the trusted darwinos rese' | xref 0xfffffff008baa298 | prologue [18446744005136523204, 'pacibsp', 720] | bl None
+0x3f5b | 'AMFI: developer mode is force enabled\n' | xref 0xfffffff008baa2b8 (+0x1663698) | prologue 0xfffffff008ba9fc4 (+0x16633a4) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3f82 | 'AMFI: trying to get developer mode status from ACM\n' | xref 0xfffffff008baa2e4 (+0x16636c4) | prologue 0xfffffff008ba9fc4 (+0x16633a4) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x3fe6 | 'AMFI: Developer Mode Is On\n' | xref 0xfffffff008baa338 (+0x1663718) | prologue 0xfffffff008ba9fc4 (+0x16633a4) pacibsp | next bl -> 0xfffffff008baa9a8
+0x4002 | 'AMFI: Developer Mode can not be enabled on trusted darwinOS.' | xref 0xfffffff008baa2cc (+0x16636ac) | prologue 0xfffffff008ba9fc4 (+0x16633a4) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x4198 | 'AMFI: [1] informing daemon of developer mode state change' | xref 0xfffffff008baa988 (+0x1663d68) | prologue 0xfffffff008baa934 (+0x1663d14) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x469e | 'com.apple.security.get-task-allow' | xref 0xfffffff008bab428 (+0x1664808) | prologue 0xfffffff008bab1f0 (+0x16645d0) sub sp, sp, #0x220 | next bl -> 0xfffffff008ba831c
+0x4935 | 'com.apple.system-task-ports.token.control' | xref 0xfffffff008bb31f0 (+0x166c5d0) | prologue 0xfffffff008bb3114 (+0x166c4f4) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x5849 | 'AMFI: profile disallowed due to developer mode\n' | xref 0xfffffff008baeb88 (+0x1667f68) | prologue 0xfffffff008bae8b4 (+0x1667c94) pacibsp | next bl -> 0xfffffff008bbd5d8
+0x6545 | 'cs_enforcement_disable' | xref 0xfffffff008baffb8 (+0x1669398) | prologue 0xfffffff008baff20 (+0x1669300) pacibsp | next bl -> 0xfffffff00a5debec
+0x655c | '%s: cs_enforcement disabled by boot-arg\n' | xref 0xfffffff008baffe4 (+0x16693c4) | prologue 0xfffffff008baff20 (+0x1669300) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x65b9 | '"can\'t has cs_enforcement_disable" @%s:%d' | xref 0xfffffff008bca274 (+0x1683654) | prologue 0xfffffff008bca254 (+0x1683634) pacibsp | next bl -> 0xfffffff00a615b68
+0x6841 | 'AMFI: allowing pid %u to inherit IPC ports (get-task-allow)\n' | xref 0xfffffff008bb0d8c (+0x166a16c) | prologue 0xfffffff008bb0c8c (+0x166a06c) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x68b9 | 'com.apple.system-task-ports.read' | xref 0xfffffff008bb0ee8 (+0x166a2c8) | prologue 0xfffffff008bb0c8c (+0x166a06c) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x68b9 | 'com.apple.system-task-ports.read' | xref 0xfffffff008bb353c (+0x166c91c) | prologue 0xfffffff008bb3494 (+0x166c874) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x68da | 'com.apple.system-task-ports.inspect' | xref 0xfffffff008bb0efc (+0x166a2dc) | prologue 0xfffffff008bb0c8c (+0x166a06c) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x68da | 'com.apple.system-task-ports.inspect' | xref 0xfffffff008bb3504 (+0x166c8e4) | prologue 0xfffffff008bb3494 (+0x166c874) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x6d72 | 'The system only allows platform binaries until developer mod' | xref 0xfffffff008bb1ae0 (+0x166aec0) | prologue 0xfffffff008bb1000 (+0x166a3e0) sub sp, sp, #0x280 | next bl -> 0xfffffff008baf390
+0x6f74 | 'Developer mode is disabled, %*.s is disallowed' | xref 0xfffffff008bb3bd0 (+0x166cfb0) | prologue 0xfffffff008bb3b40 (+0x166cf20) pacibsp | next bl -> 0xfffffff008bbd770
+0x7213 | "AMFI: '%s': has developer signature (%#llx) but developer mo" | xref 0xfffffff008bb1cac | prologue [18446744005136551936, 'sub sp, sp, #0x280', 3244] | bl None
+0x85a4 | 'com.apple.system-task-ports.token.corpse' | xref 0xfffffff008bb31a0 (+0x166c580) | prologue 0xfffffff008bb3114 (+0x166c4f4) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x85cd | 'com.apple.system-task-ports.token.inspect' | xref 0xfffffff008bb3144 (+0x166c524) | prologue 0xfffffff008bb3114 (+0x166c4f4) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x85f7 | 'com.apple.system-task-ports.token.read' | xref 0xfffffff008bb3170 (+0x166c550) | prologue 0xfffffff008bb3114 (+0x166c4f4) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x85f7 | 'com.apple.system-task-ports.token.read' | xref 0xfffffff008bb31cc (+0x166c5ac) | prologue 0xfffffff008bb3114 (+0x166c4f4) pacibsp | next bl -> 0xfffffff008bb6dfc
+0x86cf | '%s: process %d attempted to use MAP_JIT but developer mode s' | xref 0xfffffff008bb3434 (+0x166c814) | prologue 0xfffffff008bb32fc (+0x166c6dc) pacibsp | next bl -> 0xfffffff00a2fb7b8
+0x8774 | 'AMFI: task_for_pid() not allowed\n' | xref 0xfffffff008bb35f0 (+0x166c9d0) | prologue 0xfffffff008bb3494 (+0x166c874) pacibsp | next bl -> 0xfffffff00a4ceedc
+0x8796 | 'AMFI: developer mode is disabled, processes can not run inva' | xref 0xfffffff008bb3680 (+0x166ca60) | prologue 0xfffffff008bb3610 (+0x166c9f0) pacibsp | next bl -> 0xfffffff00a4ceedc
+===== x17
+0xd81 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffe000926db3c | prologue [18446741874839837368, 'pacibsp', 128] | bl None
+0xd81 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffe000926db68 (+0x1c07f28) | prologue 0xfffffe000926dab8 (+0x1c07e78) pacibsp | next bl -> 0xfffffe000929749c
+0xd81 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffe000926dbe0 (+0x1c07fa0) | prologue 0xfffffe000926dab8 (+0x1c07e78) pacibsp | next bl -> 0xfffffe000929749c
+0xd81 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffe000926dc60 | prologue [18446741874839837368, 'pacibsp', 420] | bl None
+0xd81 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffe000926dc88 | prologue [18446741874839837368, 'pacibsp', 460] | bl None
+0xd81 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffe000926dcac | prologue [18446741874839837368, 'pacibsp', 496] | bl None
+0xd81 | 'copyTrustCacheAndManifestFromInputArgument' | xref 0xfffffe000926dcd0 (+0x1c08090) | prologue 0xfffffe000926dab8 (+0x1c07e78) pacibsp | next bl -> 0xfffffe000929749c
+0xe91 | '%s: PID %d is requesting a trust cache load\n' | xref 0xfffffe000926cee0 (+0x1c072a0) | prologue 0xfffffe000926ceac (+0x1c0726c) pacibsp | next bl -> 0xfffffe000929749c
+0xebe | 'static IOReturn AppleMobileFileIntegrityUserClient::loadTrus' | xref 0xfffffe000926ced4 (+0x1c07294) | prologue 0xfffffe000926ceac (+0x1c0726c) pacibsp | next bl -> 0xfffffe000929749c
+0xf32 | 'com.apple.private.amfi.can-load-trust-cache' | xref 0xfffffe000926cf18 (+0x1c072d8) | prologue 0xfffffe000926ceac (+0x1c0726c) pacibsp | next bl -> 0xfffffe000927a9f0
+0xf5e | '%s: failure getting load trust cache entitlement for process' | xref 0xfffffe000926cf40 | prologue [18446741874839834284, 'pacibsp', 144] | bl None
+0xf9f | '%s: process %d not allowed to load trust cache\n' | xref 0xfffffe000926cfec (+0x1c073ac) | prologue 0xfffffe000926ceac (+0x1c0726c) pacibsp | next bl -> 0xfffffe000929749c
+0xffb | '%s: copyTrustCacheAndManifestFromInputArgument failed: %d\n' | xref 0xfffffe000926d054 (+0x1c07414) | prologue 0xfffffe000926ceac (+0x1c0726c) pacibsp | next bl -> 0xfffffe000929749c
+0x1036 | '%s: invalid load trust cache selector %d\n' | xref 0xfffffe000926d068 (+0x1c07428) | prologue 0xfffffe000926ceac (+0x1c0726c) pacibsp | next bl -> 0xfffffe000929749c
+0x1134 | '%s: only allowed process can modify the compilation service ' | xref 0xfffffe000926d258 (+0x1c07618) | prologue 0xfffffe000926d11c (+0x1c074dc) pacibsp | next bl -> 0xfffffe000929749c
+0x117d | 'static IOReturn AppleMobileFileIntegrityUserClient::isCdhash' | xref 0xfffffe000926d2e0 (+0x1c076a0) | prologue 0xfffffe000926d2a4 (+0x1c07664) pacibsp | next bl -> 0xfffffe000929749c
+0x117d | 'static IOReturn AppleMobileFileIntegrityUserClient::isCdhash' | xref 0xfffffe000926d334 | prologue [18446741874839835300, 'pacibsp', 140] | bl None
+0x117d | 'static IOReturn AppleMobileFileIntegrityUserClient::isCdhash' | xref 0xfffffe000926d354 (+0x1c07714) | prologue 0xfffffe000926d2a4 (+0x1c07664) pacibsp | next bl -> 0xfffffe000929749c
+0x11f7 | '%s: Process %d is checking if a cdhash is in the trust cache' | xref 0xfffffe000926d2ec (+0x1c076ac) | prologue 0xfffffe000926d2a4 (+0x1c07664) pacibsp | next bl -> 0xfffffe000929749c
+0x3023 | 'AMFI: research variant relaxes lock-state for trust caches: ' | xref 0xfffffe00092720e4 (+0x1c0c4a4) | prologue 0xfffffe00092720a0 (+0x1c0c460) pacibsp | next bl -> 0xfffffe000929749c
+0x3063 | 'amfi-allows-trust-cache-load' | xref 0xfffffe0009272158 | prologue [18446741874839855264, 'pacibsp', 180] | bl None
+0x3080 | 'AMFI: amfi-allows-trust-cache-load has unexpected size (%u).' | xref 0xfffffe0009272204 (+0x1c0c5c4) | prologue 0xfffffe00092720a0 (+0x1c0c460) pacibsp | next bl -> 0xfffffe000929749c
+0x30be | '%s: loading duplicate trust cache (success)\n' | xref 0xfffffe0009272280 (+0x1c0c640) | prologue 0xfffffe0009272240 (+0x1c0c600) pacibsp | next bl -> 0xfffffe000929749c
+0x30be | '%s: loading duplicate trust cache (success)\n' | xref 0xfffffe000927250c | prologue [18446741874839856308, 'pacibsp', 84] | bl None
+0x30eb | 'loadTrustCacheWithExternalManifest' | xref 0xfffffe0009272274 (+0x1c0c634) | prologue 0xfffffe0009272240 (+0x1c0c600) pacibsp | next bl -> 0xfffffe000929749c
+0x30eb | 'loadTrustCacheWithExternalManifest' | xref 0xfffffe0009272364 (+0x1c0c724) | prologue 0xfffffe0009272240 (+0x1c0c600) pacibsp | next bl -> 0xfffffe000929749c
+0x30eb | 'loadTrustCacheWithExternalManifest' | xref 0xfffffe0009272390 | prologue [18446741874839855680, 'pacibsp', 332] | bl None
+0x30eb | 'loadTrustCacheWithExternalManifest' | xref 0xfffffe00092723b4 (+0x1c0c774) | prologue 0xfffffe0009272240 (+0x1c0c600) pacibsp | next bl -> 0xfffffe000929749c
+0x310e | '%s: loading trust caches disallowed by system state\n' | xref 0xfffffe0009272370 (+0x1c0c730) | prologue 0xfffffe0009272240 (+0x1c0c600) pacibsp | next bl -> 0xfffffe000929749c
+0x310e | '%s: loading trust caches disallowed by system state\n' | xref 0xfffffe00092725d8 (+0x1c0c998) | prologue 0xfffffe00092724b4 (+0x1c0c874) pacibsp | next bl -> 0xfffffe000929749c
+0x3143 | '%s: attempted to load duplicate trust cache -- switching to ' | xref 0xfffffe000927239c | prologue [18446741874839855680, 'pacibsp', 344] | bl None
+0x3143 | '%s: attempted to load duplicate trust cache -- switching to ' | xref 0xfffffe0009272588 (+0x1c0c948) | prologue 0xfffffe00092724b4 (+0x1c0c874) pacibsp | next bl -> 0xfffffe000929749c
+0x3188 | '%s: unable to load trust cache: %d\n' | xref 0xfffffe00092723c0 (+0x1c0c780) | prologue 0xfffffe0009272240 (+0x1c0c600) pacibsp | next bl -> 0xfffffe000929749c
+0x3188 | '%s: unable to load trust cache: %d\n' | xref 0xfffffe00092725bc (+0x1c0c97c) | prologue 0xfffffe00092724b4 (+0x1c0c874) pacibsp | next bl -> 0xfffffe000929749c
+0x31ac | 'loadTrustCacheWithType' | xref 0xfffffe0009272500 | prologue [18446741874839856308, 'pacibsp', 72] | bl None
+0x31ac | 'loadTrustCacheWithType' | xref 0xfffffe0009272574 | prologue [18446741874839856308, 'pacibsp', 188] | bl None
+0x31ac | 'loadTrustCacheWithType' | xref 0xfffffe00092725cc (+0x1c0c98c) | prologue 0xfffffe00092724b4 (+0x1c0c874) pacibsp | next bl -> 0xfffffe000929749c
+0x31fc | 'trustCacheIsDuplicateImg4' | xref 0xfffffe0009272434 (+0x1c0c7f4) | prologue 0xfffffe00092723ec (+0x1c0c7ac) pacibsp | next bl -> 0xfffffe000929749c
+0x332b | 'AMFI: Failed to get trust cache UUID for %s (TCReturn: 0x%02' | xref 0xfffffe0009272e0c (+0x1c0d1cc) | prologue 0xfffffe0009272d18 (+0x1c0d0d8) pacibsp | next bl -> 0xfffffe000929749c
+0x3379 | 'AMFI: Failed to get trust cache type for %s: (TCReturn: 0x%0' | xref 0xfffffe0009272e50 (+0x1c0d210) | prologue 0xfffffe0009272d18 (+0x1c0d0d8) pacibsp | next bl -> 0xfffffe000929749c
+0x441a | "Couldn't find trust cache UUID for process when mapping libr" | xref 0xfffffe000927618c | prologue [18446741874839870520, 'sub sp, sp, #0x220', 1364] | bl None
+0x4464 | "Couldn't find trust cache UUID for library from SMAC" | xref 0xfffffe0009275fa0 | prologue [18446741874839870520, 'sub sp, sp, #0x220', 872] | bl None
+0x5fed | '%s (pid %u) not allowed for Restricted Execution Mode state ' | xref 0xfffffe000927a394 | prologue [18446741874839888372, 'pacibsp', 412] | bl None
+0x6bbb | '%s not allowed for Restricted Execution Mode state (%s): cod' | xref 0xfffffe000927c178 | prologue [18446741874839895452, 'sub sp, sp, #0x330', 988] | bl None
+0x6cbd | 'trust-cache' | xref 0xfffffe000927c47c (+0x1c1683c) | prologue 0xfffffe000927bd9c (+0x1c1615c) sub sp, sp, #0x330 | next bl -> 0xfffffe000927a044
+0x6dd1 | 'AMFI: Platform binary with platform identifier not in trust ' | xref 0xfffffe000927d4b8 (+0x1c17878) | prologue 0xfffffe000927bd9c (+0x1c1615c) sub sp, sp, #0x330 | next bl -> 0xfffffe000929749c
+0x6e14 | 'platform binary with platform identifier not in trust cache\n' | xref 0xfffffe000927d4c4 (+0x1c17884) | prologue 0xfffffe000927bd9c (+0x1c1615c) sub sp, sp, #0x330 | next bl -> 0xfffffe000929749c
+0x7f37 | 'int _check_cdhash_in_trustcache(struct proc *, user_addr_t)' | xref 0xfffffe000927d83c | prologue [18446741874839902000, 'pacibsp', 264] | bl None
+0x7f37 | 'int _check_cdhash_in_trustcache(struct proc *, user_addr_t)' | xref 0xfffffe000927dd0c | prologue [18446741874839902000, 'pacibsp', 1496] | bl None
+0x2343 | 'com.apple.system-task-ports.control' | xref 0xfffffe000927bc6c (+0x1c1602c) | prologue 0xfffffe000927ba24 (+0x1c15de4) pacibsp | next bl -> 0xfffffe0009282704
+0x2343 | 'com.apple.system-task-ports.control' | xref 0xfffffe000927e60c (+0x1c189cc) | prologue 0xfffffe000927e534 (+0x1c188f4) pacibsp | next bl -> 0xfffffe0009282704
+0x23c2 | 'dynamic-codesigning' | xref 0xfffffe000927c1e4 (+0x1c165a4) | prologue 0xfffffe000927bd9c (+0x1c1615c) sub sp, sp, #0x330 | next bl -> 0xfffffe0009281fcc
+0x23c2 | 'dynamic-codesigning' | xref 0xfffffe000927e450 (+0x1c18810) | prologue 0xfffffe000927e398 (+0x1c18758) pacibsp | next bl -> 0xfffffe0009282704
+0x23d6 | 'get-task-allow' | xref 0xfffffe0009275e58 (+0x1c10218) | prologue 0xfffffe0009275c38 (+0x1c0fff8) sub sp, sp, #0x220 | next bl -> 0xfffffe0009272c64
+0x23d6 | 'get-task-allow' | xref 0xfffffe000927a7c0 (+0x1c14b80) | prologue 0xfffffe000927a1f4 (+0x1c145b4) pacibsp | next bl -> 0xfffffe0009282704
+0x23d6 | 'get-task-allow' | xref 0xfffffe000927e574 (+0x1c18934) | prologue 0xfffffe000927e534 (+0x1c188f4) pacibsp | next bl -> 0xfffffe000927a9f0
+0x23d6 | 'get-task-allow' | xref 0xfffffe000927e6d8 (+0x1c18a98) | prologue 0xfffffe000927e6b4 (+0x1c18a74) pacibsp | next bl -> 0xfffffe000927a9f0
+0x23d6 | 'get-task-allow' | xref 0xfffffe000927ed28 (+0x1c190e8) | prologue 0xfffffe000927ec8c (+0x1c1904c) pacibsp | next bl -> 0xfffffe00092898b8
+0x2400 | 'task_for_pid-allow' | xref 0xfffffe000927bc58 (+0x1c16018) | prologue 0xfffffe000927ba24 (+0x1c15de4) pacibsp | next bl -> 0xfffffe0009282704
+0x2400 | 'task_for_pid-allow' | xref 0xfffffe000927e630 (+0x1c189f0) | prologue 0xfffffe000927e534 (+0x1c188f4) pacibsp | next bl -> 0xfffffe0009282704
+0x3b9e | 'AMFI: delaying developer mode latching...\n' | xref 0xfffffe0009274974 | prologue [18446741874839864928, 'pacibsp', 784] | bl None
+0x3c19 | 'AMFI: [2] informing daemon of developer mode state change' | xref 0xfffffe0009274e48 (+0x1c0f208) | prologue 0xfffffe0009274e00 (+0x1c0f1c0) pacibsp | next bl -> 0xfffffe000929749c
+0x3dad | 'AMFI: Developer Mode is off (%i)\n' | xref 0xfffffe0009275184 (+0x1c0f544) | prologue 0xfffffe0009275154 (+0x1c0f514) pacibsp | next bl -> 0xfffffe000929749c
+0x3e63 | 'AMFI: Enabling developer mode since we are restoring....\n' | xref 0xfffffe0009274bf8 (+0x1c0efb8) | prologue 0xfffffe00092749d4 (+0x1c0ed94) pacibsp | next bl -> 0xfffffe000926f140
+0x3e9d | 'AMFI: Enabling developer mode since protected data is not av' | xref 0xfffffe0009274c58 (+0x1c0f018) | prologue 0xfffffe00092749d4 (+0x1c0ed94) pacibsp | next bl -> 0xfffffe000929749c
+0x3ee2 | "AMFI: Disable developer mode since we couldn't get mobile ob" | xref 0xfffffe0009274c2c (+0x1c0efec) | prologue 0xfffffe00092749d4 (+0x1c0ed94) pacibsp | next bl -> 0xfffffe000929749c
+0x3f31 | 'AMFI: Enabling developer mode since we are in mobile obliter' | xref 0xfffffe0009274c84 (+0x1c0f044) | prologue 0xfffffe00092749d4 (+0x1c0ed94) pacibsp | next bl -> 0xfffffe000927b450
+0x3f74 | 'AMFI: developer mode is enabled in the trusted darwinos rese' | xref 0xfffffe0009274ca8 | prologue [18446741874839865812, 'pacibsp', 720] | bl None
+0x3fbe | 'AMFI: developer mode is force enabled\n' | xref 0xfffffe0009274cc8 (+0x1c0f088) | prologue 0xfffffe00092749d4 (+0x1c0ed94) pacibsp | next bl -> 0xfffffe000929749c
+0x3fe5 | 'AMFI: trying to get developer mode status from ACM\n' | xref 0xfffffe0009274cf4 (+0x1c0f0b4) | prologue 0xfffffe00092749d4 (+0x1c0ed94) pacibsp | next bl -> 0xfffffe000929749c
+0x4049 | 'AMFI: Developer Mode Is On\n' | xref 0xfffffe0009274d48 (+0x1c0f108) | prologue 0xfffffe00092749d4 (+0x1c0ed94) pacibsp | next bl -> 0xfffffe00092753d8
+0x4065 | 'AMFI: Developer Mode can not be enabled on trusted darwinOS.' | xref 0xfffffe0009274cdc (+0x1c0f09c) | prologue 0xfffffe00092749d4 (+0x1c0ed94) pacibsp | next bl -> 0xfffffe000929749c
+0x41fb | 'AMFI: [1] informing daemon of developer mode state change' | xref 0xfffffe00092753b8 (+0x1c0f778) | prologue 0xfffffe0009275364 (+0x1c0f724) pacibsp | next bl -> 0xfffffe000929749c
+0x4701 | 'com.apple.security.get-task-allow' | xref 0xfffffe0009275e70 (+0x1c10230) | prologue 0xfffffe0009275c38 (+0x1c0fff8) sub sp, sp, #0x220 | next bl -> 0xfffffe0009272c64
+0x4a29 | 'com.apple.system-task-ports.token.control' | xref 0xfffffe000927e288 (+0x1c18648) | prologue 0xfffffe000927e1ac (+0x1c1856c) pacibsp | next bl -> 0xfffffe0009282704
+0x593d | 'AMFI: profile disallowed due to developer mode\n' | xref 0xfffffe0009279820 (+0x1c13be0) | prologue 0xfffffe000927954c (+0x1c1390c) pacibsp | next bl -> 0xfffffe000928971c
+0x6650 | 'cs_enforcement_disable' | xref 0xfffffe000927ad14 (+0x1c150d4) | prologue 0xfffffe000927ac7c (+0x1c1503c) pacibsp | next bl -> 0xfffffe000929759c
+0x6667 | '%s: cs_enforcement disabled by boot-arg\n' | xref 0xfffffe000927ad40 (+0x1c15100) | prologue 0xfffffe000927ac7c (+0x1c1503c) pacibsp | next bl -> 0xfffffe000929749c
+0x66c4 | '"can\'t has cs_enforcement_disable" @%s:%d' | xref 0xfffffe0009296728 (+0x1c30ae8) | prologue 0xfffffe0009296708 (+0x1c30ac8) pacibsp | next bl -> 0xfffffe0009297fbc
+0x694c | 'AMFI: allowing pid %u to inherit IPC ports (get-task-allow)\n' | xref 0xfffffe000927bb24 (+0x1c15ee4) | prologue 0xfffffe000927ba24 (+0x1c15de4) pacibsp | next bl -> 0xfffffe000929749c
+0x69c4 | 'com.apple.system-task-ports.read' | xref 0xfffffe000927bc80 (+0x1c16040) | prologue 0xfffffe000927ba24 (+0x1c15de4) pacibsp | next bl -> 0xfffffe0009282704
+0x69c4 | 'com.apple.system-task-ports.read' | xref 0xfffffe000927e5dc (+0x1c1899c) | prologue 0xfffffe000927e534 (+0x1c188f4) pacibsp | next bl -> 0xfffffe0009282704
+0x69e5 | 'com.apple.system-task-ports.inspect' | xref 0xfffffe000927bc94 (+0x1c16054) | prologue 0xfffffe000927ba24 (+0x1c15de4) pacibsp | next bl -> 0xfffffe0009282704
+0x69e5 | 'com.apple.system-task-ports.inspect' | xref 0xfffffe000927e5a4 (+0x1c18964) | prologue 0xfffffe000927e534 (+0x1c188f4) pacibsp | next bl -> 0xfffffe0009282704
+0x6fa4 | 'The system only allows platform binaries until developer mod' | xref 0xfffffe000927c39c (+0x1c1675c) | prologue 0xfffffe000927bd9c (+0x1c1615c) sub sp, sp, #0x330 | next bl -> 0xfffffe000927a0ac
+0x71a6 | 'Developer mode is disabled, %*.s is disallowed' | xref 0xfffffe000927ed1c (+0x1c190dc) | prologue 0xfffffe000927ec8c (+0x1c1904c) pacibsp | next bl -> 0xfffffe00092898b8
+0x7432 | "AMFI: '%s': has developer signature (%#llx) but developer mo" | xref 0xfffffe000927cc18 (+0x1c16fd8) | prologue 0xfffffe000927bd9c (+0x1c1615c) sub sp, sp, #0x330 | next bl -> 0xfffffe000929749c
+0x859f | 'com.apple.system-task-ports.token.corpse' | xref 0xfffffe000927e238 (+0x1c185f8) | prologue 0xfffffe000927e1ac (+0x1c1856c) pacibsp | next bl -> 0xfffffe0009282704
+0x85c8 | 'com.apple.system-task-ports.token.inspect' | xref 0xfffffe000927e1dc (+0x1c1859c) | prologue 0xfffffe000927e1ac (+0x1c1856c) pacibsp | next bl -> 0xfffffe0009282704
+0x85f2 | 'com.apple.system-task-ports.token.read' | xref 0xfffffe000927e208 (+0x1c185c8) | prologue 0xfffffe000927e1ac (+0x1c1856c) pacibsp | next bl -> 0xfffffe0009282704
+0x85f2 | 'com.apple.system-task-ports.token.read' | xref 0xfffffe000927e264 (+0x1c18624) | prologue 0xfffffe000927e1ac (+0x1c1856c) pacibsp | next bl -> 0xfffffe0009282704
+0x86ca | '%s: process %d attempted to use MAP_JIT but developer mode s' | xref 0xfffffe000927e4d0 (+0x1c18890) | prologue 0xfffffe000927e398 (+0x1c18758) pacibsp | next bl -> 0xfffffe00092980ac
+0x876f | 'AMFI: task_for_pid() not allowed\n' | xref 0xfffffe000927e690 (+0x1c18a50) | prologue 0xfffffe000927e534 (+0x1c188f4) pacibsp | next bl -> 0xfffffe000929749c
+0x8791 | 'AMFI: developer mode is disabled, processes can not run inva' | xref 0xfffffe000927e724 (+0x1c18ae4) | prologue 0xfffffe000927e6b4 (+0x1c18a74) pacibsp | next bl -> 0xfffffe000929749c

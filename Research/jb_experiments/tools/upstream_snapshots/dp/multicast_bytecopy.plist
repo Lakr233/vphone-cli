@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>DPExploitFlavors</key>
+	<dict>
+		<key>default</key>
+		<dict>
+			<key>DPFlavorPriority</key>
+			<integer>950</integer>
+			<key>DPSupportExclude</key>
+			<array>
+				<dict>
+					<key>Devices</key>
+					<array>
+						<string>A8</string>
+						<string>A9</string>
+						<string>iPad13,6</string>
+						<string>iPad13,7</string>
+						<string>iPad13,10</string>
+						<string>iPad13,11</string>
+					</array>
+				</dict>
+			</array>
+			<key>DPSupportInclude</key>
+			<array>
+				<dict>
+					<key>Builds</key>
+					<array>
+						<string>19C5026i</string>
+					</array>
+				</dict>
+			</array>
+			<key>DPSupportedRanges</key>
+			<array>
+				<dict>
+					<key>End</key>
+					<string>15.1.1</string>
+					<key>Start</key>
+					<string>15.0</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>DPExploitType</key>
+	<string>Kernel</string>
+</dict>
+</plist>

@@ -1,0 +1,403 @@
+# old 0xfffffff00a0f640c 951 ins | new 0xfffffff00a1043cc 978 ins
+--- old
++++ new
+@@ -33,8 +33,8 @@
+ str q0, [sp, #N]
+ ldr x19, [x1, #N]
+ adrp x26, #N
+-adrp x27, #N
+-add x27, x27, #N
++adrp x24, #N
++add x24, x24, #N
+ ldp x8, x9, [x1, #N]
+ cbz x8, #N
+ cmp x9, #N
+@@ -50,32 +50,9 @@
+ mov w2, #N
+ bl #N
+ cbz w0, #N
+-mov x25, x0
+-ldr x1, [x26, #N]
+-stp x27, x25, [sp]
+-adrp x0, #N
+-add x0, x0, #N
+-adrp x3, #N
+-add x3, x3, #N
+-mov w2, #N
+-bl #N
+-mov x21, #N
+-mov x22, #N
+-mov w23, #N
+-b #N
+-ldr x1, [x26, #N]
+-stp x27, x9, [sp]
+-adrp x0, #N
+-add x0, x0, #N
+-adrp x3, #N
+-add x3, x3, #N
+-mov w2, #N
+-bl #N
+-mov x21, #N
+-mov x22, #N
+-b #N
+-ldr x1, [x26, #N]
+-stp x27, x19, [sp]
++mov x27, x0
++ldr x1, [x26, #N]
++stp x24, x27, [sp]
+ adrp x0, #N
+ add x0, x0, #N
+ adrp x3, #N
+@@ -85,10 +62,33 @@
+ mov x21, #N
+ mov x22, #N
+ mov w25, #N
+-mov w23, #N
+-str w25, [x20]
+-ldr x1, [x26, #N]
+-stp x27, x25, [sp]
++b #N
++ldr x1, [x26, #N]
++stp x24, x9, [sp]
++adrp x0, #N
++add x0, x0, #N
++adrp x3, #N
++add x3, x3, #N
++mov w2, #N
++bl #N
++mov x21, #N
++mov x22, #N
++b #N
++ldr x1, [x26, #N]
++stp x24, x19, [sp]
++adrp x0, #N
++add x0, x0, #N
++adrp x3, #N
++add x3, x3, #N
++mov w2, #N
++bl #N
++mov x21, #N
++mov x22, #N
++mov w27, #N
++mov w25, #N
++str w27, [x20]
++ldr x1, [x26, #N]
++stp x24, x27, [sp]
+ adrp x0, #N
+ add x0, x0, #N
+ adrp x3, #N
+@@ -102,7 +102,7 @@
+ mov x2, x19
+ bl #N
+ cbz x22, #N
+-cmp x22, x23
++cmp x22, x25
+ b.hs #N
+ mov x0, x22
+ bl #N
+@@ -112,7 +112,7 @@
+ ldr x9, [x9]
+ cmp x9, x8
+ b.ne #N
+-mov x0, x25
++mov x0, x27
+ add sp, sp, #N
+ ldp x29, x30, [sp, #N]
+ ldp x20, x19, [sp, #N]
+@@ -123,16 +123,16 @@
+ retab 
+ cmp x19, #N
+ b.hi #N
+-add x24, sp, #N
++add x22, sp, #N
+ ldr x8, [sp, #N]
+ ldr x0, [x8, #N]
+ add x1, sp, #N
+ mov x2, x19
+ bl #N
+ cbz w0, #N
+-mov x25, x0
+-ldr x1, [x26, #N]
+-stp x27, x25, [sp]
++mov x27, x0
++ldr x1, [x26, #N]
++stp x24, x27, [sp]
+ adrp x0, #N
+ add x0, x0, #N
+ adrp x3, #N
+@@ -161,9 +161,9 @@
+ mov x2, x19
+ bl #N
+ cbz w0, #N
+-mov x25, x0
+-ldr x1, [x26, #N]
+-stp x27, x25, [sp]
++mov x27, x0
++ldr x1, [x26, #N]
++stp x24, x27, [sp]
+ adrp x0, #N
+ add x0, x0, #N
+ adrp x3, #N
+@@ -173,42 +173,49 @@
+ mov x22, #N
+ b #N
+ mov x21, #N
+-add x28, x24, #N
++add x8, sp, #N
++str x8, [sp, #N]
++add x28, x22, #N
+ b #N
+ mov x22, #N
+-mov w25, #N
+-b #N
+-mov x24, x21
++mov w27, #N
++b #N
++str x21, [sp, #N]
+ mov x9, #N
+-mrs x25, tpidr_el1
+-ldr w10, [x25, #N]
++mrs x23, tpidr_el1
++ldr w10, [x23, #N]
+ ldr x8, [sp, #N]
+ add x11, x8, #N
+ casa x9, x10, [x11]
+ cmp x9, #N
+ b.ne #N
+-ldr w0, [x8, #N]
+-str x0, [sp, #N]
+-bl #N
+-add x23, x0, #N
++ldr w27, [x8, #N]
++mov x0, x27
++bl #N
++add x25, x0, #N
+ cbz x0, #N
+ mov x22, x0
+ sub x1, x29, #N
+ ldr x0, [sp, #N]
+ bl #N
+ cbz x0, #N
+-mov x10, x0
++mov x11, x0
++str x23, [sp, #N]
++add x8, x0, #N
++ldr x9, [x0, #N]
++adrp x10, #N
++ldrsw x10, [x10, #N]
++cmp x9, x10
++b.hs #N
+ str x28, [sp, #N]
+-str x24, [sp, #N]
+-add x8, x0, #N
+-mov x11, x0
+-ldrb w9, [x11, #N]!
++mov x10, x11
++ldrb w9, [x10, #N]!
+ and w9, w9, #N
+-stp x11, x25, [sp, #N]
+-strb w9, [x11]
+-cmp x0, x8
+-b.hs #N
+-add x0, x10, #N
++stp x10, x27, [sp, #N]
++strb w9, [x10]
++cmp x11, x8
++b.hs #N
++add x0, x11, #N
+ mov w8, #N
+ ldadd w8, w8, [x0]
+ mov w9, #N
+@@ -216,8 +223,8 @@
+ cmp w8, w9
+ b.ls #N
+ add x1, sp, #N
+-mov x0, x10
+-str x10, [sp, #N]
++mov x0, x11
++str x11, [sp, #N]
+ bl #N
+ ldr x0, [sp, #N]
+ ldr x1, [sp, #N]
+@@ -229,31 +236,30 @@
+ cmp x9, x8
+ b.hi #N
+ mov x10, x0
+-ldr x24, [sp, #N]
+-ldrh w8, [x24, #N]
++ldr x23, [sp, #N]
++ldrh w8, [x23, #N]
+ mov x9, x0
+ str w8, [x9, #N]!
+ str x9, [sp, #N]
+-ldrh w8, [x24, #N]
++ldrh w8, [x23, #N]
+ stp xzr, xzr, [sp, #N]
+ str x0, [sp, #N]
+ str w8, [sp, #N]
+ tbz w8, #N, #N
+-add x25, x24, #N
++add x27, x23, #N
+ adrp x1, #N
+ add x1, x1, #N
+-mov x0, x25
+-mov w2, #N
+-bl #N
+-ldr x10, [sp, #N]
+-ldr x11, [sp, #N]
++mov x0, x27
++mov w2, #N
++bl #N
++ldp x10, x11, [sp, #N]
+ cbnz w0, #N
+-add x25, x10, #N
+-ldr q0, [x25]
++add x27, x10, #N
++ldr q0, [x27]
+ str q0, [sp, #N]
+ add x28, x10, #N
+ ldur q0, [x10, #N]
+-str q0, [x24, #N]
++str q0, [x23, #N]
+ ldrh w8, [sp, #N]
+ ldrb w9, [x10, #N]
+ lsr w8, w8, #N
+@@ -274,80 +280,78 @@
+ stur xzr, [sp, #N]
+ movi v0.2d, #N
+ stp q0, q0, [sp, #N]
+-add x24, sp, #N
++add x23, sp, #N
+ add x0, x11, #N
+ add x1, sp, #N
+ bl #N
+ stur xzr, [sp, #N]
+ movi v0.2d, #N
+ stp q0, q0, [sp, #N]
+-add x25, sp, #N
++add x27, sp, #N
+ add x1, sp, #N
+ mov x0, x28
+ bl #N
+ ldr x1, [x26, #N]
+-ldr x8, [sp, #N]
++ldp x9, x8, [sp, #N]
+ ldr w8, [x8, #N]
+-ldr x9, [sp, #N]
+ ldr w9, [x9, #N]
+ ldr x10, [sp, #N]
+ ldr w10, [x10, #N]
+ stp x9, x10, [sp, #N]
+-stp x24, x25, [sp, #N]
+-ldr x24, [sp, #N]
+-stp x27, x8, [sp]
+-adrp x0, #N
+-add x0, x0, #N
+-adrp x3, #N
+-add x3, x3, #N
+-mov w2, #N
+-bl #N
+-ldr x10, [sp, #N]
+-ldr x11, [sp, #N]
++stp x23, x27, [sp, #N]
++ldr x23, [sp, #N]
++stp x24, x8, [sp]
++adrp x0, #N
++add x0, x0, #N
++adrp x3, #N
++add x3, x3, #N
++mov w2, #N
++bl #N
++ldp x10, x11, [sp, #N]
+ str x28, [sp, #N]
+ mov x12, #N
+-ldrh w8, [x24, #N]
++ldrh w8, [x23, #N]
+ add x8, x8, x8, lsl #N
+ lsl x8, x8, #N
+ add x28, x8, #N
+-ldrh w9, [x24, #N]
++ldrh w9, [x23, #N]
+ tbz w9, #N, #N
+ add x8, x8, #N
+ cmp x19, x8
+ b.lo #N
+ ldr x8, [sp, #N]
+-cmp x24, x8
++cmp x23, x8
+ b.hs #N
+ mov x12, #N
+-ldr x24, [sp, #N]
+-add x25, x24, x28
+-ldrb w2, [x25]
++ldr x23, [sp, #N]
++add x27, x23, x28
++ldrb w2, [x27]
+ cmp x2, #N
+ b.hi #N
+ add x8, x28, x2
+ cmp x19, x8
+ b.lo #N
+-add x8, x25, #N
+-cmp x25, x8
++add x8, x27, #N
++cmp x27, x8
+ b.hi #N
+ add x8, sp, #N
+ add x0, x8, #N
+-mov x1, x25
+-bl #N
+-ldrb w8, [x25]
++mov x1, x27
++bl #N
++ldrb w8, [x27]
+ add x28, x28, x8
+ ldrb w8, [sp, #N]
+ cmp w8, #N
+ b.eq #N
+ cmp w8, #N
+-ldr x24, [sp, #N]
++ldr x23, [sp, #N]
+ b.ne #N
+ mov w8, #N
+ strh w8, [sp, #N]
+ str wzr, [sp, #N]
+-mov x12, x25
+-b #N
+-ldr w9, [x25, #N]
++mov x12, x27
++b #N
++ldr w9, [x23, #N]
+ ldr x8, [sp, #N]
+ add x10, x8, #N
+ mov x2, x9
+@@ -355,9 +359,8 @@
+ cmp w2, w9
+ b.ne #N
+ ldr x1, [x26, #N]
+-ldr x8, [sp, #N]
+-stp x8, xzr, [sp, #N]
+-str x27, [sp]
++stp x27, xzr, [sp, #N]
++str x24, [sp]
+ adrp x0, #N
+ add x0, x0, #N
+ adrp x3, #N
+@@ -365,34 +368,61 @@
+ mov w2, #N
+ bl #N
+ mov x22, #N
+-mov w25, #N
+-b #N
+-ldr w9, [x25, #N]
++mov w27, #N
++b #N
++ldr w9, [x23, #N]
+ ldr x8, [sp, #N]
+ add x10, x8, #N
+ mov x2, x9
+ casl w2, wzr, [x10]
+ cmp w2, w9
+ b.ne #N
+-mov w25, #N
+... truncated

@@ -1,0 +1,12 @@
+iOS 26.5.2 | iPhone | NECP probe start
+is root: uid=501 euid=501
+socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL) -> 4 errno=0
+CTLIOCGINFO(com.apple.content-filter) -> 0 ctl_id=4 errno=0 (OK)
+connect(com.apple.content-filter, unit=1) -> -1 errno=1 (Operation not permitted)
+sysctlnametomib(net.cfil.active_count) -> 0 mib=4.107.106.0 n=3
+sysctl(net.cfil.active_count) -> -1 value=-1 errno=1 (Operation not permitted)
+loopback tcp #0: connect=0 accept=6 send=1 errno=1 elapsed=159 us
+loopback tcp #1: connect=0 accept=5 send=1 errno=1 elapsed=138 us
+loopback tcp #2: connect=0 accept=6 send=1 errno=1 elapsed=157 us
+DONE
+DONE

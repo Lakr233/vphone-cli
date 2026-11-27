@@ -1,0 +1,27 @@
+name: aksprobe
+options:
+  bundleIdPrefix: me.strelov
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    DEVELOPMENT_TEAM: 25U9HN34VM
+    CODE_SIGN_STYLE: Automatic
+targets:
+  aksprobe:
+    type: application
+    platform: iOS
+    sources: [aksprobe.m]
+    dependencies:
+      - sdk: IOKit.framework
+      - sdk: Security.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: me.strelov.aksprobe
+        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
+        GENERATE_INFOPLIST_FILE: YES
+    entitlements:
+      path: aksprobe.entitlements
+      properties:
+        get-task-allow: true
+        application-identifier: 25U9HN34VM.me.strelov.aksprobe

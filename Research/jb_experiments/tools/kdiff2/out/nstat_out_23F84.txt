@@ -1,0 +1,79 @@
+iOS | 25.5.0
+== provider 0 ==
+CTLIOCGINFO -> 0 id=8 
+connect -> 0 
+ADD_ALL(provider=0) -> 56 
+QUERY_SRC(ALL) -> 24 
+  reply#1: type=1 len=80 flags=0 bytes=80 err=2 ctx=0
+  payload[0..48]: 02000000000000000000000000000000ea0300003800000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+  reply#2: type=0 len=16 flags=0 bytes=16 err=0 ctx=0
+  payload[0..48]: 
+  drained 96 bytes, 2 msgs
+  types: 1 0 
+== provider 1 ==
+CTLIOCGINFO -> 0 id=8 
+connect -> 0 
+ADD_ALL(provider=1) -> 56 
+QUERY_SRC(ALL) -> 24 
+  reply#1: type=1 len=80 flags=0 bytes=80 err=1 ctx=0
+  payload[0..48]: 01000000000000000000000000000000ea0300003800000000000000000000000000000000000000010000000000000000000000000000000000000000000000
+  reply#2: type=0 len=16 flags=0 bytes=16 err=0 ctx=0
+  payload[0..48]: 
+  drained 96 bytes, 2 msgs
+  types: 1 0 
+== provider 2 ==
+CTLIOCGINFO -> 0 id=8 
+connect -> 0 
+ADD_ALL(provider=2) -> 56 
+QUERY_SRC(ALL) -> 24 
+  reply#1: type=1 len=80 flags=0 bytes=80 err=1 ctx=0
+  payload[0..48]: 01000000000000000000000000000000ea0300003800000000000000000000000000000000000000020000000000000000000000000000000000000000000000
+  reply#2: type=0 len=16 flags=0 bytes=16 err=0 ctx=0
+  payload[0..48]: 
+  drained 96 bytes, 2 msgs
+  types: 1 0 
+== provider 3 ==
+CTLIOCGINFO -> 0 id=8 
+connect -> 0 
+ADD_ALL(provider=3) -> 56 
+QUERY_SRC(ALL) -> 24 
+  reply#1: type=1 len=80 flags=0 bytes=80 err=1 ctx=0
+  payload[0..48]: 01000000000000000000000000000000ea0300003800000000000000000000000000000000000000030000000000000000000000000000000000000000000000
+  reply#2: type=0 len=16 flags=0 bytes=16 err=0 ctx=0
+  payload[0..48]: 
+  drained 96 bytes, 2 msgs
+  types: 1 0 
+== provider 4 ==
+CTLIOCGINFO -> 0 id=8 
+connect -> 0 
+ADD_ALL(provider=4) -> 56 
+QUERY_SRC(ALL) -> 24 
+  reply#1: type=1 len=80 flags=0 bytes=80 err=1 ctx=0
+  payload[0..48]: 01000000000000000000000000000000ea0300003800000000000000000000000000000000000000040000000000000000000000000000000000000000000000
+  reply#2: type=0 len=16 flags=0 bytes=16 err=0 ctx=0
+  payload[0..48]: 
+  drained 96 bytes, 2 msgs
+  types: 1 0 
+== provider 5 ==
+CTLIOCGINFO -> 0 id=8 
+connect -> 0 
+ADD_ALL(provider=5) -> 56 
+QUERY_SRC(ALL) -> 24 
+  reply#1: type=1 len=80 flags=0 bytes=80 err=1 ctx=0
+  payload[0..48]: 01000000000000000000000000000000ea0300003800000000000000000000000000000000000000050000000000000000000000000000000000000000000000
+  reply#2: type=0 len=16 flags=0 bytes=16 err=0 ctx=0
+  payload[0..48]: 
+  drained 96 bytes, 2 msgs
+  types: 1 0 
+== provider 6 ==
+CTLIOCGINFO -> 0 id=8 
+connect -> 0 
+ADD_ALL(provider=6) -> 56 
+QUERY_SRC(ALL) -> 24 
+  reply#1: type=1 len=80 flags=0 bytes=80 err=45 ctx=0
+  payload[0..48]: 2d000000000000000000000000000000ea0300003800000000000000000000000000000000000000060000000000000000000000000000000000000000000000
+  reply#2: type=0 len=16 flags=0 bytes=16 err=0 ctx=0
+  payload[0..48]: 
+  drained 96 bytes, 2 msgs
+  types: 1 0 
+done

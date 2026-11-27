@@ -1,0 +1,62 @@
+iOS 27.2.1 | iPhone | HID probe start
+iOS 27.2.1 | iPhone | HID probe start
+SVC IOHIDDevice type=0 kr=0xe00002e2
+SVC IOHIDDevice type=1 kr=0xe00002e2
+SVC IOHIDDevice type=2 kr=0xe00002e2
+SVC IOHIDInterface type=0 kr=0xe00002c7
+SVC IOHIDInterface type=1 kr=0xe00002c7
+SVC IOHIDInterface type=2 kr=0xe00002c7
+SVC IOHIDEventDriver type=0 kr=0xe00002c2
+SVC IOHIDEventDriver type=1 kr=0xe00002c2
+SVC IOHIDEventDriver type=2 kr=0xe00002e2
+SVC AppleHSV1 inst=0
+SVC AppleHIDTransportHIDDevice type=0 kr=0xe00002e2
+SVC AppleHIDTransportHIDDevice type=1 kr=0xe00002e2
+SVC AppleHIDTransportHIDDevice type=2 kr=0xe00002e2
+SVC AppleHIDTransportHIDDeviceEventDriver inst=0
+SVC IOHIDEventService type=0 kr=0xe00002c2
+SVC IOHIDEventService type=1 kr=0xe00002c2
+SVC IOHIDEventService type=2 kr=0xe00002e2
+SVC IOHIDEventSystem inst=0
+SVC IOHIDEventSystemManager inst=0
+IOHIDUserDevice service FOUND (that is an existing virtual device, not a creation path)
+IOHIDUserDeviceCreate: not linked on iOS (symbol absent from IOKit), virtual-device path skipped
+CLASS IOHIDResource type=0 kr=0xe00002c2
+CLASS IOHIDResource type=1 kr=0xe00002c2
+CLASS IOHIDResource type=2 kr=0xe00002c2
+CLASS IOHIDEventDriver type=0 kr=0xe00002c2
+CLASS IOHIDEventDriver type=1 kr=0xe00002c2
+CLASS IOHIDEventDriver type=2 kr=0xe00002e2
+CLASS AppleSPUHIDDevice type=0 kr=0xe00002e2
+CLASS AppleSPUHIDDevice type=1 kr=0xe00002e2
+CLASS AppleSPUHIDDevice type=2 kr=0xe00002e2
+CLASS AppleHIDTransportHIDDevice type=0 kr=0xe00002e2
+CLASS AppleHIDTransportHIDDevice type=1 kr=0xe00002e2
+CLASS AppleHIDTransportHIDDevice type=2 kr=0xe00002e2
+CLASS IOHIDUserDevice type=0 kr=0xe00002e2
+CLASS IOHIDUserDevice type=1 kr=0xe00002e2
+CLASS IOHIDUserDevice type=2 kr=0xe00002e2
+CLASS IOHIDInterface type=0 kr=0xe00002c7
+CLASS IOHIDInterface type=1 kr=0xe00002c7
+CLASS IOHIDInterface type=2 kr=0xe00002c7
+CLASS AppleHIDTransportBootloaderRTBuddy type=0 kr=0xe00002e2
+CLASS AppleHIDTransportBootloaderRTBuddy type=1 kr=0xe00002e2
+CLASS AppleHIDTransportBootloaderRTBuddy type=2 kr=0xe00002e2
+CLASS AppleHIDTransportBootloaderCBOR type=0 kr=0xe00002e2
+CLASS AppleHIDTransportBootloaderCBOR type=1 kr=0xe00002e2
+CLASS AppleHIDTransportBootloaderCBOR type=2 kr=0xe00002e2
+CLASS AppleHIDTransportDeviceMailbox type=0 kr=0xe00002e2
+CLASS AppleHIDTransportDeviceMailbox type=1 kr=0xe00002e2
+CLASS AppleHIDTransportDeviceMailbox type=2 kr=0xe00002e2
+CLASS AppleHIDTransportProtocolSCMMailbox type=0 kr=0xe00002c7
+CLASS AppleHIDTransportProtocolSCMMailbox type=1 kr=0xe00002c7
+CLASS AppleHIDTransportProtocolSCMMailbox type=2 kr=0xe00002c7
+CLASS AppleHIDTransportManagement type=0 kr=0xe00002e2
+CLASS AppleHIDTransportManagement type=1 kr=0xe00002e2
+CLASS AppleHIDTransportManagement type=2 kr=0xe00002e2
+CLASS AppleHIDTransportInterface type=0 kr=0xe00002e2
+CLASS AppleHIDTransportInterface type=1 kr=0xe00002e2
+CLASS AppleHIDTransportInterface type=2 kr=0xe00002e2
+HID-named services seen: 79
+DONE
+DONE

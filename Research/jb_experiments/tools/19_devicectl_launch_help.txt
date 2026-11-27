@@ -1,0 +1,154 @@
+xcrun devicectl --version
+518.33
+
+xcrun devicectl device process --help   (SUBCOMMANDS)
+  launch                  Launch a remote application.
+  resume                  Resume a process on a device.
+  sendMemoryWarning       Sends a memory pressure warning to a process on a
+                          device.
+  signal                  Send a signal to a process on a device.
+  suspend                 Suspend a process on a device.
+  terminate               Terminate a process on a device.
+
+xcrun devicectl device process launch --help
+OVERVIEW: Launch a remote application.
+
+This command launches an application on a device and passes it specific
+arguments.
+
+If you want to set environment variables in the resulting environment, set them
+in the calling environment with a DEVICECTL_CHILD_ prefix.
+
+Once the application has launched, you can attach to it using LLDB. For
+example, if you have an iPhone named 'iPhone' connected to your Mac, and your
+application running on the iPhone has the process identifier of 10684, you can
+debug your application using the following steps:
+
+$ xcrun lldb
+(lldb) device select iPhone
+(lldb) device process attach -p 10684
+
+See LLDB's help for information on all supported commands.
+
+USAGE: devicectl device process launch [<options>] --device <uuid|ecid|serial_number|udid|name|dns_name> <bundle-identifier-or-path> [<command-line-arguments> ...]
+
+DEVICE OPTIONS:
+  -d, --device <uuid|ecid|serial_number|udid|name|dns_name>
+                          The identifier, ECID, serial number, UDID,
+                          user-provided name, or DNS name of the device.
+
+COMMAND OPTIONS:
+  -u, --user <user>       The user ID or name to run as.
+  -e, --environment-variables <environment-variables>
+                          A JSON-encoded dictionary of environment variables
+                          and their values to provide to the process.
+        Keys and values must be strings.
+        Example: '{"PATH": "/usr/local/bin", "REPORTTIME": "2", "LANG":
+        "en_US.UTF-8"}'
+
+        Note: Using the environment-variables flag will override the caller
+        environment variables prefixed with DEVICECTL_CHILD_.
+  <bundle-identifier-or-path>
+                          The bundle identifier of or path to the remote
+                          application.
+  <command-line-arguments>
+                          Arguments to pass to the remote application.
+  --start-stopped         Launches the app in a suspended state, waiting for a
+                          debugger.
+  --working-directory <working-directory>
+                          The initial working directory for the spawned process.
+  --payload-url <payload-url>
+                          A URL to pass to the application for it to open
+                          during launch.
+  --activate/--no-activate
+                          Launches the application in the foreground. (default:
+                          --activate)
+        Whether or not to activate the application when starting it. Not
+        supported on all platforms.
+  --terminate-existing    Terminates any already-running instances of the app
+                          prior to launch. Not supported on all platforms.
+  --console               Attaches the application to the console and waits for
+                          it to exit.
+        devicectl will wait for the app to terminate. Catchable signals sent to
+        devicectl are forwarded to the app. If the app is not already running,
+        its standard streams will be connected to devicectl's standard streams.
+
+OUTPUT OPTIONS:
+  -v, --verbose           If given, provide more logging output than normal.
+  -q, --quiet             If given, output will include only errors.
+  -t, --timeout <seconds> The overall command timeout in seconds. If this limit
+                          is exceeded the command is abandoned as a failure.
+  -j, --json-output <path>
+                          An optional path to write a JSON file with command
+                          results.
+        Note: JSON output to a user-provided file on disk is the ONLY supported
+                          interface for scripts/programs to consume command output.
+  -l, --log-output <path> An optional path to write all logging otherwise
+                          passed to stdout/stderr.
+
+OPTIONS:
+  --version               Show the version.
+  -h, --help              Show help information.
+
+xcrun devicectl device info --help   (SUBCOMMANDS, обрезано)
+  appIcon                 Request app icon generation from this device.
+  apps                    List apps installed on the device.
+  authListing             Get the device's AuthListing identifiers.
+  ddiServices             Get information on the developer disk image services
+                          on the device.
+  ...
+  details                 Get information about the current device.
+  displays                Get the device's current display information.
+  files                   List files on the device.
+  lockState               Get the device's current locked state.
+  processes               List currently running processes on the device.
+
+idevicesyslog --version
+idevicesyslog 1.4.0
+
+idevicesyslog --help   (опции)
+  -u, --udid UDID       target specific device by UDID
+  -n, --network         connect to network device
+  -x, --exit            exit when device disconnects
+  -h, --help            prints usage information
+  -d, --debug           enable communication debugging
+  -v, --version         print version information
+  --no-colors           disable colored output
+  -o, --output FILE     write to FILE instead of stdout
+  --colors              force writing colored output, e.g. for --output
+  --syslog-relay        force use of syslog_relay service
+    --start-time VALUE  start time of the log data as UNIX timestamp
+    --age-limit VALUE   maximum age of the log data
+    --size-limit VALUE  limit the size of the archive
+  -m, --match STRING      only print messages that contain STRING
+  -M, --unmatch STRING    print messages that not contain STRING
+  -t, --trigger STRING    start logging when matching STRING
+  -T, --untrigger STRING  stop logging when matching STRING
+  -p, --process PROCESS   only print messages from matching process(es)
+  -e, --exclude PROCESS   print all messages except matching process(es)
+  -q, --quiet             set a filter to exclude common noisy processes
+  --quiet-list            prints the list of processes for --quiet and exits
+  -k, --kernel            only print kernel messages
+  -K, --no-kernel         suppress kernel messages
+
+idevicecrashreport --help   (опции)
+  -u, --udid UDID       target specific device by UDID
+  -n, --network         connect to network device
+  -e, --extract         extract raw crash report into separate '.crash' file
+  -k, --keep            copy but do not remove crash reports from device
+  -d, --debug           enable communication debugging
+  -f, --filter NAME     filter crash reports by NAME (case sensitive)
+  -h, --help            prints usage information
+  -v, --version         print version information
+  --remove-all          remove all crash logs found
+
+log collect --help   (фрагмент)
+    --device                      Collect logs from first device found
+    --device-name <name>          Collect logs from device with the given name
+    --device-udid <UDID>          Collect logs from device with the given UDID
+    --last <num>[m|h|d]           Collect logs starting <num>[m|h|d] ago
+    --output <path>               Output log archive to the given path
+
+log stream --help   (grep -i 'device|predicate')
+    --predicate <predicate>         Filter events using the given predicate
+  (строк с --device не найдено)

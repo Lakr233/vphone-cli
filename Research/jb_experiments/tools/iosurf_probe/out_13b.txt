@@ -1,0 +1,8 @@
+iOS 26.5.2 | IOSurfaceRoot enum 0x00000000
+INST 1 type 0 open -> 0x00000000
+s4             sel  4 -> 0xe00002c2 nout=0 out0=0
+s13            sel 13 -> 0x00000000 nout=0 out0=0
+s0-alloc       sel  0 -> 0xe00002c2 nout=0 out0=0
+INST 1 type 1 open -> 0xe00002c7
+INST 1 type 2 open -> 0xe00002c7
+DONE 1 instance(s)

@@ -62,6 +62,10 @@ import VPhoneCoreKit
 ///   {"t":"memory.dump","path":"/abs/new/folder","physical":true}
 ///                                               → saves the guest's RAM by guest physical address as
 ///                                                 `physical.elf` (see `VPhonePhysicalMemoryDump`)
+///   {"t":"kernel.info"}                       → where the guest's kernelcache runs: `header` (its
+///                                                 `MH_FILESET` at runtime), `link_time` (the same segment's
+///                                                 address in the file), `slide` (their difference), `vbar` and
+///                                                 `ttbr1_root`; the guest pauses briefly for the read
 ///   {"t":"process.dump","pid":123,"path":"/abs/new/folder","name":"SpringBoard"}
 ///                                               → saves one guest process's resident memory as a Mach-O
 ///                                                 core, read from the host through the guest kernel's page
@@ -419,6 +423,32 @@ class VPhoneHostAutomationServer {
                     "capture_seconds": VPhoneMemoryDump.tenths(dump.captureSeconds),
                     "write_seconds": VPhoneMemoryDump.tenths(dump.writeSeconds),
                 ])
+
+            case "kernel.info":
+                guard let virtualMachine else {
+                    return Self.reply(ok: false, error: "the VM is not running")
+                }
+                let mapped = try await VPhoneGuestPhysicalMemory.map(virtualMachine.virtualMachine)
+                let stubPort = VPhoneGuestDebugStub.port(of: virtualMachine.virtualMachine)
+                struct Info: Sendable {
+                    let header: UInt64
+                    let linkTime: UInt64
+                    let slide: UInt64
+                    let vbar: UInt64
+                    let root: UInt64
+                }
+                let (info, _, resumeFailure) = try await vphoneWithGuestPaused(virtualMachine) { () -> Info in
+                    let registers = try VPhoneGuestDebugStub.kernelRegisters(port: vphoneDebugStubPort(stubPort))
+                    let tables = VPhoneGuestPageTables(memory: mapped, root: registers.root)
+                    guard let slid = VPhoneGuestKernel.filesetSlide(tables, below: registers.vbar) else {
+                        throw VPhoneGuestKernel.Failure.noKernelcache
+                    }
+                    return Info(header: slid.header, linkTime: slid.linkTime, slide: slid.slide, vbar: registers.vbar, root: registers.root)
+                }
+                return Self.reply(ok: true, result: [
+                    "header": hex(info.header), "link_time": hex(info.linkTime), "slide": hex(info.slide),
+                    "vbar": hex(info.vbar), "ttbr1_root": hex(info.root),
+                ].merging(resumeFailure.map { ["resume_error": $0] } ?? [:]) { $1 })
 
             case "process.dump":
                 guard let virtualMachine else {

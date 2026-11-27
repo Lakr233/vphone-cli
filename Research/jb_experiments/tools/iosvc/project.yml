@@ -1,0 +1,27 @@
+name: iosvc
+options:
+  bundleIdPrefix: me.strelov
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    DEVELOPMENT_TEAM: 25U9HN34VM
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "Apple Development"
+targets:
+  iosvc:
+    type: application
+    platform: iOS
+    sources: [iosvc.m]
+    dependencies:
+      - sdk: IOKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: me.strelov.iosvc
+        INFOPLIST_KEY_UILaunchStoryboardName: LaunchScreen
+        GENERATE_INFOPLIST_FILE: YES
+    entitlements:
+      path: iosvc.entitlements
+      properties:
+        get-task-allow: true
+        application-identifier: 25U9HN34VM.me.strelov.iosvc

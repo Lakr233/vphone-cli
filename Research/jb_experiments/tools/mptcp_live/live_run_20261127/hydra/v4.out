@@ -1,0 +1,11 @@
+01:25:11 mptcp_ip_server mode=fail iface=eth0 port=9999 count=1 server_key=0xe4573dfbd3ca985e
+01:25:11 Safe variant: DSS data_len=1, DATA_FIN=0, bad checksum. No spray, no FIN, no RST.
+01:25:23 [+] SYN (MP_CAPABLE v1) 200.225.112.187:59142 -> SYN-ACK with CHECKSUM bit; server_key=0xe4573dfbd3ca985e isn=0xc4b65fa3
+(None, None)
+(None, None)
+01:25:24 [+] 3rd ACK from 200.225.112.187:59142 subtype=0 (MPO_CAPABLE=0) tcp.ack=0xc4b65fa4 expected=0xc4b65fa4
+(None, None)
+01:25:24 [*] data from 200.225.112.187:59142 1B dss=None client_seq->0x4ad548f8
+01:25:24 [>>>] DSS dlen=1 DATA_FIN=0 csum=0xDEAD dsn=0x93001aed sseq=1 tcp.seq=0xc4b65fa4 ack=0x4ad548f8 bytes=200593001aed93001aed000000010001dead
+01:25:24 [>>>] waiting 2 s for the device's reply (MP_FAIL expected on the report's path)
+(None, None)

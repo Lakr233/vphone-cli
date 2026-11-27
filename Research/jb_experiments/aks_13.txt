@@ -1,0 +1,58 @@
+AKS open kr=0 conn=0xd0b
+AKS phase1 key=0x132080080 sig=ok capture=0
+AKS phase2 (zero handle): scanning selectors 1..163
+AKS kr-change at sel=1 -> 0000000000
+AKS sel=  1 kr=0000000000 outsz=8192 nonfill=0 kptr=0 soc=8 so0=0
+AKS kr-change at sel=2 -> 0xe00002c2
+AKS kr-change at sel=5 -> 0xe00002c1
+AKS kr-change at sel=6 -> 0xe00002c2
+AKS kr-change at sel=16 -> 0000000000
+AKS sel= 16 kr=0000000000 outsz=8192 nonfill=0 kptr=0 soc=8 so0=0
+AKS kr-change at sel=17 -> 0xe00002c2
+AKS kr-change at sel=19 -> 0xe00002e2
+AKS kr-change at sel=20 -> 0xe00002c1
+AKS kr-change at sel=23 -> 0xe00002c2
+AKS kr-change at sel=33 -> 0xe00002c1
+AKS kr-change at sel=35 -> 0xe00002c2
+AKS kr-change at sel=36 -> 0xe00002c1
+AKS kr-change at sel=40 -> 0xe00002c2
+AKS kr-change at sel=41 -> 0xe00002c1
+AKS kr-change at sel=42 -> 0xe00002c2
+AKS kr-change at sel=51 -> 0xe00002c1
+AKS kr-change at sel=52 -> 0xe00002c2
+AKS kr-change at sel=53 -> 0xe00002c1
+AKS kr-change at sel=55 -> 0xe00002c2
+AKS kr-change at sel=63 -> 0xe00002c1
+AKS kr-change at sel=64 -> 0xe00002c2
+AKS kr-change at sel=65 -> 0xe00002c1
+AKS kr-change at sel=68 -> 0xe00002c2
+AKS kr-change at sel=69 -> 0xe00002c1
+AKS kr-change at sel=82 -> 0xe00002c2
+AKS kr-change at sel=83 -> 0xe00002c1
+AKS kr-change at sel=96 -> 0xe00002c2
+AKS kr-change at sel=99 -> 0xe00002c1
+AKS kr-change at sel=100 -> 0xe00002c2
+AKS kr-change at sel=104 -> 0xe00002c1
+AKS kr-change at sel=109 -> 0xe00002c2
+AKS kr-change at sel=110 -> 0xe00002c1
+AKS kr-change at sel=112 -> 0xe00002c2
+AKS kr-change at sel=114 -> 0xe00002c1
+AKS kr-change at sel=116 -> 0xe00002c2
+AKS kr-change at sel=118 -> 0xe00002c1
+AKS kr-change at sel=134 -> 0xe00002c2
+AKS kr-change at sel=135 -> 0xe00002c1
+AKS kr-change at sel=136 -> 0xe00002c2
+AKS kr-change at sel=137 -> 0xe00002c1
+AKS kr-change at sel=141 -> 0xe00002c2
+AKS kr-change at sel=142 -> 0xe00002c1
+AKS kr-change at sel=148 -> 0xe00002c2
+AKS kr-change at sel=149 -> 0xe00002c1
+AKS kr-change at sel=161 -> 0xe00002c2
+AKS kr-change at sel=162 -> 0xe00002c1
+AKS SUMMARY kptr_total=0 selectors_with_kptr=0
+16:47:09  Acquired tunnel connection to device.
+16:47:09  Enabling developer disk image services.
+16:47:09  Acquired usage assertion.
+Launched application with me.strelov.aksprobe bundle identifier.
+Waiting for the application to terminate...
+The app terminated with the exit code 0.

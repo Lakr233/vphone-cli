@@ -147,6 +147,7 @@ public final class KernelCustomFirmwarePatcher: KernelCustomFirmwarePatcherBase,
         patchSharedRegionMap()
         patchSpawnValidatePersona()
         patchTaskForPid()
+        patchTaskForPidRootGate()
         patchThidShouldCrash()
         patchVmFaultEnterPrepare()
         patchVmMapProtect()

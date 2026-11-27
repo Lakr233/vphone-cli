@@ -1,6 +1,7 @@
 #ifndef VPHONE_INJECTION_ENVIRONMENT_H
 #define VPHONE_INJECTION_ENVIRONMENT_H
 
+#include <crt_externs.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -347,6 +348,39 @@ static void vpFreeEnvironment(VPInjectionEnvironment *environment) {
     free(environment->values);
     free(environment->hook);
     free(environment->root);
+}
+
+// The root, on its own: the environment that named it is scrubbed below, and
+// getenv would hand back the very string the scrub zeroes.
+static char *vpJailbreakRootStorage;
+
+static const char *vpJailbreakRoot(void) {
+    if (!vpJailbreakRootStorage)
+        vpJailbreakRootStorage = strdup(getenv("VPHONE_JB_ROOT"));
+    return vpJailbreakRootStorage;
+}
+
+// Hide the injection from this process. getenv, NSProcessInfo.environment and
+// sysctl(KERN_PROCARGS2) all read the same strings on the exec stack (the
+// sysctl copies the stack, not a kernel copy), so both are covered by zeroing
+// the strings and dropping the entries. DYLD_INSERT_LIBRARIES must exist when
+// dyld binds this library, which is why this runs in a constructor and not
+// before; children still get both, since the spawn hooks add them back.
+static void vpScrubInjectionEnvironment(void) {
+    (void)vpJailbreakRoot();
+    char **env = *_NSGetEnviron();
+    size_t kept = 0;
+    for (size_t i = 0; env[i]; i++) {
+        if (strncmp(env[i], "VPHONE_JB_ROOT=", 15) == 0 || strncmp(env[i], "DYLD_INSERT_LIBRARIES=", 22) == 0) {
+            // Through a volatile pointer, so the zeroing is not dead-store-eliminated.
+            for (volatile char *c = env[i]; *c; c++)
+                *c = 0;
+            continue;
+        }
+        env[kept++] = env[i];
+    }
+    for (size_t i = kept; env[i]; i++)
+        env[i] = NULL;
 }
 
 #endif

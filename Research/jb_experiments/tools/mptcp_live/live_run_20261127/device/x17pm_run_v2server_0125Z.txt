@@ -1,0 +1,29 @@
+iOS 27.2.1 | 27.2.1 | start
+mptcp target 204.168.174.129:9999
+=== mptcp_probe iOS 27.2.1 (24B156) | addrs: lo0=127.0.0.1 pdp_ip1=10.41.5.188 ipsec4=192.0.0.6 en0=192.168.1.5 ipsec5=192.0.0.6 
+AF_MULTIPATH=39 MPTCP_SERVICE_TYPE=0x213 connectx=0x2401effec
+--- attempt svc=default -> 204.168.174.129:9999
+[1] socket(AF_MULTIPATH=39, SOCK_STREAM, 0) ...
+[1] socket -> fd=4 errno=2 (No such file or directory)
+[2] setsockopt(MPTCP_SERVICE_TYPE) skipped (default = HANDOVER)
+[3] connectx(fd=4, 204.168.174.129:9999, SAE_ASSOCID_ANY, cid=0) ...
+[3] connectx -> rv=-1 errno=36 (Operation now in progress) cid=1
+[4] select(write,5s) -> 1  SO_ERROR=0 (Undefined error: 0)
+[5] handshake complete (writable, SO_ERROR=0)
+[6] send(fd, 1 byte) ...
+[6] send -> 1 errno=0 (Undefined error: 0)
+[7] recv(fd, 256) with 2 s timeout ...
+[7] recv -> -1 errno=35 (Resource temporarily unavailable) bytes=
+[8] close(fd)
+--- attempt svc=1 -> 204.168.174.129:9999
+[1] socket(AF_MULTIPATH=39, SOCK_STREAM, 0) ...
+[1] socket -> fd=4 errno=60 (Operation timed out)
+[2] setsockopt(IPPROTO_TCP, MPTCP_SERVICE_TYPE=0x213, 1) ...
+[2] setsockopt -> 0 errno=60 (Operation timed out)
+[3] connectx(fd=4, 204.168.174.129:9999, SAE_ASSOCID_ANY, cid=0) ...
+[3] connectx -> rv=-1 errno=36 (Operation now in progress) cid=1
+2026-11-26 22:25:28.339 wqprobe[35973:11122205] Successfully load keyboard extensions
+[4] select(write,5s) -> 0  SO_ERROR=0 (Undefined error: 0)
+[=] handshake did not complete
+=== mptcp_probe done
+DONE

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>DPExploitFlavors</key>
+	<dict>
+		<key>default</key>
+		<dict>
+			<key>DPFlavorPriority</key>
+			<integer>895</integer>
+			<key>DPSupportInclude</key>
+			<array>
+				<dict>
+					<key>Builds</key>
+					<array>
+						<string>23B5044l</string>
+						<string>23B5059e</string>
+						<string>23B5064e</string>
+					</array>
+				</dict>
+			</array>
+			<key>DPSupportedRanges</key>
+			<array>
+				<dict>
+					<key>End</key>
+					<string>18.7.1</string>
+					<key>Start</key>
+					<string>15.0</string>
+				</dict>
+				<dict>
+					<key>End</key>
+					<string>26.0.1</string>
+					<key>Start</key>
+					<string>19.0</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>DPExploitType</key>
+	<string>Kernel</string>
+	<key>DPExploitRequirements</key>
+	<array>
+		<string>contiguousMapping</string>
+	</array>
+</dict>
+</plist>

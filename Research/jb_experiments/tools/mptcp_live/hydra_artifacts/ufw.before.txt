@@ -1,0 +1,20 @@
+Status: active
+
+     To                         Action      From
+     --                         ------      ----
+[ 1] 80/tcp                     ALLOW IN    Anywhere                   # HTTP (certbot + redirect)
+[ 2] 443/tcp                    ALLOW IN    Anywhere                   # HTTPS (nginx)
+[ 3] 8080 on eth0               DENY IN     Anywhere                   # Block direct API access
+[ 4] 8099/tcp                   ALLOW IN    10.0.1.1                   # freehire pii-filter from host-2
+[ 5] 8091/tcp on docker0        ALLOW IN    Anywhere                   # superplane task broker (containers only)
+[ 6] 8091/tcp                   ALLOW IN    172.23.0.0/16              # superplane app -> task broker
+[ 7] 22/tcp                     ALLOW IN    200.225.112.0/22           # ssh: owner ISP, operator, private nets
+[ 8] 22/tcp                     ALLOW IN    89.167.94.146              # ssh: owner ISP, operator, private nets
+[ 9] 22/tcp                     ALLOW IN    10.0.0.0/16                # ssh: owner ISP, operator, private nets
+[10] 22/tcp                     ALLOW IN    10.77.0.0/24               # ssh: owner ISP, operator, private nets
+[11] 10.0.1.3 8099/tcp on wg-core ALLOW IN    10.77.0.1                  # pii-filter from core over WireGuard
+[12] 80/tcp (v6)                ALLOW IN    Anywhere (v6)              # HTTP (certbot + redirect)
+[13] 443/tcp (v6)               ALLOW IN    Anywhere (v6)              # HTTPS (nginx)
+[14] 8080 (v6) on eth0          DENY IN     Anywhere (v6)              # Block direct API access
+[15] 8091/tcp (v6) on docker0   ALLOW IN    Anywhere (v6)              # superplane task broker (containers only)
+

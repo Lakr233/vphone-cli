@@ -1,0 +1,403 @@
+# old 0xfffffff00a098f48 2139 ins | new 0xfffffff00a0a67b4 2028 ins
+--- old
++++ new
+@@ -27,11 +27,11 @@
+ str w1, [sp, #N]
+ b.lo #N
+ tbnz w8, #N, #N
+-add x22, x0, #N
++add x25, x0, #N
+ add x20, x0, #N
+ b #N
+-add x22, sp, #N
+-add x20, x22, #N
++add x25, sp, #N
++add x20, x25, #N
+ add x3, sp, #N
+ mov x0, x24
+ mov x1, #N
+@@ -41,13 +41,13 @@
+ add x23, sp, #N
+ b #N
+ ldr w8, [x0, #N]
+-ldr x22, [x0, #N]
+-add x20, x22, x8
++ldr x25, [x0, #N]
++add x20, x25, x8
+ ldr x23, [x0, #N]
+ add x8, x23, #N
+ cmp x8, x20
+ b.hi #N
+-cmp x22, x23
++cmp x25, x23
+ b.hi #N
+ ldrh w8, [x23, #N]
+ ldrh w9, [x0, #N]
+@@ -82,8 +82,8 @@
+ bl #N
+ mov x0, x24
+ mov x8, #N
+-mrs x22, tpidr_el1
+-ldr w9, [x22, #N]
++mrs x20, tpidr_el1
++ldr w9, [x20, #N]
+ add x10, x19, #N
+ casa x8, x9, [x10]
+ cmp x8, #N
+@@ -103,7 +103,6 @@
+ b.lo #N
+ ldrh w8, [x0, #N]
+ tbnz w8, #N, #N
+-mov x20, x22
+ add x8, x0, #N
+ add x21, x0, #N
+ b #N
+@@ -140,10 +139,48 @@
+ sub x8, x29, #N
+ stp xzr, x8, [x29, #N]
+ cmn x28, #N
+-b.eq #N
+-ldr w8, [x19, #N]
+-add w8, w8, #N
+-str w8, [x19, #N]
++mov w8, #N
++mov w9, #N
++csel x8, x9, x8, eq
++add x8, x19, x8
++ldr w9, [x8]
++add w9, w9, #N
++str w9, [x8]
++ldurh w22, [x29, #N]
++tbz w22, #N, #N
++ldr x8, [x19, #N]
++ldur x9, [x29, #N]
++cmp x8, x9
++b.eq #N
++cbz x8, #N
++stp xzr, xzr, [sp, #N]
++mov w9, #N
++str w9, [sp, #N]
++mov w9, #N
++strh w9, [sp, #N]
++str x8, [sp, #N]
++mov w8, #N
++str w8, [sp, #N]
++ldr w1, [x19, #N]
++ldr x0, [x19, #N]
++add x2, sp, #N
++mov w3, #N
++mov w4, #N
++bl #N
++cbz w0, #N
++adrp x8, #N
++ldr w9, [x8, #N]
++add w9, w9, #N
++str w9, [x8, #N]
++ldur x9, [x29, #N]
++str x9, [x19, #N]
++ldr x8, [x19, #N]
++add x8, x8, #N
++str x8, [x19, #N]
++ldr x27, [x19, #N]
++cbz x27, #N
++mov x21, #N
++mov w25, #N
+ b #N
+ cmp w8, #N
+ b.eq #N
+@@ -161,291 +198,33 @@
+ stp xzr, x8, [x29, #N]
+ ldur x28, [x29, #N]
+ cmn x28, #N
+-b.eq #N
+-ldr w8, [x19, #N]
+-add w8, w8, #N
+-str w8, [x19, #N]
+-b #N
+-cmp w8, #N
+-b.eq #N
+-cmp w8, #N
+-b.ne #N
+-stp xzr, xzr, [x29, #N]
+-stur xzr, [x29, #N]
+-sub x3, x29, #N
+-mov x1, #N
+-mov w2, #N
+-bl #N
++mov w8, #N
++mov w9, #N
++csel x8, x9, x8, eq
++add x8, x19, x8
++ldr w9, [x8]
++add w9, w9, #N
++str w9, [x8]
++adrp x0, #N
++add x0, x0, #N
++bl #N
++adrp x8, #N
++add x8, x8, #N
+ cbnz w0, #N
+ adrp x0, #N
+ add x0, x0, #N
+ bl #N
+ adrp x8, #N
+ add x8, x8, #N
+-cbnz w0, #N
+-adrp x0, #N
+-add x0, x0, #N
+-bl #N
+-adrp x8, #N
+-add x8, x8, #N
+ mov w9, #N
+ ldadd x9, x8, [x8]
++cmn x28, #N
++b.ne #N
+ ldr w8, [x19, #N]
+ orr w8, w8, #N
+ str w8, [x19, #N]
+-ldur x28, [x29, #N]
+-sub x8, x29, #N
+-stp xzr, x8, [x29, #N]
+-cmn x28, #N
+-b.eq #N
+-ldr w8, [x19, #N]
+-add w8, w8, #N
+-str w8, [x19, #N]
+-b #N
+-ldr w8, [x0, #N]
+-cmp w8, #N
+-b.lo #N
+-ldrh w10, [x0, #N]
+-tbz w10, #N, #N
+-ldr w9, [x0, #N]
+-bic w9, w9, w9, asr #N
+-sub x27, x9, #N
+-cmp x27, #N
+-b.ls #N
+-mov w25, #N
+-b #N
+-stp xzr, xzr, [x29, #N]
+-stur xzr, [x29, #N]
+-sub x3, x29, #N
+-mov x1, #N
+-mov w2, #N
+-bl #N
+-cbnz w0, #N
+-adrp x0, #N
+-add x0, x0, #N
+-bl #N
+-cbz w0, #N
+-adrp x8, #N
+-add x8, x8, #N
+-b #N
+-str xzr, [sp, #N]
+-add x3, sp, #N
+-mov w1, #N
+-mov w2, #N
+-bl #N
+-cbz w0, #N
+-mov w25, #N
+-mov x0, x24
+-cbz w25, #N
+-stp xzr, xzr, [sp, #N]
+-mov w8, #N
+-str w8, [sp, #N]
+-ldrb w8, [x0, #N]
+-tbnz w8, #N, #N
+-mov w8, #N
+-b #N
+-ldr w8, [x0, #N]
+-bic w8, w8, w8, asr #N
+-add w8, w8, #N
+-strh w8, [sp, #N]
+-ldr x8, [x23]
+-str x8, [sp, #N]
+-str w25, [sp, #N]
+-mov w21, #N
+-mov w1, #N
+-mov w2, #N
+-mov w3, #N
+-bl #N
+-cbz x0, #N
+-add x3, sp, #N
+-mov x23, x0
+-mov x1, #N
+-mov w2, #N
+-mov w4, #N
+-bl #N
+-cbnz w0, #N
+-ldr x0, [sp, #N]
+-ldr w1, [sp, #N]
+-mov x2, x23
+-mov w3, #N
+-bl #N
+-cbz w0, #N
+-mov x0, x23
+-bl #N
+-cbnz x0, #N
+-mov x23, #N
+-ldr w1, [sp, #N]
+-ldr x0, [sp, #N]
+-strh w21, [sp, #N]
+-add x2, sp, #N
+-mov w3, #N
+-mov w4, #N
+-bl #N
+-cbz w0, #N
+-mov x21, x0
+-adrp x8, #N
+-ldr w9, [x8, #N]
+-add w9, w9, #N
+-str w9, [x8, #N]
+-b #N
+-mov w21, #N
+-mov x0, x23
+-adrp x8, #N
+-ldr w9, [x8, #N]
+-add w9, w9, #N
+-str w9, [x8, #N]
+-b #N
+-mov w21, #N
+-ldr w8, [x22, #N]
+-add x9, x19, #N
+-mov x2, x8
+-casl w2, wzr, [x9]
+-cmp w2, w8
+-b.ne #N
+-cbz x0, #N
+-bl #N
+-cbnz x0, #N
+-mov x0, x21
+-ldp x29, x30, [sp, #N]
+-ldp x20, x19, [sp, #N]
+-ldp x22, x21, [sp, #N]
+-ldp x24, x23, [sp, #N]
+-ldp x26, x25, [sp, #N]
+-ldp x28, x27, [sp, #N]
+-add sp, sp, #N
+-retab 
+-bl #N
+-ldr x26, [x0, #N]
+-mov x0, x26
+-mov w1, #N
+-bl #N
+-cbz w0, #N
+-mov x25, x0
+-mov x0, x24
+-b #N
+-mov x0, #N
+-mov w21, #N
+-b #N
+-adrp x0, #N
+-add x0, x0, #N
+-bl #N
+-cbz w0, #N
+-adrp x8, #N
+-add x8, x8, #N
+-b #N
+-ldr w8, [x26, #N]
+-cbz w8, #N
+-mov x0, x26
+-mov w1, #N
+-bl #N
+-cbnz w0, #N
+-adrp x0, #N
+-add x0, x0, #N
+-bl #N
+-cbz w0, #N
+-adrp x8, #N
+-add x8, x8, #N
+-b #N
+-mov x20, x22
+-ldr w9, [x0, #N]
+-ldr x8, [x0, #N]
+-add x21, x8, x9
+-ldr x26, [x0, #N]
+-cmp x8, x26
+-b.hi #N
+-add x8, x26, #N
+-cmp x8, x21
+-b.hi #N
+-ldr w8, [x26, #N]
+-cmp w8, #N
+-b.ls #N
+-mov w25, #N
+-mov x22, x20
+-b #N
+-adrp x22, #N
+-add x22, x22, #N
+-ldr x22, [x22]
+-cbz x22, #N
+-ldr w9, [x22, #N]
+-cmp w9, w8
+-b.ne #N
+-ldr x9, [x22, #N]
+-cbz x9, #N
+-sub w8, w8, #N
+-cmp w8, #N
+-b.lo #N
+-adrp x8, #N
+-ldr w8, [x8, #N]
+-cbz w8, #N
+-bl #N
+-ldr x0, [x0, #N]
+-mov w1, #N
+-mov w2, #N
+-bl #N
+-cbnz w0, #N
+-adrp x0, #N
+-add x0, x0, #N
+-bl #N
+-cbz w0, #N
+-adrp x8, #N
+-add x8, x8, #N
+-b #N
+-adrp x0, #N
+-add x0, x0, #N
+-bl #N
+-adrp x8, #N
+-add x8, x8, #N
+-mov w9, #N
+-ldadd x9, x8, [x8]
+-ldur x21, [x29, #N]
+-cmn x21, #N
+-b.eq #N
+-ldr w8, [x19, #N]
+-add w8, w8, #N
+-str w8, [x19, #N]
+-b #N
+-adrp x0, #N
+-add x0, x0, #N
+-bl #N
+-adrp x8, #N
+-add x8, x8, #N
+-mov w9, #N
+-ldadd x9, x8, [x8]
+-add x25, x19, #N
+-ldr x8, [sp, #N]
+-ldr x25, [x25]
+-cbz x25, #N
+-ldr x9, [x25, #N]
+-cmp x9, x8
+-b.ne #N
+-ldr w8, [x19, #N]
+-add w8, w8, #N
+-str w8, [x19, #N]
+-ldr x8, [x25]
+-cbz x8, #N
+-ldr x9, [x8, #N]
+-cmp x9, x25
+-b.ne #N
+-ldr x9, [x25, #N]
+-ldr x10, [x9]
+-cmp x10, x25
+-b.ne #N
+-str x9, [x8, #N]
+-b #N
+-adrp x0, #N
+-add x0, x0, #N
+-bl #N
+-ldr w8, [x19, #N]
+-add w8, w8, #N
+-str w8, [x19, #N]
+... truncated

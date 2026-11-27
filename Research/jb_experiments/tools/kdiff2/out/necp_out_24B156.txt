@@ -1,0 +1,9 @@
+iOS @ | @ | NECP probe start
+necp_open(0) -> fd=4 errno=0 (OK)
+necp_open(OBSERVER) -> fd=-1 errno=13 (Permission denied)
+ACTION_ADD (len=20) -> ret=0 errno=0 (OK)
+client_id = 4a5d16e9-8968-416b-9990-28e0bf7d3645
+ACTION_CLAIM -> ret=0 errno=0 (OK)
+ACTION_REMOVE -> ret=-1 errno=22 (Invalid argument)
+RESULT: necp-open ALLOWED from app sandbox; ADD ret=-1
+DONE

@@ -1,0 +1,122 @@
+iOS 27.2.1
+group root: /private/var/mobile/Containers/Shared/AppGroup/1706E787-6685-421A-BE89-AC10E361F2AF
+caches: /private/var/mobile/Containers/Shared/AppGroup/1706E787-6685-421A-BE89-AC10E361F2AF/Library/Caches
+baseline (alt=0) handle = -6
+baseline (alt=1) handle = -6
+caches is symlink after baseline: 0
+handle for Data/System (alt=0) = 2
+  dir  /private/var/containers/Data/System/52939616-6227-442E-BA4B-E56BC0AAE9D8
+  dir  /private/var/containers/Data/System/2053830D-716E-4556-B835-C46314BA7745
+  dir  /private/var/containers/Data/System/D1906F3E-CC8A-4108-BD80-BDAD2EA38474
+  dir  /private/var/containers/Data/System/1E048AF1-F9BB-46D4-95CC-9978EA56056C
+  dir  /private/var/containers/Data/System/52939616-6227-442E-BA4B-E56BC0AAE9D8/Documents
+  dir  /private/var/containers/Data/System/52939616-6227-442E-BA4B-E56BC0AAE9D8/Library
+  dir  /private/var/containers/Data/System/52939616-6227-442E-BA4B-E56BC0AAE9D8/tmp
+  file /private/var/containers/Data/System/2053830D-716E-4556-B835-C46314BA7745/db-shm
+  dir  /private/var/containers/Data/System/2053830D-716E-4556-B835-C46314BA7745/Documents
+  file /private/var/containers/Data/System/2053830D-716E-4556-B835-C46314BA7745/db-wal
+  dir  /private/var/containers/Data/System/2053830D-716E-4556-B835-C46314BA7745/Library
+  dir  /private/var/containers/Data/System/D1906F3E-CC8A-4108-BD80-BDAD2EA38474/Documents
+  dir  /private/var/containers/Data/System/D1906F3E-CC8A-4108-BD80-BDAD2EA38474/Library
+  file /private/var/containers/Data/System/D1906F3E-CC8A-4108-BD80-BDAD2EA38474/AppProtectionBackup.plist
+  dir  /private/var/containers/Data/System/D1906F3E-CC8A-4108-BD80-BDAD2EA38474/tmp
+  dir  /private/var/containers/Data/System/1E048AF1-F9BB-46D4-95CC-9978EA56056C/Documents
+  dir  /private/var/containers/Data/System/1E048AF1-F9BB-46D4-95CC-9978EA56056C/Library
+  dir  /private/var/containers/Data/System/1E048AF1-F9BB-46D4-95CC-9978EA56056C/tmp
+  dir  /private/var/containers/Data/System/D5D8A979-1BCC-41CA-9633-05E60830D85F/Documents
+  dir  /private/var/containers/Data/System/D5D8A979-1BCC-41CA-9633-05E60830D85F/Library
+  dir  /private/var/containers/Data/System/D5D8A979-1BCC-41CA-9633-05E60830D85F/tmp
+  dir  /private/var/containers/Data/System/294CBCBD-01C7-4761-B42D-F76B803DAD55/Documents
+  dir  /private/var/containers/Data/System/294CBCBD-01C7-4761-B42D-F76B803DAD55/Library
+  dir  /private/var/containers/Data/System/294CBCBD-01C7-4761-B42D-F76B803DAD55/tmp
+  dir  /private/var/containers/Data/System/091F716A-0F65-4AB7-A21C-7E1EF59AF2F3/Documents
+  dir  /private/var/containers/Data/System/091F716A-0F65-4AB7-A21C-7E1EF59AF2F3/Library
+  dir  /private/var/containers/Data/System/091F716A-0F65-4AB7-A21C-7E1EF59AF2F3/tmp
+  dir  /private/var/containers/Data/System/B79C5473-D2DD-4A53-8DCB-C5AA8FA27B35/Documents
+  dir  /private/var/containers/Data/System/B79C5473-D2DD-4A53-8DCB-C5AA8FA27B35/Library
+  dir  /private/var/containers/Data/System/B79C5473-D2DD-4A53-8DCB-C5AA8FA27B35/tmp
+  dir  /private/var/containers/Data/System/F583A180-70BC-4473-9A97-8513C828E700/Documents
+  dir  /private/var/containers/Data/System/F583A180-70BC-4473-9A97-8513C828E700/Library
+  dir  /private/var/containers/Data/System/F583A180-70BC-4473-9A97-8513C828E700/tmp
+  dir  /private/var/containers/Data/System/3A1EB4AA-81D8-4695-A516-241AE1816E56/Documents
+  dir  /private/var/containers/Data/System/3A1EB4AA-81D8-4695-A516-241AE1816E56/Library
+  dir  /private/var/containers/Data/System/3A1EB4AA-81D8-4695-A516-241AE1816E56/tmp
+  dir  /private/var/containers/Data/System/5E1327E5-3D3E-4803-800F-87455A497893/ReportCrash
+  dir  /private/var/containers/Data/System/5E1327E5-3D3E-4803-800F-87455A497893/Documents
+  dir  /private/var/containers/Data/System/5E1327E5-3D3E-4803-800F-87455A497893/SpaceAttribution
+  dir  /private/var/containers/Data/System/5E1327E5-3D3E-4803-800F-87455A497893/Library
+  dir  /private/var/containers/Data/System/B6D30528-BDD8-4071-AFA5-321090AA45C8/Documents
+  dir  /private/var/containers/Data/System/B6D30528-BDD8-4071-AFA5-321090AA45C8/Library
+  dir  /private/var/containers/Data/System/B6D30528-BDD8-4071-AFA5-321090AA45C8/history
+  dir  /private/var/containers/Data/System/B6D30528-BDD8-4071-AFA5-321090AA45C8/tmp
+  dir  /private/var/containers/Data/System/DB063C27-C096-40A0-A2E6-00AB297049FA/Documents
+  dir  /private/var/containers/Data/System/DB063C27-C096-40A0-A2E6-00AB297049FA/Library
+  dir  /private/var/containers/Data/System/DB063C27-C096-40A0-A2E6-00AB297049FA/tmp
+  dir  /private/var/containers/Data/System/95526314-7722-4302-9D89-7C5F31F68F96/Documents
+  dir  /private/var/containers/Data/System/95526314-7722-4302-9D89-7C5F31F68F96/Library
+  dir  /private/var/containers/Data/System/95526314-7722-4302-9D89-7C5F31F68F96/tmp
+  dir  /private/var/containers/Data/System/B24AC3B3-1045-45BB-A1CE-5516FDEA6A41/Documents
+  dir  /private/var/containers/Data/System/B24AC3B3-1045-45BB-A1CE-5516FDEA6A41/Library
+  dir  /private/var/containers/Data/System/B24AC3B3-1045-45BB-A1CE-5516FDEA6A41/tmp
+  dir  /private/var/containers/Data/System/com.apple.geod/Documents
+  dir  /private/var/containers/Data/System/com.apple.geod/Library
+  dir  /private/var/containers/Data/System/com.apple.geod/tmp
+  dir  /private/var/containers/Data/System/A2FE57E1-E896-4CA7-BE29-B820E3B84E91/Documents
+  dir  /private/var/containers/Data/System/A2FE57E1-E896-4CA7-BE29-B820E3B84E91/Library
+  dir  /private/var/containers/Data/System/A2FE57E1-E896-4CA7-BE29-B820E3B84E91/tmp
+  dir  /private/var/containers/Data/System/E12ED986-5475-4762-8259-665B1A757E95/Documents
+  dir  /private/var/containers/Data/System/E12ED986-5475-4762-8259-665B1A757E95/Library
+  dir  /private/var/containers/Data/System/E12ED986-5475-4762-8259-665B1A757E95/tmp
+  file /private/var/containers/Data/System/85677586-2BC8-41CE-9FAA-E358ED307F50/SpecialAppEligibilityState.plist
+  dir  /private/var/containers/Data/System/85677586-2BC8-41CE-9FAA-E358ED307F50/Documents
+  file /private/var/containers/Data/System/85677586-2BC8-41CE-9FAA-E358ED307F50/DefaultAppQueryState.plist
+  dir  /private/var/containers/Data/System/65C7A8E7-5757-4E64-9F30-2F600AC2443E/Documents
+  dir  /private/var/containers/Data/System/65C7A8E7-5757-4E64-9F30-2F600AC2443E/Library
+  dir  /private/var/containers/Data/System/65C7A8E7-5757-4E64-9F30-2F600AC2443E/tmp
+  dir  /private/var/containers/Data/System/0CE81983-F0C8-459D-9733-EC248ABF6A72/Documents
+  dir  /private/var/containers/Data/System/0CE81983-F0C8-459D-9733-EC248ABF6A72/Library
+  dir  /private/var/containers/Data/System/0CE81983-F0C8-459D-9733-EC248ABF6A72/tmp
+  dir  /private/var/containers/Data/System/C7B2794E-33FC-4A7A-9079-67EF8FE42A7C/Documents
+  dir  /private/var/containers/Data/System/C7B2794E-33FC-4A7A-9079-67EF8FE42A7C/Library
+  dir  /private/var/containers/Data/System/C7B2794E-33FC-4A7A-9079-67EF8FE42A7C/tmp
+  dir  /private/var/containers/Data/System/2D1B894B-E4D1-4A16-92A6-F681932FEBBB/Documents
+  dir  /private/var/containers/Data/System/2D1B894B-E4D1-4A16-92A6-F681932FEBBB/Library
+  dir  /private/var/containers/Data/System/2D1B894B-E4D1-4A16-92A6-F681932FEBBB/tmp
+  dir  /private/var/containers/Data/System/51E277E6-B9E9-4841-A463-DF9D2C047289/database
+  dir  /private/var/containers/Data/System/51E277E6-B9E9-4841-A463-DF9D2C047289/ActionTranscript
+  dir  /private/var/containers/Data/System/51E277E6-B9E9-4841-A463-DF9D2C047289/Documents
+  dir  /private/var/containers/Data/System/51E277E6-B9E9-4841-A463-DF9D2C047289/Library
+  dir  /private/var/containers/Data/System/FDE06978-0D11-4AD3-BF7A-EFDB2053498D/Documents
+  dir  /private/var/containers/Data/System/FDE06978-0D11-4AD3-BF7A-EFDB2053498D/Library
+  dir  /private/var/containers/Data/System/FDE06978-0D11-4AD3-BF7A-EFDB2053498D/tmp
+  dir  /private/var/containers/Data/System/45CA7AEA-D56D-491A-BF5D-5B730220BF1F/FBBA8147BA056E0662A9244335337FC55D877FC077D20FFC8C8D8347229ABC99.sb-1318efe8-hNwNwm
+  dir  /private/var/containers/Data/System/45CA7AEA-D56D-491A-BF5D-5B730220BF1F/Documents
+  dir  /private/var/containers/Data/System/45CA7AEA-D56D-491A-BF5D-5B730220BF1F/FBBA8147BA056E0662A9244335337FC55D877FC077D20FFC8C8D8347229ABC99
+  dir  /private/var/containers/Data/System/45CA7AEA-D56D-491A-BF5D-5B730220BF1F/FBBA8147BA056E0662A9244335337FC55D877FC077D20FFC8C8D8347229ABC99.sb-8272da28-3vfoiV
+  dir  /private/var/containers/Data/System/5985958B-B1B0-4F38-9A08-D2E29B0782C6/Documents
+  dir  /private/var/containers/Data/System/5985958B-B1B0-4F38-9A08-D2E29B0782C6/Library
+  dir  /private/var/containers/Data/System/5985958B-B1B0-4F38-9A08-D2E29B0782C6/tmp
+  dir  /private/var/containers/Data/System/AC289280-DF2C-4D1E-880E-9DC0E72FE2D1/Documents
+  dir  /private/var/containers/Data/System/AC289280-DF2C-4D1E-880E-9DC0E72FE2D1/Library
+  dir  /private/var/containers/Data/System/AC289280-DF2C-4D1E-880E-9DC0E72FE2D1/tmp
+  file /private/var/containers/Data/System/DE996396-2147-4C62-ACCF-B6871D9504AB/database.sqlite
+  file /private/var/containers/Data/System/DE996396-2147-4C62-ACCF-B6871D9504AB/database.sqlite-wal
+  dir  /private/var/containers/Data/System/DE996396-2147-4C62-ACCF-B6871D9504AB/Documents
+  dir  /private/var/containers/Data/System/DE996396-2147-4C62-ACCF-B6871D9504AB/Install
+  dir  /private/var/containers/Data/System/237141EB-2C88-4F35-BB51-317E66490316/Documents
+  dir  /private/var/containers/Data/System/237141EB-2C88-4F35-BB51-317E66490316/Library
+  dir  /private/var/containers/Data/System/237141EB-2C88-4F35-BB51-317E66490316/tmp
+  dir  /private/var/containers/Data/System/9A1331EA-D894-40CE-AB11-7AAEC9B55870/Documents
+  dir  /private/var/containers/Data/System/9A1331EA-D894-40CE-AB11-7AAEC9B55870/Library
+  dir  /private/var/containers/Data/System/9A1331EA-D894-40CE-AB11-7AAEC9B55870/tmp
+  dir  /private/var/containers/Data/System/6754C0BD-03F7-4704-A3DC-B61596739215/Documents
+  dir  /private/var/containers/Data/System/6754C0BD-03F7-4704-A3DC-B61596739215/Library
+  dir  /private/var/containers/Data/System/6754C0BD-03F7-4704-A3DC-B61596739215/tmp
+  while holding Data/System token: /private/var/containers/Data: Operation not permitted
+  while holding Data/System token: /private/var/containers: Operation not permitted
+  while holding Data/System token: /private/var/containers/Shared/SystemGroup: Operation not permitted
+  while holding Data/System token: /private/var/mobile/Containers/Data/Application: Operation not permitted
+  while holding Data/System token: /private/var/db: Operation not permitted
+  while holding Data/System token: /private/var/mobile/Library/Preferences: Operation not permitted
+  after release: Operation not permitted
+DONE

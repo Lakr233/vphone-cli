@@ -1,0 +1,276 @@
+0xfffffff00a2c9f84 (4349 ins): MATUs | com.apple.private.vfs.dirlseek | com.apple.private.vfs.role-account-openfrom | istener | kern_descrip.c
+0xfffffff009facce4 (4130 ins): eok | 3B878185-AA62-4E1F-9DC9-D6799CBB6EBB | mem_notify_t | evice: %08X @%s:%d | machine_routines_common.c
+0xfffffff009ed5f80 (3753 ins): eok | wd_cacheok | MAC-NAT is OK | id with MAC-NAT is OK | u.pac_thread_state_exception_event
+0xfffffff009fb8f98 (2537 ins): ntry in the 'chosen' DT node @%s:%d | vfs_attrlist.c | packed field size mismatch; allocated %ld but packed %ld for common %0 | packed variable field size mismatch; used %ld but expected %ld @%s:%d
+0xfffffff00a2e67b0 (2327 ins): com.apple.private.spawn-panic-crash-behavior | com.apple.developer.memory.ios13extended_footprint | com.apple.developer.kernel.increased-debugging-memory-limit | com.apple.developer.kernel.increased-memory-limit | com.apple.private.internal-jetsam-range
+0xfffffff009edbe18 (2255 ins): vm_object_internal.h | vm_object_activity_end(%p): underflow
+ @%s:%d | vm_object_paging_begin(%p): overflow
+ @%s:%d | vm_object_paging_end(%p): underflow
+ @%s:%d | vm_object_activity_begin(%p): overflow
+ @%s:%d
+0xfffffff009fb4de8 (2162 ins): unknown | com.apple.FinderInfo | ntry in the 'chosen' DT node @%s:%d | p,%p): should not clear 'modified' without flushing TLBs @%s:%d | 0x,%p,%p): should not clear 'modified' without flushing TLBs @%s:%d
+0xfffffff00a098f48 (2139 ins): nstat_client_handle_query_request | nstat_enqueue_success | lock_rw_old.c |  not | rw lock (%p)%s held (mode=%u) @%s:%d
+0xfffffff009f1dd20 (1859 ins): vm_pageout.c | vm_object_iopl_request: unexpected error 0x%x from vm_fault_page()
+ @% | vm_object_iopl_request: Wired page missing. @%s:%d | vm_object_internal.h | vm_object_paging_begin(%p): overflow
+ @%s:%d
+0xfffffff00a4ebdac (1766 ins): ifa %p attached to ifp is being freed @%s:%d | _enable_fsw_transport_netagent ^ pe_disable_fsw_transport_netagent) | _common |  IFD_LINK | Couldn't alloc class "%s"
+
+0xfffffff00a1009f8 (1622 ins): e.iokit.AppleARMIISAudio | emetry_limit
+0xfffffff00a1a587c (1553 ins): with %d @%s:%d | t_ptr(%p), slot_data(%x) @%s:%d | ), slot_data(%x) @%s:%d | (%p), slot_ptr(%p), slot_data(%x) @%s:%d | r(%p), slot_data(%x) @%s:%d
+0xfffffff00a5c2794 (1493 ins): f the queue limit to keep after detecting an overflow burst | handleRequestRunMode | PMRD: power event %u args %p 0x%llx
+ | PMRD: %s: mask %llx ret %x
+ | Wake Type
+0xfffffff009fee97c (1389 ins): webdav | vfs_syscalls.c | mount_common(): mount of %s filesystem failed with %d, but vnode list  | Volume mounted on a device with invalid major number. @%s:%d
+0xfffffff009f94834 (1314 ins): Debugger message: %.1200s
+ | Not set yet | burst_limit | r memory limit for inbound data | Device: %s
+
+0xfffffff00a12b82c (1308 ins): o_others | ural_nofootprint_compressed | est_reclaimable | platform_idle_wakeups | roc_task
+0xfffffff009f1b830 (1258 ins): vm_pageout.c | need corner case for fictitious page @%s:%d | vm_object_upl_request: contiguous object specified @%s:%d | vm_object_upl_request: external object with non-zero paging offset @%s | vm_object_internal.h
+0xfffffff00a2a0320 (1235 ins): f the queue limit to keep after detecting an overflow burst | ype 0x%hhx @%s:%d | te, grand=%p, subord=%p, vstart=0x%llx, size=%llx @%s:%d | pmap %p into pmap %p which has a different nested pmap %p @%s:%d |  attempt to nest pmap %p into pmap %p which has a different nested pma
+0xfffffff009fd30ec (1182 ins): cluster_read_direct |  not take this code-path @%s:%d
+0xfffffff009eeca40 (1172 ins): e_early_input |  TXSTART model | T model | vm_map.c | VM_FLAGS_RETURN_DATA_ADDR not expected for raw memory object. @%s:%d
+0xfffffff009ee95cc (1167 ins): vm_map.c | Constant submap being entered was not properly setup. @%s:%d | entries modified while locked @%s:%d | Transparent submaps should be permanent. @%s:%d | couldn't remove what we just made in %p @%s:%d
+0xfffffff00a5d1a44 (1152 ins): stat, sizeof(u_int64_t)) | PowerOff | Restart | zeof(u_int64_t)) | PagingOff
+0xfffffff00a02efa4 (1072 ins): f the queue limit to keep after detecting an overflow burst | udioVolumeSaved | BIOCFLUSH | bpfioctl | @%s:%d
+0xfffffff00a4f9a4c (1044 ins): IOService | IOPower | IOProviderClass | IONameMatch | IONameMatched
+0xfffffff009f3dbe4 (1035 ins): vm_dyld_pager.c | _delta_ptr_within_page_nospec | %s(): delta offset > page size %lld @%s:%d | T_WIRED_STATIC_KERNELCACHE | vm_object_internal.h
+0xfffffff00a4e65b4 (1032 ins): ifa %p attached to ifp is being freed @%s:%d | t @%s:%d | link address ifa=%p @%s:%d
+0xfffffff00a0f414c (1026 ins): NECP client observers with push enabled may not add their own clients | necp_client_add | ddress mismatch | necp_client_add, no necp_client_inherit_from_parent as can't find pare | iled to validate resolve answer
+0xfffffff009fd7ddc (1017 ins): vfs_lookup.c | We need to keep going on a continued lookup, but for vp type %d (tag % | nat_ip_output | alid_arp_packet | ..namedfork/rsrc
+0xfffffff00a09de94 (955 ins): emetry_limit | nstat_ifnet_report_lim_stats |  MAC-NAT | hcp_xid | heck that DHCP xid with MAC-NAT is OK
+0xfffffff00a0f640c (951 ins): necp_client_add_flow | emetry_limit | assigned_results == NULL | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem | assigned_results_length == 0
+0xfffffff00a09ed80 (944 ins): nstat_sysinfo_send_data | lock_rw_old.c | lck_rw_unlock_exclusive(): lock %p held in mode: %d @%s:%d | iter.i > 0 | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem
+0xfffffff009fce8cc (921 ins): cluster_write_direct
+0xfffffff009ef36d8 (911 ins): lil_input_threads | SFI_CLASS_USER_INITIATED | ATED | vm_map.c | Failed to make a quick copy of an object despite preflight (%d). @%s:%
+0xfffffff009eda788 (902 ins): vm_fault.c | vm_fault_enter_prepare | %s: pmap %p vaddr 0x%llx prot 0x%x options 0x%x !cs_bypass @%s:%d | START model | ssor_wk_sw
+0xfffffff009fc7e74 (891 ins): /..namedfork/rsrc | vfs_subr.c | vnode_hold | %s: vp %p holdcount overflow from : %d v_tag = %d, v_type = %d, v_flag
+0xfffffff00a2a42d4 (881 ins): f the queue limit to keep after detecting an overflow burst | 1] == ifa | TXSTART) | hould not clear 'modified' without flushing TLBs @%s:%d | nit_sptm.c
+0xfffffff009ef8f58 (845 ins): vm_map.c | vm_map_relocate | %s failed to delete source; it must have changed after it was locked ( | %s: tried to relocate entries in the kernel map (map = %p) @%s:%d
+0xfffffff009ee0b30 (844 ins): vm_object_internal.h | vm_object_paging_begin(%p): overflow
+ @%s:%d | vm_fault.c | vm_fault_copy: unexpected error 0x%x from vm_fault_page()
+ @%s:%d | vm_fault_copy(2): unexpected error 0x%x from vm_fault_page()
+ @%s:%d
+0xfffffff009ee79d4 (830 ins): lil_input_threads
+0xfffffff00a312d3c (810 ins): proc_signstart | number %d @%s:%d | lid cpu_number %d @%s:%d | kern_sig.c | proc_signalstart: thread attempting to signal a process for which it h
+0xfffffff00a13be20 (778 ins): ural_nofootprint_compressed | logical_writes
+0xfffffff009ee44d4 (749 ins): vm_param.h | overflow detected @%s:%d
+0xfffffff00a2a7b04 (746 ins): f the queue limit to keep after detecting an overflow burst | ype 0x%hhx @%s:%d | 1] == ifa | TXSTART) | d pmap %p @%s:%d
+0xfffffff009f1d18c (741 ins): 
+0xfffffff00a20c3e4 (741 ins): mptcp_subflow_soreceive 1 | mptcp_adj_rmap | mptcp_subflow_soreceive 2 | mptcp_subflow_soreceive | so->so_proto->pr_flags & PR_CONNREQUIRED
+0xfffffff00a33d680 (730 ins): number %d @%s:%d | idge_mac_nat_ip_input | lid cpu_number %d @%s:%d
+0xfffffff00a1dba84 (680 ins): tcp_usr_connect_common | tcp_usr_connect_common v6 error EAFNOSUPPORT: inp_vflag == INP_IPV4 | tcp_usr_connect_common v4 mapped error EAFNOSUPPORT: sa_family %u | tcp6_connect | EADDRINUSE caused by
+0xfffffff009fc694c (669 ins): vfs_subr.c | vnode_hold | %s: vp %p holdcount overflow from : %d v_tag = %d, v_type = %d, v_flag
+0xfffffff00a3e0384 (667 ins): non- | skmem_slab_alloc_locked | !(skmflag & SKMEM_FAILOK) | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem | bc->bc_usecnt == 0
+0xfffffff00a2a70c4 (656 ins): f the queue limit to keep after detecting an overflow burst | hx @%s:%d | l truncate, grand=%p, subord=%p, vstart=0x%llx, size=%llx @%s:%d | key.c | key_update: NULL pointer is passed. @%s:%d
+0xfffffff009fbcc4c (651 ins): 
+0xfffffff00a13d6c4 (645 ins): venters: | pressed | neural_nofootprint_total | *frag == NULL || !BUFFER_FRAGMENTS(*frag) | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem
+0xfffffff009f6b790 (642 ins): vm_object_internal.h | vm_object_paging_begin(%p): overflow
+ @%s:%d | vm_apple_protect.c | apple_protect_pager_data_request | %s: vm_fault_page() return unexpected error 0x%x
+ @%s:%d
+0xfffffff00a60c3cc (639 ins): 
+0xfffffff00a13b1c8 (632 ins): venters: | *frag == NULL || !BUFFER_FRAGMENTS(*frag) | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem | frp != NULL || fra != NULL | cur == NULL
+0xfffffff00a29bf2c (627 ins): f the queue limit to keep after detecting an overflow burst | key.c | key_migrate: NULL pointer is passed. @%s:%d | nit_sptm.c | /Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/TemporaryDi
+0xfffffff00a5417fc (627 ins): IOMemoryDescriptor 0x%zx prepared read only | EF5-A42B-B58F8B3D7CC3/TemporaryDirectory.sEBZmN/Sources/xnu/bsd/net/dl | ENT_CODE_MTU_CHANGED | vm_param.h | overflow detected @%s:%d
+0xfffffff009f3c0dc (626 ins): arding | so_reduce_mss_tx | START model | vm_object_internal.h | vm_object_paging_begin(%p): overflow
+ @%s:%d
+0xfffffff00a4b80b4 (626 ins): zlib deflate |  overflow (rc=%p) @%s:%d | 1.2.3
+0xfffffff00a2a5098 (623 ins): f the queue limit to keep after detecting an overflow burst | hx @%s:%d | l truncate, grand=%p, subord=%p, vstart=0x%llx, size=%llx @%s:%d | key.c | key_add: NULL pointer is passed. @%s:%d
+0xfffffff009e26680 (622 ins): exception.c | bad exception behavior! @%s:%d | mach_exception_raise_identity_protected() must be code64 @%s:%d | mach_exception_raise_state_identity_protected() must be code64 @%s:%d
+0xfffffff009fc33b8 (610 ins): buf_getblk | vfs_bio.c | buffer has UPL, but not marked BUSY: %p @%s:%d | %p: b_hash.le_prev is not deadbeef @%s:%d | blistenterhead: le_prev is deadbeef @%s:%d
+0xfffffff00a3a8c28 (603 ins): tracker_dump | tracker_entry_dump_size | Dumped entry | lock_rw_old.c | lck_rw_unlock_exclusive(): lock %p held in mode: %d @%s:%d
+0xfffffff009ec3660 (592 ins): vm_compressor_process_major_segments
+0xfffffff00a45b284 (582 ins): _tcall) | new != 0 | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem | Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Temp | eok
+0xfffffff00a542764 (579 ins): IOMemoryDescriptor.cpp | _dmaReferences underflow @%s:%d | IOGMD: not wired for the IODMACommand @%s:%d | !pageList phys_addr @%s:%d
+0xfffffff00a2ffe8c (575 ins): number %d @%s:%d | lid cpu_number %d @%s:%d
+0xfffffff00a029e50 (550 ins): wait_for_decompress | vm_param.h | overflow detected @%s:%d | lock_rw_old.c | lck_rw_unlock_shared(): lock %p held in mode: %d @%s:%d
+0xfffffff00a29aae0 (535 ins): @%s:%d | f the queue limit to keep after detecting an overflow burst | table type 0x%hhx @%s:%d | evel=%u @%s:%d | key.c
+0xfffffff00a2eaf28 (533 ins): cpus=N, and the boot CPU must be enabled @%s:%d | emory configuration %lx @%s:%d | flow in rorgn_contains: %p + %zu @%s:%d | com.apple.developer.memory.ios13extended_footprint | com.apple.developer.kernel.increased-debugging-memory-limit
+0xfffffff00a10a358 (526 ins): Basic agent parameters do not match, cannot update | netagent_handle_update_inner | f the queue limit to keep after detecting an overflow burst | /TemporaryDirectory.sEBZmN/Sources/xnu/bsd/net/dlil_ctl.c | eceived unknown option
+0xfffffff00a02b258 (520 ins): 
+0xfffffff00a29faa0 (517 ins): f the queue limit to keep after detecting an overflow burst | ype 0x%hhx @%s:%d | te, grand=%p, subord=%p, vstart=0x%llx, size=%llx @%s:%d | pmap %p into pmap %p which has a different nested pmap %p @%s:%d |  attempt to nest pmap %p into pmap %p which has a different nested pma
+0xfffffff00a098740 (514 ins): com.apple.xnu.net | ntstat | com.apple.network.statistics
+0xfffffff009eee898 (503 ins): SFI_CLASS_USER_INITIATED | vm_map_copyout_internal | f the queue limit to keep after detecting an overflow burst | le min_address constraints @%s:%d | vm_map_copy_remap
+0xfffffff00a28d1e8 (500 ins): ner_info_t | _promisc | input |  TXSTART model | START && end == VMRL_WHOLE_MAP_END
+0xfffffff00a3a7a04 (498 ins): com.apple.private.ip-domain-table | tracker_action | tracker_add
+0xfffffff009ff8080 (487 ins): 
+0xfffffff00a45dec4 (481 ins): _tcall) | pp_free_buflet_common | old != 0 | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem
+0xfffffff00a2a3564 (469 ins): f the queue limit to keep after detecting an overflow burst | nit_sptm.c | key.c | key_acquire2: NULL pointer is passed. @%s:%d | invalid mbuf passed to key_senderror @%s:%d
+0xfffffff009fd4364 (454 ins): cluster_read_contig
+0xfffffff00a34db8c (451 ins): 
+0xfffffff009fce1dc (444 ins): cluster_write_contig
+0xfffffff00a3418f4 (437 ins): .io_throttle_period_tier3 | er2
+0xfffffff009ee2c9c (434 ins): 
+0xfffffff00a4590a0 (426 ins): _tcall) | pp_free_buflet_common | old != 0 | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem
+0xfffffff00a2d8524 (422 ins): 
+0xfffffff00a61eed8 (421 ins): vm_kern.c | Cannot place with multiple min_address constraints @%s:%d | Cannot place with a max_address constraint @%s:%d | kmem_range_init: vm_map_store_lookup_hole() failing for claim %s, hole
+0xfffffff009ef60e0 (413 ins): 
+0xfffffff009fd9798 (412 ins): /..namedfork/rsrc | vfs_lookup.c | leaf should be empty @%s:%d | lookup: SAVESTART @%s:%d
+0xfffffff009fd5f1c (403 ins): com.apple.kauth.vnode
+0xfffffff009e6e290 (402 ins): #lx last_iova %#lx @%s:%d | task.c | task_deallocate(%p): volatile_objects=%d nonvolatile_objects=%d owned=
+0xfffffff009eb5294 (400 ins): com.apple.private.persona.modify | bank.c | Bogus bank type: %d passed in get_value @%s:%d
+0xfffffff00a38f938 (397 ins): EL_FQ_CODEL || ifp->if_output_sched_model == IFNET_SCHED_MODEL_FQ_CODE | com.apple.security.hardened-process.enhanced-security-version-string | com.apple.security.hardened-process.enhanced-security-version | lil_input_threads | morystatus_pressure_interval
+0xfffffff00a2a3cb8 (391 ins): f the queue limit to keep after detecting an overflow burst | key.c | key_get: NULL pointer is passed. @%s:%d | nit_sptm.c | invalid mbuf passed to key_senderror @%s:%d
+0xfffffff00a2e4014 (388 ins): com.apple.developer.web-browser-engine.host | com.apple.developer.web-browser-engine.rendering | com.apple.developer.web-browser-engine.networking | com.apple.developer.web-browser-engine.webcontent | com.apple.security.hardened-process.dyld-ro
+0xfffffff00a0f2c1c (375 ins): 
+0xfffffff00a4f55b4 (374 ins): /chosen | or*: Dereferencing this pointer would access memory outside of the bou | ifa %p attached to ifp is being freed @%s:%d | thread_call.c | thread_call_enter_delayed
+0xfffffff00a59703c (370 ins): eok | lil_input_threads | ead_call_isactive(ifp->if_dt_tcall) | _isactive(ifp->if_dt_tcall) | t @%s:%d
+0xfffffff00a458b00 (360 ins): _tcall) | eok | old != 0 | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem | pp_free_buflet_common
+0xfffffff009fb7414 (353 ins): 
+0xfffffff00a03085c (352 ins): bpf_setup | f the queue limit to keep after detecting an overflow burst
+0xfffffff00a0f5154 (352 ins): necp_client_claim | necp_client_claim cannot claim from flow UUID
+0xfffffff00a318338 (351 ins): %s%c%c%s | com.apple.private.read-environment-variables | executable_path= | low | copyio.h
+0xfffffff00a106154 (349 ins): necp_client_qualify_flow
+0xfffffff009dfeb00 (346 ins): ipc_kmsg.c | Inconsistent OOL/copyout size on %p: expected %d, got %lld @%p @%s:%d
+0xfffffff009e24e70 (336 ins): panic(cpu %u caller 0x%lx):  | 
+Please go to https://panic.apple.com to report this panic
+
+0xfffffff00a55da60 (330 ins): /product | ephemeral-data-mode | a=%p negative refcnt @%s:%d | epdm-skip-nvram
+0xfffffff009e7a4e0 (321 ins): thread_call.c | thread_call_enter_delayed | NULL call in %s @%s:%d
+0xfffffff009fbc064 (321 ins): 
+0xfffffff00a0f56d4 (313 ins): necp_client_remove | necp_client_remove ntstat shutdown finds nstat_context NULL | thread_call.c | thread_call_enter_delayed_with_leeway | NULL call in %s @%s:%d
+0xfffffff00a5d34d8 (313 ins):  IFD_LINK | PowerOff/Restart handler completed | %u
+
+0xfffffff009e18ef8 (310 ins): 
+0xfffffff00a2be134 (310 ins): lio_listio
+0xfffffff009eb66f0 (305 ins): com.apple.private.personas.no.propagate | com.apple.private.personas.no.inherit
+0xfffffff009ef300c (303 ins): 
+0xfffffff009f6c38c (302 ins): 
+0xfffffff009f20d54 (298 ins): 
+0xfffffff00a45bb9c (298 ins): _tcall) | eok | old != 0 | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem | pp_free_buflet_common
+0xfffffff009e8281c (297 ins): com.apple.private.thread-set-state
+0xfffffff009efd174 (293 ins): 
+0xfffffff00a0f72e8 (293 ins): necp_client_remove_flow
+0xfffffff00a0cf364 (290 ins): necp_session_add_domain_trie | Failed to find a free trie ID.
+ | necp_get_new_domain_trie_id | Failed to initialize domain trie
+ | necp_create_domain_trie
+0xfffffff00a0cc594 (289 ins): necp_session_action
+0xfffffff009f3f918 (281 ins): 
+0xfffffff00a10f7c8 (280 ins): netagent_trigger | f the queue limit to keep after detecting an overflow burst | uap == NULL | _address | Requested netagent UUID is not eligible for triggering
+0xfffffff00a0f3844 (277 ins): Flow has route monitor tag but no route entry during flow destruction | necp_destroy_client_flow_registration | necp_aop_offload_stats_destroy | Route monitor cleaned up during flow destruction | nai->nai_use_count > 0
+0xfffffff00a4200d8 (276 ins): flow_owner_alloc | fo_alloc
+0xfffffff00a09b0b4 (267 ins): nstat_client_send_goodbye
+0xfffffff009efed20 (264 ins): 
+0xfffffff00a629f80 (246 ins): 
+0xfffffff00a2bb580 (245 ins): kern_aio.c | lio_pending accounting mistake @%s:%d
+0xfffffff00a5d310c (243 ins): f the queue limit to keep after detecting an overflow burst | PMRD: All done for worker: %p (visits = %u)
+
+0xfffffff00a1f664c (241 ins): f the queue limit to keep after detecting an overflow burst
+0xfffffff00a0f1a4c (234 ins): 
+0xfffffff009fd4e08 (231 ins): 
+0xfffffff00a09b4e0 (228 ins): 
+0xfffffff00a3e133c (224 ins): SKMEM_SLAB_MEMBER(sl, SKMEM_MEMTAG_STRIP_TAG(buf, skm->skm_objsize)) | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem | bc->bc_usecnt == 0 | skmem_slab.c | skmem_slab_free_locked
+0xfffffff00a0faff0 (223 ins): necp_client_get_flow_statistics
+0xfffffff00a30c1c0 (221 ins): 
+0xfffffff009f3d1a8 (213 ins): 
+0xfffffff00a3579f4 (211 ins): ptcwrite
+0xfffffff00a1f7964 (210 ins): f the queue limit to keep after detecting an overflow burst
+0xfffffff00a0c44b4 (208 ins): Marked NECP policy for removal | necp_policy_mark_for_deletion | Deleted NECP session | necp_delete_session
+0xfffffff009ee91ec (205 ins): 
+0xfffffff00a14bda4 (203 ins): pktap | 2222222222222222222222222222222222222222222222222222222222222222222222 | pktap_setdrvspec | f the queue limit to keep after detecting an overflow burst
+0xfffffff009ede154 (201 ins): vm_object_internal.h | vm_object_paging_end(%p): underflow
+ @%s:%d
+0xfffffff00a59556c (201 ins):  == NULL || (IS_P2ALIGNED(dlifp1, sizeof(u_int64_t)) && IS_P2ALIGNED(&
+0xfffffff00a357460 (194 ins): ptcread
+0xfffffff00a026628 (192 ins): ative open count (c, %u, %u) @%s:%d | ier3
+0xfffffff009fcd4a4 (189 ins): 
+0xfffffff00a0ff648 (188 ins): necp_client_route_monitor_callback: client not found | necp_client_route_monitor_callback | necp_client_route_monitor_callback: flow registration not found
+0xfffffff00a34ebc8 (182 ins): 
+0xfffffff00a597830 (177 ins): The range of valid memory is too large to be represented by this type, | bounded_ptr<T>::operator*: Dereferencing this pointer would access mem
+0xfffffff00a0ced2c (176 ins): necp_session_add_domain_filter | ULT - NO MATCH
+0xfffffff00a3a9594 (173 ins): tracker_entry_dump
+0xfffffff009f40228 (169 ins): 
+0xfffffff00a51fd94 (168 ins): ifa %p attached to ifp is being freed @%s:%d | _common |  IFD_LINK
+0xfffffff009e82580 (167 ins): 
+0xfffffff00a356630 (166 ins): ptsopen
+0xfffffff00a5e0ce0 (165 ins): Error!! Current Magic 0x%X, expected value 0x%x
+
+0xfffffff009fc4814 (164 ins): buf_biowait
+0xfffffff00a09d960 (159 ins): lock_rw_old.c | lck_rw_unlock_exclusive(): lock %p held in mode: %d @%s:%d
+0xfffffff00a0305e4 (158 ins): bpf_setif | f the queue limit to keep after detecting an overflow burst | bpf.c | resetting buffers during read @%s:%d
+0xfffffff00a31afe0 (154 ins): 
+0xfffffff00a0a0d48 (150 ins): nstat_generic_provider_add_watcher | lock_rw_old.c | lck_rw_unlock_exclusive(): lock %p held in mode: %d @%s:%d
+0xfffffff00a0e9d28 (149 ins): 
+0xfffffff009e296a0 (148 ins): 
+0xfffffff00a0303b8 (139 ins): bpf_setdlt | f the queue limit to keep after detecting an overflow burst
+0xfffffff00a4588d8 (138 ins): old != 0 | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem | pp_free_buflet_common
+0xfffffff009fc4dd0 (137 ins): buf_invalblkno
+0xfffffff00a0cfd20 (137 ins): Failed to find a free filter ID.
+ | necp_get_new_domain_filter_id | Allocate filter id failed.
+
+0xfffffff00a2bd8ac (136 ins): aio_exit | kern_aio.c | workq_aio_mark_exiting_locked called twice @%s:%d | AIO on a proc list that does not belong to that proc. @%s:%d
+0xfffffff009fd12e4 (135 ins): vfs_cluster.c | cluster_copy_upl_data | %s: cannot uiomove64 into a restricted page @%s:%d
+0xfffffff009fd0fd4 (132 ins): 
+0xfffffff00a0cf7ec (132 ins): necp_session_remove_domain_trie
+0xfffffff00a358f80 (127 ins): input | ptmx | tty_ptmx.c | Failed to set flags on ptmx cdevsw entry. @%s:%d
+0xfffffff00a482aec (127 ins): CFBundleIdentifier | IOProviderClass | CFBundleIdentifierKernel | HIDDefaultBehavior | HIDPointerAccelerationType
+0xfffffff00a598218 (126 ins): This bounded_ptr is pointing to memory outside of what can be represen
+0xfffffff00a0cefec (124 ins): necp_session_remove_domain_filter
+0xfffffff00a0f0370 (124 ins): 
+0xfffffff00a311600 (124 ins): unknown
+0xfffffff00a0a4210 (122 ins): 
+0xfffffff009f66658 (119 ins): 
+0xfffffff009e34fd4 (117 ins): 
+0xfffffff00a2bd6d8 (117 ins): kern_aio.c | AIO on a proc list that does not belong to that proc. @%s:%d
+0xfffffff00a0a14f8 (116 ins): 
+0xfffffff009fe0d30 (115 ins): 
+0xfffffff009fce018 (113 ins): 
+0xfffffff009fd1c40 (113 ins): 
+0xfffffff00a0cfb60 (112 ins): necp_session_trie_dump_all
+0xfffffff00a41896c (110 ins): 
+0xfffffff00a45af18 (107 ins): old != 0 | /Library/Caches/com.apple.xbs/5C30389C-C129-4EF5-A42B-B58F8B3D7CC3/Tem | pp_buflet_metadata_dtor
+0xfffffff00a0a2664 (105 ins): 
+0xfffffff00a0a49ac (105 ins): nstat_client_send_event
+0xfffffff00a0299ac (104 ins): 
+0xfffffff009ef1734 (102 ins): 
+0xfffffff009ee8e34 (99 ins): 
+0xfffffff00a4f1e28 (98 ins): _common
+0xfffffff009e6d630 (97 ins): 
+0xfffffff00a341fc8 (97 ins): .io_throttle_period_tier3 | er2
+0xfffffff00a3e9e90 (93 ins): na_interp_ringid
+0xfffffff00a0cf9fc (89 ins): 
+0xfffffff00a2baa6c (88 ins): 
+0xfffffff00a0a13ac (83 ins): nstat_userland_protocol_add_watcher | lock_rw_old.c | lck_rw_unlock_exclusive(): lock %p held in mode: %d @%s:%d
+0xfffffff00a0a4e7c (82 ins): :X1: | lock_rw_old.c | lck_rw_unlock_exclusive(): lock %p held in mode: %d @%s:%d
+0xfffffff00a030ddc (80 ins): 
+0xfffffff00a2badf8 (80 ins): 
+0xfffffff00a2bacbc (79 ins): kern_aio.c | aio_workq_entry %p being freed while still enqueued @%s:%d
+0xfffffff009e20ecc (78 ins): 
+0xfffffff00a10464c (76 ins): 
+0xfffffff00a2feef4 (73 ins): number %d @%s:%d | lid cpu_number %d @%s:%d
+0xfffffff009f219dc (70 ins): 
+0xfffffff00a30cfe0 (69 ins): com.apple.private.vfs.support-long-paths
+0xfffffff00a0a1b04 (67 ins): 
+0xfffffff00a0f1558 (67 ins): 
+0xfffffff00a011638 (64 ins): 
+0xfffffff00a4beb00 (62 ins): 
+0xfffffff00a4bebf8 (62 ins): 
+0xfffffff00a4bfc6c (62 ins): 
+0xfffffff00a4bff00 (62 ins): 
+0xfffffff00a4c42ec (62 ins): 
+0xfffffff00a4c4ef0 (62 ins): 
+0xfffffff00a4c85d8 (62 ins): 
+0xfffffff00a4c86d0 (62 ins): 
+0xfffffff00a4ca10c (62 ins): 
+0xfffffff00a4cd548 (62 ins): 
+0xfffffff009fca1a8 (59 ins): 
+0xfffffff00a307ce0 (59 ins): 
+0xfffffff00a02d828 (51 ins): 
+0xfffffff00a307c18 (50 ins): 
+0xfffffff00a4cd8f0 (46 ins): uct init_list_entry | IOKit | C-C129-4EF5-A42B-B58F8B3D7CC3/TemporaryDirectory.sEBZmN/Sources/xnu/bs
+0xfffffff00a5d3058 (45 ins): 
+0xfffffff00a4d83f8 (44 ins): 
+0xfffffff009f522b4 (40 ins): 
+0xfffffff00a31e0ac (39 ins): 
+0xfffffff00a4ca204 (33 ins): 
+0xfffffff00a622180 (25 ins): vm_map_lock.c | streaming of context %p hit an unexpected error %d @%s:%d
+0xfffffff009ed5e88 (22 ins): 
+0xfffffff00a2fe89c (19 ins): 
+0xfffffff00a2fe8e8 (19 ins): 
+0xfffffff009e20eb0 (7 ins): 
+0xfffffff009e37a98 (7 ins): 
+0xfffffff009e666a4 (7 ins): 
+0xfffffff009e7bc1c (7 ins): 
+0xfffffff009e87e68 (7 ins): 
+0xfffffff00a2be60c (7 ins): 
+0xfffffff00a2ff098 (7 ins): 
+0xfffffff00a2ff7c8 (7 ins): 

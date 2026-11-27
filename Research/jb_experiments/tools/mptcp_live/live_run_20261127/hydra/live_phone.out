@@ -1,0 +1,12 @@
+01:10:51 mptcp_ip_server mode=fail iface=eth0 port=9999 count=1 server_key=0x2a033f3a02be3050
+01:10:51 Safe variant: DSS data_len=1, DATA_FIN=0, bad checksum. No spray, no FIN, no RST.
+01:12:14 [+] SYN (MP_CAPABLE v1) 200.225.112.187:59152 -> SYN-ACK with CHECKSUM bit; server_key=0x2a033f3a02be3050 isn=0x48e81fe3
+(None, None)
+(None, None)
+01:12:14 [+] 3rd ACK from 200.225.112.187:59152 subtype=0 (MPO_CAPABLE=0) tcp.ack=0x48e81fe4 expected=0x48e81fe4
+(None, None)
+01:12:14 [*] data from 200.225.112.187:59152 1B dss=None client_seq->0x3fd5a5b1
+01:12:14 [>>>] DSS dlen=1 DATA_FIN=0 csum=0xDEAD dsn=0xa5bf5a71 sseq=1 tcp.seq=0x48e81fe4 ack=0x3fd5a5b1 bytes=2005a5bf5a71a5bf5a71000000010001dead
+01:12:14 [>>>] waiting 2 s for the device's reply (MP_FAIL expected on the report's path)
+(None, None)
+01:12:16 pcap: /root/jbresearch-mptcp/live_phone.pcap (4 packets)

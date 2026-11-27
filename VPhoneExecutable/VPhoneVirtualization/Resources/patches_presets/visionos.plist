@@ -133,6 +133,8 @@
 			<string>kernel-exp-frida_tpro_off</string>
 			<string>kernel-exp-frida_vm_map_delete_immutable_code</string>
 			<string>kernel-exp-hv_vmm</string>
+			<string>kernel-exp-bootargs</string>
+			<string>kernel-exp-cpu_topology</string>
 			<string>kernel-exp-tv_tpro_pagers</string>
 			<string>preboot-cfw-devicetree_board_audio</string>
 			<string>preboot-cfw-devicetree_foldable_displays</string>

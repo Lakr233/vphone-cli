@@ -1,0 +1,87 @@
+0xfffffff00a21add0  adrp     x8, #0xfffffff00a942000
+0xfffffff00a21add4  ldr      x22, [x8, #0xe18]
+0xfffffff00a21add8  ldr      x21, [sp, #0x60]
+0xfffffff00a21addc  mov      x0, x21
+0xfffffff00a21ade0  bl       #0xfffffff00a20ea0c
+0xfffffff00a21ade4  cbz      w0, #0xfffffff00a21ae10
+0xfffffff00a21ade8  sbfx     x0, x21, #0x37, #1
+0xfffffff00a21adec  bfxil    x0, x21, #0, #0x27
+0xfffffff00a21adf0  bl       #0xfffffff009f9fc28
+0xfffffff00a21adf4  b        #0xfffffff00a21ae48
+0xfffffff00a21adf8  adrp     x0, #0xfffffff00707c000
+0xfffffff00a21adfc  add      x0, x0, #0x510
+0xfffffff00a21ae00  adrp     x1, #0xfffffff00707b000
+0xfffffff00a21ae04  add      x1, x1, #0x6ec
+0xfffffff00a21ae08  mov      w2, #0x7ec
+0xfffffff00a21ae0c  bl       #0xfffffff00a633544
+0xfffffff00a21ae10  orr      x0, x21, #0xffffff8000000000
+0xfffffff00a21ae14  tbz      x21, #0x37, #0xfffffff00a21ae3c
+0xfffffff00a21ae18  mov      x8, #0xffdc00000000
+0xfffffff00a21ae1c  movk     x8, #0xffff, lsl #48
+0xfffffff00a21ae20  cmp      x0, x8
+0xfffffff00a21ae24  b.lo     #0xfffffff00a21ae3c
+0xfffffff00a21ae28  mov      x8, #-0x400000001
+0xfffffff00a21ae2c  cmp      x0, x8
+0xfffffff00a21ae30  b.hi     #0xfffffff00a21ae3c
+0xfffffff00a21ae34  bl       #0xfffffff009df27ec
+0xfffffff00a21ae38  b        #0xfffffff00a21ae48
+0xfffffff00a21ae3c  and      x8, x21, #0x7fffffffff
+0xfffffff00a21ae40  tst      x21, #0x80000000000000
+0xfffffff00a21ae44  csel     x0, x0, x8, ne
+0xfffffff00a21ae48  ldr      w8, [x23, #0x1c]
+0xfffffff00a21ae4c  stp      x0, x8, [sp, #8]
+0xfffffff00a21ae50  adrp     x8, #0xfffffff00707c000
+0xfffffff00a21ae54  add      x8, x8, #0x539
+0xfffffff00a21ae58  str      x8, [sp]
+0xfffffff00a21ae5c  adrp     x0, #0xfffffff00700c000
+0xfffffff00a21ae60  add      x0, x0, #0
+0xfffffff00a21ae64  adrp     x3, #0xfffffff0070d7000
+0xfffffff00a21ae68  add      x3, x3, #0xfb1
+0xfffffff00a21ae6c  mov      x1, x22
+0xfffffff00a21ae70  mov      w2, #0x10
+0xfffffff00a21ae74  bl       #0xfffffff00a4bb12c
+0xfffffff00a21ae78  b        #0xfffffff00a21ad44
+0xfffffff00a21ae7c  adrp     x0, #0xfffffff00707c000
+0xfffffff00a21ae80  add      x0, x0, #0x123
+0xfffffff00a21ae84  adrp     x1, #0xfffffff00707b000
+0xfffffff00a21ae88  add      x1, x1, #0x6ec
+0xfffffff00a21ae8c  mov      w2, #0x86f
+0xfffffff00a21ae90  bl       #0xfffffff00a633544
+0xfffffff00a21ae94  adrp     x0, #0xfffffff00707c000
+0xfffffff00a21ae98  add      x0, x0, #0x594
+0xfffffff00a21ae9c  adrp     x1, #0xfffffff00707b000
+0xfffffff00a21aea0  add      x1, x1, #0x6ec
+0xfffffff00a21aea4  mov      w2, #0x7b8
+0xfffffff00a21aea8  bl       #0xfffffff00a633544
+0xfffffff00a21aeac  brk      #0x5519
+0xfffffff00a21aeb0  ldr      x8, [x19, #0x88]
+0xfffffff00a21aeb4  cbnz     x8, #0xfffffff00a21aec4
+0xfffffff00a21aeb8  mov      w9, #0
+0xfffffff00a21aebc  mov      w10, #0
+0xfffffff00a21aec0  b        #0xfffffff00a21aef0
+0xfffffff00a21aec4  ldrh     w9, [x8, #0x1e]
+0xfffffff00a21aec8  tbnz     w9, #1, #0xfffffff00a21aee8
+0xfffffff00a21aecc  mov      w9, #0
+0xfffffff00a21aed0  mov      x10, x8
+0xfffffff00a21aed4  ldr      w11, [x10, #0x18]
+0xfffffff00a21aed8  add      w9, w11, w9
+0xfffffff00a21aedc  ldr      x10, [x10]
+0xfffffff00a21aee0  cbnz     x10, #0xfffffff00a21aed4
+0xfffffff00a21aee4  b        #0xfffffff00a21aeec
+0xfffffff00a21aee8  ldr      w9, [x8, #0x60]
+0xfffffff00a21aeec  ldrh     w10, [x8, #0x1c]
+0xfffffff00a21aef0  ldr      w11, [x19, #0x70]
+0xfffffff00a21aef4  ldr      w12, [x19, #0x80]
+0xfffffff00a21aef8  mov      w13, #0x848
+0xfffffff00a21aefc  adrp     x14, #0xfffffff00707b000
+0xfffffff00a21af00  add      x14, x14, #0xb63
+0xfffffff00a21af04  stp      x14, x13, [sp, #0x38]
+0xfffffff00a21af08  stp      x11, x12, [sp, #0x28]
+0xfffffff00a21af0c  stp      x9, x10, [sp, #0x18]
+0xfffffff00a21af10  adrp     x10, #0xfffffff00707c000
+0xfffffff00a21af14  add      x10, x10, #0x539
+0xfffffff00a21af18  stp      x13, x8, [sp, #8]
+0xfffffff00a21af1c  adrp     x0, #0xfffffff007092000
+0xfffffff00a21af20  add      x0, x0, #0x89e
+0xfffffff00a21af24  str      x10, [sp]
+0xfffffff00a21af28  bl       #0xfffffff00a6244b4

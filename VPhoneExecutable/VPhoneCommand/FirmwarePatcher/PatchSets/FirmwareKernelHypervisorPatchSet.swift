@@ -35,10 +35,36 @@ public enum FirmwareKernelHypervisorPatchSet {
                 identifier: "kernel-exp-hv_vmm",
                 title: "hv_vmm_present sysctl",
                 summary: """
-                Renames the hv_vmm_present OID and mangles its internal caller, so a userland \
-                check for the hypervisor finds nothing. Off by default: it leaves a freshly \
-                restored 26.4 guest on a black screen. Enable it together with dyld-exp-hv_vmm \
-                and system-watchdogd-exp-hv_vmm_cache, never alone.
+                Renames the hv_vmm_present OID, mangles its internal callers, and makes the \
+                handler answer ENOENT to any process that asks (the rename alone is not \
+                concealment: sysctl.next walks the MIB for everyone). Kernel callers still \
+                read the truth; bluetoothd and watchdogd are userland and need their \
+                cache patches just as they did for the rename. Off by default: the rename leaves a freshly restored 26.4 \
+                guest on a black screen. Enable it together with dyld-exp-hv_vmm and \
+                system-watchdogd-exp-hv_vmm_cache, never alone.
+                """,
+                target: .firmware(.kernelcache),
+            ),
+            VPhonePatchDeclaration(
+                identifier: "kernel-exp-bootargs",
+                title: "Empty kern.bootargs",
+                summary: """
+                Makes the kern.bootargs sysctl answer an empty string, as a stock iPhone does, \
+                instead of the vphone command line. The kernel keeps the arguments for its \
+                serial console. Shape-checked against the 27.2 / iPhone17,3 kernelcache; on \
+                another build it is not applied.
+                """,
+                target: .firmware(.kernelcache),
+            ),
+            VPhonePatchDeclaration(
+                identifier: "kernel-exp-cpu_topology",
+                title: "Phone CPU topology",
+                summary: """
+                Makes hw.ncpu, hw.activecpu, hw.physicalcpu, hw.physicalcpu_max, hw.logicalcpu and \
+                hw.logicalcpu_max answer 6, as every iPhone since the iPhone 8 does, instead of \
+                the VM's vCPU count. The kernel's own scheduler and the Mach host_info trap keep \
+                the real counts. Shape-checked against the 27.2 / iPhone17,3 kernelcache; on \
+                another build it is not applied.
                 """,
                 target: .firmware(.kernelcache),
             ),

@@ -1,0 +1,27 @@
+iOS 26.5.2
+group root: /private/var/mobile/Containers/Shared/AppGroup/EA783F5E-4A00-4032-89FA-848DC0D5AF4F
+caches: /private/var/mobile/Containers/Shared/AppGroup/EA783F5E-4A00-4032-89FA-848DC0D5AF4F/Library/Caches
+baseline (alt=0) handle = -6
+baseline (alt=1) handle = -6
+caches is symlink after baseline: 0
+--- target /private/var/containers/Data/System
+  alt=0: success 0/40  first=-99  fail codes: -6 
+  alt=1: success 0/40  first=-99  fail codes: -6 
+  opendir after all (must be denied): Operation not permitted
+--- target /private/var/containers/Shared/SystemGroup
+  alt=0: success 0/40  first=-99  fail codes: -6 
+  alt=1: success 0/40  first=-99  fail codes: -6 
+  opendir after all (must be denied): Operation not permitted
+--- target /private/var/mobile/Containers/Data/Application
+  alt=0: success 0/40  first=-99  fail codes: -6 
+  alt=1: success 0/40  first=-99  fail codes: -6 
+  opendir after all (must be denied): Operation not permitted
+--- target /private/var/containers/Bundle/Application
+  alt=0: success 0/40  first=-99  fail codes: -6 
+  alt=1: success 0/40  first=-99  fail codes: -6 
+  opendir after all (must be denied): Operation not permitted
+--- target /private/var/mobile/Library
+  alt=0: success 0/40  first=-99  fail codes: -6 
+  alt=1: success 0/40  first=-99  fail codes: -6 
+  opendir after all (must be denied): Operation not permitted
+DONE

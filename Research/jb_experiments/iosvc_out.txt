@@ -1,0 +1,96 @@
+##### 4A8A1186-3B54-5E76-95C0-3E47590416B9
+App installed:
+SVC AppleAVE2Driver inst=1 type=0 kr=0xe00002e2
+SVC AppleAVE2Driver inst=1 type=1 kr=0xe00002e2
+SVC AppleAVE2Driver inst=1 type=2 kr=0xe00002e2
+SVC AppleAVE2 inst=0
+SVC AppleAVD inst=1 type=0 kr=0xe00002c1
+SVC AppleAVD inst=1 type=1 kr=0xe00002c1
+SVC AppleAVD inst=1 type=2 kr=0xe00002c1
+SVC AppleJPEGDriver inst=2 type=0 kr=0x00000000
+SVC AppleJPEGDriver inst=2 type=1 kr=0x00000000
+SVC AppleJPEGDriver inst=2 type=2 kr=0x00000000
+SVC IOMobileFramebuffer inst=9 type=0 kr=0x00000000
+SVC IOMobileFramebuffer inst=9 type=1 kr=0x00000000
+SVC IOMobileFramebuffer inst=9 type=2 kr=0x00000000
+SVC IOSurfaceRoot inst=30 type=0 kr=0x00000000
+SVC IOSurfaceRoot inst=30 type=1 kr=0xe00002c7
+SVC IOSurfaceRoot inst=30 type=2 kr=0xe00002c7
+SVC AGXAccelerator inst=22 type=0 kr=0xe00002c7
+SVC AGXAccelerator inst=22 type=1 kr=0x00000000
+SVC AGXAccelerator inst=22 type=2 kr=0xe00002c7
+SVC AppleH16ANE inst=0
+SVC IOGPUFamily inst=0
+SVC AppleStockholmControl inst=2 type=0 kr=0xe00002c1
+SVC AppleStockholmControl inst=2 type=1 kr=0xe00002c1
+SVC AppleStockholmControl inst=2 type=2 kr=0xe00002c1
+SVC AppleSPU inst=6 type=0 kr=0xe00002c7
+SVC AppleSPU inst=6 type=1 kr=0xe00002c7
+SVC AppleSPU inst=6 type=2 kr=0xe00002c7
+SVC AppleConvergedPCI inst=1 type=0 kr=0xe00002c7
+SVC AppleConvergedPCI inst=1 type=1 kr=0xe00002c7
+SVC AppleConvergedPCI inst=1 type=2 kr=0xe00002c7
+SVC AppleBMW inst=0
+SVC AppleBiometricSensor inst=0
+SVC AppleBaseband inst=49 type=0 kr=0xe00002e2
+SVC AppleBaseband inst=49 type=1 kr=0xe00002e2
+SVC AppleBaseband inst=49 type=2 kr=0xe00002e2
+SVC AppleMesa inst=0
+SVC AppleDocket inst=0
+SVC AppleFDR inst=0
+SVC AppleKeyStore inst=237 type=0 kr=0x00000000
+SVC AppleKeyStore inst=237 type=1 kr=0x00000000
+SVC AppleKeyStore inst=237 type=2 kr=0x00000000
+SVC AppleARP inst=0
+SVC AppleJPEG inst=0
+SVC AppleSEP inst=0
+SVC AppleTorch inst=0
+SVC AppleH2CamIn inst=0
+SVC AppleH2CamOut inst=0
+##### EB205573-B173-5937-B2B1-031211E2944F
+App installed:
+SVC AppleAVE2Driver inst=1 type=0 kr=0xe00002bd
+SVC AppleAVE2Driver inst=1 type=1 kr=0xe00002e2
+SVC AppleAVE2Driver inst=1 type=2 kr=0xe00002e2
+SVC AppleAVE2 inst=0
+SVC AppleAVD inst=1 type=0 kr=0xe00002c1
+SVC AppleAVD inst=1 type=1 kr=0xe00002c1
+SVC AppleAVD inst=1 type=2 kr=0xe00002c1
+SVC AppleJPEGDriver inst=7 type=0 kr=0x00000000
+SVC AppleJPEGDriver inst=7 type=1 kr=0x00000000
+SVC AppleJPEGDriver inst=7 type=2 kr=0x00000000
+SVC IOMobileFramebuffer inst=2 type=0 kr=0x00000000
+SVC IOMobileFramebuffer inst=2 type=1 kr=0x00000000
+SVC IOMobileFramebuffer inst=2 type=2 kr=0x00000000
+SVC IOSurfaceRoot inst=87 type=0 kr=0x00000000
+SVC IOSurfaceRoot inst=87 type=1 kr=0xe00002c7
+SVC IOSurfaceRoot inst=87 type=2 kr=0xe00002c7
+SVC AGXAccelerator inst=65 type=0 kr=0xe00002c7
+SVC AGXAccelerator inst=65 type=1 kr=0x00000000
+SVC AGXAccelerator inst=65 type=2 kr=0xe00002c7
+SVC AppleH16ANE inst=0
+SVC IOGPUFamily inst=0
+SVC AppleStockholmControl inst=2 type=0 kr=0xe00002c1
+SVC AppleStockholmControl inst=2 type=1 kr=0xe00002c1
+SVC AppleStockholmControl inst=2 type=2 kr=0xe00002c1
+SVC AppleSPU inst=6 type=0 kr=0xe00002c7
+SVC AppleSPU inst=6 type=1 kr=0xe00002c7
+SVC AppleSPU inst=6 type=2 kr=0xe00002c7
+SVC AppleConvergedPCI inst=0
+SVC AppleBMW inst=0
+SVC AppleBiometricSensor inst=0
+SVC AppleBaseband inst=58 type=0 kr=0xe00002e2
+SVC AppleBaseband inst=58 type=1 kr=0xe00002e2
+SVC AppleBaseband inst=58 type=2 kr=0xe00002e2
+SVC AppleMesa inst=0
+SVC AppleDocket inst=0
+SVC AppleFDR inst=0
+SVC AppleKeyStore inst=334 type=0 kr=0x00000000
+SVC AppleKeyStore inst=334 type=1 kr=0x00000000
+SVC AppleKeyStore inst=334 type=2 kr=0x00000000
+SVC AppleARP inst=0
+SVC AppleJPEG inst=0
+SVC AppleSEP inst=0
+SVC AppleTorch inst=0
+SVC AppleH2CamIn inst=0
+SVC AppleH2CamOut inst=0

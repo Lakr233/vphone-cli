@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key><string>me.strelov.cfilprobe</string>
+	<key>CFBundleExecutable</key><string>cfilprobe</string>
+	<key>CFBundleName</key><string>cfilprobe</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>1.0</string>
+	<key>CFBundleVersion</key><string>1</string>
+	<key>LSRequiresIPhoneOS</key><true/>
+	<key>UIDeviceFamily</key><array><integer>1</integer></array>
+	<key>MinimumOSVersion</key><string>17.0</string>
+	<key>DTPlatformName</key><string>iphoneos</string>
+	<key>DTSDKName</key><string>iphoneos26.0</string>
+</dict>
+</plist>

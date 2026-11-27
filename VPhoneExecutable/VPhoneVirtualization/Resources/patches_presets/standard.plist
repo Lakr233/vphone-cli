@@ -94,6 +94,8 @@
 			<string>kernel-exp-frida_syscall_filter_off</string>
 			<string>kernel-exp-frida_fork_inherit_invalid_code</string>
 			<string>kernel-exp-hv_vmm</string>
+			<string>kernel-exp-bootargs</string>
+			<string>kernel-exp-cpu_topology</string>
 			<string>dyld-exp-hv_vmm</string>
 			<string>system-watchdogd-exp-hv_vmm_cache</string>
 			<string>devicetree-exp-target_sub_type</string>

@@ -86,6 +86,8 @@
 			<string>kernel-cfw-paravirt_gles_renderer</string>
 			<string>kernel-exp-frida_vm_map_delete_immutable_code</string>
 			<string>kernel-exp-hv_vmm</string>
+			<string>kernel-exp-bootargs</string>
+			<string>kernel-exp-cpu_topology</string>
 			<string>dyld-exp-hv_vmm</string>
 			<string>system-watchdogd-exp-hv_vmm_cache</string>
 			<string>devicetree-exp-target_sub_type</string>

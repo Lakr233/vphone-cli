@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>DPExploitFlavors</key>
+	<dict>
+		<key>default</key>
+		<dict>
+			<key>DPFlavorPriority</key>
+			<integer>1000</integer>
+			<key>DPSupportedRanges</key>
+			<array>
+				<dict>
+					<key>Start</key>
+					<string>15.0</string>
+					<key>End</key>
+					<string>15.4.1</string>
+				</dict>
+			</array>
+			<key>DPSupportInclude</key>
+			<array>
+				<dict>
+					<key>Builds</key>
+					<array>
+						<string>19F5047e</string>
+						<string>19F5057e</string>
+						<string>19F5062g</string>
+					</array>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>DPExploitType</key>
+	<string>PAC</string>
+	<key>CFBundleDisplayName</key>
+	<string>badRecovery</string>
+</dict>
+</plist>

@@ -201,6 +201,31 @@ static void skipsRepeatedLibraries(void) {
     vpFreeEnvironment(&result);
 }
 
+// The process's own environment loses both variables, root survives where the
+// hooks read it, and a child built from that scrubbed environment still gets
+// both: the chain of injection must not end at the first spawn.
+static void scrubsOwnEnvironmentAndKeepsTheChain(void) {
+    assert(setenv("VPHONE_JB_ROOT", "/private/var/jb", 1) == 0);
+    assert(setenv("DYLD_INSERT_LIBRARIES", VP_SYSTEM_HOOK, 1) == 0);
+    assert(setenv("HOME", "/var/mobile", 1) == 0);
+    vpScrubInjectionEnvironment();
+    assert(getenv("VPHONE_JB_ROOT") == NULL);
+    assert(getenv("DYLD_INSERT_LIBRARIES") == NULL);
+    assert(strcmp(getenv("HOME"), "/var/mobile") == 0);
+    for (char **e = *_NSGetEnviron(); *e; e++)
+        assert(strncmp(*e, "VPHONE_JB_ROOT=", 15) != 0 && strncmp(*e, "DYLD_INSERT_LIBRARIES=", 22) != 0);
+    assert(strcmp(vpJailbreakRoot(), "/private/var/jb") == 0);
+    assert(vpJailbreakRoot() == vpJailbreakRoot());
+    char *child[] = {"HOME=/var/mobile", NULL};
+    VPInjectionEnvironment result = vpInsertHooks(child, vpJailbreakRoot(), NULL);
+    assert(strcmp(value(result.values, "DYLD_INSERT_LIBRARIES"), VP_SYSTEM_HOOK) == 0);
+    assert(strcmp(value(result.values, "VPHONE_JB_ROOT"), "/private/var/jb") == 0);
+    vpFreeEnvironment(&result);
+    // Scrubbing again, with nothing left, is harmless.
+    vpScrubInjectionEnvironment();
+    assert(getenv("HOME") != NULL);
+}
+
 int main(void) {
     assert(!vpAttitudeAllowsProcess(NULL));
     assert(!vpAttitudeAllowsProcess("SpringBoard.app/SpringBoard"));
@@ -220,6 +245,7 @@ int main(void) {
     insertsSeveralLibraries();
     addsOnlyTheMissingLibrary();
     skipsRepeatedLibraries();
+    scrubsOwnEnvironmentAndKeepsTheChain();
     puts("InjectionEnvironmentTests: ok");
     return 0;
 }
