@@ -74,6 +74,11 @@ enum InterfaceMethod: String, GuestMethod {
     case uiWaitGone = "ui.wait_gone"
     case uiOcr = "ui.ocr"
     case uiDescribe = "ui.describe"
+    case uiElementActivate = "ui.element.activate"
+    case uiElementFocus = "ui.element.focus"
+    case uiElementSetValue = "ui.element.set_value"
+    case uiElementAttributes = "ui.element.attributes"
+
 
     var spec: MethodSpec {
         switch self {
@@ -143,6 +148,47 @@ enum InterfaceMethod: String, GuestMethod {
                                               .optional("ocr", .object),
                                               .required("screen", .object),
                                               .required("screenshot", .object)])
+        case .uiElementActivate:
+            MethodSpec(.optional("text", .string, "Text in the element label or value; compared as match says; give text, identifier, role or path"),
+                       .optional("identifier", .string, "Exact element identifier"),
+                       .optional("role", .string, "Exact element role as ui.tree reports it"),
+                       .optional("match", .string, "How text is compared, ignoring case", values: ["contains", "exact"], default: "contains"),
+                       .optional("index", .integer, "Which match to use when several match, from 0; not with path", min: 0),
+                       .optional("path", .array, "Child indexes from the root, as in a nested ui.tree node; excludes index"),
+                       .optional("action", .string, "Action to perform on the element", values: ["activate"], default: "activate"),
+                       summary: "Find one element by text, identifier, role or path and perform an accessibility action on it.",
+                       result: [.required("action", .string), .required("activated", .boolean), .required("label", .string),
+                                .required("pid", .integer), .required("role", .string)])
+        case .uiElementFocus:
+            MethodSpec(.optional("text", .string, "Text in the element label or value; compared as match says; give text, identifier, role or path"),
+                       .optional("identifier", .string, "Exact element identifier"),
+                       .optional("role", .string, "Exact element role as ui.tree reports it"),
+                       .optional("match", .string, "How text is compared, ignoring case", values: ["contains", "exact"], default: "contains"),
+                       .optional("index", .integer, "Which match to use when several match, from 0; not with path", min: 0),
+                       .optional("path", .array, "Child indexes from the root, as in a nested ui.tree node; excludes index"),
+                       summary: "Find one element and move the assistive-technology focus cursor to it.",
+                       result: [.required("focused", .boolean), .required("label", .string), .required("pid", .integer), .required("role", .string)])
+        case .uiElementSetValue:
+            MethodSpec(.optional("text", .string, "Text in the element label or value; compared as match says; give text, identifier, role or path"),
+                       .optional("identifier", .string, "Exact element identifier"),
+                       .optional("role", .string, "Exact element role as ui.tree reports it"),
+                       .optional("match", .string, "How text is compared, ignoring case", values: ["contains", "exact"], default: "contains"),
+                       .optional("index", .integer, "Which match to use when several match, from 0; not with path", min: 0),
+                       .optional("path", .array, "Child indexes from the root, as in a nested ui.tree node; excludes index"),
+                       .required("value", .string, "Text to set as the element value"),
+                       summary: "Find one element and set its value, returning the value read back.",
+                       result: [.required("label", .string), .required("pid", .integer), .required("role", .string), .required("value", .string)])
+        case .uiElementAttributes:
+            MethodSpec(.optional("text", .string, "Text in the element label or value; compared as match says; give text, identifier, role or path"),
+                       .optional("identifier", .string, "Exact element identifier"),
+                       .optional("role", .string, "Exact element role as ui.tree reports it"),
+                       .optional("match", .string, "How text is compared, ignoring case", values: ["contains", "exact"], default: "contains"),
+                       .optional("index", .integer, "Which match to use when several match, from 0; not with path", min: 0),
+                       .optional("path", .array, "Child indexes from the root, as in a nested ui.tree node; excludes index"),
+                       summary: "Find one element and read its label, value, identifier, role, frame, enabled and focused state and path.",
+                       result: [.required("enabled", .boolean), .required("focused", .boolean), .required("frame", .object),
+                                .required("identifier", .string), .required("label", .string), .required("path", .array),
+                                .required("pid", .integer), .required("role", .string), .required("value", .string)])
         }
     }
 }

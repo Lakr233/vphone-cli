@@ -90,7 +90,154 @@ private func singleDisplayTests() throws {
     precondition(PointInputWitness.points.count == 1 && !icli_interface_geometry_current(nil))
 }
 
+private let homeElements = """
+{"source":"ax","pid":99,"truncated":false,"elements":[
+ {"label":"Settings","identifier":"Settings","role":"button","clickable":true,"visible":true,"x":900.0,"y":300.0},
+ {"label":"Hidden","visible":false,"clickable":true,"x":10.0,"y":10.0},
+ {"label":"Label","visible":true,"clickable":false,"x":20.0,"y":20.0}]}
+"""
+
+/// The Home Screen: SpringBoard foreground (unverified, no scene), answered by the icli wrappers.
+private func resetHomeScreen() {
+    resetSemanticInput()
+    SemanticInputWitness.foreground = ["bundle_id": "com.apple.springboard", "verified": false, "source": "unavailable"]
+    SemanticInputWitness.processes = [["executable": "/System/Library/CoreServices/SpringBoard.app/SpringBoard", "pid": 99]]
+    SemanticInputWitness.axPID = 99
+    LayoutWitness.layout = semanticLayout()
+    changeMonitor(["application_scenes": [[String: Any]]()])
+    IcliAXWitness.elementsJSON = homeElements
+    IcliAXWitness.elementAtJSON = #"{"source":"ax","element":{"label":"Settings"},"x":900,"y":300}"#
+    IcliAXWitness.elementCalls = []
+    IcliAXWitness.pointCalls = []
+}
+
+private func failureMessage(_ operation: () throws -> Void) -> String? {
+    do { try operation() } catch let error as IcliError { return error.message } catch { return "\(error)" }
+    return nil
+}
+
+private func homeScreenQueryTest() throws {
+    // The caller's max_elements reaches the wrapper (ui.tree param; 2000 for the waits and the tap), and the
+    // wrapper gets SpringBoard's pid; IcliKit's own query is never called.
+    resetHomeScreen()
+    let tree = try GuestAPI.executeInterface(.uiTree, ["max_elements": 123])
+    precondition(IcliAXWitness.elementCalls.map(\.max) == [123] && IcliAXWitness.elementCalls[0].pid == 99)
+    precondition(tree["count"] as? Int == 2 && tree["pid"] as? Int == 99 && tree["source"] as? String == "ax")
+    let all = try GuestAPI.executeInterface(.uiTree, ["visible_only": false, "limit": 2])
+    precondition(all["count"] as? Int == 2 && (all["elements"] as! [[String: Any]])[1]["label"] as? String == "Hidden")
+    let clickable = try GuestAPI.executeInterface(.uiTree, ["clickable_only": true])
+    precondition(clickable["count"] as? Int == 1)
+    precondition(IcliAXWitness.elementCalls.map(\.max) == [123, 500, 500])
+    IcliAXWitness.elementCalls = []
+    let selector: [String: Any] = ["text": "Settings", "match": "exact", "timeout_ms": 0]
+    let found = try GuestAPI.executeInterface(.uiWait, selector)
+    precondition(found["found"] as? Bool == true)
+    IcliAXWitness.elementsJSON = #"{"source":"ax","pid":99,"truncated":false,"elements":[]}"#
+    let gone = try GuestAPI.executeInterface(.uiWaitGone, selector)
+    precondition(gone["disappeared"] as? Bool == true)
+    IcliAXWitness.elementsJSON = homeElements
+    precondition(PointInputWitness.points.isEmpty)
+    // Geometry comes from the monitor's bounds (951x669), not reference_bounds (669x951): (900, 300) is inside
+    // the scene-less frame and converts like the one-scene case.
+    let tapped = try GuestAPI.executeInterface(.uiTapElement, ["text": "Settings"])
+    precondition(tapped["tapped"] as? Bool == true)
+    precondition(IcliAXWitness.elementCalls.map(\.max) == [2000, 2000, 2000] && IcliAXWitness.elementCalls.allSatisfy { $0.pid == 99 })
+    let tap = PointInputWitness.points.last!
+    precondition(abs(tap[0] - 300 / 669.0) < 1e-9 && abs(tap[1] - 51 / 951.0) < 1e-9, "tap did not use the bounds geometry")
+    precondition(SemanticInputWitness.queriedWidths.isEmpty && !icli_interface_geometry_current(nil))
+
+    // A tap point beyond the bounds-sized frame (x 960 of 951) is refused.
+    IcliAXWitness.elementsJSON = homeElements.replacingOccurrences(of: "\"x\":900.0", with: "\"x\":960.0")
+    PointInputWitness.points = []
+    rejects { _ = try GuestAPI.executeInterface(.uiTapElement, ["text": "Settings"]) }
+    precondition(PointInputWitness.points.isEmpty)
+
+    // Bad answers: NULL, not JSON, not a dictionary, an error key.
+    for json: String? in [nil, "garbage", "[1]"] {
+        IcliAXWitness.elementsJSON = json
+        precondition(failureMessage { _ = try GuestAPI.executeInterface(.uiTree, [:]) } == "invalid AX response")
+    }
+    IcliAXWitness.elementsJSON = #"{"error":"invalid AX query"}"#
+    precondition(failureMessage { _ = try GuestAPI.executeInterface(.uiTree, [:]) } == "invalid AX query")
+    // The result must belong to the verified pid.
+    IcliAXWitness.elementsJSON = homeElements.replacingOccurrences(of: "\"pid\":99", with: "\"pid\":98")
+    rejects { _ = try GuestAPI.executeInterface(.uiTree, [:]) }
+
+    // SpringBoard with one scene or several: the unique-scene rule still applies to the scene list.
+    resetHomeScreen()
+    let monitor = (LayoutWitness.layout["monitors"] as! [[String: Any]])[0]
+    let scene: [String: Any] = ["bundle_id": "com.apple.springboard", "identifier": "board",
+                                "frame": monitor["bounds"]!, "reference_frame": monitor["reference_bounds"]!]
+    changeMonitor(["application_scenes": [scene]])
+    _ = try GuestAPI.executeInterface(.uiTree, [:])
+    changeMonitor(["application_scenes": [scene, scene]])
+    rejects { _ = try GuestAPI.executeInterface(.uiTree, [:]) }
+    // An unoriented display (the Home Screen of a single-display phone): the monitor values are the geometry.
+    resetHomeScreen()
+    LayoutWitness.layout = unorientedLayout()
+    changeMonitor(["elements_available": true, "elements_truncated": false, "application_scenes": [[String: Any]]()])
+    IcliAXWitness.elementsJSON = homeElements.replacingOccurrences(of: "\"x\":900.0", with: "\"x\":700.0")
+    PointInputWitness.points = []
+    let flat = try GuestAPI.executeInterface(.uiTapElement, ["text": "Settings"])
+    precondition(flat["tapped"] as? Bool == true && PointInputWitness.points.count == 1)
+    IcliAXWitness.elementsJSON = homeElements.replacingOccurrences(of: "\"x\":900.0", with: "\"x\":750.0")
+    rejects { _ = try GuestAPI.executeInterface(.uiTapElement, ["text": "Settings"]) }
+    // Any other foreground with no scene still fails.
+    resetSemanticInput()
+    changeMonitor(["application_scenes": [[String: Any]]()])
+    rejects { _ = try GuestAPI.executeInterface(.uiTree, [:]) }
+    precondition(IcliAXWitness.elementCalls.count == 2)
+    // An oriented Home Screen takes its geometry from the monitor alone, even when the layout reports none.
+    resetHomeScreen()
+    PointInputWitness.points = []
+    _ = try GuestAPI.executeInterface(.uiTapElement, ["text": "Settings"])
+    let expected = PointInputWitness.points
+    precondition(expected.count == 1)
+    resetHomeScreen()
+    LayoutWitness.layout["geometry_available"] = false
+    changeMonitor(["geometry_available": false])
+    PointInputWitness.points = []
+    let monitorOnly = try GuestAPI.executeInterface(.uiTapElement, ["text": "Settings"])
+    precondition(monitorOnly["tapped"] as? Bool == true && PointInputWitness.points == expected)
+    // The scene-less path keeps the availability guards: unavailable or truncated elements refuse the query.
+    for change: [String: Any] in [["elements_available": false], ["elements_truncated": true]] {
+        resetHomeScreen()
+        LayoutWitness.layout = unorientedLayout()
+        changeMonitor(["elements_available": true, "elements_truncated": false,
+                       "application_scenes": [[String: Any]]()])
+        changeMonitor(change)
+        PointInputWitness.points = []
+        rejects { _ = try GuestAPI.executeInterface(.uiTree, [:]) }
+        rejects { _ = try GuestAPI.executeInterface(.uiTapElement, ["text": "Settings"]) }
+        precondition(PointInputWitness.points.isEmpty)
+    }
+
+    // ui.element_at: one wrapper call with the verified pid; out-of-screen refused before it.
+    resetHomeScreen()
+    let hit = try GuestAPI.executeInterface(.uiElementAt, ["x": 500, "y": 300])
+    precondition((hit["element"] as! [String: Any])["label"] as? String == "Settings" && hit["x"] as? Int == 900)
+    precondition(IcliAXWitness.pointCalls.count == 1 && IcliAXWitness.pointCalls[0].pid == 99
+        && IcliAXWitness.pointCalls[0].x == 500 && IcliAXWitness.pointCalls[0].y == 300)
+    for point in [[-1, 10], [10, -1], [678, 10], [10, 466]] {
+        precondition(failureMessage { _ = try GuestAPI.executeInterface(.uiElementAt, ["x": point[0], "y": point[1]]) }
+            == "coordinates must be finite points inside the screen")
+    }
+    precondition(IcliAXWitness.pointCalls.count == 1)
+    for json: String? in [nil, "garbage", "[1]"] {
+        IcliAXWitness.elementAtJSON = json
+        precondition(failureMessage { _ = try GuestAPI.executeInterface(.uiElementAt, ["x": 5, "y": 5]) } == "invalid AX response")
+    }
+    IcliAXWitness.elementAtJSON = #"{"error":"no element"}"#
+    precondition(failureMessage { _ = try GuestAPI.executeInterface(.uiElementAt, ["x": 5, "y": 5]) } == "no element")
+    // An app in front keeps IcliKit's query.
+    resetSemanticInput()
+    _ = try GuestAPI.executeInterface(.uiElementAt, ["x": 500, "y": 300])
+    precondition(IcliAXWitness.pointCalls.count == 5)
+    resetSemanticInput()
+}
+
 func semanticGeometryTests() throws {
+    try homeScreenQueryTest()
     resetSemanticInput()
     // Real guest dispatch, pinned Icli scope and C conversion. The screenshot
     // fallback is 678x466, but AX points belong to the active 951x669 display.

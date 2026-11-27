@@ -6,6 +6,7 @@ import VphonedNative
 enum GuestAPI {
     static let interfaceLock = NSRecursiveLock()
     static func nestedHierarchy(_ params: [String: Any]) throws -> [String: Any] { [:] }
+    static func executeElement(_ m: InterfaceMethod, _ params: [String: Any]) throws -> [String: Any] { [:] }
     static func number(_ p: [String: Any], _ k: String, default d: Double = .nan) -> Double {
         if let n = p[k] as? NSNumber { return n.doubleValue }; return (p[k] as? String).flatMap(Double.init) ?? d
     }

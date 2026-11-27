@@ -23,7 +23,7 @@ static double milliseconds(void) {
  double readinessWait;
  NSArray *initialReadinessErrors;
 }
-- (NSDictionary *)node:(CFTypeRef)element parent:(CFTypeRef)parent depth:(int)depth;
+- (NSDictionary *)node:(CFTypeRef)element parent:(CFTypeRef)parent depth:(int)depth path:(NSArray *)path;
 @end
 @implementation VPAxWalker
 - (void)dealloc {
@@ -92,7 +92,7 @@ static double milliseconds(void) {
  if(matches) ++verified; else {++mismatch;incomplete=YES;}
  return @(matches);
 }
-- (NSDictionary *)node:(CFTypeRef)element parent:(CFTypeRef)parent depth:(int)depth {
+- (NSDictionary *)node:(CFTypeRef)element parent:(CFTypeRef)parent depth:(int)depth path:(NSArray *)path {
  if(![self budget]) return nil;
  const void *existingValue=NULL;
  if(CFDictionaryGetValueIfPresent(seenMap,element,&existingValue)) {
@@ -101,7 +101,7 @@ static double milliseconds(void) {
   id proof=[self parentProof:element parent:parent errors:errors];
   NSString *reference=[NSString stringWithFormat:@"ax-%lu",(unsigned long)existing];
   BOOL cycle=[active containsObject:reference]; if(cycle) incomplete=YES;
-  return @{@"ref":reference,@"cycle":@(cycle),@"parent_verified":proof,@"query_errors":errors.copy};
+  return @{@"ref":reference,@"path":path,@"cycle":@(cycle),@"parent_verified":proof,@"query_errors":errors.copy};
  }
  if(seenCount>=(NSUInteger)maxElements) {[reasons addObject:@"max_elements"];return nil;}
  NSUInteger index=seenCount++;
@@ -129,14 +129,14 @@ static double milliseconds(void) {
    CFTypeRef child=CFArrayGetValueAtIndex(array,i);
    if(!child || CFGetTypeID(child)!=f.elementTypeID()) {status=@"unavailable";incomplete=YES;
     [errors addObject:@{@"attribute":@5001,@"error_code":@0,@"value_present":@(child!=NULL),@"invalid_child_type":@YES}];continue;}
-   NSDictionary *node=[self node:child parent:element depth:depth+1];
+   NSDictionary *node=[self node:child parent:element depth:depth+1 path:[path arrayByAddingObject:@(i)]];
    if(!node) {status=@"truncated";break;}
    [children addObject:node];
   }
  }
  if(![self budget] && [status isEqual:@"unavailable"]) status=@"truncated";
  [active removeObject:identity];
- return @{@"id":identity,@"label":label,@"identifier":identifier,@"role":role,@"frame":frame,
+ return @{@"id":identity,@"path":path,@"label":label,@"identifier":identifier,@"role":role,@"frame":frame,
    @"children":children.copy,@"children_status":status,@"query_errors":errors.copy,@"parent_verified":proof,@"depth":@(depth)};
 }
 @end
@@ -150,7 +150,7 @@ NSDictionary *vp_ax_walk_with_readiness(VPAxFunctions functions, CFTypeRef root,
  walker->timeoutMS=MAX(100,MIN(duration,10000));walker->maxQueries=walker->maxElements*8;
  walker->seenMap=CFDictionaryCreateMutable(kCFAllocatorDefault,0,&kCFTypeDictionaryKeyCallBacks,NULL);
  walker->seenCount=0;walker->active=[NSMutableSet set];walker->reasons=[NSMutableSet set];walker->start=milliseconds();
- NSDictionary *node=root && functions.copy && functions.elementTypeID && walker->seenMap?[walker node:root parent:NULL depth:0]:nil;
+ NSDictionary *node=root && functions.copy && functions.elementTypeID && walker->seenMap?[walker node:root parent:NULL depth:0 path:@[]]:nil;
  BOOL truncated=walker->reasons.count>0;
  NSString *status=!node?@"unavailable":truncated || walker->incomplete?@"partial":@"complete";
  return @{@"source":@"ax",@"format":@"nested",@"relationship_source":@"AXUIElementCopyAttributeValue:5001",
@@ -163,7 +163,7 @@ NSDictionary *vp_ax_walk_with_readiness(VPAxFunctions functions, CFTypeRef root,
    @"initial_query_errors":walker->initialReadinessErrors?:@[]},
   @"parent_checks":@{@"verified":@(walker->verified),@"mismatch":@(walker->mismatch),@"unavailable":@(walker->unavailable)}};
 }
-NSDictionary *vp_ax_hierarchy(int pid,int maxElements,int maxDepth,int timeoutMS) {
+VPAxFunctions vp_ax_load_functions(void) {
  void *ax=dlopen("/System/Library/PrivateFrameworks/AXRuntime.framework/AXRuntime",RTLD_NOW);
  VPAxFunctions f={0};
 #define LOAD(M,N) f.M=(typeof(f.M))(ax?dlsym(ax,N):NULL)
@@ -171,7 +171,10 @@ NSDictionary *vp_ax_hierarchy(int pid,int maxElements,int maxDepth,int timeoutMS
  LOAD(setTimeout,"AXUIElementSetMessagingTimeout");LOAD(elementTypeID,"AXUIElementGetTypeID");
  LOAD(valueTypeID,"AXValueGetTypeID");LOAD(getValue,"AXValueGetValue");
 #undef LOAD
- CFTypeRef root=f.createApp && pid>1?f.createApp(pid):NULL;
+ return f;
+}
+// The one place AX is switched on for an invocation and restored afterwards.
+NSDictionary *vp_ax_with_enabled(void (^body)(BOOL enabledForInvocation)) {
  void *library=dlopen("/usr/lib/libAccessibility.dylib",RTLD_NOW);
  Boolean (*appEnabled)(void)=library?dlsym(library,"_AXSApplicationAccessibilityEnabled"):NULL;
  void (*setApp)(Boolean)=library?dlsym(library,"_AXSApplicationAccessibilitySetEnabled"):NULL;
@@ -182,23 +185,36 @@ NSDictionary *vp_ax_hierarchy(int pid,int maxElements,int maxDepth,int timeoutMS
  if(client) client(2); if(override) override(2);
  BOOL beforeApp=appEnabled?appEnabled():NO,beforeAuto=autoEnabled?autoEnabled():NO;
  BOOL changedApp=appEnabled && setApp && !beforeApp, changedAuto=autoEnabled && setAuto && !beforeAuto;
- NSDictionary *result=nil;
  @try {
   if(changedApp) setApp(true); if(changedAuto) setAuto(true);
   BOOL enabledForInvocation=(changedApp && appEnabled()) || (changedAuto && autoEnabled());
-  result=vp_ax_walk_with_readiness(f,root,pid,maxElements,maxDepth,timeoutMS,enabledForInvocation);
- } @catch(NSException *exception) {
-  NSMutableDictionary *failure=[vp_ax_walk(f,NULL,pid,maxElements,maxDepth,timeoutMS) mutableCopy];
-  failure[@"native_exception"]=exception.name; result=failure.copy;
+  body(enabledForInvocation);
  } @finally {
   if(changedAuto)setAuto(false);if(changedApp)setApp(false);
  }
+ return @{@"requesting_client":@(client!=NULL),@"requesting_client_override":@(override!=NULL),
+  @"switches_before":@{@"application":appEnabled?@(beforeApp):NSNull.null,@"automation":autoEnabled?@(beforeAuto):NSNull.null},
+  @"switches_after_restore":@{@"application":appEnabled?@(appEnabled()):NSNull.null,@"automation":autoEnabled?@(autoEnabled()):NSNull.null}};
+}
+NSDictionary *vp_ax_hierarchy(int pid,int maxElements,int maxDepth,int timeoutMS) {
+ VPAxFunctions f=vp_ax_load_functions();
+ CFTypeRef root=f.createApp && pid>1?f.createApp(pid):NULL;
+ __block NSDictionary *result=nil;
+ NSDictionary *switches=vp_ax_with_enabled(^(BOOL enabledForInvocation) {
+  @try {
+   result=vp_ax_walk_with_readiness(f,root,pid,maxElements,maxDepth,timeoutMS,enabledForInvocation);
+  } @catch(NSException *exception) {
+   NSMutableDictionary *failure=[vp_ax_walk(f,NULL,pid,maxElements,maxDepth,timeoutMS) mutableCopy];
+   failure[@"native_exception"]=exception.name; result=failure.copy;
+  }
+ });
  NSMutableDictionary *report=[result mutableCopy];
  report[@"symbols"]=@{@"create_application":@(f.createApp!=NULL),@"copy_attribute":@(f.copy!=NULL),
   @"set_timeout":@(f.setTimeout!=NULL),@"element_type_id":@(f.elementTypeID!=NULL),
-  @"requesting_client":@(client!=NULL),@"requesting_client_override":@(override!=NULL)};
- report[@"switches_before"]=@{@"application":appEnabled?@(beforeApp):NSNull.null,@"automation":autoEnabled?@(beforeAuto):NSNull.null};
- report[@"switches_after_restore"]=@{@"application":appEnabled?@(appEnabled()):NSNull.null,@"automation":autoEnabled?@(autoEnabled()):NSNull.null};
+  @"requesting_client":switches[@"requesting_client"],@"requesting_client_override":switches[@"requesting_client_override"]};
+ NSDictionary *before=switches[@"switches_before"],*after=switches[@"switches_after_restore"];
+ report[@"switches_before"]=before;
+ report[@"switches_after_restore"]=after;
  result=report.copy;
  if(root) CFRelease(root);
  return result;

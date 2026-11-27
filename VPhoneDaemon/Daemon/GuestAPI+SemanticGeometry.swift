@@ -6,24 +6,6 @@ import Foundation
 import IcliKit
 import VphonedNative
 
-private struct SemanticForeground: Equatable {
-    let bundle: String
-    let pid: Int
-
-    static func current() throws -> Self {
-        let front = frontmostApp()
-        guard semanticBoolean(front["verified"]) == true,
-              let bundle = front["bundle_id"] as? String, !bundle.isEmpty,
-              let apps = try runningApps()["apps"] as? [[String: Any]]
-        else { throw IcliError.unavailable("Cannot verify the foreground application for accessibility input") }
-        let matches = apps.filter { $0["bundle_id"] as? String == bundle }
-        guard matches.count == 1, let number = semanticNumber(matches[0]["pid"]),
-              let pid = Int(exactly: number), pid > 1, pid <= Int(Int32.max)
-        else { throw IcliError.unavailable("Cannot verify a unique foreground process for accessibility input") }
-        return Self(bundle: bundle, pid: pid)
-    }
-}
-
 private func semanticBoolean(_ value: Any?) -> Bool? {
     guard let value = value as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() else { return nil }
     return value.boolValue
@@ -44,23 +26,29 @@ private func semanticRect(_ value: Any?) -> CGRect? {
 }
 
 private struct SemanticGeometry {
-    let foreground: SemanticForeground
+    let foreground: ForegroundApp
     let geometry: InterfaceGeometry
     let sceneFrame: CGRect
     let identity: NSDictionary
 
     static func current() throws -> Self {
-        let foreground = try SemanticForeground.current()
+        let foreground = try GuestAPI.verifiedForeground()
         let layout = vp_display_layout_for_application(foreground.bundle)
-        guard try SemanticForeground.current() == foreground,
+        guard try GuestAPI.verifiedForeground() == foreground,
               let monitors = layout["monitors"] as? [[String: Any]], let monitor = monitors.first,
               semanticBoolean(monitor["elements_available"]) == true,
               semanticBoolean(monitor["elements_truncated"]) == false,
-              let scenes = monitor["application_scenes"] as? [[String: Any]], scenes.count == 1,
+              let scenes = monitor["application_scenes"] as? [[String: Any]]
+        else { throw sceneError }
+        // SpringBoard's own UI has no application scene: geometry comes from the monitor alone.
+        if foreground.bundle == GuestAPI.springboardBundle, scenes.isEmpty {
+            return try sceneless(foreground: foreground, layout: layout, monitor: monitor)
+        }
+        guard scenes.count == 1,
               let scene = scenes.first, scene["bundle_id"] as? String == foreground.bundle,
               let identifier = scene["identifier"] as? String, !identifier.isEmpty,
               let frame = semanticRect(scene["frame"]), let reference = semanticRect(scene["reference_frame"])
-        else { throw IcliError.unavailable("Cannot bind accessibility coordinates to a unique foreground scene") }
+        else { throw sceneError }
         let geometry = try GuestPointGeometry.geometry(from: layout)
             ?? nativeGeometry(layout: layout, monitor: monitor, frame: frame, reference: reference)
         guard CGRect(x: 0, y: 0, width: geometry.width, height: geometry.height).contains(frame),
@@ -70,6 +58,23 @@ private struct SemanticGeometry {
         var identity = monitor.filter { keys.contains($0.key) }
         identity["scene"] = scene
         return Self(foreground: foreground, geometry: geometry, sceneFrame: frame, identity: NSDictionary(dictionary: identity))
+    }
+
+    private static let sceneError = IcliError.unavailable("Cannot bind accessibility coordinates to a unique foreground scene")
+
+    private static func sceneless(foreground: ForegroundApp, layout: [String: Any],
+                                  monitor: [String: Any]) throws -> Self {
+        guard let bounds = semanticRect(monitor["bounds"]), let reference = semanticRect(monitor["reference_bounds"]),
+              let scale = semanticNumber(monitor["point_scale"]), let orientation = semanticNumber(monitor["interface_orientation"])
+        else { throw sceneError }
+        // SpringBoard has no scene to cross-check: the monitor's own values are the geometry, 0 meaning upright.
+        guard let degrees = [0.0: 0, 1.0: 0, 2.0: 180, 3.0: 270, 4.0: 90][orientation] else { throw sceneError }
+        let geometry = try InterfaceGeometry(width: bounds.width, height: bounds.height, referenceWidth: reference.width,
+                                             referenceHeight: reference.height, scale: scale, orientation: degrees)
+        let keys = ["display_id", "hardware_identifier", "bounds", "reference_bounds", "point_scale", "interface_orientation"]
+        return Self(foreground: foreground, geometry: geometry,
+                    sceneFrame: CGRect(x: 0, y: 0, width: bounds.width, height: bounds.height),
+                    identity: NSDictionary(dictionary: monitor.filter { keys.contains($0.key) }))
     }
 
     // FrontBoard can report orientation zero on a single-display phone. Use
@@ -116,13 +121,53 @@ extension GuestAPI {
                                             clickableOnly: Bool = false, limit: Int? = nil) throws -> ([String: Any], SemanticGeometry) {
         let snapshot = try SemanticGeometry.current()
         let result = try withInterfaceGeometry(snapshot.geometry) {
-            try uiElements(maxElements: maxElements, visibleOnly: visibleOnly, clickableOnly: clickableOnly, limit: limit)
+            snapshot.foreground.bundle == springboardBundle
+                ? try springboardElements(pid: snapshot.foreground.pid, maxElements: maxElements,
+                                          visibleOnly: visibleOnly, clickableOnly: clickableOnly, limit: limit)
+                : try uiElements(maxElements: maxElements, visibleOnly: visibleOnly, clickableOnly: clickableOnly, limit: limit)
         }
         guard result["source"] as? String == "ax", semanticNumber(result["pid"]) == Double(snapshot.foreground.pid) else {
             throw IcliError.unavailable("Accessibility query did not belong to the verified foreground process")
         }
         try snapshot.confirm()
         return (result, snapshot)
+    }
+
+    /// IcliKit's `uiElements` against SpringBoard's pid: its own helper needs a verified frontmost app.
+    private static func springboardElements(pid: Int, maxElements: Int, visibleOnly: Bool,
+                                            clickableOnly: Bool, limit: Int?) throws -> [String: Any] {
+        guard (1 ... 2000).contains(maxElements), limit == nil || (limit! > 0 && limit! <= 2000) else {
+            throw IcliError.failed("element limits must be between 1 and 2000")
+        }
+        var result = try decodeIcliAX(vp_icli_ax_elements(Int32(pid), Int32(maxElements)))
+        var elements = result["elements"] as? [[String: Any]] ?? []
+        if visibleOnly { elements = elements.filter { $0["visible"] as? Bool == true } }
+        if clickableOnly { elements = elements.filter { $0["clickable"] as? Bool == true } }
+        if let limit { elements = Array(elements.prefix(limit)) }
+        result["elements"] = elements
+        result["count"] = elements.count
+        return result
+    }
+
+    /// The JSON dictionary an icli accessibility call returned, or its `error` as a failure.
+    static func decodeIcliAX(_ json: String?) throws -> [String: Any] {
+        guard let json, let result = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] else {
+            throw IcliError.failed("invalid AX response")
+        }
+        if let message = result["error"] as? String { throw IcliError.failed(message) }
+        return result
+    }
+
+    /// `ui.element_at`: IcliKit's query, except at SpringBoard, which it cannot address.
+    static func elementAtForeground(x: Double, y: Double) throws -> [String: Any] {
+        let foreground = try verifiedForeground()
+        guard foreground.bundle == springboardBundle else { return try elementAt(x: x, y: y) }
+        let screen = screenInfo()
+        guard x.isFinite, y.isFinite, x >= 0, y >= 0,
+              let width = (screen["width"] as? NSNumber)?.doubleValue, x < width,
+              let height = (screen["height"] as? NSNumber)?.doubleValue, y < height
+        else { throw IcliError.failed("coordinates must be finite points inside the screen") }
+        return try decodeIcliAX(vp_icli_ax_element_at(Int32(foreground.pid), x, y))
     }
 
     // Mirrors ElementSelector.matches in Icli 1.0.0 (bd25a1d0),

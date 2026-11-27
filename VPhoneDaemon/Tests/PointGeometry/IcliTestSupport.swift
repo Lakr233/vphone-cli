@@ -3,12 +3,6 @@ import IcliPrivate
 
 // UIKit/HID boundaries only. The scope and conversion core are compiled from
 // the pinned Icli checkout, and the daemon's real handlers call this witness.
-public enum IcliError: Error {
-    case failed(String), unavailable(String)
-    public var code: String { "unavailable" }
-    public var message: String { switch self { case let .failed(s), let .unavailable(s): s } }
-}
-
 public enum PointInputWitness {
     nonisolated(unsafe) public static var locked = true
     nonisolated(unsafe) public static var snapshotReads = 0
@@ -78,17 +72,6 @@ public func pressButton(_ name: String) throws -> [String: Any] { unscoped() }
 public func pressKey(_ name: String) throws -> [String: Any] { unscoped() }
 public func typeText(_ text: String, delayMS: Double) throws -> [String: Any] { unscoped() }
 public func pasteText(_ text: String) throws -> [String: Any] { unscoped() }
-public enum SemanticInputWitness {
-    nonisolated(unsafe) public static var foreground: [String: Any] = [:]
-    nonisolated(unsafe) public static var apps: [[String: Any]] = []
-    nonisolated(unsafe) public static var axPID = 42
-    nonisolated(unsafe) public static var elements: [[String: Any]] = []
-    nonisolated(unsafe) public static var truncated = false
-    nonisolated(unsafe) public static var queriedWidths: [Double] = []
-    nonisolated(unsafe) public static var afterQuery: (() -> Void)?
-}
-public func frontmostApp() -> [String: Any] { SemanticInputWitness.foreground }
-public func runningApps() throws -> [String: Any] { ["apps": SemanticInputWitness.apps] }
 func requirePointInput() throws {}
 public func uiElements(maxElements: Int = 2000, visibleOnly: Bool = true, clickableOnly: Bool = false,
                        limit: Int? = nil) throws -> [String: Any] {

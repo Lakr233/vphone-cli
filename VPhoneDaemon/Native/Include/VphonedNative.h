@@ -293,6 +293,23 @@ BOOL vp_attitude_set(double roll, double pitch, double yaw, bool enabled);
 /// Snapshot-local nested accessibility tree, using actual private iOS child links.
 NSDictionary * _Null_unspecified vp_ax_hierarchy(int pid, int maxElements, int maxDepth, int timeoutMS);
 
+/// IcliKit's accessibility queries against an explicit `pid` (IcliKit's own helpers need a verified
+/// frontmost app, which the Home Screen is not). Each returns the JSON text, or nil on a NULL result.
+NSString * _Nullable vp_icli_ax_elements(int pid, int maxElements);
+NSString * _Nullable vp_icli_ax_element_at(int pid, double x, double y);
+
+/// Resolves one element of `pid`'s accessibility tree by `selector` (text, identifier, role,
+/// match, index, path) and performs `operation` (op: attributes, action, focus, set_value).
+/// Returns the result, or `{error, message, count?}` with error one of not_found, ambiguous,
+/// stale, ax_failure, unavailable, invalid_request.
+NSDictionary * _Null_unspecified vp_ax_element(int pid, NSDictionary * _Null_unspecified selector, NSDictionary * _Null_unspecified operation);
+
+/// Accessibility features through libAccessibility: `{features, unavailable}` for `feature` (all when
+/// nil), and `{feature, value}` read back after a set. Failures are `{error, message}` with error one
+/// of invalid_request, unavailable, ax_failure.
+NSDictionary * _Null_unspecified vp_ax_settings_get(NSString * _Null_unspecified feature);
+NSDictionary * _Null_unspecified vp_ax_settings_set(NSString * _Null_unspecified feature, id _Null_unspecified value);
+
 /// `interface`'s IPv4 settings in configd's network preferences: `method`
 /// (dhcp or manual), `address`, `subnet_mask`, `router`, `dns`, and `managed`
 /// when vphoned wrote them. Nil with `*error` set when there is no such service.

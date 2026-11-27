@@ -1,9 +1,13 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import IcliKit
 import MachO
 
 // MARK: - Harness
+
+/// The extension target of the verified-foreground check; only this runner needs a bare one.
+enum GuestAPI {}
 
 /// Checks the guest-independent parts of vphoned on the Mac: the service
 /// profile lists and bookkeeping, the first-boot settle verdict (data
@@ -56,8 +60,153 @@ enum LogicTests {
         observeWrapper()
         observeUnknownParams()
         observeCatalog()
+        do { try foregroundOutcomes() } catch { expect(false, "foreground outcomes threw \(error)") }
+        elementRequests()
+        accessibilityRequests()
         print("\(checks) checks, \(failures) failures")
         exit(failures == 0 ? 0 : 1)
+    }
+
+    /// `ui.element.*` parameter validation and the native error codes' mapping.
+    static func elementRequests() {
+        func code(_ operation: GuestElementRequest.Operation, _ params: [String: Any]) -> String {
+            do { _ = try GuestElementRequest.build(operation, params); return "ok" } catch let error as GuestAPIError { return error.code } catch { return "\(error)" }
+        }
+        func invalid(_ params: [String: Any], _ message: String) {
+            expectEqual(code(.attributes, params), "invalid_param", message)
+        }
+        expectEqual(code(.attributes, ["text": "Settings"]), "ok", "text alone")
+        expectEqual(code(.attributes, ["role": "button", "match": "exact", "index": 1]), "ok", "role, match, index")
+        expectEqual(code(.attributes, ["path": [0, 2]]), "ok", "path alone")
+        expectEqual(code(.attributes, ["path": [Int]()]), "ok", "empty path is the root")
+        invalid([:], "no selector field")
+        invalid(["match": "exact"], "match alone")
+        invalid(["text": "  "], "blank text")
+        invalid(["identifier": ""], "empty identifier")
+        invalid(["role": 3], "non-string role")
+        invalid(["text": "a", "match": "regex"], "unknown match")
+        invalid(["text": "a", "index": -1], "negative index")
+        invalid(["text": "a", "index": 1.5], "fractional index")
+        invalid(["text": "a", "index": true], "boolean index")
+        invalid(["path": "0,1"], "path not an array")
+        invalid(["path": [0, -1]], "negative path step")
+        invalid(["path": [0, "1"]], "string path step")
+        invalid(["path": [0], "index": 0], "index with path")
+        expectEqual(code(.setValue, ["text": "a"]), "invalid_param", "set_value without value")
+        expectEqual(code(.setValue, ["text": "a", "value": 5]), "invalid_param", "set_value with a number")
+        expectEqual(code(.setValue, ["text": "a", "value": ""]), "ok", "set_value empty string")
+        expectEqual(code(.activate, ["text": "a", "action": 1]), "invalid_param", "non-string action")
+        let activate = try? GuestElementRequest.build(.activate, ["text": "a"])
+        expectEqual(activate?.operation["name"] as? String, "activate", "action defaults to activate")
+
+        func mapped(_ native: [String: Any]?) -> (code: String, message: String) {
+            do { _ = try GuestElementRequest.result(native); return ("ok", "") } catch let error as GuestAPIError { return (error.code, String(describing: error)) } catch { return ("\(error)", "") }
+        }
+        expectEqual(mapped(["error": "not_found", "message": "none"]).code, "not_found", "not_found")
+        expectEqual(mapped(["error": "invalid_request", "message": "bad"]).code, "invalid_param", "native invalid_request is invalidRequest")
+        expectEqual(mapped(["error": "unavailable", "message": "no"]).code, "unavailable", "unavailable")
+        expectEqual(mapped(["error": "ax_failure", "message": "x"]).code, "invalid_operation", "ax_failure")
+        let ambiguous = mapped(["error": "ambiguous", "message": "3 elements match", "count": 3])
+        expectEqual(ambiguous.code, "invalid_operation", "ambiguous code")
+        expectEqual(ambiguous.message, "ambiguous: 3 elements match", "ambiguous message prefix")
+        expectEqual(mapped(["error": "stale", "message": "moved"]).message, "stale: moved", "stale message prefix")
+        expectEqual(mapped(nil).code, "invalid_operation", "nil native")
+        expectEqual(mapped(["label": "x"]).code, "ok", "a success passes through")
+    }
+
+    /// `accessibility.get` / `accessibility.set` parameter validation and the native error mapping.
+    static func accessibilityRequests() {
+        func getCode(_ params: [String: Any]) -> String {
+            do { _ = try GuestAccessibilityRequest.get(params); return "ok" } catch let error as GuestAPIError { return error.code } catch { return "\(error)" }
+        }
+        func setCode(_ params: [String: Any]) -> (code: String, message: String) {
+            do { _ = try GuestAccessibilityRequest.set(params); return ("ok", "") } catch let error as GuestAPIError { return (error.code, String(describing: error)) } catch { return ("\(error)", "") }
+        }
+        expectEqual(getCode([:]), "ok", "get with no feature")
+        expectEqual(getCode(["feature": "text_size"]), "ok", "get one feature")
+        expectEqual(getCode(["feature": "brightness"]), "invalid_param", "get unknown feature")
+        expectEqual(getCode(["feature": 3]), "invalid_param", "get non-string feature")
+        expectEqual(setCode(["feature": "voiceover", "value": true]).code, "ok", "set bool")
+        expectEqual(setCode(["feature": "reduce_motion", "value": false]).code, "ok", "set bool false")
+        expectEqual(setCode(["feature": "text_size", "value": "ax5"]).code, "ok", "set text size")
+        let unknown = setCode(["feature": "brightness", "value": true])
+        expectEqual(unknown.code, "invalid_param", "set unknown feature")
+        expect(unknown.message.contains("full_keyboard_access"), "unknown feature names the allowed features")
+        expectEqual(setCode(["value": true]).code, "invalid_param", "set without feature")
+        for bad: Any in [1, "true", NSNull()] {
+            let result = setCode(["feature": "switch_control", "value": bad])
+            expectEqual(result.code, "invalid_param", "bool feature rejects \(bad)")
+            expect(result.message.contains("true or false"), "bool message names true or false")
+        }
+        expectEqual(setCode(["feature": "switch_control"]).code, "invalid_param", "set without value")
+        for bad: Any in ["huge", "XL", true, 3] {
+            let result = setCode(["feature": "text_size", "value": bad])
+            expectEqual(result.code, "invalid_param", "text_size rejects \(bad)")
+            expect(result.message.contains("xxxl") && result.message.contains("ax5"), "text_size message names the sizes")
+        }
+        let stored = try? GuestAccessibilityRequest.set(["feature": "text_size", "value": "xl"])
+        expectEqual(stored?.value as? String, "xl", "text size passes through as the short name")
+
+        func mapped(_ native: [String: Any]?) -> String {
+            do { _ = try GuestAccessibilityRequest.result(native); return "ok" } catch let error as GuestAPIError { return error.code } catch { return "\(error)" }
+        }
+        expectEqual(mapped(["error": "invalid_request", "message": "bad"]), "invalid_param", "native invalid_request")
+        expectEqual(mapped(["error": "unavailable", "message": "no"]), "unavailable", "native unavailable")
+        expectEqual(mapped(["error": "ax_failure", "message": "x"]), "invalid_operation", "native ax_failure")
+        expectEqual(mapped(nil), "invalid_operation", "nil native")
+        expectEqual(mapped(["features": [String: Any](), "unavailable": [String]()]), "ok", "a success passes through")
+        preConfirmation()
+    }
+
+    /// `GuestAccessibilityRequest.apply`: the first-use confirmation is written before the setter.
+    static func preConfirmation() {
+        struct Failure: Error {}
+        final class Recorder { var events: [String] = [] }
+        func run(_ feature: String, _ value: Any, availableError: Error? = nil, writeError: Error? = nil)
+            -> (events: [String], error: GuestAPIError?)
+        {
+            let recorder = Recorder()
+            do {
+                _ = try GuestAccessibilityRequest.apply(
+                    feature: feature,
+                    value: value,
+                    available: {
+                        recorder.events.append("available")
+                        if let availableError { throw availableError }
+                    },
+                    write: { domain, key, written in
+                        recorder.events.append("write \(domain) \(key) \(written)")
+                        if let writeError { throw writeError }
+                    },
+                    set: { recorder.events.append("set"); return [:] },
+                )
+                return (recorder.events, nil)
+            } catch let error as GuestAPIError {
+                return (recorder.events, error)
+            } catch {
+                return (recorder.events, GuestAPIError.operationFailed("\(error)"))
+            }
+        }
+        let voiceover = run("voiceover", true)
+        expectEqual(voiceover.events, ["available", "write com.apple.Accessibility VoiceOverTouchUsageConfirmed 1", "set"], "voiceover true writes once, before set")
+        let switchControl = run("switch_control", true)
+        expectEqual(switchControl.events, ["available", "write com.apple.AssistiveTouch AXSAssistiveTouchSwitchUsageConfirmedPreference true", "set"], "switch_control true writes once, before set")
+        for feature in ["voiceover", "switch_control"] {
+            expectEqual(run(feature, false).events, ["available", "set"], "\(feature) false never writes")
+        }
+        for feature in ["assistive_touch", "reduce_motion", "full_keyboard_access"] {
+            expectEqual(run(feature, true).events, ["available", "set"], "\(feature) true never writes")
+        }
+        expectEqual(run("text_size", "xl").events, ["available", "set"], "text_size never writes")
+
+        let failed = run("voiceover", true, writeError: Failure())
+        expectEqual(failed.events.last, "write com.apple.Accessibility VoiceOverTouchUsageConfirmed 1", "a failed write is the last call; set is not called")
+        expectEqual(failed.error?.code, "invalid_operation", "a write failure is operationFailed")
+        expect(String(describing: failed.error as Any).contains("voiceover: pre-confirm write failed:"), "a write failure names the feature and the failed write")
+
+        let missing = run("switch_control", true, availableError: GuestAPIError.unavailable("no"))
+        expectEqual(missing.events, ["available"], "an unavailable row calls neither write nor set")
+        expectEqual(missing.error?.code, "unavailable", "unavailable propagates")
     }
 
     static func settingsValue() {
@@ -1716,6 +1865,65 @@ enum LogicTests {
         _ = dispatch("input.tap", [:])
         expect(Date().timeIntervalSince(plainStart) < 0.5, "a plain call finishes while an observe call sleeps")
         while !sleeper.isFinished { Thread.sleep(forTimeInterval: 0.05) }
+    }
+
+    /// Every outcome of the verified-foreground check, through the shared IcliKit stub.
+    /// `runningApps()` never lists SpringBoard; its pid comes from the process list.
+    static func foregroundOutcomes() throws {
+        let board = "com.apple.springboard"
+        let boardExecutable = "/System/Library/CoreServices/SpringBoard.app/SpringBoard"
+        func setForeground(_ front: [String: Any], pid: Any = 99) {
+            SemanticInputWitness.foreground = front
+            SemanticInputWitness.apps = [["bundle_id": "com.example.reader", "pid": 42]]
+            SemanticInputWitness.processes = [["executable": "/usr/libexec/locationd", "pid": 7], ["executable": boardExecutable, "pid": pid]]
+        }
+        // A verified result is used as reported, SpringBoard included.
+        setForeground(["bundle_id": "com.example.reader", "verified": true])
+        var front = try GuestAPI.verifiedForeground()
+        expect(front.bundle == "com.example.reader" && front.pid == 42 && front.verified, "foreground: verified app used as reported")
+        setForeground(["bundle_id": board, "verified": true, "source": "ax"])
+        front = try GuestAPI.verifiedForeground()
+        expect(front.pid == 99 && front.verified, "foreground: verified springboard takes its pid from the process list")
+        // Unverified SpringBoard is accepted for exactly the two non-app sources.
+        for source in ["unavailable", "springboard_query"] {
+            setForeground(["bundle_id": board, "verified": false, "source": source])
+            front = try GuestAPI.verifiedForeground()
+            expect(front.bundle == board && front.pid == 99 && !front.verified && front.source == source, "foreground: unverified springboard accepted for source \(source)")
+        }
+        let refused: [(String, [String: Any], Any)] = [
+            ("unverified springboard, other source", ["bundle_id": board, "verified": false, "source": "frontboard"], 99),
+            ("unverified springboard, no source", ["bundle_id": board, "verified": false], 99),
+            ("unverified app, unavailable source", ["bundle_id": "com.example.reader", "verified": false, "source": "unavailable"], 42),
+            ("unverified app, springboard_query source", ["bundle_id": "com.example.reader", "verified": false, "source": "springboard_query"], 42),
+            ("verified is not a boolean", ["bundle_id": board, "verified": 0, "source": "unavailable"], 99),
+            ("no verified key", ["bundle_id": board, "source": "unavailable"], 99),
+            ("blank bundle", ["bundle_id": "", "verified": true], 99),
+            ("no bundle", ["verified": true], 99),
+            ("springboard pid 1", ["bundle_id": board, "verified": false, "source": "unavailable"], 1),
+            ("springboard pid is a string", ["bundle_id": board, "verified": false, "source": "unavailable"], "99"),
+        ]
+        for (name, state, pid) in refused {
+            setForeground(state, pid: pid)
+            do { _ = try GuestAPI.verifiedForeground(); expect(false, "foreground accepted: \(name)") } catch {}
+        }
+        let unverifiedBoard: [String: Any] = ["bundle_id": board, "verified": false, "source": "unavailable"]
+        setForeground(unverifiedBoard)
+        SemanticInputWitness.processes = [["executable": "/usr/libexec/locationd", "pid": 7]]
+        do { _ = try GuestAPI.verifiedForeground(); expect(false, "foreground accepted: no springboard row") } catch {}
+        setForeground(unverifiedBoard)
+        SemanticInputWitness.processes?.append(["executable": boardExecutable, "pid": 100])
+        do { _ = try GuestAPI.verifiedForeground(); expect(false, "foreground accepted: two springboard rows") } catch {}
+        setForeground(unverifiedBoard)
+        SemanticInputWitness.processes = nil
+        do { _ = try GuestAPI.verifiedForeground(); expect(false, "foreground accepted: process list threw") } catch {}
+        // SpringBoard is never read from runningApps().
+        setForeground(unverifiedBoard)
+        SemanticInputWitness.processes = []
+        SemanticInputWitness.apps.append(["bundle_id": board, "pid": 99])
+        do { _ = try GuestAPI.verifiedForeground(); expect(false, "foreground accepted: springboard only in runningApps") } catch {}
+        setForeground(["bundle_id": "", "verified": true])
+        SemanticInputWitness.apps.append(["bundle_id": "", "pid": 50])
+        do { _ = try GuestAPI.verifiedForeground(); expect(false, "foreground accepted: blank bundle that is running") } catch {}
     }
 
     enum DeclaredFixture: String, GuestMethod {
