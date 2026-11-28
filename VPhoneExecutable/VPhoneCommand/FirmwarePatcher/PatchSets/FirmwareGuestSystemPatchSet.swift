@@ -68,6 +68,8 @@ public enum FirmwareGuestSystemPatchSet {
     public static let attitude = "system-apps-cfw-attitude"
     public static let followUpGroups = "system-preferences-cfw-followup_groups"
     public static let signInSheets = "system-apps-cfw-signin_sheets"
+    public static let videoDecoderFlow = "system-videocodecd-cfw-pv_decoder_flow"
+    public static let videoDecoderFlowMarker = "/usr/lib/vphone-video-decoder"
     public static let arm64eX1DyldBootstrap = "system-dyld-boot-arm64e_x1_bootstrap"
     public static let arm64eX1CacheBootstrap = "dyld-boot-arm64e_x1_bootstrap"
     public static let arm64eX1CacheRemaining = "dyld-cfw-arm64e_x1_cache"
@@ -1056,6 +1058,13 @@ public enum FirmwareGuestSystemPatchSet {
                 title: "Suppress sign-in sheets",
                 summary: "Installs libsigninfix.dylib, loaded by SystemHook into every app. Drops Apple Account, iCloud, Game Center and Media & Purchases sign-in sheets; account daemons are untouched. Removing the library restores the sheets on the next app launch.",
                 target: .guestFile(path: "/usr/lib/libsigninfix.dylib"),
+            ),
+
+            VPhonePatchDeclaration(
+                identifier: videoDecoderFlow,
+                title: "PV video decoder flow",
+                summary: "Keeps pixel-buffer requests moving during frame-output backpressure in videocodecd, protects decoder lifetime, and excludes output callbacks from decode-reply timeouts. Enabled by standard; skips unsupported cache layouts. Requires an arm64e iOS/iPadOS cache and UUID-checked metadata. Removing the library and metadata restores native behavior at the next daemon launch.",
+                target: .guestFile(path: "/usr/lib/libvphonevideodecode.dylib"),
             ),
 
             // MARK: Motion

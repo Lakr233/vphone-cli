@@ -193,6 +193,7 @@ static int vpExecve(const char *path, char *const argv[], char *const envp[]) {
 // SpringBoard. See FoldDisplay/libvphonefolddisplay.m.
 #define VP_FOLD_DISPLAY "/usr/lib/libvphonefolddisplay.dylib"
 #define VP_ATTITUDE_HOOK "/usr/lib/libvphoneattitude.dylib"
+#define VP_VIDEO_DECODE_HOOK "/usr/lib/libvphonevideodecode.dylib"
 #define VP_AVFOUNDATION "/System/Library/Frameworks/AVFoundation.framework/AVFoundation"
 // The haptics fix rides the same route and needs no loader of its own. See
 // HapticsFix/libhapticsfix.c for what it answers and why SpringBoard is the
@@ -297,6 +298,10 @@ __attribute__((constructor)) static void vpLogProcess(void) {
     if (strcmp(name, "vphoned") == 0 || strcmp(name, "logd") == 0 ||
         strcmp(name, "notifyd") == 0 || strcmp(name, "usermanagerd") == 0)
         return;
+    if (strcmp(path, "/usr/libexec/videocodecd") == 0) {
+        vpLoadLibrary("video-decoder", VP_VIDEO_DECODE_HOOK);
+        return;
+    }
     if (vpIsCameraDaemon(path)) {
         vpLoadLibrary("camera-hook", VP_CAMERA_DAEMON_HOOK);
         return;

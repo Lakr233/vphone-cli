@@ -13,6 +13,7 @@ public enum VPhoneGuestEnvironment {
         "libcamfix.dylib",
         "libmisfix.dylib",
         "libhapticsfix.dylib",
+        "libvphonevideodecode.dylib",
         "libbatteryhealthfix.dylib",
         "libdevicehubfix.dylib",
         "libdevicename.dylib",
@@ -36,6 +37,7 @@ public enum VPhoneGuestEnvironment {
     /// Selection installs/removes these. A live hash sync may replace an
     /// installed copy, but must never reinstall a patch the user turned off.
     public static let selectedLibraries: Set<String> = [
+        "libvphonevideodecode.dylib",
         "libprefsfix.dylib", "libsigninfix.dylib", "libvphoneios17desktop.dylib", "libvphoneios16migration.dylib", "libvphoneios16desktop.dylib",
         "libvphonegyro.dylib", "libvphoneaccelerometer.dylib", "libvphoneattitude.dylib",
         "libvphonehinge.dylib", "libvphonefoldguard.dylib", "libvphonefolddisplay.dylib",

@@ -106,6 +106,12 @@ HINGE := $(STAGE)/hinge/libvphonehinge.dylib
 HINGE_SOURCES := $(call find_sources,Hinge) MISFix/MISFixDetour.c MISFix/MISFixConfig.c
 HINGE_INPUTS := $(call find_headers,Hinge) $(call find_folders,Hinge) MISFix/MISFixDetour.h \
 	MISFix/MISFixConditionalBranch.h MISFix/MISFixConfig.h
+# PV frame decoder compatibility lives only in videocodecd. Its private entry
+# points are discovered from the selected guest cache during cfw installation.
+VIDEODECODE := $(STAGE)/videodecode/libvphonevideodecode.dylib
+VIDEODECODE_SOURCES := $(call find_sources,VideoDecodeFix) MISFix/MISFixDetour.c MISFix/MISFixConfig.c
+VIDEODECODE_INPUTS := $(call find_headers,VideoDecodeFix) $(call find_folders,VideoDecodeFix) \
+	MISFix/MISFixDetour.h MISFix/MISFixConditionalBranch.h MISFix/MISFixConfig.h
 # The SpringBoard guard that lets the foldable product identity survive on a
 # single-display guest. See FoldGuard/libvphonefoldguard.m.
 FOLDGUARD := $(STAGE)/foldguard/libvphonefoldguard.dylib
@@ -228,7 +234,7 @@ GPU_DYNAMIC_LOOKUP_SYMS := \
 VIRTIOSOUND := $(STAGE)/virtiosound/VPhoneVirtIOSound.driver
 VIRTIOSOUND_SOURCES := $(wildcard VirtIOSound/*.m VirtIOSound/*.c)
 VIRTIOSOUND_INCLUDES := $(wildcard VirtIOSound/*.h) VirtIOSound/Info.plist VirtIOSound/AudioServerDriver.tbd
-ARTIFACTS := $(IOS16DESKTOP) $(IOS16MIGRATION) $(IOS17DESKTOP) $(CAMFIX) $(VCAMCAPTURED) $(LAUNCHHOOK) $(SYSTEMHOOK) $(MISFIX) $(HAPTICSFIX) $(BATTERYHEALTHFIX) $(DEVICEHUBFIX) $(DEVICENAME) $(PREFSFIX) $(SIGNINFIX) $(GYROSCOPE) $(ACCELEROMETER) $(HINGE) $(FOLDGUARD) $(FOLDDISPLAY) $(ATTITUDE) $(HOMEPODDISPLAY) $(CRYPTEXSTAGING) $(HOMEPODPERSONA) $(HOMEPODMISFIX) $(HOMEPODSETUP) $(TVSETUPFOCUS) $(GPU_PLUGIN) $(VIRTIOSOUND) $(VISIONOSIPC) $(VISIONOSPREFERENCES)
+ARTIFACTS := $(IOS16DESKTOP) $(IOS16MIGRATION) $(IOS17DESKTOP) $(CAMFIX) $(VCAMCAPTURED) $(LAUNCHHOOK) $(SYSTEMHOOK) $(MISFIX) $(HAPTICSFIX) $(BATTERYHEALTHFIX) $(DEVICEHUBFIX) $(DEVICENAME) $(PREFSFIX) $(SIGNINFIX) $(GYROSCOPE) $(ACCELEROMETER) $(HINGE) $(FOLDGUARD) $(FOLDDISPLAY) $(ATTITUDE) $(VIDEODECODE) $(HOMEPODDISPLAY) $(CRYPTEXSTAGING) $(HOMEPODPERSONA) $(HOMEPODMISFIX) $(HOMEPODSETUP) $(TVSETUPFOCUS) $(GPU_PLUGIN) $(VIRTIOSOUND) $(VISIONOSIPC) $(VISIONOSPREFERENCES)
 PLISTS := $(STAGE)/camfix/libcamfix.plist $(STAGE)/vcamcaptured/libvcamcaptured.plist \
 	$(STAGE)/misfix/libmisfix.plist
 GPU_PROVENANCE := $(STAGE)/gpu/README.md
@@ -274,7 +280,7 @@ gpu: $(GPU_PLUGIN)
 
 package: all
 	@rm -f $(ARCHIVE)
-	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) ios16desktop ios16migration ios17desktop camfix vcamcaptured launchhook systemhook misfix hapticsfix batteryhealthfix devicehubfix devicename prefsfix signinfix gyroscope accelerometer hinge foldguard attitude homepoddisplay cryptexstaging homepodpersona homepodmisfix homepodsetup tvsetupfocus gpu virtiosound folddisplay visionosipc visionospreferences
+	@/usr/bin/tar -cf $(ARCHIVE) -C $(STAGE) ios16desktop ios16migration ios17desktop camfix vcamcaptured launchhook systemhook misfix hapticsfix batteryhealthfix devicehubfix devicename prefsfix signinfix gyroscope accelerometer hinge foldguard attitude videodecode homepoddisplay cryptexstaging homepodpersona homepodmisfix homepodsetup tvsetupfocus gpu virtiosound folddisplay visionosipc visionospreferences
 	@echo "Packaged $(ARCHIVE)"
 
 test-loader-links:
@@ -428,6 +434,30 @@ $(HAPTICSFIX): $(HAPTICSFIX_SOURCES) $(HAPTICSFIX_INCLUDES) HapticsFix | $(STAGE
 		-o $@ $(HAPTICSFIX_SOURCES) -lobjc \
 		-Wl,-not_for_dyld_shared_cache
 	@codesign --force --sign - $@
+
+$(STAGE)/videodecode:
+	@mkdir -p $@
+
+$(VIDEODECODE): $(VIDEODECODE_SOURCES) $(VIDEODECODE_INPUTS) Makefile | $(STAGE)/videodecode
+	# Admission follows the guest cache, including older compatible userlands.
+	$(CLANG) -arch arm64e -miphoneos-version-min=16.0 -Os -fobjc-arc -fblocks -Wall -Wextra -Werror -IMISFix -dynamiclib \
+		-install_name /usr/lib/libvphonevideodecode.dylib -o $@ $(VIDEODECODE_SOURCES) \
+		-framework Foundation -framework VideoToolbox -framework CoreMedia -Wl,-not_for_dyld_shared_cache
+	@codesign --force --sign - $@
+
+.PHONY: test-video-decode-flow test-video-decode-hooks
+test-video-decode-flow:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -fblocks -Wall -Wextra -Werror -IVideoDecodeFix \
+		-o $(OUT)/VideoDecodeFlowTests Tests/VideoDecodeFlowTests.c VideoDecodeFix/VPVideoDecodeFlow.c
+	@$(OUT)/VideoDecodeFlowTests
+
+test-video-decode-hooks:
+	@mkdir -p $(OUT)
+	xcrun --sdk macosx clang -Os -fobjc-arc -fblocks -Wall -Wextra -Werror -IMISFix \
+		-o $(OUT)/VideoDecodeHooksTests Tests/VideoDecodeHooksTests.m VideoDecodeFix/VPVideoDecodeFlow.c \
+		-framework Foundation -framework VideoToolbox -framework CoreMedia
+	@$(OUT)/VideoDecodeHooksTests
 
 $(BATTERYHEALTHFIX): $(BATTERYHEALTHFIX_SOURCES) $(BATTERYHEALTHFIX_INCLUDES) BatteryHealthFix | $(STAGE)/batteryhealthfix
 	$(CLANG) $(GUEST_C_FLAGS) -dynamiclib \

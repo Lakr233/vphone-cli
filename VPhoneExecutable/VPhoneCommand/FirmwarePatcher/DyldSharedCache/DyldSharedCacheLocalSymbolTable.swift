@@ -179,6 +179,25 @@ public struct DyldSharedCacheLocalSymbolTable: Sendable {
         return result
     }
 
+    /// File-local C names may repeat within one image. Callers that distinguish
+    /// them by code shape must see every candidate instead of the first one.
+    public func addresses(of name: String, in entry: ImageEntry) -> [UInt64] {
+        let wanted = Array(name.utf8)
+        let end = min(entry.nlistStartIndex + entry.nlistCount, nlistCount)
+        guard entry.nlistStartIndex >= 0, entry.nlistStartIndex < end else { return [] }
+        return file.withUnsafeBytes { bytes in
+            var result = Set<UInt64>()
+            for index in entry.nlistStartIndex..<end {
+                let offset = nlistBase + index * 16
+                let stringIndex = Int(bytes.loadUnaligned(fromByteOffset: offset, as: UInt32.self).littleEndian)
+                guard matches(wanted, in: bytes, atStringIndex: stringIndex) else { continue }
+                let address = bytes.loadUnaligned(fromByteOffset: offset + 8, as: UInt64.self).littleEndian
+                if address != 0 { result.insert(address) }
+            }
+            return result.sorted()
+        }
+    }
+
     /// The entry whose image starts at `dylibOffset` (a cache VM offset).
     public func entry(forDylibOffset dylibOffset: UInt64) -> ImageEntry? {
         entries.first { $0.dylibOffset == dylibOffset }
