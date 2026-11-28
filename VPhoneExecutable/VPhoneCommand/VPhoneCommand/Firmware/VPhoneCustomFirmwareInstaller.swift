@@ -534,6 +534,15 @@ struct VPhoneCustomFirmwareInstaller {
             // pool drains what Foundation and MachOKit autorelease here too,
             // such as the guest's shared cache mapped by in-process patchers.
             let systemRoot = try openGuestVolume("system", device: "\(container)s1", in: work)
+            // The library and its cache-bound metadata form one installation.
+            // Never update or remove an existing pair without a transaction,
+            // even when its receipt is missing. No writes have reached this
+            // volume yet. A first install without a clone skips this repair.
+            if !cloned,
+               try systemRoot.exists("usr/lib/libvphonevideodecode.dylib")
+                || systemRoot.exists(String(FirmwareGuestSystemPatchSet.videoDecoderFlowMarker.dropFirst())) {
+                throw ValidationError("PV video decoder updates need a private APFS disk clone so the library and metadata change together; the original disk was left untouched.")
+            }
             let xartRoot = try openGuestVolume("xart", device: "\(container)s3", in: work)
             // `launchd.plist.bak` exists only after a full install's first
             // `installVphoned`, so it is the signal that the guest is not
@@ -575,6 +584,7 @@ struct VPhoneCustomFirmwareInstaller {
                     notApplicable: &notApplicableGuest,
                     kernelPatches: receiptKernel,
                     environmentOnly: false,
+                    privateClone: cloned,
                     strict: isOTAUpdate,
                 )
                 if isOTAUpdate { liveGuest.insert(FirmwareGuestSystemPatchSet.otaUserland) }
@@ -599,6 +609,7 @@ struct VPhoneCustomFirmwareInstaller {
                     notApplicable: &notApplicableGuest,
                     kernelPatches: receiptKernel,
                     environmentOnly: true,
+                    privateClone: cloned,
                 )
             }
             if liveGuest.contains(FirmwareGuestSystemPatchSet.homePodOTAUserland)
@@ -1379,6 +1390,7 @@ struct VPhoneCustomFirmwareInstaller {
         notApplicable: inout Set<String>,
         kernelPatches: Set<String>?,
         environmentOnly: Bool,
+        privateClone: Bool,
         strict: Bool = false,
     ) throws -> Set<String> {
         var live = Set<String>()
@@ -3056,6 +3068,45 @@ struct VPhoneCustomFirmwareInstaller {
             } else {
                 try system.removeItem(safariRenderingMarker)
             }
+        }
+
+        // Resolve after the cache patchers, including arm64e-X1 lowering: the
+        // metadata contains the bytes that will actually execute in the guest.
+        let videoFlow = FirmwareGuestSystemPatchSet.videoDecoderFlow
+        let videoMarker = String(FirmwareGuestSystemPatchSet.videoDecoderFlowMarker.dropFirst())
+        let videoLibrary = "usr/lib/libvphonevideodecode.dylib"
+        var videoMetadata: Data?
+        if on(videoFlow) {
+            if privateClone {
+                do {
+                    // Keep typed discovery errors: only an unsupported layout
+                    // is not applicable; unreadable or corrupt caches fail.
+                    videoMetadata = try DyldSharedCacheVideoDecodeMetadata.metadata(directory: URL(fileURLWithPath: dsc))
+                } catch where DyldSharedCacheVideoDecodeMetadata.isUnsupportedLayout(error) {
+                    notApplicable.insert(videoFlow)
+                    print("  [·] \(videoFlow): unsupported cache; skipping repair: \(error)")
+                }
+            } else {
+                // The preflight above ruled out an existing pair. Leave this
+                // patch pending, not falsely live or permanently inapplicable.
+                failures.append(videoFlow)
+                print("  [!] \(videoFlow): skipped; installing the library and metadata requires a private APFS disk clone")
+            }
+        }
+        // Do not isolate these writes: any failure must discard the private
+        // disk clone, rather than publish half a pair with the prior receipt.
+        if let metadata = videoMetadata {
+            try system.replaceFile(videoLibrary, fromFileAt: VPhoneGuestBinaries.resolve("libvphonevideodecode.dylib"),
+                                   mode: 0o755, owner: Self.guestOwner)
+            // Written last: a library without verified metadata is inactive.
+            try system.writeFile(videoMarker, contents: metadata, mode: 0o644, owner: Self.guestOwner)
+            live.insert(videoFlow)
+            print("  [+] \(videoFlow): installed UUID-checked decoder metadata")
+        } else if privateClone {
+            // Opt-out or an unsupported replacement cache deactivates both
+            // files, including stale metadata from a previously supported OS.
+            try system.removeItem(videoMarker)
+            try system.removeItem(videoLibrary)
         }
 
         if !failures.isEmpty {

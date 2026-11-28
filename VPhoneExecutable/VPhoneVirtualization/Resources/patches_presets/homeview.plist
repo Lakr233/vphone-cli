@@ -73,6 +73,7 @@
 		<string>Block</string>
 		<key>Patches</key>
 		<array>
+			<string>system-videocodecd-cfw-pv_decoder_flow</string>
 			<string>devicetree-exp-arm_io_device_type</string>
 			<string>devicetree-exp-arm_io_soc_generation</string>
 			<string>devicetree-exp-compatible_secondary</string>

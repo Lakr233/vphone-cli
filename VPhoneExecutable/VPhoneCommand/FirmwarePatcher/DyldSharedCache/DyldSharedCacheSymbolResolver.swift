@@ -119,6 +119,29 @@ public final class DyldSharedCacheSymbolResolver {
 
     // MARK: - Lookup
 
+    /// Exact function boundaries from this image's LC_FUNCTION_STARTS. A
+    /// function may return early or tail-call, so the first RET is not its end.
+    public func functionStarts(inImage imagePath: String) throws -> [UInt64] {
+        try autoreleasepool {
+            guard let starts = machOFile(forImage: imagePath)?.functionStarts else {
+                throw PatcherError.patchSiteNotFound("\(imagePath): function starts missing")
+            }
+            return starts.map { UInt64($0.offset) }
+        }
+    }
+
+    /// All definitions of a file-local name in this image, including duplicates.
+    /// The ordinary dictionary lookup intentionally keeps its first-match API.
+    public func addresses(of symbol: String, inImage imagePath: String) throws -> [UInt64] {
+        let header = try headerAddress(ofImage: imagePath)
+        var result = Set<UInt64>()
+        if let first = try symbols(inImage: imagePath)[symbol] { result.insert(first.address) }
+        if let localSymbols, let entry = localSymbols.entry(forDylibOffset: header &- sharedRegionStart) {
+            result.formUnion(localSymbols.addresses(of: symbol, in: entry))
+        }
+        return result.sorted()
+    }
+
     /// Every symbol `imagePath` exposes, as name → resolution.
     ///
     /// Export-trie entries are taken first, so a name that appears in both

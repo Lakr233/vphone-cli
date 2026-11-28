@@ -2,6 +2,28 @@
 
 The [optional guest SOCKS5 add-on](../Addons/SOCKS5/README.md) applies its UDP association fix to the HEV source at build time. It runs on the existing guest firmware.
 
+> **PV video decoder flow in `standard` (2026-11-28).**
+> `system-videocodecd-cfw-pv_decoder_flow` installs a `videocodecd`-only library
+> and UUID-bound metadata discovered from the final guest cache. It separates
+> buffer allocation from blocked frame output, guards decoder lifetime and
+> excludes output callbacks from the existing reply budget. `standard` and
+> `experimental` enable it; other presets leave it off. Existing overrides and
+> receipts migrate from the former `exp` identifier. Selection has no release
+> or device-family whitelist: installation
+> checks the actual arm64e iOS/iPadOS ABI, runtime exports and private code
+> contracts. The library targets iOS 16; other binary platforms and plain
+> arm64 are skipped with an explicit not-applicable receipt. Unknown private
+> layouts also skip; malformed caches and I/O failures still abort. Offline
+> discovery passes on iOS 26.6.1, 26.6.2, 27.0,
+> 27.1 and 27.2; guest playback is measured on 27.0/27.1 only.
+> The repair does not edit VideoToolbox's on-disk instructions. Removing both
+> added files restores native behavior on the next daemon launch. Installation
+> and removal use the private disk-clone transaction. Without a clone, a first
+> installation leaves this repair pending; an existing pair cannot be changed.
+> Root cause, native-host
+> controls, guest on/off/on results and limits are in
+> [the video decoder research note](Guest/hevc_paravirtual_decoder_stall.md).
+
 > **`standard` on a cloudOS 27.2 kernel (2026-11-16).** The 27.2 kernelcache
 > recipe (`27.2_24B119`: cloudOS 27.2's 24B112 kernel with the vphone600 26.4
 > donor kexts) was usable only under `minimal`, which runs no kernel patcher.

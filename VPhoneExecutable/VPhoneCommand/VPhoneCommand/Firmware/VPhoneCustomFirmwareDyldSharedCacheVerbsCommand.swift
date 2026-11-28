@@ -103,6 +103,7 @@ enum VPhoneCustomFirmwareDyldSharedCacheVerbs {
             VPhoneCustomFirmwarePatchIOS16MachPortsCommand.self,
             VPhoneCustomFirmwarePrepareIOS16SurfaceCommand.self,
             VPhoneCustomFirmwarePrepareIOS16FramebufferCommand.self,
+            VPhoneCustomFirmwarePrepareVideoDecoderCommand.self,
             VPhoneCustomFirmwarePatchIOMFBForceKernCommand.self,
             VPhoneCustomFirmwarePatchQuartzCoreUnrotatedFramebufferCommand.self,
             VPhoneCustomFirmwarePatchDyldSharedCacheMaxSlideCommand.self,
@@ -674,6 +675,19 @@ struct VPhoneCustomFirmwarePrepareIOS16SurfaceCommand: ParsableCommand {
     @Argument(transform: URL.init(fileURLWithPath:)) var output: URL
     func run() throws {
         let metadata = try DyldSharedCacheIOS16SurfaceAdapter.metadata(directory: chunksDirectory)
+        try metadata.write(to: output, options: .atomic)
+    }
+}
+
+struct VPhoneCustomFirmwarePrepareVideoDecoderCommand: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "prepare-video-decoder",
+        abstract: "Prepare UUID-checked runtime metadata for the PV video decoder compatibility patch"
+    )
+    @Argument(transform: URL.init(fileURLWithPath:)) var chunksDirectory: URL
+    @Argument(transform: URL.init(fileURLWithPath:)) var output: URL
+    func run() throws {
+        let metadata = try DyldSharedCacheVideoDecodeMetadata.metadata(directory: chunksDirectory)
         try metadata.write(to: output, options: .atomic)
     }
 }

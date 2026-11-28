@@ -125,6 +125,7 @@ public enum FirmwarePatchSetCatalog {
     public static let renamedPatches: [String: String] = [
         "kernel-exp-display_refresh_120hz": proMotionPatch,
         "kernel-exp-paravirt_gpu_task3": paravirtTask3Patch,
+        "system-videocodecd-exp-pv_decoder_flow": FirmwareGuestSystemPatchSet.videoDecoderFlow,
         "preboot-exp-devicetree_foldable_product_id": FirmwareGuestSystemPatchSet.prebootFoldableProductId,
         // Boot-essential until the vphoned step signed launchd.plist itself.
         "filesystem-boot-launchd_cache_loader_unsecure_cache_gate": FirmwareRestoreImagePatchSet.launchdCacheLoader,
@@ -261,6 +262,7 @@ public enum FirmwarePatchSetCatalog {
     /// The standalone X1 images join from their table, so a new entry is blocked
     /// here without a second list.
     public static let tvOSBlockedPatches: Set<String> = Set<String>([
+        FirmwareGuestSystemPatchSet.videoDecoderFlow,
         FirmwareGuestSystemPatchSet.glesDepthClip,
         FirmwareGuestSystemPatchSet.metalCacheReuseKey,
         FirmwareGuestSystemPatchSet.glesPointDraw,

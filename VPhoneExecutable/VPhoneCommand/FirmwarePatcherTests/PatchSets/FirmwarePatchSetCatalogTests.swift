@@ -876,7 +876,10 @@ struct FirmwarePatchSetCatalogTests {
                 FirmwarePatchSetCatalog.proMotionPatch,
                 "kernel-exp-paravirt_gpu_task3",
                 FirmwarePatchSetCatalog.paravirtTask3Patch,
-            ]) == ["kernel-exp-hv_vmm", FirmwarePatchSetCatalog.proMotionPatch, FirmwarePatchSetCatalog.paravirtTask3Patch],
+                "system-videocodecd-exp-pv_decoder_flow",
+                FirmwareGuestSystemPatchSet.videoDecoderFlow,
+            ]) == ["kernel-exp-hv_vmm", FirmwarePatchSetCatalog.proMotionPatch, FirmwarePatchSetCatalog.paravirtTask3Patch,
+                   FirmwareGuestSystemPatchSet.videoDecoderFlow],
         )
     }
 
